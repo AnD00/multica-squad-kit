@@ -122,6 +122,8 @@ Lima では、Lima の既定どおり、使う人に sudo を残す。共有の�
 
 `provision.sh` は、VM の中で root として動き、道具と Docker とデーモンの自動の起動を入れる。何度流しても同じ結果になるように書く。
 
+中での呼び出しは `bash provision.sh lima|wsl USER` にする。確かめは使う人として `bash verify.sh lima|wsl` を流す。テストでは `SQUAD_VM_ROOT` で、設定の書き込み先と `/proc` などの読み取り先の根を一時の置き場へ変える。
+
 1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる
 2. WSL では、使う人を `useradd` で作る。sudo の群には入れない
 3. Docker を rootless で入れる（[Docker](#docker)）
@@ -141,6 +143,10 @@ Docker は rootless で動かす。docker の群に入れた人は、`docker run
 - root の `docker.service` と `docker.socket` は止めて、無効にする
 - 使う人として `dockerd-rootless-setuptool.sh install` を流し、使う人の systemd の `docker.service` を有効にする
 - `docker context use rootless` を設定する。デーモンは環境変数を消して起動するので、`DOCKER_HOST` に頼らず、`~/.docker/config.json` の context でつなぐため
+
+実装では、[公式の Ubuntu の apt 手順](https://docs.docker.com/engine/install/ubuntu/#install-using-the-apt-repository)で、鍵と `docker.sources` を置く。`dbus-user-session` と `apparmor` も入れる。[公式の rootless の前提](https://docs.docker.com/engine/security/rootless/#prerequisites)どおり、使う人の従属 UID と GID が足りなければ、既存の範囲に重ならない 65,536 個を割り当てる。
+
+初回のログイン前でも導入できるよう、linger を入れ、`systemctl start user@UID.service` でユーザーの systemd を起動してから installer を流す。`runuser` で使う人に切り替え、`HOME`、`XDG_RUNTIME_DIR`、`DBUS_SESSION_BUS_ADDRESS` を渡す。[installer の systemd 判定](https://github.com/moby/moby/blob/master/contrib/dockerd-rootless-setuptool.sh)に必要な環境をそろえるためで、全体の自動起動の方式は変えない。
 
 テストの MySQL などのコンテナは、使う人の権限で動く。公開したポートは、Lima では既定の転送でホストの `127.0.0.1` にも見える。
 
