@@ -32,13 +32,11 @@
 (
   set -eu
   release_tag=v1.0.0
-  notes=$(mktemp)
-  trap 'rm -f "$notes"' EXIT
-  git show "$release_tag:CHANGELOG.md" |
-    awk -v heading="## $release_tag" '$0 == heading {found = 1; next} found && /^## / {exit} found' >"$notes"
-  grep -q '[^[:space:]]' "$notes"
-  gh release create "$release_tag" --repo AnD00/multica-squad-kit --verify-tag --title "$release_tag" --notes-file "$notes"
+  notes=$(git show "$release_tag:CHANGELOG.md" |
+    awk -v heading="## $release_tag" '$0 == heading {found = 1; next} found && /^## / {exit} found')
+  test -n "$(printf '%s' "$notes" | tr -d '[:space:]')"
+  gh release create "$release_tag" --repo AnD00/multica-squad-kit --verify-tag --title "$release_tag" --notes "$notes"
 )
 ```
 
-その版の節が空なら、Release を作らずに止まる。`--verify-tag` により、原本にまだ push していないタグでも止まる。Release の作成だけが失敗したときは、タグを作り直さず、このコマンドだけを流し直す。Release のないタグが残っていれば、同じ手順で作る。
+その版の節が空なら、Release を作らずに止まる。一時ファイルを使わないので、zsh の `noclobber` でも bash でも同じに動く。`--verify-tag` により、原本にまだ push していないタグでも止まる。Release の作成だけが失敗したときは、タグを作り直さず、このコマンドだけを流し直す。Release のないタグが残っていれば、同じ手順で作る。
