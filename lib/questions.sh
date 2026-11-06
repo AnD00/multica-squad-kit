@@ -73,7 +73,7 @@ choose_server() {
 		return
 	fi
 	question_total=9
-	question_begin 'サーバーの URL' 'この Mac のデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
+	question_begin 'サーバーの URL' 'このホストのデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
 	while :; do
 		question_prompt ''
 		if ! valid_server "$answer"; then printf '%s\n' 'https:// で始まるサーバーの URL を入力してください。' >&2; continue; fi
@@ -170,7 +170,7 @@ pick_runtimes() {
 	elif [[ $claude_status == 'コマンドが見つかりません' ]]; then default=3
 	elif [[ $codex_status == 'コマンドが見つかりません' ]]; then default=2
 	fi
-	question_begin '使うランタイム' 'エージェントを動かすランタイムです。この Mac に入っていて、エージェント用にログインするものを選びます。' '1（両方）、2（Claude Code だけ）、3（Codex だけ）'
+	question_begin '使うランタイム' 'エージェントを動かすランタイムです。このホストに入っていて、エージェント用にログインするものを選びます。' '1（両方）、2（Claude Code だけ）、3（Codex だけ）'
 	question_items=$(jq -nc --arg claude "$claude_status" --arg codex "$codex_status" '["両方（claude: \($claude)、codex: \($codex)）","Claude Code だけ（claude: \($claude)）","Codex だけ（codex: \($codex)）"]')
 	while :; do
 		pick_numbers "$default" no
@@ -243,7 +243,7 @@ ask_questions() {
 	pick_numbers "$default" no
 	repositories=$(jq -nc --argjson items "$eligible_repos" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $items[$i-1]]')
 	question_squads=$(question_list スクワッド squad list)
-	question_begin 'メンバーの区別' '導入する人の短い目印です。一式の名前の末尾に付き、その人の Mac と AI の利用枠で動く一式を見分けます。1人でも必要です。' 'member1（名字の頭と番号など。英小文字で始まる英小文字と数字の2〜12文字）'
+	question_begin 'メンバーの区別' '導入する人の短い目印です。一式の名前の末尾に付き、その人のホストと AI の利用枠で動く一式を見分けます。1人でも必要です。' 'member1（名字の頭と番号など。英小文字で始まる英小文字と数字の2〜12文字）'
 	ask_key "$(key_default "${question_email%%@*}")" "$(jq -r '.member_key // empty' <<<"$saved")" member
 	member_key=$answer
 	members=$(read_list メンバー workspace member list)
@@ -262,7 +262,7 @@ ask_questions() {
 	while :; do
 		pick_numbers "$default" yes
 		excluded_roles=$(jq -nc --argjson choices "$role_choices" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $choices[$i-1].roles[]]|unique')
-		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; .+"-implementer" as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
+		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; (.+"-implementer") as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
 		printf '%s\n' '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。' >&2
 	done
 	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles}')

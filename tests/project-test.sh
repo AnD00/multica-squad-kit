@@ -68,7 +68,7 @@ case "$event" in
  [[ $(option --instructions "$@") == *停止* && $(option --instructions "$@") != *'{{'* ]]
  name=$(option --name "$@"); id="agent-$name"
  envfile=$(option --custom-env-file "$@")
- [[ $(stat -f %Lp "$envfile") == 600 ]]
+ [[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$envfile") == 600 ]]
  jq -e --arg z "$TEMPLATE_AGENT_HOME/template/shell/project-a" '.ZDOTDIR==$z and .BASH_ENV==($z+"/env.sh") and (.SQUAD_KIT_ALLOWED_REPOS|endswith("/allowed-repos.d/project-a"))' "$envfile" >/dev/null
  cp "$envfile" "$TEST_DB/env/$id.json"
  jq -n --arg id "$id" --arg name "$name" --arg model "$(option --model "$@")" --arg runtime "$(option --runtime-id "$@")" --arg thinking "$(option --thinking-level "$@")" --arg instructions "$(option --instructions "$@")" --argjson max "$(option --max-concurrent-tasks "$@")" '{id:$id,name:$name,owner_id:"actor",model:$model,runtime_id:$runtime,thinking_level:$thinking,instructions:$instructions,max_concurrent_tasks:$max,permission_mode:"private",invocation_targets:[],skills:[]}' >"$TEST_DB/agents/$id.json"

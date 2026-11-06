@@ -260,7 +260,7 @@ for selected in claude codex; do
 	export USAGE_CHECK_RUNTIMES=$selected USAGE_CHECK_STATE_ROOT="$test_dir/$selected-states"
 	selected_bin="$test_dir/$selected-bin"
 	mkdir "$selected_bin"
-	for tool in bash dirname mkdir mktemp jq cat rm head seq grep cut date sleep; do
+	for tool in bash dirname mkdir mktemp jq python3 cat rm head seq grep cut date sleep; do
 		ln -s "$(command -v "$tool")" "$selected_bin/$tool"
 	done
 	ln -s "$test_dir/bin/$selected" "$selected_bin/$selected"

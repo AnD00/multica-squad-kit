@@ -16,7 +16,11 @@ printf 'prepare_project() { echo TEST-project-prepared; }\n' >"$test_dir/package
 printf payload >"$test_dir/package/file with spaces"
 cat >"$test_dir/bin/uname" <<'STUB'
 #!/usr/bin/env bash
-printf '%s\n' "${TEST_OS:-Darwin}"
+if [[ ${1:-} == -r ]]; then
+ printf '%s\n' "${TEST_KERNEL:-6.8.0-generic}"
+else
+ printf '%s\n' "${TEST_OS:-Darwin}"
+fi
 STUB
 cat >"$test_dir/bin/gh" <<'STUB'
 #!/usr/bin/env bash

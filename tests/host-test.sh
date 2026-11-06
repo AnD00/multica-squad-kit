@@ -286,10 +286,10 @@ echo 'PASS host: プロジェクトごとの許可ファイルが、引用符や
 /bin/bash "$test_dir/project.sh" "$root" project-a example/one EXAMPLE/TWO example/one
 printf 'example/one\nexample/two\n' >"$test_dir/selected"
 cmp "$test_dir/selected" "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a"
-[[ $(stat -f %Lp "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a") == 600 ]]
-before_inode=$(stat -f %i "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a")
+[[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a") == 600 ]]
+before_inode=$(python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_ino)' "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a")
 /bin/bash "$test_dir/project.sh" "$root" project-a example/one example/two
-[[ $(stat -f %i "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a") == "$before_inode" ]]
+[[ $(python3 -c 'import os,sys; print(os.stat(sys.argv[1]).st_ino)' "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a") == "$before_inode" ]]
 [[ $(cat "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-b") == example/updated ]]
 cmp "$TEMPLATE_AGENT_HOME/allowed-repos" "$test_dir/original/allowed-repos"
 echo 'PASS host: 選んだ全件を一行ずつ小文字で重複なく許し、同じ選択の再実行と別プロジェクト・共有ファイルを保つ'

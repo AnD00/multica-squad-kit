@@ -7,12 +7,21 @@ permissions:
   contents: read
 jobs:
   scripts:
-    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - run: brew install jq python ripgrep
+      - if: runner.os == 'macOS'
+        run: brew install jq python ripgrep
+      - if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps ripgrep
       - name: Tests
-        run: bash tests/run.sh
+        run: /bin/bash tests/run.sh
       - name: Syntax and integrity
         run: |
           bash scripts/check.sh

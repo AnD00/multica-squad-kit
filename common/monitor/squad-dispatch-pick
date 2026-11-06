@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
-# 実装・修正を回す側を、その場で読んだ使用率から選ぶ（macOS 用）。
+# 実装・修正を回す側を、その場で読んだ使用率から選ぶ（macOS・Linux 用）。
 # 0: 選択、2: 両方とも上限、1: 使い方などの誤り。Multica には書き込まない。
 set -euo pipefail
 
@@ -97,11 +97,11 @@ dispatch_pick_main() (
 			elif $x.excluded != null and $x.excluded != "" then "Claude"
 			elif $fallback then (if $kind == "fix" or $size == "小さな" then "Codex" else "Claude" end)
 			elif $c.margin >= $x.margin then "Claude" else "Codex" end) as $chosen
-		| (if $fallback then
+		| ((if $fallback then
 			["使用率を読めないため、" + (if $kind == "fix" then "修正の代わりの決まり" else "大きさ「" + $size + "」" end) + "で決めた。"
 				+ (if $global != "" then $global else
 					([$c.error, $x.error] | map(select(. != null)) | if length == 0 then ["使用率の読み取りに失敗した"] else . end | join("、")) end)]
-			else [] end) + $excluded as $reasons
+			else [] end) + $excluded) as $reasons
 		| {chosen: $chosen, role: (if $chosen == "なし" then "なし" else ($chosen | ascii_downcase) + "-" + (if $kind == "fix" then "fixer" else "implementer" end) end),
 			line: ("振り分け: " + $chosen + (if $reasons | length > 0 then "（" + ($reasons | join("。")) + "）" else "" end)
 				+ "。" + ([($c | summary("Claude")), ($x | summary("Codex"))] | join("、")))}')

@@ -4,7 +4,20 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")" && pwd)
 die() { printf '%s\n' "$*" >&2; exit 1; }
 [[ $# == 0 ]] || die '使い方: bash setup.sh（値は質問に答えて入力する）'
-[[ $(uname -s) == Darwin ]] || die '対応する OS は macOS だけです。何も変更していません。'
+case $(uname -s) in
+Darwin) ;;
+Linux)
+	case $(uname -r) in
+	*[Mm]icrosoft-standard*|*[Ww][Ss][Ll]2*) ;;
+	*[Mm]icrosoft*) die 'WSL 1 は対象外です。WSL 2 を使ってください。何も変更していません。' ;;
+	esac
+	;;
+*) die '対応する OS は macOS と Linux（WSL 2 を含む）です。この OS は対象外です。何も変更していません。' ;;
+esac
+# 原本を検査する道具は、lib を読み込む前に確認する。
+for tool in find sort shasum; do
+	command -v "$tool" >/dev/null || die "$tool がありません。manual.md の「受け取る人の準備」に従って導入してください。Ubuntu では sudo apt-get install coreutils findutils libdigest-sha-perl、macOS では標準の道具と PATH を確認してください。何も変更していません。"
+done
 cd "$root"
 damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を clone し、タグを取り出し直してください。"; }
 [[ -f MANIFEST && ! -L MANIFEST ]] || damaged 'MANIFEST がありません。'

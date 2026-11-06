@@ -2,7 +2,9 @@
 
 Multica のスクワッドを、プロジェクトごとに導入して更新するための原本。
 
-確かめた範囲は、macOS、標準の bash・zsh、GitHub、日本語での利用です。ランタイムは、Claude Code と Codex の両方、Claude Code だけ、Codex だけの 3 通りを確かめています。WSL を使わない Windows、英語、GitHub 以外は対象外です。Linux（WSL を含む）への対応は次の版で追加します。
+対応する範囲は、macOS と Linux（WSL 2 を含む）、標準の bash・zsh、Claude Code と Codex の一方または両方、GitHub、日本語での利用です。WSL 1、WSL を使わない Windows、英語、GitHub 以外は対象外です。
+
+自動テストで確かめる範囲は、macOS と Ubuntu 24.04 のセットアップ・再実行、関所の許可と拒否、見張り、シェル設定と時刻の読み取りです。CI でも両 OS に同じテストを流します。外部 CLI とサーバーはスタブを使います。認証済みのデーモン・ランタイムの実行と、WSL 実機の動作は未確認です。WSL 2 は Linux との互換性と各ツールの公式対応に基づく対応です。
 
 公開リポジトリを clone してタグを取り出し、`bash setup.sh` を実行します。[導入と更新](manual.md)、[拡張の形式](EXTENSIONS.md)、[変更の進め方](CONTRIBUTING.md) を参照してください。
 
