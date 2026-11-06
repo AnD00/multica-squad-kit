@@ -71,7 +71,7 @@ ad4c4a38728052f74b469425b840f548805618b0e5c68b444c676d05281af9c6  ./tests/gh-tes
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
 6072ed384478d8c8e5b3ba8432fa039edf3ba90da15fd8b57a7e9b580e94e505  ./tests/guard-check-test.sh
 fcef96d3f52058bac4a9e39fcec996cff1be9599140849a02ae1938b1f73eef2  ./tests/host-test.sh
-15152581f28a53891591b1c391b5eb54dfdf074869159ea9f7b13b0e941bf0cf  ./tests/link-scope-questions-test.sh
+f8291f3beb4fd0e4a931c9627481d6fcf2d246abcf26f9a497a64538340f7a22  ./tests/link-scope-questions-test.sh
 cfcba033bb5b182af8b205bad9d217cd44949c953d9d74b37802641e38dd89a7  ./tests/manual-test.sh
 770ba7e4bde97301f5a012502338b9d2db5a0305256e1bc427224b047f7c745f  ./tests/pre-push-test.sh
 d62d96a243f96de6c40c7281d71295862fb913d12434b795ed2db9f21b093d6f  ./tests/project-followup-test.sh

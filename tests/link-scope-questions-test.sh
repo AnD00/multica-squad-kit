@@ -7,7 +7,7 @@ cp "$root/VERSION" "$test_dir/extension/kit-version"
 printf '["EXAMPLE/TWO"]\n' >"$test_dir/extension/link-repositories.json"
 manifest
 run() { { printf '%s\n' "$test_dir/extension"; cat "$test_dir/input"; } | /bin/bash "$test_dir/package/setup.sh" >"$test_dir/out" 2>"$test_dir/err"; }
-printf '1\n1\ndemo\n1\nmembera\n0\n0\nno\n' >"$test_dir/input"
+printf '1\n1\ndemo\n1\nmembera\n0\n1\n0\nno\n' >"$test_dir/input"
 deny
 no_state
 grep -q '紐付け専用のリポジトリ' "$test_dir/err"
