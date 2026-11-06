@@ -277,11 +277,11 @@ ZIP で導入済みの場合は、人が配置ファイルと保存済み回答�
 | 共通スキルの更新を飛ばした | 表示された更新できる人に共通スキルの更新を頼む。ほかの登録処理は続く |
 | 関所が拒否した | 実行のプロジェクトと選んだリポジトリが正しいか確認する。絶対パスや環境変数の手動注入などで迂回しない |
 
-ホスト準備の詳細は [HOST_SETUP.md](HOST_SETUP.md)、実 ID の初期化とプロジェクトの設定は [PROJECT_SETUP.md](PROJECT_SETUP.md)、印と差し込みの記法は [FORMAT](common/agents/FORMAT) を参照する。
+印と差し込みの記法は [FORMAT](common/agents/FORMAT) を参照する。
 
 ## 原本を変える人の手順
 
-変更はブランチに積んで PR にする。人のレビューと CI の成功を確かめてから、人間がマージしてタグを付ける。急ぐ変更の扱いも [CONTRIBUTING.md](CONTRIBUTING.md) に従う。
+変更はブランチに積んで PR にする。人のレビューと CI の成功を確かめてから、人間がマージしてタグを付ける。[変更の進め方](CONTRIBUTING.md)を参照する。
 
 ```bash
 bash tests/run.sh
