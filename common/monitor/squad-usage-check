@@ -30,7 +30,15 @@ USAGE_WARN_PERCENT=${USAGE_WARN_PERCENT:-80}
 # 作る issue に付けるラベル。開発の issue と分け、開発の進み具合に数えないため（セットアップで作るラベル）。
 LABEL_NAME=運用
 
-for cmd in jq python3 claude codex multica; do
+# 見るランタイムはセットアップの選択を受け取る。旧版の指示は両方を見る。
+case ${USAGE_CHECK_RUNTIMES-claude codex} in
+'claude codex') usage_check_runtimes=(claude codex) ;;
+claude) usage_check_runtimes=(claude) ;;
+codex) usage_check_runtimes=(codex) ;;
+*) echo 'USAGE_CHECK_RUNTIMES は claude codex、claude、codex のいずれかを指定する' >&2; exit 1 ;;
+esac
+
+for cmd in jq python3 multica "${usage_check_runtimes[@]}"; do
 	if ! command -v "$cmd" >/dev/null 2>&1; then
 		echo "${cmd} が見つからない。デーモンのホストに入れる。" >&2
 		exit 1
@@ -201,8 +209,9 @@ check() {
 	done <<<"$rows"
 }
 
-check claude Claude
-check codex Codex
+for runtime in "${usage_check_runtimes[@]}"; do
+	case $runtime in claude) check claude Claude ;; codex) check codex Codex ;; esac
+done
 save_state
 # ラベルを付けられなかったことを、実行の結果で人に知らせる。
 if $label_failed; then

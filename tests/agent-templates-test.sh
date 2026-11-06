@@ -92,6 +92,22 @@ printf 'codex\neither\n' >"$test_dir/runtime-want"
 cmp "$test_dir/runtime-result" "$test_dir/runtime-want"
 echo 'PASS templates: ランタイムの印を役とは別に評価し、ELSEと役とのOR条件を展開する'
 
+for scenario in all runtime-claude-only runtime-codex-only; do
+	case $scenario in all) expected='claude codex' ;; runtime-claude-only) expected=claude ;; runtime-codex-only) expected=codex ;; esac
+	for file in usage-monitor autopilots; do
+		grep -qF "USAGE_CHECK_RUNTIMES に \"$expected\" を渡す" "$test_dir/$scenario/$file"
+	done
+	sed -n '/^## 使用上限の見張り /,$p' "$test_dir/$scenario/autopilots" >"$test_dir/usage-pilot"
+	if [[ $scenario == runtime-codex-only ]]; then
+		! grep -q 'CLAUDE_CONFIG_DIR' "$test_dir/usage-pilot"
+	else grep -q 'CLAUDE_CONFIG_DIR' "$test_dir/usage-pilot"; fi
+	if [[ $scenario == runtime-claude-only ]]; then
+		grep -qF '見張りは Claude / low' "$test_dir/usage-pilot"
+		grep -qF 'Claude の上限に達すると見張りも止まる' "$test_dir/usage-pilot"
+	else grep -qF '見張りは Codex / low' "$test_dir/usage-pilot"; fi
+done
+echo 'PASS templates: 使用上限の役とオートパイロットに、選択したランタイムの値・環境・停止時の案内だけを残す'
+
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
 	grep -qx 'model: gpt-6.1-sol' "$test_dir/all/$role"

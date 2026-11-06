@@ -107,14 +107,33 @@ PR の結果の先頭の 1 行:
 
 上限に近いとき、達したとき、戻ったときの判定と issue の操作は `squad-usage-check` に任せる。状態はプロジェクトとメンバーごとに持ち、重複する実行を避ける。上限で実行そのものが失敗した間は Multica の失敗通知を見て、リセット後の最初の実行で復旧を記録する。
 
-見張りは Codex / low で動かす。Claude の上限と一緒に止まるのを避けるため。モデルに関係なく、エージェント用の `CLAUDE_CONFIG_DIR` を渡す必要がある。使用量は `squad-usage-lib` で `squad-usage-read` と同じ方法で読み、Claude の /usage と Codex の account/rateLimits/read はモデルを呼ばない。
+<!-- IF runtime-codex -->
+見張りは Codex / low で動かす。Claude の枠も使う場合、その上限と一緒に止まるのを避けるため。
+<!-- ELSE -->
+見張りは Claude / low で動かす。Claude の上限に達すると見張りも止まる。その間の失敗は Multica の失敗通知で確認し、リセット後の最初の実行で復旧を知らせる。
+<!-- ENDIF -->
+<!-- IF runtime-claude -->
+エージェント用の `CLAUDE_CONFIG_DIR` を渡す。見張りのモデルに関係なく、Claude の枠を読むときに必要になる。
+<!-- ENDIF -->
+
+使用量は `squad-usage-lib` で `squad-usage-read` と同じ方法で読む。使うランタイムの枠だけを読み、Claude の /usage と Codex の account/rateLimits/read はモデルを呼ばない。
 
 指示:
 
 ```text
-エージェントが使う Claude と Codex の使用上限を見張る。コード、ドキュメント、ほかの issue は変えない。
+エージェントが使うランタイムの使用上限を見張る。コード、ドキュメント、ほかの issue は変えない。
 
-1. ホストの squad-usage-check を実行する。環境変数 USAGE_CHECK_PROJECT に {{project_id}}、USAGE_CHECK_MEMBER に {{member_key}}、USAGE_CHECK_ASSIGNEE に指示末尾の呼ぶ人間の名前を、それぞれ正しくシェルの引用符で囲んで渡す。しきい値は USAGE_WARN_PERCENT（既定 80）。リポジトリを checkout してスクリプトを探さない
+<!-- IF runtime-claude -->
+<!-- IF runtime-codex -->
+USAGE_CHECK_RUNTIMES に "claude codex" を渡す。Claude と Codex の枠だけを見る。
+<!-- ELSE -->
+USAGE_CHECK_RUNTIMES に "claude" を渡す。Claude の枠だけを見る。
+<!-- ENDIF -->
+<!-- ELSE -->
+USAGE_CHECK_RUNTIMES に "codex" を渡す。Codex の枠だけを見る。
+<!-- ENDIF -->
+
+1. ホストの squad-usage-check を実行する。環境変数 USAGE_CHECK_PROJECT に {{project_id}}、USAGE_CHECK_MEMBER に {{member_key}}、USAGE_CHECK_ASSIGNEE に指示末尾の呼ぶ人間の名前と、USAGE_CHECK_RUNTIMES に上記の値を、それぞれ正しくシェルの引用符で囲んで渡す。しきい値は USAGE_WARN_PERCENT（既定 80）。リポジトリを checkout してスクリプトを探さない
 2. 0 なら「なし」とだけ返す。0 以外なら標準エラーの内容をそのまま返す。issue の作成・コメント・done はスクリプトだけに任せる
 ```
 
