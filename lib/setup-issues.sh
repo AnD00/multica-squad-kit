@@ -11,7 +11,7 @@ setup_issue_list() {
 	local -a filter=()
 	[[ -z $kind ]] || filter=(--metadata "squad_kit_task=$kind")
 	while :; do
-		page=$(mc issue list --project "$project_id" "${filter[@]}" --limit 100 --offset "$offset" --output json) || { setup_issue_error '起票済みの issue を読めませんでした。'; return 1; }
+		page=$(mc issue list --project "$project_id" ${filter[@]+"${filter[@]}"} --limit 100 --offset "$offset" --output json) || { setup_issue_error '起票済みの issue を読めませんでした。'; return 1; }
 		jq -e '(.issues|type=="array") and all(.issues[];
 			(.id|type=="string" and length>0) and (.identifier|type=="string" and length>0) and
 			(.title|type=="string") and (.status|type=="string") and

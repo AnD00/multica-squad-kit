@@ -166,10 +166,34 @@ elif event == ('autopilot', 'trigger-add'):
                                       cron_expression=option('--cron'),
                                       timezone=option('--timezone'), enabled=True))
 elif event == ('issue', 'create'):
+    failure = scenario / 'fail-issue'
+    if failure.exists() and failure.read_text().strip() == option('--title'):
+        print('issue creation denied', file=sys.stderr)
+        sys.exit(71)
     result = create('issues', title=option('--title'), description=content('--description-file'),
-                    project_id=option('--project'), assignee=option('--assignee'))
+                    project_id=option('--project'), assignee=option('--assignee'),
+                    assignee_id=option('--assignee-id'), status=option('--status', 'todo'),
+                    identifier=f'TEST-{len(db["issues"]) + 1}', metadata={}, labels=[])
+elif event == ('issue', 'list'):
+    issues = [i for i in db['issues'] if i['project_id'] == option('--project')]
+    metadata = option('--metadata')
+    if metadata:
+        key, value = metadata.split('=', 1)
+        issues = [i for i in issues if i['metadata'].get(key) == value]
+    offset, limit = int(option('--offset', '0')), int(option('--limit', '100'))
+    result = dict(issues=issues[offset:offset + limit], has_more=offset + limit < len(issues))
+elif tuple(args[:3]) == ('issue', 'metadata', 'set'):
+    assert option('--type') == 'string'
+    record('issues', args[3])['metadata'][option('--key')] = option('--value')
 elif tuple(args[:3]) == ('issue', 'label', 'add'):
-    record('issues', args[3])['label_id'] = args[4]
+    issue = record('issues', args[3])
+    issue['label_id'] = args[4]
+    if not any(label['id'] == args[4] for label in issue['labels']):
+        issue['labels'].append(dict(id=args[4]))
+elif event == ('issue', 'status'):
+    issue = record('issues', args[2])
+    assert issue['labels'] and issue['metadata']['squad_kit_task']
+    issue['status'] = args[3]
 else:
     raise AssertionError(f'Unexpected CLI call: {args}')
 
