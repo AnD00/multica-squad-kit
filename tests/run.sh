@@ -22,7 +22,7 @@
 # 失敗したファイルには、失敗した場所と直前に通ったケース（最後の PASS の行）を
 # 添え、GITHUB_ACTIONS が true なら ::error の注釈も出す。失敗した場所は、
 # BASH_ENV で読ませる tests/run-hook.sh が、テストの最上位のシェルで最初に
-# 起きた ERR を書く。
+# 起きた、errexit が有効なときの ERR を書く。
 #
 # 結果の欠落: 結果の記録がないファイルは、起こせなかったか途中で止まったものと
 # して失敗に数える。割り込まれたら、起こしたテストを止めて 0 以外で終わる。
@@ -56,20 +56,6 @@ for test in "${selected[@]}"; do
 		exit 2
 	fi
 done
-ordered=()
-for priority in "${slow[@]}"; do
-	for test in "${selected[@]}"; do
-		if [[ $test == "$priority" ]]; then ordered+=("$test"); fi
-	done
-done
-while IFS= read -r -d '' test; do
-	is_slow=no
-	for priority in "${slow[@]}"; do
-		if [[ $test == "$priority" ]]; then is_slow=yes; break; fi
-	done
-	if [[ $is_slow == no ]]; then ordered+=("$test"); fi
-done < <(printf '%s\0' "${selected[@]}" | LC_ALL=C sort -z)
-
 mkdir -p "$root/tmp"
 run_dir=$(mktemp -d "$root/tmp/test-run.XXXXXX")
 worker_pid=
@@ -85,6 +71,23 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if ! printf '%s\0' "${selected[@]}" | LC_ALL=C sort -z >"$run_dir/selected"; then
+	echo '起こす順の並べ替えに失敗しました' >&2
+	exit 1
+fi
+ordered=()
+for priority in "${slow[@]}"; do
+	for test in "${selected[@]}"; do
+		if [[ $test == "$priority" ]]; then ordered+=("$test"); fi
+	done
+done
+while IFS= read -r -d '' test; do
+	is_slow=no
+	for priority in "${slow[@]}"; do
+		if [[ $test == "$priority" ]]; then is_slow=yes; break; fi
+	done
+	if [[ $is_slow == no ]]; then ordered+=("$test"); fi
+done <"$run_dir/selected"
 for ((i=0; i<${#ordered[@]}; i++)); do
 	mkdir -p "$run_dir/$i/home" "$run_dir/$i/tmp"
 	printf '%s\0%s\0' "$i" "${ordered[$i]}" >>"$run_dir/queue"
@@ -109,43 +112,55 @@ annotation_escape() {
 	printf '%s' "$value"
 }
 failed=()
-# 成功を名前順に出してから、失敗を名前順に出す。
-for outcome in PASS FAIL; do
+# 表示用の並べ替えが失敗しても、起こした全ファイルの結果を確認する。
+report_order=()
+sort_status=0
+if printf '%s\0' "${selected[@]}" | LC_ALL=C sort -zu >"$run_dir/report-order"; then
 	while IFS= read -r -d '' test; do
 		for ((i=0; i<${#ordered[@]}; i++)); do
-			[[ ${ordered[$i]} == "$test" ]] || continue
-			status=missing elapsed=0
-			if [[ -f $run_dir/$i/result ]]; then read -r status elapsed <"$run_dir/$i/result" || status=missing; fi
-			actual=FAIL
-			if [[ $status == 0 ]]; then actual=PASS; fi
-			[[ $actual == "$outcome" ]] || continue
-			if [[ $actual == PASS ]]; then
-				printf '==== PASS %s（%s 秒）\n' "$test" "$elapsed"
-			else
-				failed+=("$test")
-				printf '==== FAIL %s（終了コード %s、%s 秒）\n' "$test" "$status" "$elapsed"
-			fi
-			if [[ -f $run_dir/$i/log ]]; then cat "$run_dir/$i/log"; fi
-			if [[ $actual == FAIL ]]; then
-				file=$test line=1 command='失敗した場所の記録なし'
-				if [[ -s $run_dir/$i/error ]]; then
-					{ IFS= read -r file; IFS= read -r line; IFS= read -r command; } <"$run_dir/$i/error"
-					printf '失敗した場所: %s:%s: %s\n' "$file" "$line" "$command"
-					sed '1,3d' "$run_dir/$i/error"
-				else
-					printf '失敗した場所: %s（記録なし）\n' "$test"
-				fi
-				previous=$(awk '/^PASS / {last=$0} END {print last}' "$run_dir/$i/log" 2>/dev/null || :)
-				printf '直前に通ったケース: %s\n' "${previous:-なし}"
-				if [[ $status == missing ]]; then echo '結果の記録なし: 起こせなかったか途中で止まりました'; fi
-				if [[ ${GITHUB_ACTIONS:-} == true ]]; then
-					printf '::error file=%s,line=%s::%s\n' "$(annotation_escape "$file")" "$line" "$(annotation_escape "$test: $command / 直前に通ったケース: ${previous:-なし}")"
-				fi
-			fi
+			if [[ ${ordered[$i]} == "$test" ]]; then report_order+=("$i"); fi
 		done
-	done < <(printf '%s\0' "${selected[@]}" | LC_ALL=C sort -zu)
+	done <"$run_dir/report-order"
+else
+	echo '結果の並べ替えに失敗しました。起こした順で結果を確認します' >&2
+	sort_status=1
+	for ((i=0; i<${#ordered[@]}; i++)); do report_order+=("$i"); done
+fi
+# 成功を名前順に出してから、失敗を名前順に出す。
+for outcome in PASS FAIL; do
+	for i in "${report_order[@]}"; do
+		test=${ordered[$i]}
+		status=missing elapsed=0
+		if [[ -f $run_dir/$i/result ]]; then read -r status elapsed <"$run_dir/$i/result" || status=missing; fi
+		actual=FAIL
+		if [[ $status == 0 ]]; then actual=PASS; fi
+		[[ $actual == "$outcome" ]] || continue
+		if [[ $actual == PASS ]]; then
+			printf '==== PASS %s（%s 秒）\n' "$test" "$elapsed"
+		else
+			failed+=("$test")
+			printf '==== FAIL %s（終了コード %s、%s 秒）\n' "$test" "$status" "$elapsed"
+		fi
+		if [[ -f $run_dir/$i/log ]]; then cat "$run_dir/$i/log"; fi
+		if [[ $actual == FAIL ]]; then
+			file=$test line=1 command='失敗した場所の記録なし'
+			if [[ -s $run_dir/$i/error ]]; then
+				{ IFS= read -r file; IFS= read -r line; IFS= read -r command; } <"$run_dir/$i/error"
+				printf '失敗した場所: %s:%s: %s\n' "$file" "$line" "$command"
+				sed '1,3d' "$run_dir/$i/error"
+			else
+				printf '失敗した場所: %s（記録なし）\n' "$test"
+			fi
+			previous=$(awk '/^PASS / {last=$0} END {print last}' "$run_dir/$i/log" 2>/dev/null || :)
+			printf '直前に通ったケース: %s\n' "${previous:-なし}"
+			if [[ $status == missing ]]; then echo '結果の記録なし: 起こせなかったか途中で止まりました'; fi
+			if [[ ${GITHUB_ACTIONS:-} == true ]]; then
+				printf '::error file=%s,line=%s::%s\n' "$(annotation_escape "$file")" "$line" "$(annotation_escape "$test: $command / 直前に通ったケース: ${previous:-なし}")"
+			fi
+		fi
+	done
 done
-if [[ ${#failed[@]} != 0 || $launch_status != 0 ]]; then
+if [[ ${#failed[@]} != 0 || $launch_status != 0 || $sort_status != 0 ]]; then
 	printf 'FAIL suite: %s 本が失敗:' "${#failed[@]}"
 	if [[ ${#failed[@]} != 0 ]]; then printf ' %s' "${failed[@]}"; fi
 	printf '\n'

@@ -87,6 +87,60 @@ grep -qF "::error file=$fixtures/fail.sh,line=4::" "$test_dir/out"
 grep -qxF "FAIL suite: 1 本が失敗: $fixtures/fail.sh" "$test_dir/out"
 echo 'PASS runner: 失敗しても最後まで流し、失敗のログ・行・コマンド・呼び出し・ケース・注釈を出す'
 
+cat >"$fixtures/expected-status.sh" <<'FIXTURE'
+#!/usr/bin/env bash
+set -euo pipefail
+set +e
+false # 想定内の失敗
+status=$?
+set -e
+[[ $status == 1 ]]
+echo 'PASS fixture: expected status checked'
+actual_failure() { false; }
+actual_failure
+FIXTURE
+GITHUB_ACTIONS=true run_suite 1 1 "$fixtures/expected-status.sh"
+grep -qxF "失敗した場所: $fixtures/expected-status.sh:9: false" "$test_dir/out"
+grep -qxF "呼び出し: $fixtures/expected-status.sh:10: actual_failure" "$test_dir/out"
+grep -qxF '直前に通ったケース: PASS fixture: expected status checked' "$test_dir/out"
+grep -qF "::error file=$fixtures/expected-status.sh,line=9::" "$test_dir/out"
+echo 'PASS runner: 想定内の終了コードを確認した後の、本当の失敗の行と呼び出しを出す'
+
+# 並べ替えが一部だけ出力して失敗しても、その一覧で成功扱いしない。
+mkdir -p "$test_dir/bin"
+export TEST_RUNNER_REAL_SORT
+TEST_RUNNER_REAL_SORT=$(command -v sort)
+cat >"$test_dir/bin/sort" <<'FIXTURE'
+#!/usr/bin/env bash
+if [[ $1 == "$TEST_RUNNER_FAIL_SORT" ]]; then
+	printf '%s\0' "$TEST_RUNNER_SORT_PARTIAL"
+	echo 'sort: simulated temporary-file error' >&2
+	exit 1
+fi
+exec "$TEST_RUNNER_REAL_SORT" "$@"
+FIXTURE
+chmod +x "$test_dir/bin/sort"
+TEST_RUNNER_SORT_PARTIAL="$fixtures/pass.sh" TEST_RUNNER_FAIL_SORT=-z PATH="$test_dir/bin:$PATH" \
+	run_suite 1 1 tests/project-test.sh "$fixtures/fail.sh" "$fixtures/pass.sh"
+grep -qxF '起こす順の並べ替えに失敗しました' "$test_dir/err"
+[[ ! -s $test_dir/out ]]
+echo 'PASS runner: 起こす順の並べ替えが失敗したら、テストを起こさず失敗する'
+
+for fixture in fail pass; do
+	TEST_RUNNER_SORT_PARTIAL="$fixtures/pass.sh" TEST_RUNNER_FAIL_SORT=-zu PATH="$test_dir/bin:$PATH" \
+		run_suite 1 2 "$fixtures/$fixture.sh" "$fixtures/pass.sh"
+	grep -qxF '結果の並べ替えに失敗しました。起こした順で結果を確認します' "$test_dir/err"
+	grep -qxF 'PASS fixture: after failure' "$test_dir/out"
+	if [[ $fixture == fail ]]; then
+		grep -qxF "失敗した場所: $fixtures/fail.sh:4: false" "$test_dir/out"
+		grep -qxF "FAIL suite: 1 本が失敗: $fixtures/fail.sh" "$test_dir/out"
+	else
+		grep -qxF 'FAIL suite: 0 本が失敗:' "$test_dir/out"
+	fi
+	! grep -q '^PASS suite:' "$test_dir/out"
+done
+echo 'PASS runner: 結果の並べ替えが失敗しても全ファイルを確認し、全体を失敗にする'
+
 # 明示した exit は ERR の記録がなくても失敗になる。255 でも次を起こす。
 printf 'exit 255\n' >"$fixtures/exit.sh"
 run_suite 1 1 "$fixtures/exit.sh" "$fixtures/pass.sh"

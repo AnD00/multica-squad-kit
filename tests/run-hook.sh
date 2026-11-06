@@ -3,7 +3,8 @@
 _squad_kit_error_file=${SQUAD_KIT_TEST_ERROR_FILE:?}
 unset BASH_ENV SQUAD_KIT_TEST_ERROR_FILE
 _squad_kit_record_error() {
-	[[ $BASH_SUBSHELL == 0 && ! -s $_squad_kit_error_file ]] || return 0
+	# set +e の間の終了コード確認を、終了の原因として残さない。
+	[[ $- == *e* && $BASH_SUBSHELL == 0 && ! -s $_squad_kit_error_file ]] || return 0
 	local source=$1 line=$2 command=$3 frame
 	{
 		printf '%s\n%s\n%s\n' "$source" "$line" "$command"
