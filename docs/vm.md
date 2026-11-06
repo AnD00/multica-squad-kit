@@ -75,7 +75,9 @@ powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete [-Name NAME] [-Force]
 
 ポートの転送は、Lima の既定のままにする。中の `127.0.0.1` で待つポートが、ホストの `127.0.0.1` に見える。Codex と Multica のログインが、ホストのブラウザから中の待ち受けに戻るのに使うため。中からホストのファイルは読めないので、閉じ込めは崩れない。
 
-使う Lima の最低の版は、`--set` と `limactl list --json` の項目がそろう版にする。実装で確かめ、`lima.sh` は版が足りなければ止まる。
+使う Lima は 1.0.0 以上の正式版にする。[1.0.0 の create の実装](https://github.com/lima-vm/lima/blob/v1.0.0/cmd/limactl/start.go)で `--set` と Ubuntu 24.04 の雛形が使えることを確認した。`lima.sh` は版が足りなければ止まる。
+
+`limactl list --json` は、[1.0.0 の Instance の定義](https://github.com/lima-vm/lima/blob/v1.0.0/pkg/store/instance.go)どおり、VM ごとに JSON のオブジェクトを返す。`config` は既定と上書きを適用した実効設定で、空の `mounts` は省略される。ホストに JSON 用の道具を追加しないよう、Mac 標準の `plutil` で読み取る。
 
 ### WSL
 
@@ -212,6 +214,8 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 止めるときは、Lima は `limactl stop` を流す。WSL は、`start` で起動した `wsl.exe` を止めてから、`wsl --terminate NAME` を流す。
 
 消すときは、消す VM の名前と、中のログインと作業コピーがなくなることを示して、確かめを求める。`--yes` を付けたときは聞かない。Lima は `limactl delete` を流す。WSL は `wsl --unregister NAME` を流し、置き場所のフォルダを消す。
+
+[Lima の通常の削除](https://github.com/lima-vm/lima/blob/v1.0.0/pkg/instance/delete.go)は停止中だけを受け付けるため、タスク数を確かめてから `limactl stop`、`limactl delete` の順に流す。`--force` を付けたときだけ、動いていても強制で削除する。
 
 消したあと、ホストに残るのは Lima（または WSL）と、その取り込んだイメージの控えだけになる。Lima のイメージの控えは `limactl prune` で消せることを、手順書に書く。
 
