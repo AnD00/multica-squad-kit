@@ -23,3 +23,20 @@
 タグを付ける main が `origin/main` と一致しなければ、タグを作らずに止まる。未公開コミットがある場合は、その変更を PR でレビュー・マージしてからやり直す。
 
 `VERSION` と `CHANGELOG.md` の先頭の版がタグ名と一致しなければ、タグを作らずに止まる。一致しない場合は、版と変更の記録を直す PR をレビュー・マージしてからやり直す。タグは注釈付きで作り、発行済みのタグは動かさない。修正は新しいタグで配る。
+
+### Release を作る
+
+タグを push したら、そのタグの Release を作る。本文は、`CHANGELOG.md` のその版の節になる。
+
+```bash
+(
+  set -eu
+  release_tag=v1.0.0
+  notes=$(git show "$release_tag:CHANGELOG.md" |
+    awk -v heading="## $release_tag" '$0 == heading {found = 1; next} found && /^## / {exit} found')
+  test -n "$(printf '%s' "$notes" | tr -d '[:space:]')"
+  gh release create "$release_tag" --repo AnD00/multica-squad-kit --verify-tag --title "$release_tag" --notes "$notes"
+)
+```
+
+その版の節が空なら、Release を作らずに止まる。Release の作成だけが失敗したときは、タグを作り直さず、このコマンドだけを流し直す。
