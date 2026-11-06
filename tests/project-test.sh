@@ -129,6 +129,8 @@ complete_project() { echo "followup after agents"; }
 prepare_project_issues() { :; }
 prepare_project_webhooks() { :; }
 project_webhook_completion() { :; }
+verify_project_installation() { :; }
+project_installation_completion() { :; }
 server_url=https://example.test
 workspace_id=workspace-a
 project_name='Demo & literal $HOME'

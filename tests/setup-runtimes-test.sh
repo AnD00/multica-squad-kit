@@ -123,6 +123,10 @@ for pilot in db['autopilots']:
     assert kinds == (['schedule', 'webhook'] if pilot['assignee_id'] == agents['dependabot-merger']['id'] else ['schedule'])
 assert len(db['github_hooks']) == 1
 assert '配信 成功（HTTP 200）' in (scenario / 'out').read_text()
+display = (scenario / 'out').read_text()
+assert display.count(': 一致') == 5 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
+assert ': 要確認' not in display
+assert display.index('導入の確認:') < display.index('Webhook の登録:') < display.index('起票した issue:')
 issues = {i['metadata']['squad_kit_task']: i for i in db['issues']}
 assert set(issues) == {'dependabot-filter', 'repository-rules', 'project-instructions', 'squad-trial'}
 for kind, issue in issues.items():

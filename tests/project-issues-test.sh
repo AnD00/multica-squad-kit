@@ -20,6 +20,7 @@ source "$root/lib/project.sh"
 source "$root/lib/setup-issues.sh"
 source "$root/lib/project-changes.sh"
 source "$root/lib/webhooks.sh"
+source "$root/lib/installation.sh"
 server_url=https://example.test
 workspace_id=workspace-a
 project_id=project-a

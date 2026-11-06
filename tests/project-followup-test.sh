@@ -79,6 +79,7 @@ source "$root/lib/answers.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
 source "$root/lib/webhooks.sh"
+source "$root/lib/installation.sh"
 source "$root/lib/squad.sh"
 source "$root/lib/autopilots.sh"
 project_work=$TEST_DB/work

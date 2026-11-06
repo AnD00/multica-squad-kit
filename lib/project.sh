@@ -10,6 +10,7 @@ prepare_project() (
 	local setup_issue_rows='[]' setup_issue_failures='[]'
 	local setup_removed_targets='[]' project_previous_repositories=null
 	local setup_webhook_rows='[]'
+	local setup_installation_rows='[]'
 	local -a allowed_repo_names=()
 	selected_repositories=$(jq -ce "$repository_filter"'
 		if type=="array" and length>0 then . else error("リポジトリがありません") end |
@@ -207,6 +208,7 @@ prepare_project() (
 	done
 	complete_project
 	prepare_project_webhooks
+	verify_project_installation
 	prepare_project_issues
 	project_completion
 	[[ $(jq length <<<"$setup_issue_failures") == 0 ]]
@@ -216,6 +218,7 @@ prepare_project() (
 project_completion() {
 	printf '\nプロジェクトの設定が終わりました: %s（%s）\n' "$project_name" "${workspace_name:-$workspace_id}"
 	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
+	project_installation_completion
 	project_webhook_completion
 	project_issue_completion
 	printf '%s\n' '次にすること:'

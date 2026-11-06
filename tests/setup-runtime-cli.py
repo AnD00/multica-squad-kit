@@ -43,9 +43,13 @@ def skill_data(files, config):
 
 event = tuple(args[:2])
 failure = scenario / 'fail-read'
-if failure.exists() and failure.read_text().strip() == ' '.join(event):
+if failure.exists() and failure.read_text().strip() in (' '.join(event), ' '.join(args[:3])):
     print('read denied', file=sys.stderr)
     sys.exit(71)
+malformed = scenario / 'bad-read'
+if malformed.exists() and malformed.read_text().strip() in (' '.join(event), ' '.join(args[:3])):
+    print('{}')
+    sys.exit()
 result = {}
 if event == ('config', 'show'):
     print('server_url: https://example.test')
@@ -71,7 +75,7 @@ elif event == ('daemon', 'start'):
     (scenario / 'process-env').write_text(db['daemon_env'])
 elif event == ('runtime', 'list'):
     result = [dict(id=f'runtime-{runtime}', owner_id='member-a',
-                   daemon_id='daemon-a', provider=runtime, status='online')
+                   daemon_id='daemon-a', provider=runtime, status=db.get('runtime_status', {}).get(runtime, 'online'))
               for runtime in db['runtimes']] if db['running'] else []
 elif event == ('label', 'list'):
     result = db['labels']
@@ -172,7 +176,7 @@ elif event == ('autopilot', 'get'):
         if trigger['kind'] == 'webhook':
             trigger['has_signing_secret'] = pilot.get('signed', False)
             trigger['webhook_url'] = ('https://' + 'webhook-canary.example.test/' + args[2]
-                                      if '--show-secrets' in args and not pilot.get('missing_url') else None)
+                                      if ('--show-secrets' in args or pilot.get('canary_on_default_get')) and not pilot.get('missing_url') else None)
             if '--show-secrets' in args:
                 print('unsafe credential warning', file=sys.stderr)
 elif event == ('autopilot', 'trigger-list'):
