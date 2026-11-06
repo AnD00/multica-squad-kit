@@ -281,7 +281,7 @@ ZIP で導入済みの場合は、人が配置ファイルと保存済み回答�
 
 ## 原本を変える人の手順
 
-変更はブランチに積んで PR にする。人のレビューと CI の成功を確かめてから、人間がマージしてタグを付ける。急ぐ変更の扱いも [CONTRIBUTING.md](CONTRIBUTING.md) に従う。
+変更はブランチに積んで PR にする。人のレビューと CI の成功を確かめてから、人間がマージし、[タグを発行する手順](CONTRIBUTING.md#タグを発行する)に従ってタグを付ける。急ぐ変更の扱いも [CONTRIBUTING.md](CONTRIBUTING.md) に従う。
 
 ```bash
 bash tests/run.sh
