@@ -2,6 +2,7 @@
 # ZIP のルートから bash tests/squad-usage-check-test.sh で実行する。
 # 実際の使用量の取得と issue 作成は行わず、出力と状態の変化を CLI のモックで確かめる。
 set -euo pipefail
+unset USAGE_CHECK_RUNTIMES
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
@@ -30,6 +31,7 @@ cat >"$test_dir/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
+printf 'claude\n' >>"$USAGE_TEST_DIR/runtime-calls"
 cat "$USAGE_TEST_DIR/claude.json"
 cat "$USAGE_TEST_DIR/claude.err" >&2
 exit "$(cat "$USAGE_TEST_DIR/claude.status")"
@@ -38,6 +40,7 @@ cat >"$test_dir/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == app-server ]]
+printf 'codex\n' >>"$USAGE_TEST_DIR/runtime-calls"
 for _ in 1 2 3; do
 	IFS= read -r request
 	printf '%s\n' "$request" >>"$USAGE_TEST_DIR/requests.jsonl"
@@ -193,7 +196,7 @@ echo '{"id":2,"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{"code
 		"codex:codex:10080": {level: "warn", issue: "test-issue"}}' "$state_file" >/dev/null
 	jq -se '[.[] | select(.[0:2] == ["issue", "create"])] | length == 2' "$test_dir/calls.jsonl" >/dev/null
 	: >"$test_dir/calls.jsonl"
-	bash "$script"
+	USAGE_CHECK_RUNTIMES='claude codex' bash "$script"
 	test ! -s "$test_dir/calls.jsonl"
 )
 # 同じ root でもプロジェクトかメンバーが違えば、それぞれ初回の通知を作る。
@@ -248,6 +251,60 @@ echo 'PASS 記録の分離: プロジェクト・メンバーごとに通知し�
 echo 'PASS 通知の失敗と復旧: 状態を進めず、再実行で一度通知し、ほかの組み合わせの記録を保つ'
 
 echo 'PASS 本体: 別の作業ディレクトリから共通関数を読み、80% で警告し、同じ状態では issue を増やさない'
+
+# 片方だけの PATH で本体を動かす。使わない側の警告を復旧扱いにしない。
+for selected in claude codex; do
+ (
+	export -f multica
+	export test_dir USAGE_CHECK_ASSIGNEE USAGE_CHECK_PROJECT USAGE_CHECK_MEMBER
+	export USAGE_CHECK_RUNTIMES=$selected USAGE_CHECK_STATE_ROOT="$test_dir/$selected-states"
+	selected_bin="$test_dir/$selected-bin"
+	mkdir "$selected_bin"
+	for tool in bash dirname mkdir mktemp jq cat rm head seq grep cut date sleep; do
+		ln -s "$(command -v "$tool")" "$selected_bin/$tool"
+	done
+	ln -s "$test_dir/bin/$selected" "$selected_bin/$selected"
+	if [[ $selected == claude ]]; then disabled_key='codex:allowed'; else disabled_key='claude:Current session'; fi
+	state_file=$(usage_check_state_path)
+	mkdir -p "${state_file%/*}"
+	jq -n --arg key "$disabled_key" '{($key):{level:"warn",issue:"disabled-issue"}}' >"$state_file"
+	echo '{"is_error":false,"result":"Current session: 80% used · resets Oct 27 at 12:29pm (Asia/Tokyo)"}' >"$test_dir/claude.json"
+	echo '{"id":2,"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{"codex":{"primary":{"windowDurationMins":10080,"usedPercent":80,"resetsAt":604800},"secondary":null}}}}' >"$test_dir/codex.jsonl"
+	: >"$test_dir/calls.jsonl"; : >"$test_dir/runtime-calls"
+	cd "$test_dir"
+	PATH="$selected_bin" /bin/bash "$script"
+	grep -qx "$selected" "$test_dir/runtime-calls"
+	[[ $(jq -Rsc 'split("\n")|map(select(length>0))|unique|length' "$test_dir/runtime-calls") == 1 ]]
+	jq -se '[.[]|select(.[0:2]==["issue","create"])]|length==1' "$test_dir/calls.jsonl" >/dev/null
+	jq -e --arg key "$disabled_key" '.[$key]=={level:"warn",issue:"disabled-issue"}' "$state_file" >/dev/null
+	: >"$test_dir/calls.jsonl"
+	PATH="$selected_bin" /bin/bash "$script"
+	[[ ! -s $test_dir/calls.jsonl ]]
+	echo '{"is_error":false,"result":"Current session: 0% used · resets Oct 27 at 12:29pm (Asia/Tokyo)"}' >"$test_dir/claude.json"
+	echo '{"id":2,"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{}}}' >"$test_dir/codex.jsonl"
+	: >"$test_dir/comments.jsonl"
+	PATH="$selected_bin" /bin/bash "$script"
+	jq -e --arg key "$disabled_key" '.[$key]=={level:"warn",issue:"disabled-issue"} and all(to_entries[]|select(.key!=$key); .value.level=="ok" and .value.issue=="")' "$state_file" >/dev/null
+	jq -se '[.[]|select(.[0:2]==["issue","status"])]==[["issue","status","test-issue","done","--no-start"]]' "$test_dir/calls.jsonl" >/dev/null
+
+	# 選んだ側がなければ、使用量や CLI を呼ぶ前に失敗する。
+	rm "$selected_bin/$selected"
+	: >"$test_dir/calls.jsonl"; : >"$test_dir/runtime-calls"
+	state_before=$(cat "$state_file")
+	if PATH="$selected_bin" /bin/bash "$script" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+	grep -qF "$selected が見つからない" "$test_dir/err"
+	[[ ! -s $test_dir/calls.jsonl && ! -s $test_dir/runtime-calls && $(cat "$state_file") == "$state_before" ]]
+ )
+ echo "PASS ランタイムの選択: $selected だけのコマンドで警告・復旧し、使わない側の状態を保ち、選んだ側の不足は事前に拒否する"
+done
+
+for invalid in '' other 'claude claude' 'claude codex other'; do
+	: >"$test_dir/calls.jsonl"; : >"$test_dir/runtime-calls"
+	if USAGE_CHECK_ASSIGNEE="$USAGE_CHECK_ASSIGNEE" USAGE_CHECK_PROJECT="$USAGE_CHECK_PROJECT" USAGE_CHECK_MEMBER="$USAGE_CHECK_MEMBER" USAGE_CHECK_RUNTIMES="$invalid" bash "$script" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+	grep -q 'USAGE_CHECK_RUNTIMES は' "$test_dir/err"
+	[[ ! -s $test_dir/calls.jsonl && ! -s $test_dir/runtime-calls ]]
+done
+echo 'PASS ランタイムの指定: 空・未知・重複した指定では、使用量とCLIを呼ぶ前に止まる'
 
 # 未指定または空のプロジェクトでは、CLI や使用量の取得より前に止まる。
 for project in unset empty; do
