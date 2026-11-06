@@ -222,12 +222,12 @@ project_completion() {
 	project_webhook_completion
 	project_issue_completion
 	printf '%s\n' '次にすること:'
-	printf '%s\n' '1. Multica の画面で、スクワッド・エージェント・スキル・ラベル・オートパイロットと、使うランタイムがオンラインかを確認してください。'
-	printf '%s\n' '2. skeleton/ の案内に従い、各リポジトリの AGENTS.md・作業別のルールと、プロジェクトの説明・検証スキルを記入してください。'
+	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
+	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if [[ " $enabled " == *' dependabot-merger '* ]]; then
-		printf '%s\n' '3. 選んだ各リポジトリに Dependabot の Webhook を登録してください（manual.md の「人間が行う Webhook の登録」）。'
+		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
 	else
-		printf '%s\n' '3. Dependabot の役は外したため、この役の Webhook の登録は不要です。'
+		printf '%s\n' 'Dependabot の役は外したため、この役の Webhook の登録は不要です。'
 	fi
 	printf '%s\n' 'エージェント用のログインが切れた場合は、次を実行してから bash setup.sh を流し直してください。'
 	if uses_runtime claude; then printf '  CLAUDE_CONFIG_DIR=%q claude\n' "$agent_home/claude"; fi

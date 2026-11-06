@@ -2,11 +2,11 @@ da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull
 b513b2e7505494a3219e76b109641ccc810e2a7fb4df1dc7e8e7b4669d118fac  ./.github/workflows/check.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
-10dd2e34e560e0278e49cf76995db3857059cf5d1169a337e225797850b60239  ./CHANGELOG.md
+f14958814a0abaf6346548ed85875cb1f917407856cb7b0568d8e81c45c9f08e  ./CHANGELOG.md
 d29a392e56f4110ab343cff4a36a551a6d5ed1d3b536e22dd7ea6a8d3b3439b6  ./CONTRIBUTING.md
 6d30d7c82501f7e8f931e48e210eb1f36f6ec0dbea817361dd7819036737554d  ./EXTENSIONS.md
-09bae3e2cba60329cddf16604b885d13df0fa3371be5a367cbf5322cbc355080  ./README.md
-76d01424beffc6fd5f69a6176dba1718af62c629485922d8eee75a3a8087e5d5  ./VERSION
+d1667dc7b0420754a386c4a92c246ead51a9ec0cc95e81aee0c5df4fb3913a62  ./README.md
+1c6e945d74b4dc17923055e616b0f50f46d05ba0c4d9d080a481370905d3e614  ./VERSION
 af973cd9e883873359dd32bcde6197ddf7c38111c2ed7fc75bb041dc9e66ca3d  ./common/agents/FORMAT
 c6f5824eb7c8fd241198ab5c890e9480817fb66f312bd5e3ca8d78928127c8ca  ./common/agents/ci-monitor.md
 d4652d40c2c872bbedf1cf5535d3a3ff84c49e1d45e88e3db4ef1da1155d6fb3  ./common/agents/claude-fixer.md
@@ -23,7 +23,7 @@ f5e00ce60297971780c259e13394d0d8b6eb83e29d0fffde1c0b6f4b70c67287  ./common/agent
 4ada03d4bad08cbc46ae764789fb7f95ea68a649d9a7d8a182af24ecfc87965a  ./common/agents/security-reviewer.md
 8a002a99d8da9b03ce38cf888914e83bb609329e710e79fc36b3fef2b542ad58  ./common/agents/usage-monitor.md
 0b8e3f78446fe127385ad22d9644a7e18b5c390df7f304221c3ad0c0596289ac  ./common/agents/ux-reviewer.md
-13a8051399d130298b6fafd8c70b0bbd5956e4a99fb2d08e5599e31639f06dfb  ./common/autopilots.md
+494cfae47367b976fe53e3a6438e99a9d12e47a8685ee30ca89cd8dbc8dfe98c  ./common/autopilots.md
 23be73f1ce7f4622de6a2c0a316e73720e9e6a603fc97f73ab4daa62b84e17a4  ./common/codex/config.toml
 ad2c73ba8a20c8315e3a63c7b0ffeb8e6c6cfb1da63d6741c4b095c0014e8d6b  ./common/guard/gh
 082442a9b7ec2fbe14e219b1bbc1702800ff530395e15f3c3442479a7ba042cc  ./common/guard/pre-push
@@ -48,7 +48,7 @@ d5c1e862dd878501fc22869e252cbc15dc6a6f380d106655660b0d59c28fdde4  ./lib/extensio
 b23cfa5e86f29e5d19caf8a84227094b27508b5eb0b8481026043764f500aa7a  ./lib/host.sh
 e44b35d67f238cb7cd07a8cc6a64829f57ef5d1cc6986c0f9afa08dc299fa164  ./lib/installation.sh
 22a1d50c2ccd4d71787e8c2f766cccb311fc9113e9575aef40bb72cd0ba654d8  ./lib/project-changes.sh
-e7479e7126e8d7c448e68d54db1e38ec6fa7618d9bcecb6e5b6fd56ed43e04ea  ./lib/project.sh
+53fee654cb41161ff9f75c3817c176209570a44ad27520e9ebabc5e5ca8f0460  ./lib/project.sh
 b3a6011b66b18206fb36348da6010a6ee478c379e1af7368bba01e56f48adf57  ./lib/questions.sh
 af59cb0214f207efade15807d56aa76ba39b451f769d814b54cc8c580a123f2d  ./lib/render.sh
 46fd647de33bc19a8eca77bb789165f5f499a8867e4a984915cffcccc0efbf9f  ./lib/setup-issues.sh
@@ -64,7 +64,7 @@ f33f69f4337d70cd14bf9f1362b38e7be35107ca3f6f8e5f91b3063ed3527296  ./manual.md
 8ed1c017bd52bb79fe34cd2d9065f522259cc3743b3bf88d961aede7684f1c24  ./skeleton/.agents/rules/tests.md
 2f23303d481941e7634a75033739e2c2e6c32a079d5ed11a8db9e644bf9fe82c  ./skeleton/.agents/skills/verify/SKILL.md
 39207a2957165826bbf2b79e0973b523f1ffbdcedc1af58e0b40257415f8bf6d  ./skeleton/AGENTS.md
-935a8d5aeca42a81a3ed4958d58988f880f57a42690d2d25b460b872e9331c9d  ./skeleton/README.md
+2f501dc49e8e96fd567147831b581f38eaf03a2ca6857305fc43c0db7c82fe98  ./skeleton/README.md
 bbad056d147f7f1ff8783c13fcb87e64d5e0804b71ad1370a94ddbddbcf79f61  ./skeleton/project.md
 f13b9d6f1d3d251a28f825e23de024d5a81bd817a10ea7f2ccace772b91aea78  ./skeleton/verify-repository.md
 d73e920a3651a121bf01ba68493c4da40ea1c45901dd0259e809e953f6c217aa  ./tests/agent-templates-test.sh
@@ -82,7 +82,7 @@ f8291f3beb4fd0e4a931c9627481d6fcf2d246abcf26f9a497a64538340f7a22  ./tests/link-s
 cfcba033bb5b182af8b205bad9d217cd44949c953d9d74b37802641e38dd89a7  ./tests/manual-test.sh
 770ba7e4bde97301f5a012502338b9d2db5a0305256e1bc427224b047f7c745f  ./tests/pre-push-test.sh
 6027b751681a072be497db85f1dd47a81f84fe9cef0c9505d89563cbdc3e7f21  ./tests/project-changes-test.sh
-5e25caa99e26041064ccd1ddd741719a54e5b9f1b8d256bed50bfc5158dfb4ff  ./tests/project-followup-test.sh
+172a0f16890a75bc21f3634bfc120df68be3dbf2c8b649f5ffe7b36eb5152bd5  ./tests/project-followup-test.sh
 ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/project-issues-fixture.py
 2823428e1915d4083e023689b248a061a3fb47db7a596df92d3ad5e059eda245  ./tests/project-issues-test.sh
 1d320cfd0636c1fb086a826cee8243f6eea370454a1b483de40e9834f8bea841  ./tests/project-test.sh
