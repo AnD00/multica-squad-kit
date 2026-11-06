@@ -118,3 +118,23 @@ for variant in missing unknown mixed; do
  [[ -s $test_dir/err ]]
 done
 echo 'PASS extensions: Webhook の明示を受け取り、指定漏れ・未知の種類・スケジュールの混在を拒否する'
+
+# 不正な行が reduce の蓄積を消し、正常な共通定義を失ったまま成功しない。
+autopilot_sections "$root/common/autopilots.md" >"$test_dir/common.json"
+jq -e 'length==3' "$test_dir/common.json" >/dev/null
+for variant in no-backticks trailing-space; do
+ case $variant in
+ no-backticks) sed 's/`webhook`/webhook/' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ trailing-space) sed 's/`webhook`$/`webhook` /' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ esac
+ for position in end middle; do
+  cat "$root/common/autopilots.md" "$test_dir/bad.md" >"$test_dir/combined.md"
+  if [[ $position == middle ]]; then cat "$test_dir/webhook.md" >>"$test_dir/combined.md"; fi
+  if autopilot_sections "$test_dir/combined.md" >"$test_dir/out" 2>"$test_dir/err"; then
+   echo "不正なトリガー行を受け付けました: $variant ($position)" >&2
+   exit 1
+  fi
+  grep -q 'オートパイロットの定義が不正' "$test_dir/err"
+ done
+done
+echo 'PASS extensions: 正常な共通定義の後・途中にあるバッククォート欠落と行末空白はエラーで止まる'

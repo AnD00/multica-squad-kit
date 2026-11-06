@@ -12,7 +12,7 @@ autopilot_sections() {
 			elif ($line|startswith("- 範囲: ")) then .current.scope=($line|capture("^- 範囲: `(?<scope>[^`]+)`$").scope)
 			elif ($line|startswith("- 担当: ")) then .current.agent=($line|ltrimstr("- 担当: "))
 			elif ($line|startswith("- 実行: ")) then .current.mode=($line|capture("^- 実行: `(?<mode>[^`]+)`$").mode)
-			elif ($line|startswith("- トリガー: ")) then .current.trigger=($line|capture("^- トリガー: `(?<kind>[^`]+)`$").kind)
+			elif ($line|startswith("- トリガー: ")) then .current.trigger=($line|(capture("^- トリガー: `(?<kind>[^`]+)`$") // error("オートパイロットの定義が不正: トリガー行の書式")).kind)
 			elif ($line|startswith("- スケジュール: ")) then
 				($line|capture("^- スケジュール: `(?<cron>[^`]+)`（(?<timezone>[^）]+)）$")) as $schedule |
 				.current.cron=$schedule.cron | .current.timezone=$schedule.timezone

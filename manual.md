@@ -4,13 +4,13 @@
 
 ## 原本を取る
 
-公開リポジトリを clone し、使うタグを取り出す。現在のタグは `v1.0.1`。更新するときも同じ clone でタグを取り出し、設定を流し直す。
+公開リポジトリを clone し、最新のリリースのタグを取り出す。次の `<tag>` は、使うリリースのタグ名に置き換える。更新するときも同じ clone でタグを取り出し、設定を流し直す。
 
 ```bash
 git clone https://github.com/AnD00/multica-squad-kit.git
 cd multica-squad-kit
 git fetch origin --tags
-git checkout --detach v1.0.1
+git checkout --detach <tag>
 bash setup.sh
 ```
 
