@@ -2,8 +2,12 @@
 name: "{{project_key}}-code-reviewer-{{member_key}}"
 description: PR の正しさ、設計との一致、保守性、リポジトリのルールをレビューする
 role: コードレビュー。実装が終わった PR を受ける
+<!-- IF runtime-codex -->
 <!-- IF codex-implementer -->
 model: gpt-6.1-sol
+<!-- ELSE -->
+model: claude-sonnet-5-5
+<!-- ENDIF -->
 <!-- ELSE -->
 model: claude-sonnet-5-5
 <!-- ENDIF -->

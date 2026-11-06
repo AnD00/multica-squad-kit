@@ -2,7 +2,12 @@
 template_roles='orchestrator planner designer claude-implementer codex-implementer claude-fixer codex-fixer code-reviewer ux-reviewer security-reviewer performance-reviewer qa ci-monitor usage-monitor dependabot-merger'
 
 template_filter() {
-	awk -v enabled="$1" -v known="$template_roles" '
+	local runtime_flags
+	runtime_flags=$(jq -er '
+		if type=="array" and length>0 and all(.[]; .=="claude" or .=="codex")
+		then map("runtime-"+.) | join(" ") else error("使うランタイムが不正です") end
+	' <<<"${runtimes:-[\"claude\",\"codex\"]}") || return 1
+	awk -v enabled="$1 $runtime_flags" -v known="$template_roles runtime-claude runtime-codex" '
 		function fail(message) {print FILENAME ":" FNR ": " message > "/dev/stderr"; bad=1; exit 1}
 		BEGIN {
 			n=split(known, keys, " "); for(i=1;i<=n;i++) valid[keys[i]]=1

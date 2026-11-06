@@ -2,7 +2,11 @@
 name: "{{project_key}}-designer-{{member_key}}"
 description: 要件をもとに設計し、docs/ に書いて人間の承認を得る
 role: 設計。要件が合意されたタスクを受け、docs/ の変更を draft PR にする
+<!-- IF runtime-claude -->
 model: claude-opus-5-5
+<!-- ELSE -->
+model: gpt-6.1-sol
+<!-- ENDIF -->
 thinking_level: high
 skills: squad-handoff
 ---

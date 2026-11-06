@@ -62,7 +62,7 @@ ask_key() {
 valid_server() { [[ $1 =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]]; }
 choose_server() {
 	local config configured
-	question_number=0; question_total=7; question_server_checked=no
+	question_number=0; question_total=8; question_server_checked=no
 	config=$(multica config show) || die 'CLI の設定を読めませんでした。'
 	configured=$(printf '%s\n' "$config" | awk '$1=="server_url:" && $2!="(not" {print $2}')
 	server_url=${MULTICA_SERVER_URL:-$configured}
@@ -72,7 +72,7 @@ choose_server() {
 		printf '設定済みのサーバーを使います: %s\n' "$server_url" >&2
 		return
 	fi
-	question_total=8
+	question_total=9
 	question_begin 'サーバーの URL' 'この Mac のデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
 	while :; do
 		question_prompt ''
@@ -161,6 +161,30 @@ role_choices='[
  {"key":"dependabot-merger","roles":["dependabot-merger"],"text":"Dependabot の PR: 更新を週次で扱う。対応するオートパイロットも外れる"}
 ]'
 
+pick_runtimes() {
+	local previous=$1 default=1 claude_status='コマンドが見つかりません' codex_status='コマンドが見つかりません'
+	command -v claude >/dev/null && claude_status='コマンドが見つかりました'
+	command -v codex >/dev/null && codex_status='コマンドが見つかりました'
+	if jq -e 'has("runtimes")' >/dev/null <<<"$previous"; then
+		default=$(jq -r 'if (.runtimes|length)==2 then 1 elif .runtimes==["claude"] then 2 else 3 end' <<<"$previous")
+	elif [[ $claude_status == 'コマンドが見つかりません' ]]; then default=3
+	elif [[ $codex_status == 'コマンドが見つかりません' ]]; then default=2
+	fi
+	question_begin '使うランタイム' 'エージェントを動かすランタイムです。この Mac に入っていて、エージェント用にログインするものを選びます。' '1（両方）、2（Claude Code だけ）、3（Codex だけ）'
+	question_items=$(jq -nc --arg claude "$claude_status" --arg codex "$codex_status" '["両方（claude: \($claude)、codex: \($codex)）","Claude Code だけ（claude: \($claude)）","Codex だけ（codex: \($codex)）"]')
+	while :; do
+		pick_numbers "$default" no
+		if [[ $(jq length <<<"$picked_numbers") != 1 ]]; then
+			printf '%s\n' '使うランタイムは一つの番号だけを選んでください。' >&2; continue
+		fi
+		case $(jq -r '.[0]' <<<"$picked_numbers") in
+		1) runtimes='["claude","codex"]' ;; 2) runtimes='["claude"]' ;; 3) runtimes='["codex"]' ;;
+		esac
+		if check_runtime_tools; then break; fi
+		printf '%s\n' 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。' >&2
+	done
+}
+
 ask_questions() {
 	local workspaces projects repos members profile cached='{}' raw files=0 candidate default index token previous_key selected
 	workspace_id=''
@@ -230,17 +254,18 @@ ask_questions() {
 	default=$(jq -nr --argjson members "$members" --argjson selected "$selected" '[$members|to_entries[]|select(.value.user_id as $id|$selected|index($id))|(.key+1|tostring)]|join(" ")'); default=${default:-0}
 	pick_numbers "$default" yes
 	member_ids=$(jq -nc --argjson members "$members" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $members[$i-1].user_id]|unique')
+	pick_runtimes "$saved"
 	question_begin '外す役' '要らない役を番号で選びます。進行役は必須で、実装・修正は少なくとも一系統を残します。' '5 7、または 5,7（0なら何も外さない）'
-	question_items=$(jq '[.[].text]' <<<"$role_choices"); question_zero='何も外さない'
+	question_items=$(jq --argjson runtimes "$runtimes" '[.[] | .key as $key | .text + (if ($key=="claude" or $key=="codex") and ($runtimes|index($key))==null then "（使うランタイムにないため外れます）" else "" end)]' <<<"$role_choices"); question_zero='何も外さない'
 	question_fixed='進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。'
 	default=$(jq -nr --argjson choices "$role_choices" --argjson excluded "$(jq -c '.excluded_roles // []' <<<"$saved")" '[$choices|to_entries[]|select(any(.value.roles[]; . as $role | $excluded|index($role)))|(.key+1|tostring)]|join(" ")'); default=${default:-0}
 	while :; do
 		pick_numbers "$default" yes
 		excluded_roles=$(jq -nc --argjson choices "$role_choices" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $choices[$i-1].roles[]]|unique')
-		if ! jq -e 'index("claude-implementer")!=null and index("codex-implementer")!=null' >/dev/null <<<"$excluded_roles"; then break; fi
+		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; .+"-implementer" as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
 		printf '%s\n' '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。' >&2
 	done
-	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,excluded_roles:$excluded_roles}')
+	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles}')
 	question_people=$members
 }
 
@@ -272,6 +297,9 @@ plan_autopilot_action() {
 confirmation_plan() {
 	local agents skills autopilots squad_name role name action skill_dir repo title humans resources bound='[]'
 	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern
+	# 表示の予定だけに、選ばなかったランタイムの系統を足す。保存する答えは変えない。
+	local excluded_roles=$excluded_roles
+	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer"] | unique' <<<"$excluded_roles")
 	agents=$(question_list エージェント agent list)
 	skills=$(question_list スキル skill list)
 	autopilots=$(mc autopilot list --output json) || die 'オートパイロットを取得できませんでした。'
@@ -284,6 +312,7 @@ confirmation_plan() {
 	printf 'サーバー: %s\nワークスペース: %s（既存を使う）\n' "$server_url" "$workspace_name"
 	if [[ -n $project_id ]]; then action='今あるものを使う'; else action='新しく作る'; fi
 	printf 'プロジェクト: %s（%s）\n' "$project_name" "$action"
+	printf '使うランタイム: %s\n' "$(jq -r 'map(if .=="claude" then "Claude Code" else "Codex" end)|join("、")' <<<"$runtimes")"
 	for role in $template_roles; do
 		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || { printf "外れた拡張の役（エージェントは残す）: %s\n" "$role"; continue; }
 		jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
@@ -348,7 +377,7 @@ confirmation_plan() {
 	humans=$(jq -r --argjson ids "$member_ids" '[.[]|select(.user_id as $id|$ids|index($id))|.name]|join("、")' <<<"$question_people")
 	printf 'スクワッドに入れる人間: %s（既存の人をスクワッドへ追加・維持）\n' "${humans:-なし}"
 	printf '外す役と、一緒に外れるもの:\n'
-	jq -r --argjson excluded "$excluded_roles" '.[]|select(any(.roles[]; . as $role|$excluded|index($role)))|"  \(.text)"' <<<"$role_choices"
+	jq -r --argjson excluded "$excluded_roles" --argjson runtimes "$runtimes" '.[]|select(any(.roles[]; . as $role|$excluded|index($role)))|.key as $key|"  \(.text)" + (if ($key=="claude" or $key=="codex") and ($runtimes|index($key))==null then "（使うランタイムにないため外れます）" else "" end)' <<<"$role_choices"
 	if [[ $(jq length <<<"$excluded_roles") == 0 ]]; then printf '  なし\n'; fi
 }
 

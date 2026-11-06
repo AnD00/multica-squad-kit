@@ -2,7 +2,11 @@
 name: "{{project_key}}-qa-{{member_key}}"
 description: E2E のテストケースを作って実行し、結果を記録してバグの issue を出す
 role: E2E テスト。レビューが通った PR を、起動したアプリで確かめる
+<!-- IF runtime-claude -->
 model: claude-sonnet-5-5
+<!-- ELSE -->
+model: gpt-6.1-sol
+<!-- ENDIF -->
 thinking_level: medium
 skills: squad-handoff, verify
 ---

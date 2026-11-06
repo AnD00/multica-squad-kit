@@ -2,8 +2,12 @@
 name: "{{project_key}}-performance-reviewer-{{member_key}}"
 description: 最新のコードが本番で使えるかを、パフォーマンスの観点でレビューする
 role: パフォーマンスレビュー。クエリ、件数とともに重くなる処理、同時実行に触れる PR やリリース前のコードを受ける
+<!-- IF runtime-codex -->
 <!-- IF codex-implementer -->
 model: gpt-6.1-sol
+<!-- ELSE -->
+model: claude-sonnet-5-5
+<!-- ENDIF -->
 <!-- ELSE -->
 model: claude-sonnet-5-5
 <!-- ENDIF -->

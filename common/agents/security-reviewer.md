@@ -2,8 +2,12 @@
 name: "{{project_key}}-security-reviewer-{{member_key}}"
 description: 最新のコードが本番で使えるかを、セキュリティの観点でレビューする
 role: セキュリティレビュー。認証・認可、入力、秘密情報、依存に触れる PR やリリース前のコードを受ける
+<!-- IF runtime-codex -->
 <!-- IF codex-implementer -->
 model: gpt-6.1-sol
+<!-- ELSE -->
+model: claude-sonnet-5-5
+<!-- ENDIF -->
 <!-- ELSE -->
 model: claude-sonnet-5-5
 <!-- ENDIF -->
