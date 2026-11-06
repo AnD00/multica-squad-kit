@@ -585,10 +585,10 @@ for change in dependency context file hunk; do
 done
 echo 'PASS advance: 変更内容・文脈・ファイル・hunk の文脈が違えば changed'
 
-for mismatch in legacy author run head command; do
+for mismatch in missing-diff author run head command; do
 	rebase_fixture
 	case $mismatch in
-	legacy) filter='.[0].body |= sub(" diff: [a-f0-9]{64}"; "")' ;;
+	missing-diff) filter='.[0].body |= sub(" diff: [a-f0-9]{64}"; "")' ;;
 	author) filter='.[0].user.login = "other"' ;;
 	run) filter='.[0].created_at = "1970-01-03T07:33:19Z"' ;;
 	head) filter=".[0].body |= sub(\"$reviewed\"; \"$head2\")" ;;
@@ -599,7 +599,7 @@ for mismatch in legacy author run head command; do
 	run_advance changed
 	no_writes
 done
-echo 'PASS advance: 旧形式・別の作者・過去の実行・別の head・別のコマンドのハッシュは使わない'
+echo 'PASS advance: ハッシュなし・別の作者・過去の実行・別の head・別のコマンドのハッシュは使わない'
 
 rebase_fixture
 cp "$test_dir/comments.json" "$test_dir/comments-page2.json"

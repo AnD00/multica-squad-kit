@@ -34,7 +34,7 @@ else
 	exec /bin/sleep "$@"
 fi
 MOCK
-# 段 3 からは読み取りと共通関数も本体を使う。
+# 使用率の読み取りと共通関数は本体を使う。
 cp "$root/common/monitor/squad-usage-read" "$root/common/monitor/squad-usage-lib" "$test_dir/monitor/"
 cat >"$test_dir/bin/cli-reset" <<'MOCK'
 #!/bin/bash

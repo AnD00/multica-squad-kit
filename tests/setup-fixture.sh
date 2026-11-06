@@ -10,7 +10,6 @@ cp "$root/setup.sh" "$test_dir/package/setup.sh"
 cp "$root/lib/"*.sh "$test_dir/package/lib/"
 cp -R "$root/common" "$root/skeleton" "$test_dir/package/"
 # 質問の試験ではホストを触らない。ホストの実装は host-test.sh で検証する。
-printf 'migrate_legacy_host() { :; }\nmigration_report() { :; }\n' >"$test_dir/package/lib/migrate.sh"
 printf 'prepare_host() { :; }\n' >"$test_dir/package/lib/host.sh"
 printf 'prepare_workspace() { :; }\n' >"$test_dir/package/lib/workspace.sh"
 printf 'prepare_project() { echo TEST-project-prepared; }\n' >"$test_dir/package/lib/project.sh"

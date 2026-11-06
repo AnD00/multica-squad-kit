@@ -118,7 +118,7 @@ source "$root/lib/answers.sh"
 source "$root/lib/host.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
-# 前半のテストでは後半を差し替え、呼び出す順序を確かめる。
+# エージェント登録の試験ではスクワッドの設定を差し替え、呼び出す順序を確かめる。
 complete_project() { echo "followup after agents"; }
 server_url=https://example.test
 workspace_id=workspace-a
@@ -194,7 +194,7 @@ jq -e '[.skills[].id]|sort==["handoff-a","verify-a"]' "$TEST_DB/agents/agent-dem
 echo 'PASS completion: 成功したエージェント15件とスクワッド1件だけを作成件数に出す'
 echo 'PASS project: 初回はホスト準備後に private と停止指示と環境を作り、全 ID と指示検証後に割り当て、最後に公開する'
 ! jq -es 'any(.[]; .[0:2]==["squad","update"] or .[0:2]==["squad","member"] or .[0]=="autopilot")' "$TEST_DB/calls" >/dev/null
-echo 'PASS project: 前半はスクワッドの器を作り、後半の呼び出しを最後に行う'
+echo 'PASS project: プロジェクトの登録でスクワッドの器を作り、設定の反映を最後に行う'
 echo 'PASS project: 新規プロジェクトでは選んだ全件をエージェント作成前の許可ファイルと紐付けに反映する'
 
 jq -es 'all(.[]|select(.name|startswith("demo-")); (.instructions|contains("`example/project`、`example/second`、`example/third`")))' "$TEST_DB"/agents/*.json >/dev/null
@@ -399,17 +399,20 @@ TEST_RECHECK=yes TEST_RECHECK_AFTER_GUARD=yes TEST_GUARD_MARKER="$TEST_DB/guard-
 grep -q '別プロジェクトに紐付いたため許可できません: example/third' "$test_dir/err"
 echo 'PASS project: 関所の確認の通信中に他プロジェクトへ移った選択も、許可更新直前の再確認で拒否する'
 
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
 reset_db
 run
 for file in "$TEST_DB/env/"*.json; do
- jq '. += {LEGACY_GH_DEPENDABOT_MERGE:"1",MULTICA_AGENT_ALLOWED_REPOS:"old",PERSONAL_KEEP:"yes"}' "$file" >"$TEST_DB/new"
+ jq '. += {SQUAD_KIT_GH_DEPENDABOT_MERGE:"1",PERSONAL_KEEP:"yes"}' "$file" >"$TEST_DB/new"
  mv "$TEST_DB/new" "$file"
 done
 run
 for file in "$TEST_DB/env/"*.json; do
- jq -e '.MULTICA_AGENT_ALLOWED_REPOS==null and .LEGACY_GH_DEPENDABOT_MERGE==null and .PERSONAL_KEEP=="yes" and (.SQUAD_KIT_ALLOWED_REPOS|endswith("/allowed-repos.d/project-a"))' "$file" >/dev/null
+ jq -e '.PERSONAL_KEEP=="yes" and (.SQUAD_KIT_ALLOWED_REPOS|endswith("/allowed-repos.d/project-a"))' "$file" >/dev/null
 done
-echo 'PASS migration: 旧い環境変数を除き、新しい許可を入れ、無関係の環境変数を保つ'
+jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE=="1"' "$TEST_DB/env/agent-demo-dependabot-merger-owner.json" >/dev/null
+jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE==null' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
+echo 'PASS environment: リポジトリの許可を反映し、マージ権限を担当の役に限定し、無関係の環境変数を保つ'
 
 reset_db
 mkdir -p "$test_dir/extension/instructions"

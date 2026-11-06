@@ -17,7 +17,7 @@ host_install() {
 
 host_shared_file() {
 	local src=$1 dst=$2 executable=$3
-	if [[ -e $dst ]] && ! grep -Eq '^# (multica-squad-kit|multica-template)-managed$' "$dst"; then
+	if [[ -e $dst ]] && ! grep -qx '# multica-squad-kit-managed' "$dst"; then
 		printf '印のない既存のファイルをそのまま使います: %s\n' "$dst" >&2
 		return
 	fi
@@ -60,7 +60,7 @@ PY
 	prepare_daemon
 }
 
-# 段12で、プロジェクトを作るか見つけた直後、エージェント登録前に呼ぶ。
+# プロジェクトを作るか見つけた直後、エージェント登録前に呼ぶ。
 prepare_project_host() {
 	[[ $# -ge 2 ]] || die 'prepare_project_host にはプロジェクト ID と、一つ以上の OWNER/REPO を渡してください。'
 	local id=$1 repo file content='' previous='' removed='' escaped needle='{{ALLOWED_REPOS_FILE}}'
@@ -102,7 +102,7 @@ prepare_project_host() {
 	for file in .zshenv env.sh; do
 		content=$(cat "$root/common/shell/$file") || die 'シェルのひな形を読めませんでした。'
 		content=${content//"$needle"/"$escaped"}
-		if [[ -e $project_shell_dir/$file || -L $project_shell_dir/$file ]] && ! grep -Eq '^# (multica-squad-kit|multica-template)-managed$' "$project_shell_dir/$file"; then
+		if [[ -e $project_shell_dir/$file || -L $project_shell_dir/$file ]] && ! grep -qx '# multica-squad-kit-managed' "$project_shell_dir/$file"; then
 			printf '印のない既存のファイルをそのまま使います: %s\n' "$project_shell_dir/$file" >&2
 			continue
 		fi

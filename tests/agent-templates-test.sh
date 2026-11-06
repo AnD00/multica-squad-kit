@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 段12の本体で、全構成の条件と差し込みの契約を検証する。
+# ひな形の本体で、全構成の条件と差し込みの契約を検証する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -146,10 +146,10 @@ for role in code-reviewer performance-reviewer security-reviewer ux-reviewer qa;
 	grep -qF '3 行以内' "$test_dir/all/$role"
 done
 grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/designer"
-grep -qF '1 段 1 行にする' "$test_dir/all/designer"
+grep -qF '実装の一覧は、課題のコメントに' "$test_dir/all/designer"
 echo 'PASS templates: 役の指示と共通スキルが、本文の書き方・PR の本文の置き場所・引き継ぎの順序を同じ見出しで参照する'
 
-# 単一の互換用の値が残っていても、一覧の欠落を先頭への読み替えで補わない。
+# 指示にはリポジトリの一覧が必要である。
 awk -F '\t' '$1!="repositories"' "$test_dir/values" >"$test_dir/without-list"
 if render 'orchestrator codex-implementer codex-fixer' "$test_dir/without-list" "$root/common/agents/orchestrator.md" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 grep -q '値が足りない: repositories' "$test_dir/err"

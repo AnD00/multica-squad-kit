@@ -49,7 +49,7 @@ no_state
 base_input yes
 run
 saved="$test_dir/state/ws-a/demo.json"
-jq -e '.workspace_id=="ws-a" and .project_id=="project-a" and .repository=="example/two" and .repository_url=="git@github.com:example/two.git" and .member_ids==["member-a","member-b"] and .excluded_roles==["claude-fixer","claude-implementer","planner"]' "$saved" >/dev/null
+jq -e '.workspace_id=="ws-a" and .project_id=="project-a" and .repositories[0].repository=="example/two" and .repositories[0].url=="git@github.com:example/two.git" and .member_ids==["member-a","member-b"] and .excluded_roles==["claude-fixer","claude-implementer","planner"]' "$saved" >/dev/null
 [[ $(stat -f '%Lp' "$saved") == 600 ]]
 grep -q 'TEST-project-prepared' "$test_dir/out"
 grep -qF '答えを保存しました。' "$test_dir/err"
@@ -120,31 +120,21 @@ if bash "$test_dir/package/setup.sh" --project ignored >"$test_dir/out" 2>"$test
 grep -q '質問に答えて' "$test_dir/err"
 echo 'PASS setup: 引数での値の指定は受け付けない'
 
-# 段15: 複数の選択と、前の単一リポジトリの答えを読み替える。
+# リポジトリの複数選択と保存した一覧からの再実行。
 export TEMPLATE_STATE_ROOT="$test_dir/multiple"
 export TEST_REPOS_FILE="$test_dir/repos.json"
 echo '[{"url":"https://github.com/example/one.git"},{"url":"git@github.com:example/two.git"},{"url":"ssh://git@github.com/EXAMPLE/ONE.git"},{"url":"https://github.com/example/three"}]' >"$TEST_REPOS_FILE"
 printf '1\n1\nmulti\n2,1 2\nmembera\n0\n0\nyes\n' >"$test_dir/input"
 run
 multiple="$TEMPLATE_STATE_ROOT/ws-a/multi.json"
-jq -e '.schema==2 and [.repositories[].repository]==["example/two","example/one"] and .repository==.repositories[0].repository and .repository_url==.repositories[0].url' "$multiple" >/dev/null
+jq -e '.schema==1 and [.repositories[].repository]==["example/two","example/one"]' "$multiple" >/dev/null
 [[ $(stat -f '%Lp' "$multiple") == 600 ]]
-echo 'PASS repositories: 空白とカンマで複数を選び、番号と URL 表記の重複を除き、選択順と互換用の先頭を保存する'
+echo 'PASS repositories: 空白とカンマで複数を選び、番号と URL 表記の重複を除き、選択順を保存する'
 cp "$multiple" "$test_dir/multi-before"
 printf '1\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 cmp "$multiple" "$test_dir/multi-before"
 echo 'PASS repositories: 複数の保存値を既定にして、ws を選んだあとは Enter で同じ順序と内容で再実行する'
-jq '.schema=1 | del(.repositories)' "$multiple" >"$test_dir/legacy"
-cp "$test_dir/legacy" "$multiple"
-printf '1\n\n\n\n\n\n\nno\n' >"$test_dir/input"
-deny
-cmp "$multiple" "$test_dir/legacy"
-printf '1\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
-run
-jq -e '.schema==2 and (.repositories|length)==1 and .repositories[0].repository=="example/two"' "$multiple" >/dev/null
-echo 'PASS repositories: 旧版の一つの答えを一要素の既定へ読み替え、キャンセル時は旧ファイルを変更しない'
-
 export TEST_PROJECTS_FILE="$test_dir/projects.json" TEST_RESOURCES_DIR="$test_dir/resources"
 mkdir -p "$TEST_RESOURCES_DIR"
 echo '[{"id":"project-a","title":"Existing project"},{"id":"project-b","title":"Neighbor"}]' >"$TEST_PROJECTS_FILE"
@@ -157,7 +147,9 @@ grep -q '別プロジェクト: Neighbor' "$test_dir/err"
 grep -q 'project resource list project-b' "$TEST_CALLS"
 echo 'PASS repositories: 他プロジェクトの HTTPS/SSH・大小文字の表記差を同じものと判定し、自己のリポジトリは候補に残す'
 
-# 以前の選択が他プロジェクトへ移ったときは既定へ戻さない。
+# 保存した選択がすべて他プロジェクトへ移ったときは既定へ戻さない。
+jq '.repositories |= map(select(.repository=="example/two"))' "$multiple" >"$test_dir/blocked-answer"
+mv "$test_dir/blocked-answer" "$multiple"
 printf '1\n1\nmulti\n\n1\nmembera\n0\n0\nyes\n' >"$test_dir/input"
 run
 jq -e '[.repositories[].repository]==["example/one"]' "$multiple" >/dev/null
@@ -202,11 +194,11 @@ jq -e '[.repositories[].repository]==["example/two","example/one"]' "$TEMPLATE_S
 [[ $(grep -c '1つ以上の番号' "$test_dir/err") == 4 ]]
 echo 'PASS repositories: 0・候補外・文字・空の選択は同じ質問へ戻り、1つ以上の選択だけを受け付ける'
 
-for damage in '.repositories=[]' '.repository="example/other"' '.schema=9'; do
+for damage in '.repositories=[]' '.repositories[0].repository="example/other"' '.schema=9'; do
  jq "$damage" "$test_dir/multi-safe" >"$multiple"
  cp "$multiple" "$test_dir/damaged"
  printf '1\n1\nmulti\n' >"$test_dir/input"
  deny
  cmp "$multiple" "$test_dir/damaged"
 done
-echo 'PASS repositories: 空の保存一覧・先頭と違う互換値・未知の保存形式は拒否して上書きしない'
+echo 'PASS repositories: 空の保存一覧・URL と違うリポジトリ名・未知の保存形式は拒否して上書きしない'

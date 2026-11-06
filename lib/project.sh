@@ -1,4 +1,4 @@
-# 段12の初期化と本指示の反映を終えてから、段13の設定を呼ぶ。
+# プロジェクトとエージェントの設定を終えてから、スクワッドを設定する。
 prepare_project() (
 	umask 077
 	local project_work enabled role file model thinking name id result current desired skills matches field value runtime max
@@ -16,7 +16,7 @@ prepare_project() (
 		reduce .[] as $entry ([]; if any(.[]; .repository==$entry.repository) then . else .+[$entry] end)
 	' <<<"$repositories") || die '選択したリポジトリの一覧が不正です。'
 	while IFS= read -r selected_repo; do selected_repo_names[${#selected_repo_names[@]}]=$selected_repo; done < <(jq -r '.[].repository' <<<"$selected_repositories")
-	# オートパイロットの一覧対応は次の段。単一の対象を展開する値は先頭を保つ。
+	# プロジェクト作成のリポジトリには、選択した一覧の先頭を使う。
 	repository_url=$(jq -r '.[0].url' <<<"$selected_repositories")
 	repository=$(jq -r '.[0].repository' <<<"$selected_repositories")
 	mkdir -p "$root/tmp"
@@ -156,7 +156,7 @@ prepare_project() (
 		current=$(mc agent get "$id" --output json) || die 'エージェントを読めませんでした。'
 		result=$(mc agent env get "$id" --output json) || die '環境変数を読めませんでした。'
 		jq -e '(.custom_env // {}) | type=="object" and all(.[]; type=="string")' >/dev/null <<<"$result" || die '環境変数の応答が不正です。'
-		jq --slurpfile desired "$project_work/$role.env" '(.custom_env // {} | with_entries(select((.key | endswith("_GH_DEPENDABOT_MERGE")) | not) | select(.key!="MULTICA_AGENT_ALLOWED_REPOS"))) + $desired[0]' <<<"$result" >"$project_work/env.json"
+		jq --slurpfile desired "$project_work/$role.env" '(.custom_env // {} | del(.SQUAD_KIT_GH_DEPENDABOT_MERGE)) + $desired[0]' <<<"$result" >"$project_work/env.json"
 		if [[ $(jq -Sc '.custom_env // {}' <<<"$result") != "$(jq -Sc . "$project_work/env.json")" ]]; then
 			mc agent env set "$id" --custom-env-file "$project_work/env.json" --output json >/dev/null || die '環境変数を反映できませんでした。'
 		fi

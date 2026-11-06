@@ -159,7 +159,7 @@ for file in bin/gh git-hooks/pre-push codex/config.toml allowed-repos claude/cre
 done
 set_mode running
 agent_env
-printf "# multica-template-managed\nold\n" >"$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
+printf "# multica-squad-kit-managed\nchanged\n" >"$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
 run
 for file in bin/gh git-hooks/pre-push codex/config.toml allowed-repos claude/credentials.json codex/auth.json; do cmp "$TEMPLATE_AGENT_HOME/$file" "$test_dir/original/$file"; done
 cmp "$root/common/monitor/squad-pr-watch" "$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
@@ -305,6 +305,3 @@ done
 if /bin/bash "$test_dir/project.sh" "$root" project-new >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new ]]
 echo 'PASS host: 空の選択や後ろの不正な値で前の許可を壊さず、空の許可ファイルも作らない'
-
-# 初回の見張りとシェルは、最終配布物の実際の印なしデータで確かめる。
-bash "$root/tests/migration-test.sh"

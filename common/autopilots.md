@@ -89,10 +89,10 @@ PR の結果の先頭の 1 行:
 - マージしなかった理由は、メジャー、CI の失敗、コンフリクト、懸念あり、マージの拒否、Dependabot の無反応、CI の待ちの上限、main に追いつけない、実行全体の時間切れ、エラーのどれかにし、人間に回したものには issue の識別子を添える。続行できなかった PR も、理由とともに一覧に残す
 
 マージした:
-- #361 mysql 8.4.11 → 8.4.13
+- <PR 番号> mysql 8.4.11 → 8.4.13
 マージしなかった（理由）:
-- #362 @types/node 22 → 24: メジャー（<issue の identifier>）
-- #360 debian の digest: Dependabot の無反応
+- <PR 番号> @types/node 22 → 24: メジャー（<issue の identifier>）
+- <PR 番号> debian の digest: Dependabot の無反応
 ```
 
 <!-- ENDIF -->

@@ -214,7 +214,7 @@ export TEST_EXCLUDED='[]'
 reset_db
 jq '.creator_id="another"' "$TEST_DB/squad.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/squad.json"
 deny; no_writes
-echo 'PASS followup: スクワッドの所有者が変わったときは後半の書き込みを行わない'
+echo 'PASS followup: スクワッドの所有者が変わったときは設定の書き込みを行わない'
 
 reset_db
 run
@@ -324,48 +324,3 @@ export TEST_EXCLUDED='["security-reviewer","usage-monitor","dependabot-merger"]'
 run
 jq -e 'length==5 and all(.[]; .status=="paused")' "$TEST_DB/autopilots.json" >/dev/null
 echo 'PASS autopilots: 役も同時に外したとき、すべてを停止し、履歴を保持する'
-
-seed_legacy() {
- reset_db
- cat >"$TEST_DB/autopilots.json" <<'JSON'
-[
- {"id":"legacy-sec","title":"週 1 回の依存ライブラリの脆弱性チェック demo","description":"example/retired の old-security","execution_mode":"create_issue","project_id":"project-a","assignee_type":"agent","assignee_id":"agent-security-reviewer","status":"active"},
- {"id":"legacy-dep","title":"Dependabot の PR の週次の確認 demo","description":"example/retired の old-dependabot","execution_mode":"run_only","project_id":"project-a","assignee_type":"agent","assignee_id":"agent-dependabot-merger","status":"active"},
- {"id":"legacy-usage","title":"使用上限の見張り demo-owner","description":"old-usage","execution_mode":"run_only","project_id":"project-a","assignee_type":"agent","assignee_id":"agent-usage-monitor","status":"active"}
-]
-JSON
- for id in legacy-sec legacy-dep legacy-usage; do
-  jq -n --arg id "schedule-$id" '[{id:$id,kind:"schedule",cron_expression:"0 0 * * 0",timezone:"Asia/Tokyo",enabled:true}]' >"$TEST_DB/triggers-$id.json"
- done
-}
-export TEST_EXCLUDED='[]' TEST_REPOSITORIES='["example/project","example/client"]'
-seed_legacy
-cp "$TEST_DB/autopilots.json" "$test_dir/legacy-before"
-cp "$TEST_DB/triggers-legacy-sec.json" "$test_dir/legacy-trigger"
-run
-jq -e 'length==7 and all(.[]|select(.id=="legacy-sec" or .id=="legacy-dep"); .status=="paused") and ([.[]|select(.status=="active")]|length)==5' "$TEST_DB/autopilots.json" >/dev/null
-jq -e --slurpfile before "$test_dir/legacy-before" '. as $after | all($before[0][]|select(.id!="legacy-usage"); . as $old|any($after[]; .id==$old.id and (del(.status)==($old|del(.status)))))' "$TEST_DB/autopilots.json" >/dev/null
-cmp "$test_dir/legacy-trigger" "$TEST_DB/triggers-legacy-sec.json"
-[[ $(grep -c '^旧名のオートパイロットを一時停止しています' "$test_dir/err") == 2 ]]
-jq -es 'to_entries as $events | [$events[]|select(.value[0:2]==["autopilot","update"] and (.value|index("--status")!=null))] as $paused | [$events[]|select(.value[0:2]==["autopilot","create"])] as $created | ($paused|length)==2 and ($paused|map(.key)|max)<($created|map(.key)|min)' "$TEST_DB/calls" >/dev/null
-: >"$TEST_DB/calls"; run; no_writes
-echo 'PASS autopilots: 旧名は対象が外れていても新規作成前に一時停止し、旧 ID・指示・トリガーを保ち、新形式と重複させない'
-
-seed_legacy
-jq 'map(if .id=="legacy-dep" then .assignee_id="foreign-agent" else . end)' "$TEST_DB/autopilots.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/autopilots.json"
-deny; no_autopilot_writes
-grep -q '別の担当の旧名のオートパイロットが稼働中' "$test_dir/err"
-jq -e 'length==3 and all(.[]; .status=="active")' "$TEST_DB/autopilots.json" >/dev/null
-jq 'map(if .id=="legacy-dep" then .status="paused" else . end)' "$TEST_DB/autopilots.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/autopilots.json"
-run
-jq -e 'length==7 and any(.[]; .id=="legacy-dep" and .assignee_id=="foreign-agent" and .status=="paused" and .description=="example/retired の old-dependabot")' "$TEST_DB/autopilots.json" >/dev/null
-echo 'PASS autopilots: 他人の旧名が稼働中なら自分の分も変えず停止し、持ち主が一時停止した後はその指示・担当を保って新形式を用意する'
-
-seed_legacy
-TEST_FAIL_PAUSE=yes deny
-jq -e 'length==3 and all(.[]; .status=="active")' "$TEST_DB/autopilots.json" >/dev/null
-TEST_FAIL='autopilot create' deny
-jq -e 'length==3 and all(.[]|select(.id!="legacy-usage"); .status=="paused")' "$TEST_DB/autopilots.json" >/dev/null
-run
-jq -e 'length==7 and ([.[]|select(.status=="active")]|length)==5' "$TEST_DB/autopilots.json" >/dev/null
-echo 'PASS autopilots: 旧名の停止失敗と新形式の作成失敗を返し、同じ履歴を保って再実行で完成する'

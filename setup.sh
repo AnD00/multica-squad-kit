@@ -33,11 +33,9 @@ source "$root/lib/project.sh"
 source "$root/lib/squad.sh"
 source "$root/lib/autopilots.sh"
 source "$root/lib/extensions.sh"
-source "$root/lib/migrate.sh"
 setup_cleanup_enabled=yes
 setup_cleanup() {
 	local result=$?
-	migration_report
 	[[ -z ${extension_work:-} ]] || rm -rf -- "$extension_work"
 	return "$result"
 }
@@ -49,7 +47,6 @@ check_login
 ask_questions
 load_extension_inventory
 confirm_answers
-migrate_legacy_host
 save_answers
 printf '%s\n' 'ホストを準備しています。' >&2
 prepare_host

@@ -1,4 +1,4 @@
-# 段13。段12が確定した実 ID と値を、そのまま引き継ぐ。
+# プロジェクトとエージェントの実 ID を使い、スクワッドとオートパイロットを設定する。
 complete_project() {
 	local squad_current roster agents managed role file id name wanted current person matches
 	# 指示とオートパイロットの定義は、書き込みより先にすべて展開して確かめる。

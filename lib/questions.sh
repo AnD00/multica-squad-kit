@@ -219,7 +219,6 @@ ask_questions() {
 	if [[ -z $default && $(jq length <<<"$eligible_repos") == 1 ]]; then default=1; fi
 	pick_numbers "$default" no
 	repositories=$(jq -nc --argjson items "$eligible_repos" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $items[$i-1]]')
-	repository_url=$(jq -r '.[0].url' <<<"$repositories"); repository=$(jq -r '.[0].repository' <<<"$repositories")
 	question_squads=$(question_list スクワッド squad list)
 	question_begin 'メンバーの区別' '導入する人の短い目印です。一式の名前の末尾に付き、その人の Mac と AI の利用枠で動く一式を見分けます。1人でも必要です。' 'member1（名字の頭と番号など。英小文字で始まる英小文字と数字の2〜12文字）'
 	ask_key "$(key_default "${question_email%%@*}")" "$(jq -r '.member_key // empty' <<<"$saved")" member
@@ -242,7 +241,7 @@ ask_questions() {
 		if ! jq -e 'index("claude-implementer")!=null and index("codex-implementer")!=null' >/dev/null <<<"$excluded_roles"; then break; fi
 		printf '%s\n' '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。' >&2
 	done
-	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --arg repository_url "$repository_url" --arg repository "$repository" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson excluded_roles "$excluded_roles" '{schema:2,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repository_url:$repository_url,repository:$repository,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,excluded_roles:$excluded_roles}')
+	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,excluded_roles:$excluded_roles}')
 	question_people=$members
 }
 

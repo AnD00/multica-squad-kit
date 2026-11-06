@@ -54,46 +54,19 @@ prepare_autopilots() {
 		fi
 		title=$(template_apply "$project_work/values.json" "$project_work/autopilot.title") || die 'オートパイロットの名前を展開できませんでした。'
 		# prefix の末尾の空白は残す。コマンド置換で末尾の改行だけを除く。
-		jq --arg role "$role" --arg title "$title" --arg scope "$(jq -r '.scope' <<<"$section")" '.+[{role:$role,title:$title,scope:$scope,legacy_title:(if $scope=="repository" then $title|rtrimstr(" ") else null end)}]' "$project_work/autopilots.known" >"$project_work/known.new"
+		jq --arg role "$role" --arg title "$title" --arg scope "$(jq -r '.scope' <<<"$section")" '.+[{role:$role,title:$title,scope:$scope}]' "$project_work/autopilots.known" >"$project_work/known.new"
 		mv "$project_work/known.new" "$project_work/autopilots.known"
 	done < <(jq -c 'reduce .[] as $item ([]; if any(.[]; .title==$item.title) then . else .+[$item] end) | .[]' <<<"$definitions")
 }
 
 sync_project_autopilots() {
-	local managed=$1 list current record title id role assignee mode instructions cron timezone triggers schedule result known prefix repo action legacy='[]'
+	local managed=$1 list current record title id role assignee mode instructions cron timezone triggers schedule result known prefix repo action
 	local auto_total progress=0
 	auto_total=$(jq length "$project_work/autopilots.json") || die 'オートパイロットの件数を読めませんでした。'
 	printf 'オートパイロット 0/%s（既存の設定を確認中）\n' "$auto_total" >&2
 	list=$(mc autopilot list --output json) || die 'オートパイロットを取得できませんでした。'
 	jq -e '.autopilots|type=="array" and all(.[]; (.id|type=="string" and length>0) and (.title|type=="string") and (.assignee_id|type=="string"))' >/dev/null <<<"$list" || die 'オートパイロット一覧の応答が不正です。'
 	list=$(jq -c '.autopilots' <<<"$list")
-	# 旧名は対象を名前から決められないため、履歴を残して止め、新形式と重複させない。
-	# 先に全件の担当と状態を確認し、他人の稼働中のものがあれば一件も変更しない。
-	while IFS= read -r known; do
-		title=$(jq -r '.legacy_title' <<<"$known")
-		while IFS= read -r current; do
-			id=$(jq -r '.id' <<<"$current")
-			result=$(mc autopilot get "$id" --output json) || die '旧名のオートパイロットを読めませんでした。'
-			current=$(jq -ec --arg id "$id" --arg title "$title" --arg project "$project_id" '.autopilot|select(.id==$id and .title==$title and .project_id==$project and (.status=="active" or .status=="paused"))' <<<"$result") || die '旧名のオートパイロットの応答が不正です。'
-			if autopilot_owned "$current" "$managed"; then
-				legacy=$(jq --argjson current "$current" '.+[$current]' <<<"$legacy")
-			elif [[ $(jq -r '.status' <<<"$current") == paused ]]; then
-				printf '旧名のオートパイロットを保持しました（一時停止済み・別の担当）: %s\n' "$title" >&2
-			else
-				die "別の担当の旧名のオートパイロットが稼働中です。重複を避けるため、その持ち主に一時停止を依頼してください: $title"
-			fi
-		done < <(jq -c --arg project "$project_id" --arg title "$title" '.[]|select(.project_id==$project and .title==$title)' <<<"$list")
-	done < <(jq -c '.[]|select(.scope=="repository")' "$project_work/autopilots.known")
-	while IFS= read -r current; do
-		id=$(jq -r '.id' <<<"$current"); title=$(jq -r '.title' <<<"$current")
-		result=$(mc autopilot get "$id" --output json) || die '停止直前の旧名のオートパイロットを読めませんでした。'
-		current=$(jq -ec --arg id "$id" --arg title "$title" '.autopilot|select(.id==$id and .title==$title and (.status=="active" or .status=="paused"))' <<<"$result") || die '停止直前の旧名のオートパイロットの応答が不正です。'
-		autopilot_owned "$current" "$managed" || die '旧名のオートパイロットの担当かプロジェクトが変わりました。'
-		if [[ $(jq -r '.status' <<<"$current") != paused ]]; then
-			mc autopilot update "$id" --status paused --output json >/dev/null || die "旧名のオートパイロットを一時停止できませんでした: $title"
-		fi
-		printf '旧名のオートパイロットを一時停止しています（履歴は保持）: %s\n' "$title" >&2
-	done < <(jq -c '.[]' <<<"$legacy")
 	while IFS= read -r record; do
 		title=$(jq -r '.title' <<<"$record")
 		progress=$((progress+1))

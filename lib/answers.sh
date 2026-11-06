@@ -32,32 +32,28 @@ repository_choices() {
 	blocked_repos=$(jq -c --argjson owners "$owners" '[.[] | select($owners[.repository]!=null) | .+{projects:$owners[.repository]}]' <<<"$registered")
 }
 
-# 旧版は読み取り時に一覧へ移す。ファイルへの保存は最後の確認後だけ。
-# 旧形式の区別も読めるよう保持し、新しく入力する区別の形は質問側で確かめる。
+# 回答はリポジトリの一覧を持つ一つの形式で保存する。
 load_answers() {
 	jq -e "$repository_filter"'
-		if type=="object" and (.schema==1 or .schema==2) and
-			all(.server_url,.workspace_id,.workspace_name,.project_name,.project_key,.repository_url,.repository,.member_key; type=="string" and length>0) and
+		if type=="object" and .schema==1 and
+			all(.server_url,.workspace_id,.workspace_name,.project_name,.project_key,.member_key; type=="string" and length>0) and
 			(.project_id|type=="string") and
-			(.project_key|test("^[a-z0-9]+(-[a-z0-9]+)*$")) and
-			(.member_key|test("^[a-z0-9]+(-[a-z0-9]+)*$")) and
+			(.project_key|test("^[a-z][a-z0-9]{1,11}$")) and
+			(.member_key|test("^[a-z][a-z0-9]{1,11}$")) and
 			(.member_ids|type=="array" and all(.[]; type=="string" and length>0)) and
 			(.excluded_roles|type=="array" and all(.[]; . as $r | ["planner","designer","claude-implementer","claude-fixer","codex-implementer","codex-fixer","code-reviewer","security-reviewer","ux-reviewer","performance-reviewer","qa","ci-monitor","usage-monitor","dependabot-merger"] | index($r)!=null)) and
 			((.excluded_roles|index("claude-implementer")!=null)==(.excluded_roles|index("claude-fixer")!=null)) and
 			((.excluded_roles|index("codex-implementer")!=null)==(.excluded_roles|index("codex-fixer")!=null)) and
 			([.excluded_roles[] | select(.=="claude-implementer" or .=="codex-implementer")]|length<2)
 		then . else error("保存済みの答えの形が不正です") end |
-		. as $old |
-		(if .schema==1 then [{url:.repository_url,repository:.repository}] else .repositories end) |
+		. as $answers |
+		.repositories |
 		if type=="array" and length>0 then . else error("リポジトリの一覧がありません") end |
 		map(. as $entry | (.url|repository_name) as $name |
 			if (.repository|type=="string") and (.repository|ascii_downcase)==$name
 			then {url:$entry.url,repository:$name} else error("URL とリポジトリの名前が違います") end) |
 		reduce .[] as $entry ([]; if any(.[]; .repository==$entry.repository) then . else .+[$entry] end) |
-		. as $repos |
-		if $old.schema==2 and ($old.repository_url!=$repos[0].url or ($old.repository|ascii_downcase)!=$repos[0].repository)
-		then error("互換用の値が一覧の先頭と違います")
-		else $old+{schema:2,repositories:$repos,repository_url:$repos[0].url,repository:$repos[0].repository} end
+		. as $repos | $answers+{repositories:$repos}
 	' "$1"
 }
 
