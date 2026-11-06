@@ -75,6 +75,52 @@ grep -q '登録 既存、配信 成功（HTTP 202）' "$test_dir/out"
 no_leak
 echo 'PASS webhooks: 既存の Webhook は ping 以外も含めて最新の配信を表示する'
 
+for mismatch in inactive events extra-events form missing-active missing-events missing-content-type; do
+ new_case "existing-$mismatch"
+ run
+ case $mismatch in
+ inactive) edit '.github_hooks[0].active=false' ;;
+ events) edit '.github_hooks[0].events=["push"]' ;;
+ extra-events) edit '.github_hooks[0].events=["pull_request","push"]' ;;
+ form) edit '.github_hooks[0].content_type="form"' ;;
+ missing-active) edit '.github_hooks[0].active=null' ;;
+ missing-events) edit '.github_hooks[0].events=null' ;;
+ missing-content-type) edit '.github_hooks[0].content_type=null' ;;
+ esac
+ cp "$TEST_DB/db.json" "$test_dir/hooks-before.json"
+ : >"$TEST_DB/gh-calls.jsonl"
+ /bin/bash -x "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"
+ jq -e '.github_hooks==input.github_hooks' "$TEST_DB/db.json" "$test_dir/hooks-before.json" >/dev/null
+ jq -e '.issues | length==1 and .[0].metadata.squad_kit_task=="dependabot-webhook" and .[0].metadata.repository=="example/one"' "$TEST_DB/db.json" >/dev/null
+ grep -q 'example/one:.*登録 飛ばした、配信 記録なし.*既存の GitHub Webhook の設定' "$test_dir/out"
+ grep -q 'example/two:.*配信 成功' "$test_dir/out"
+ ! jq -es 'any(.[]; index("POST")!=null or index("PATCH")!=null or .[1]=="repos/example/one/hooks/1/deliveries")' "$TEST_DB/gh-calls.jsonl" >/dev/null
+ run
+ jq -e '.github_hooks|length==2' "$TEST_DB/db.json" >/dev/null
+ jq -e '.issues|length==1' "$TEST_DB/db.json" >/dev/null
+ no_leak
+done
+echo 'PASS webhooks: 既存の有効・pull_request のみ・JSON を検証し、不一致は変更せず理由と起票を残す。過去の HTTP 200 を成功扱いにしない'
+
+for state in false null; do
+ new_case "disabled-trigger-$state"
+ run
+ edit ".triggers.one[1].enabled=$state"
+ cp "$TEST_DB/db.json" "$test_dir/triggers-before.json"
+ : >"$TEST_DB/calls.jsonl"; : >"$TEST_DB/gh-calls.jsonl"
+ /bin/bash -x "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"
+ jq -e '.triggers==input.triggers' "$TEST_DB/db.json" "$test_dir/triggers-before.json" >/dev/null
+ jq -e '.issues | length==1 and .[0].metadata.squad_kit_task=="dependabot-webhook" and .[0].metadata.repository=="example/one"' "$TEST_DB/db.json" >/dev/null
+ grep -q 'example/one:.*トリガー 既存、登録 飛ばした、配信 記録なし.*トリガーが有効ではありません' "$test_dir/out"
+ grep -q 'example/two:.*配信 成功' "$test_dir/out"
+ ! jq -es 'any(.[]; .[0]=="autopilot" and (.[1]=="trigger-add" or .[1]=="trigger-update"))' "$TEST_DB/calls.jsonl" >/dev/null
+ ! jq -es 'any(.[]; .[1]|startswith("repos/example/one"))' "$TEST_DB/gh-calls.jsonl" >/dev/null
+ run
+ jq -e '.issues|length==1' "$TEST_DB/db.json" >/dev/null
+ no_leak
+done
+echo 'PASS webhooks: 無効か有効状態が不明のトリガーは再開・重複作成せず、理由と起票を残してほかのリポジトリを続ける'
+
 new_case excluded
 TEST_ENABLED=orchestrator run
 [[ ! -e $TEST_DB/calls.jsonl && ! -e $TEST_DB/gh-calls.jsonl ]]

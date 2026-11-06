@@ -62,7 +62,14 @@ if event == "issue create":
 else:
     issue_id = args[3] if event.startswith(("issue metadata", "issue label")) else args[2]
     issue = next(i for i in issues if i["id"] == issue_id)
-    if event.startswith("issue metadata set:"):
+    if event == "issue get":
+        print(json.dumps(issue))
+        sys.exit()
+    elif event == "issue update":
+        body_file = Path(option("--description-file")).resolve()
+        assert body_file.is_relative_to(Path.cwd())
+        issue["description"] = body_file.read_text()
+    elif event.startswith("issue metadata set:"):
         assert option("--type") == "string"
         issue["metadata"][option("--key")] = option("--value")
     elif event == "issue label add":
@@ -202,6 +209,51 @@ mv "$TEST_DB/new" "$TEST_DB/issues.json"
 run removed-roles '["追加の対象"]' actor
 jq -e '.[0].metadata.squad_kit_targets|fromjson|sort==["前の対象","追加の対象"]' "$TEST_DB/issues.json" >/dev/null
 echo 'PASS setup issues: 種類の印の直前で止まっても、それまでの対象の印を保つ'
+
+for failure in 'issue metadata set:squad_kit_targets' 'issue metadata set:squad_kit_task'; do
+ new_case "adopt-more-${failure//[ :]/-}"
+ echo "$failure" >"$TEST_DB/fail"
+ deny removed-roles '["役 A"]' actor
+ rm "$TEST_DB/fail"
+ # 作成した本文への人間の追記も残す。
+ jq '.[0].description += "\n人間が追記したメモ"' "$TEST_DB/issues.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/issues.json"
+ cp "$TEST_DB/issues.json" "$test_dir/adopt-before.json"
+ run removed-roles '["役 A","役 B"]' actor
+ assert_count 1
+ jq -e '.[0] | (.metadata.squad_kit_targets|fromjson)==["役 A","役 B"] and
+  (.description|contains("- 役 A") and contains("- 役 B") and contains("人間が追記したメモ"))' "$TEST_DB/issues.json" >/dev/null
+ jq -e '.[0].description|startswith(input[0].description)' "$TEST_DB/issues.json" "$test_dir/adopt-before.json" >/dev/null
+ jq -es 'map(.event) | index("issue update") < index("issue metadata set:squad_kit_task")' "$TEST_DB/writes" >/dev/null
+ : >"$TEST_DB/writes"
+ run removed-roles '["役 A","役 B"]' actor
+ [[ ! -s $TEST_DB/writes ]]
+done
+echo 'PASS setup issues: 対象・種類の印を書く前に止まっても、採用時に増えた対象の作業を本文へ追記し、人間の本文を保持する'
+
+for failure in 'issue get' 'issue update' 'issue metadata set:squad_kit_targets' 'issue metadata set:squad_kit_task'; do
+ new_case "adopt-body-${failure//[ :]/-}"
+ seed partial backlog '' '[]' '外した役のエージェントを消すか決める'
+ jq '.[0].description += "\n- 役 A" | .[0].metadata.squad_kit_targets="[\"役 A\"]"' "$TEST_DB/issues.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/issues.json"
+ echo "$failure" >"$TEST_DB/fail"
+ deny removed-roles '["役 A","役 B"]' actor
+ jq -e '.[0] | (.metadata.squad_kit_task==null) and
+  (if (.metadata.squad_kit_targets|fromjson|index("役 B"))!=null then (.description|contains("- 役 B")) else true end)' "$TEST_DB/issues.json" >/dev/null
+ cp "$TEST_DB/issues.json" "$test_dir/body-before.json"
+ rm "$TEST_DB/fail"
+ run removed-roles '["役 A","役 B"]' actor
+ assert_count 1
+ jq -e '.[0] | (.metadata.squad_kit_targets|fromjson)==["役 A","役 B"] and
+  (.description|startswith("人が記入した本文\n- 役 A") and contains("- 役 B") and (split("- 役 B")|length==2))' "$TEST_DB/issues.json" >/dev/null
+ if [[ $failure == 'issue metadata set:squad_kit_targets' || $failure == 'issue metadata set:squad_kit_task' ]]; then
+  jq -e '.[0].description==input[0].description' "$TEST_DB/issues.json" "$test_dir/body-before.json" >/dev/null
+ fi
+ : >"$TEST_DB/writes"
+ run removed-roles '["役 A","役 B"]' actor
+ [[ ! -s $TEST_DB/writes ]]
+done
+echo 'PASS setup issues: 採用の本文の取得・追記・印の更新で止まっても同じ issue を仕上げ、本文更新前に対象を起票済みにせず、再実行で追記を重ねない'
 
 for failure in 'issue list' 'label list'; do
  new_case "read-${failure// /-}"

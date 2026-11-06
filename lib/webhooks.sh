@@ -28,7 +28,7 @@ register_dependabot_webhook() (
 	webhook_current() {
 		mc autopilot get "$id" --output json 2>/dev/null | jq -ce --arg id "$id" --arg project "$project_id" --arg agent "$agent" '
 			select(.autopilot.id==$id and .autopilot.project_id==$project and .autopilot.assignee_type=="agent" and .autopilot.assignee_id==$agent) |
-			{can_write:.autopilot.can_write,triggers:[.triggers[]|{id,kind}]}' 2>/dev/null
+			{can_write:.autopilot.can_write,triggers:[.triggers[]|{id,kind,enabled}]}' 2>/dev/null
 	}
 	current=$(webhook_current) || webhook_abort 'オートパイロットのトリガーを読めませんでした。'
 	jq -e '.can_write==true' >/dev/null <<<"$current" || webhook_abort 'オートパイロットを編集する権限がありません。'
@@ -42,6 +42,7 @@ register_dependabot_webhook() (
 	else
 		trigger=既存
 	fi
+	jq -e --arg id "$trigger_id" 'any(.triggers[]; .id==$id and .enabled==true)' >/dev/null <<<"$current" || webhook_abort 'Webhook のトリガーが有効ではありません。持ち主が設定を確認してください。'
 	code=$(gh api "repos/$repo" --jq '.permissions.admin==true' 2>/dev/null | jq -er 'select(type=="boolean")|tostring' 2>/dev/null) || webhook_abort 'GitHub のリポジトリの権限を確認できませんでした。'
 	[[ $code == true ]] || webhook_abort 'GitHub のリポジトリの管理者ではありません。'
 	# 一覧の読み取り権限を確認する。URL を含む応答からは件数だけを出す。
@@ -49,8 +50,12 @@ register_dependabot_webhook() (
 	webhook_credentials "$id" "$trigger_id" | jq -e 'type=="object"' >/dev/null 2>&1 || webhook_abort 'Webhook の URL または署名の秘密を取得できませんでした。'
 	hook_id=$({ webhook_credentials "$id" "$trigger_id" && gh api "repos/$repo/hooks" --paginate --slurp 2>/dev/null; } |
 		jq -ser 'select(length==2) | .[0].url as $url | [.[1][][] | select(.config.url==$url)] |
-			if length>1 then error("同じ宛先の複数の Webhook") else (.[0].id // 0) end |
-			select(type=="number" and .>=0 and floor==.)' 2>/dev/null) || webhook_abort '既存の Webhook と照合できませんでした。'
+			if length>1 then error("同じ宛先の複数の Webhook")
+			elif length==0 then 0
+			elif (.[0] | .active==true and .events==["pull_request"] and .config.content_type=="json") then .[0].id
+			else -1 end |
+			select(type=="number" and .>=-1 and floor==.)' 2>/dev/null) || webhook_abort '既存の Webhook と照合できませんでした。'
+	[[ $hook_id != -1 ]] || webhook_abort '既存の GitHub Webhook の設定が、有効・pull_request のみ・JSON と一致しません。管理者が設定を確認してください。'
 	if [[ $hook_id == 0 ]]; then
 		hook_id=$(webhook_credentials "$id" "$trigger_id" |
 			jq -c '{name:"web",active:true,events:["pull_request"],config:.}' 2>/dev/null |

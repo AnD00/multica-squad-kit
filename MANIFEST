@@ -51,11 +51,11 @@ e44b35d67f238cb7cd07a8cc6a64829f57ef5d1cc6986c0f9afa08dc299fa164  ./lib/installa
 53fee654cb41161ff9f75c3817c176209570a44ad27520e9ebabc5e5ca8f0460  ./lib/project.sh
 b3a6011b66b18206fb36348da6010a6ee478c379e1af7368bba01e56f48adf57  ./lib/questions.sh
 af59cb0214f207efade15807d56aa76ba39b451f769d814b54cc8c580a123f2d  ./lib/render.sh
-46fd647de33bc19a8eca77bb789165f5f499a8867e4a984915cffcccc0efbf9f  ./lib/setup-issues.sh
+71d66b78ecc28c366f9cc3c540d01e98a65c0f682c1d6d910ccc909a53b80372  ./lib/setup-issues.sh
 9f60962e3d158676aa4ecda38e4bb35001013cca0ee974f9fde30ca834cc4ccd  ./lib/squad.sh
-8bdb4abf9ed78741f2f1511358e2545f032827cbe52cf7081e56a29037878adc  ./lib/webhooks.sh
+8b055be482438a325f9f8bd3ad0ee04ead81ab2c4bd2d10e2c5cb48d7cebf226  ./lib/webhooks.sh
 ea2ff1bfc3e281f3e59e0728c7999dc319ea485661828e52201a6898cdeabcff  ./lib/workspace.sh
-f33f69f4337d70cd14bf9f1362b38e7be35107ca3f6f8e5f91b3063ed3527296  ./manual.md
+de075ff606a4b2091ec831134a1fd1a2715a3be8c6a79f6d4a33d2fefceafd33  ./manual.md
 6ef7ca009fb1494f977adcecfa6a7ab629ee14223e8f896213972c10ebaba380  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 305499d0a228e64f446cd174e50f0b64ca0c272258b08c04cdd02f4a392f4170  ./setup.sh
@@ -93,7 +93,7 @@ ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/projec
 0cdaf5bad319c57142ee86f719a640e9889c5c5acf1708983113278eabb93502  ./tests/run.sh
 6c492669ad4f216d59091a08806290031df5378a52b72107295c4f1e527c6bc7  ./tests/runtime-selection-test.sh
 886cd075609932562e6bbbaeaa2c2c727de7733805839cbc2e66265489fceec8  ./tests/setup-fixture.sh
-b2fdf5ef9dae74b35880f64ba4071ed9259a4d59bf92686a4b857394e8e09980  ./tests/setup-issues-test.sh
+536d416b3b5d0d8a9d3c88a8e71c6abc33e68d83fe2cc36ad4cbe1811466eb34  ./tests/setup-issues-test.sh
 5b13b40681ec956c6ff0d2aef6ce5871c4705703835c932da75c47ef9b3391ba  ./tests/setup-runtime-cli.py
 ae605024b4a9d6dee273292902425404e2f83d5adaac26844d8adfb5eac67d91  ./tests/setup-runtimes-test.sh
 547709dd2ddde870a3df5101df591554e7b9a763fcfe7c6e77ba4f752b0c091a  ./tests/setup-test.sh
@@ -105,6 +105,6 @@ eff8b05877239fcb85b764871302ee720ee7a05b6594b9e5b9a149728f63a3c0  ./tests/squad-
 8b65974d91466ca46db3afe9c8e7f4c08e9b7c9539d1ecef057417fc08943633  ./tests/squad-usage-check-test.sh
 0b4aacf6c7d2161c9704bdd8262d7829b505cd127c792e7d67c51efdb38850b9  ./tests/squad-usage-read-test.sh
 d3339f14c9b250e76f2d65cd37a449ef4220e359f389e33a4d88088ad6dc03d6  ./tests/test-runner-test.sh
-0213723a07bae009586d19edf5a5c6e9805ee77b1496bf00427140add7b64139  ./tests/webhook-gh.py
-30e42851f5e220662ffafe97cf0b3fd5be91e0f8b8631e9a0029ec1d50dc996e  ./tests/webhooks-test.sh
+ab8abda3e10954a57a0bdb3cfa397f8c018110c64ecf84f9358af329a0435436  ./tests/webhook-gh.py
+c0039893ad8af5a5415493d053c994bf5508624d90f5e0c6755b98f2f8ecccb4  ./tests/webhooks-test.sh
 e17bfe6fb362a0e097bcdeca448896bf6f23d16e429be331ef44c1c6aa21a13f  ./tests/workspace-test.sh

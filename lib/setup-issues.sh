@@ -5,6 +5,13 @@
 
 setup_issue_error() { printf '%s\n' "$*" >&2; return 1; }
 
+setup_issue_description() {
+	jq -r --arg repository "$2" --arg manual_url "$3" --argjson targets "$4" '
+		.body | split("{{repository}}") | join($repository) | split("{{manual_url}}") | join($manual_url) |
+		split("{{targets}}") | join($targets|map("- "+.)|join("\n"))
+	' <<<"$1"
+}
+
 # has_more や total が古いサーバーで不正確でも、空のページまで読む。
 setup_issue_list() {
 	local kind=$1 page count offset=0 issues='[]'
@@ -45,7 +52,7 @@ setup_issue_finish() {
 ensure_setup_issue() (
 	umask 077
 	local kind=$1 targets=$2 assignee=$3 repository=${4:-} definition title final_status label_id
-	local issues covered missing issue id result rows='[]' work manual_url stored_targets
+	local issues covered missing issue id result rows='[]' work manual_url stored_targets additional
 	[[ -n $assignee ]] || { setup_issue_error 'issue の担当 ID がありません。'; return 1; }
 	targets=$(jq -ce 'select(type=="array" and length>0 and all(.[]; type=="string" and length>0)) | unique' <<<"$targets") || { setup_issue_error 'issue の対象が不正です。'; return 1; }
 	definition=$(jq -ce --arg kind "$kind" '.[$kind] | select(type=="object")' "$root/common/setup-issues.json") || { setup_issue_error 'issue の種類が定義にありません。'; return 1; }
@@ -78,14 +85,11 @@ ensure_setup_issue() (
 	[[ $(jq length <<<"$result") -le 1 ]] || { setup_issue_error '印のない同じタイトルの issue が複数あります。'; return 1; }
 	issue=$(jq -c '.[0] // empty' <<<"$result")
 	local action=existing
+	mkdir -p "$root/tmp" || return 1
+	work=$(mktemp -d "$root/tmp/setup-issue.XXXXXX") || return 1
+	trap 'rm -rf -- "$work"' EXIT
 	if [[ -z $issue ]]; then
-		mkdir -p "$root/tmp" || return 1
-		work=$(mktemp -d "$root/tmp/setup-issue.XXXXXX") || return 1
-		trap 'rm -rf -- "$work"' EXIT
-		jq -r --arg repository "$repository" --arg manual_url "$manual_url" --argjson targets "$missing" '
-			.body | split("{{repository}}") | join($repository) | split("{{manual_url}}") | join($manual_url) |
-			split("{{targets}}") | join($targets|map("- "+.)|join("\n"))
-		' <<<"$definition" >"$work/description" || return 1
+		setup_issue_description "$definition" "$repository" "$manual_url" "$missing" >"$work/description" || return 1
 		# タイトルでの CLI の重複検出は使わず、上で読んだ対象の印で判定する。
 		issue=$(mc issue create --title "$title" --description-file "$work/description" --project "$project_id" --assignee-id "$assignee" --status backlog --allow-duplicate --output json) || { setup_issue_error 'issue を作れませんでした。'; return 1; }
 		action=created
@@ -96,6 +100,17 @@ ensure_setup_issue() (
 		(.metadata.squad_kit_targets // "[]" | fromjson) as $stored |
 		if ($stored|type=="array" and all(.[]; type=="string" and length>0)) then ($stored+$missing|unique) else error("対象の印が不正") end
 	' <<<"$issue") || { setup_issue_error '採用する issue の対象の印が不正です。'; return 1; }
+	additional=$(jq -c --argjson missing "$missing" '$missing-(.metadata.squad_kit_targets // "[]" | fromjson)' <<<"$issue") || return 1
+	if [[ $action == existing && $(jq length <<<"$additional") != 0 ]] && jq -e '.body|contains("{{targets}}")' >/dev/null <<<"$definition"; then
+		# 本文を先に仕上げてから対象の印を書く。更新後に止まった再実行では追記を重ねない。
+		result=$(mc issue get "$id" --output json) || { setup_issue_error '採用する issue の本文を読めませんでした。'; return 1; }
+		jq -e --arg id "$id" '.id==$id and (.description==null or (.description|type=="string"))' >/dev/null <<<"$result" || { setup_issue_error '採用する issue の本文の応答が不正です。'; return 1; }
+		setup_issue_description "$definition" "$repository" "$manual_url" "$additional" >"$work/addition" || return 1
+		if ! jq -e --rawfile addition "$work/addition" '(.description // "") | contains($addition|rtrimstr("\n"))' >/dev/null <<<"$result"; then
+			jq -r --rawfile addition "$work/addition" '(.description // "") + "\n\n" + ($addition|rtrimstr("\n"))' <<<"$result" >"$work/description" || return 1
+			mc issue update "$id" --description-file "$work/description" >/dev/null || { setup_issue_error '採用する issue に対象の作業を追記できませんでした。'; return 1; }
+		fi
+	fi
 	mc issue metadata set "$id" --key squad_kit_targets --value "$stored_targets" --type string >/dev/null || { setup_issue_error 'issue の対象の印を書けませんでした。'; return 1; }
 	if [[ -n $repository ]]; then
 		mc issue metadata set "$id" --key repository --value "$repository" --type string >/dev/null || { setup_issue_error 'issue のリポジトリの印を書けませんでした。'; return 1; }

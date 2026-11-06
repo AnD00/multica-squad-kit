@@ -39,7 +39,8 @@ elif len(parts) == 4 and option('--method') == 'POST':
     assert body['events'] == ['pull_request']
     assert body['config']['content_type'] == 'json' and body['config']['insecure_ssl'] == '0'
     assert body['config']['url'].startswith(base)
-    hook = dict(id=len(hooks) + 1, repository=repo,
+    hook = dict(id=len(hooks) + 1, repository=repo, active=body['active'],
+                events=body['events'], content_type=body['config']['content_type'],
                 destination=body['config']['url'].removeprefix(base))
     hooks.append(hook)
     # 応答も URL を含ませ、gh の --jq で外へ出ないことを確かめる。
@@ -47,7 +48,8 @@ elif len(parts) == 4 and option('--method') == 'POST':
 elif len(parts) == 4:
     if settings.get('deny_hooks'):
         fail()
-    result = [dict(id=h['id'], config=dict(url=base + h['destination']))
+    result = [dict(id=h['id'], active=h['active'], events=h['events'],
+                   config=dict(url=base + h['destination'], content_type=h['content_type']))
               for h in hooks if h['repository'] == repo]
 elif len(parts) == 6 and parts[-1] == 'deliveries':
     if settings.get('deny_deliveries'):

@@ -277,9 +277,9 @@ Codexを使うときは、Codexの設定も確かめる。Codexの設定は、�
 
 Dependabot の役を残したとき、セットアップは選んだリポジトリごとに Webhook を登録する。トリガー、権限、登録、ping の順に進め、進めない段で、そのリポジトリの残りを飛ばす。飛ばしたリポジトリは「OWNER/REPO に Dependabot の Webhook を登録する」に起票し、ほかのリポジトリとセットアップの残りは続ける。
 
-1. トリガー: 管理するオートパイロット「Dependabot の PR の週次の確認 <プロジェクトの区別> OWNER/REPO」を使う。Webhook のトリガーがあれば再利用し、なければ `multica autopilot trigger-add --kind webhook` で作る。週次のスケジュールは残す。`autopilot get` の `can_write` が偽のときと、作成に失敗したときは進めない。
+1. トリガー: 管理するオートパイロット「Dependabot の PR の週次の確認 <プロジェクトの区別> OWNER/REPO」を使う。Webhook のトリガーがあれば再利用し、なければ `multica autopilot trigger-add --kind webhook` で作る。週次のスケジュールは残す。`autopilot get` の `can_write` が偽のときと、作成に失敗したときは進めない。有効と確認できないトリガーも進めず、持ち主の確認を頼む。手動の無効化は解除しない。
 2. 権限: `gh api repos/OWNER/REPO` の `permissions.admin` が真で、Webhook の一覧を読めることを確かめる。管理者でないときと、`gh` の token に `admin:repo_hook` がなく一覧を読めないときは、どちらかを理由に表示する。
-3. 登録: Webhook の一覧に、トリガーの URL を宛先に持つものがあれば再利用する。なければ、イベントを `pull_request` だけ、Content type を `application/json` にして作る。トリガーに署名の秘密があり、その値を取れないときは登録せずに進めない。
+3. 登録: Webhook の一覧に、トリガーの URL を宛先に持つものがあれば、有効・イベントが `pull_request` だけ・Content type が `application/json` と確認して再利用する。不一致なら変更せず、理由を表示して登録の issue に残す。なければ、この設定で作る。トリガーに署名の秘密があり、その値を取れないときは登録せずに進めない。
 4. ping: 新しく作った Webhook は、配信履歴から `ping` の配信を 30 秒ほど待って読み、HTTP の状態コードを表示する。既存の Webhook には ping を送り直さず、最新の配信を表示する。届かないか 2xx 以外のときは、理由を添えて起票する。
 
 イベントフィルターを設定するまでは、ping や Dependabot 以外の PR のイベントでも週次の確認が動く。週次の確認は Dependabot の PR がなければ、何も変えずに終わる。フィルターの設定は、「OWNER/REPO の Dependabot の Webhook のフィルターを設定する」で人間に頼む。
@@ -328,7 +328,7 @@ Dependabot の役を残したとき、セットアップは選んだリポジト
 
 - 起票する issue の metadata の `squad_kit_task` に種類を、`squad_kit_targets` に対象の一覧を JSON の配列の文字列で書く。リポジトリごとの issue には、`repository` にも OWNER/REPO を書く。
 - 起票の前に、`multica issue list --project <ID> --metadata squad_kit_task=<種類>` を最後のページまで読む。完了と取り下げも含める。見つかった issue の対象を合わせ、まだない対象だけを起票する。
-- 作るときは backlog で作り、metadata、ラベル、最後の状態の順に書く。途中で止まって印のない issue が残ったら、同じプロジェクトの同じタイトルで印のないものを探す。見つかれば作り直さず、印を書いて使う。
+- 作るときは backlog で作り、metadata、ラベル、最後の状態の順に書く。途中で止まって印のない issue が残ったら、同じプロジェクトの同じタイトルで印のないものを探す。見つかれば作り直さず、印を書いて使う。対象の一覧を本文に持つ issue の採用では、増えた対象の作業を本文へ追記してから印を書く。元の本文は残し、同じ追記は重ねない。
 
 起票するかは今回の実行の記憶ではなく、読み直した現在の状態で決める。途中で止まった実行の分も、次に流したときに起票するため。同じ対象は一度だけ起票し、やり直しが要るときは人が issue を開き直す。
 
