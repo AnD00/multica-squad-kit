@@ -34,11 +34,19 @@ def materialize(kit, extension, target):
         fail('拡張にシンボリックリンクがあります')
     if (extension / 'kit-version').read_text().strip() != (kit / 'VERSION').read_text().strip():
         fail('拡張が求める原本の版と、流している版が違います')
-    allowed = {'kit-version', 'agents', 'additions.json', 'instructions', 'autopilots.md', 'monitor', 'skills'}
+    allowed = {'kit-version', 'agents', 'additions.json', 'instructions', 'autopilots.md', 'monitor', 'skills', 'link-repositories.json'}
     if any(p.name not in allowed for p in extension.iterdir()):
         fail('未知の拡張の項目です')
+    links_path = extension / 'link-repositories.json'
+    links = json.loads(links_path.read_text()) if links_path.exists() else []
+    if not isinstance(links, list) or any(
+        not isinstance(repo, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+', repo)
+        or repo.split('/')[1] in ('.', '..') for repo in links
+    ):
+        fail('link-repositories.json は OWNER/REPO の配列にしてください')
     for name in ('common', 'skeleton'):
         shutil.copytree(kit / name, target / name)
+    (target / 'extension-link-repositories.json').write_text(json.dumps(list(dict.fromkeys(repo.lower() for repo in links))))
     extra_roles = []
     for p in sorted((extension / 'agents').glob('*.md')):
         if not key(p.stem) or (kit / 'common/agents' / p.name).exists():

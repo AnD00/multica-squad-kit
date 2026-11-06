@@ -7,7 +7,7 @@ prepare_project() (
 	local created_agents=0 created_squads=0 created_autopilots=0
 	local agent_total progress agent_action
 	local project_host_recheck=yes
-	local -a selected_repo_names=()
+	local -a allowed_repo_names=()
 	selected_repositories=$(jq -ce "$repository_filter"'
 		if type=="array" and length>0 then . else error("リポジトリがありません") end |
 		map(. as $entry | (.url|repository_name) as $name |
@@ -15,7 +15,8 @@ prepare_project() (
 			then {url:$entry.url,repository:$name} else error("URL とリポジトリが違います") end) |
 		reduce .[] as $entry ([]; if any(.[]; .repository==$entry.repository) then . else .+[$entry] end)
 	' <<<"$repositories") || die '選択したリポジトリの一覧が不正です。'
-	while IFS= read -r selected_repo; do selected_repo_names[${#selected_repo_names[@]}]=$selected_repo; done < <(jq -r '.[].repository' <<<"$selected_repositories")
+	resolve_link_repositories
+	while IFS= read -r selected_repo; do allowed_repo_names[${#allowed_repo_names[@]}]=$selected_repo; done < <(jq -r '.[]' <<<"$allowed_repository_names")
 	# プロジェクト作成のリポジトリには、選択した一覧の先頭を使う。
 	repository_url=$(jq -r '.[0].url' <<<"$selected_repositories")
 	repository=$(jq -r '.[0].repository' <<<"$selected_repositories")
@@ -54,11 +55,11 @@ prepare_project() (
 		template_apply "$project_work/values.json" "$root/skeleton/project.md" >"$project_work/description" || die 'プロジェクトの説明を展開できませんでした。'
 		result=$(mc project create --title "$project_name" --description "$(cat "$project_work/description")" --repo "$repository_url" --output json) || die 'プロジェクトを作れませんでした。'
 		project_id=$(project_result_id "$result") || die 'プロジェクト作成の応答が不正です。'
-		prepare_project_host "$project_id" "${selected_repo_names[@]}"
+		prepare_project_host "$project_id" "${allowed_repo_names[@]}"
 	else
 		current=$(mc project get "$project_id" --output json) || die 'プロジェクトを読めませんでした。'
 		[[ $(project_result_id "$current") == "$project_id" ]] || die 'プロジェクトの応答が不正です。'
-		prepare_project_host "$project_id" "${selected_repo_names[@]}"
+		prepare_project_host "$project_id" "${allowed_repo_names[@]}"
 		if [[ -z $(jq -r '.description // empty' <<<"$current") ]]; then
 			template_apply "$project_work/values.json" "$root/skeleton/project.md" >"$project_work/description" || die 'プロジェクトの説明を展開できませんでした。'
 			mc project update "$project_id" --description "$(cat "$project_work/description")" --output json >/dev/null || die 'プロジェクトの説明を作れませんでした。'
@@ -142,6 +143,9 @@ prepare_project() (
 		jq --arg model "$model" --arg thinking "$thinking" '.+{model:$model,thinking_level:$thinking}' <<<"$values" >"$project_work/values.json"
 		template_apply "$project_work/values.json" "$project_work/$role.filtered" >"$project_work/$role.rendered" || die "指示を展開できませんでした: $role"
 		template_body "$project_work/$role.rendered" >"$project_work/$role.body"
+		if [[ $(jq length <<<"$link_repositories") != 0 ]]; then
+			printf '\n### 紐付け専用のリポジトリ\n\n%s\n\n既存 issue の紐付けコメントと Assignees の同期だけを許可する。コード作業、PR、定期処理の対象にはしない。\n' "$(jq -r '.link_repositories' <<<"$values")" >>"$project_work/$role.body"
+		fi
 		[[ -s $project_work/$role.body ]] || die '指示の本文がありません。'
 		for field in name description model thinking_level skills role max_concurrent_tasks; do
 			template_field "$project_work/$role.rendered" "$field" >/dev/null || die "指示の front matter が不正です: $role"
@@ -207,6 +211,7 @@ project_completion() {
 # 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。
 project_repositories_recheck() {
 	local latest_projects eligible_repos blocked_repos
+	resolve_link_repositories
 	latest_projects=$(read_list プロジェクト project list) || die '許可先の再確認に必要なプロジェクトを取得できませんでした。'
 	jq -e --arg id "$project_id" 'any(.[]; .id==$id)' >/dev/null <<<"$latest_projects" || die '許可先の再確認で対象のプロジェクトを確認できませんでした。'
 	repository_choices "$selected_repositories" "$latest_projects" "$project_id"
@@ -226,8 +231,9 @@ project_repository_values() {
 		sed 's/^#/##/' "$project_work/repository-check" >>"$project_work/repository-checks"
 		printf '\n' >>"$project_work/repository-checks"
 	done < <(jq -r '.[].repository' <<<"$selected_repositories")
-	values=$(jq --argjson repos "$selected_repositories" --rawfile checks "$project_work/repository-checks" '.+{
+	values=$(jq --argjson repos "$selected_repositories" --argjson links "$link_repositories" --rawfile checks "$project_work/repository-checks" '.+{
 		repositories:($repos|map("`"+.repository+"`")|join("、")),
+		link_repositories:($links|map("`"+.+"`")|join("、")),
 		repository_roles:("| リポジトリ | 入っているもの・役割 | ここで受けるタスク |\n| --- | --- | --- |\n"+($repos|map("| `"+.repository+"` | [記入: 入っているもの・役割] | [記入: ここで受けるタスク] |")|join("\n"))),
 		repository_checks:($checks|sub("\n+$";""))}' <<<"$values") || die 'リポジトリの一覧を指示の値にできませんでした。'
 }

@@ -14,6 +14,7 @@ option() { local key=$1; shift; while [[ $# -gt 0 ]]; do if [[ $1 == "$key" ]]; 
 event="$1 $2"; [[ $event != 'squad member' ]] || event="$event $3"
 [[ ${TEST_FAIL:-} != "$event" ]] || exit 71
 case "$event" in
+'repo list') printf '%s\n' '[{"url":"https://github.com/example/project"},{"url":"https://github.com/example/client"},{"url":"https://github.com/example/linked"}]' ;;
 'agent list') cat "$TEST_DB/agents.json" ;;
 'squad get') cat "$TEST_DB/squad.json" ;;
 'squad update')
@@ -74,6 +75,7 @@ set -euo pipefail
 root=$TEST_PACKAGE
 die() { echo "$*" >&2; exit 1; }
 source "$root/lib/check.sh"
+source "$root/lib/answers.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
 source "$root/lib/squad.sh"
@@ -92,6 +94,8 @@ member_ids='["actor","person-b"]'
 excluded_roles=${TEST_EXCLUDED:-[]}
 repo_names=${TEST_REPOSITORIES:-'["example/project"]'}
 selected_repositories=$(jq 'map({repository:.})' <<<"$repo_names")
+repositories=$(jq 'map(.+{url:("https://github.com/"+.repository)})' <<<"$selected_repositories")
+resolve_link_repositories
 # エージェントの指示はこの試験の入力。同じ構成の準備だけを再利用する。
 # 試験対象の squad/autopilots の展開と DB の読み書きは毎回本体を通す。
 fixture_key=$(printf '%s\n' "$excluded_roles" "$repo_names" | shasum -a 256 | cut -d ' ' -f 1)
@@ -391,3 +395,36 @@ deny
 grep -q '既存のスケジュールがあります' "$test_dir/err"
 jq -e 'length==1 and .[0].id=="manual-schedule"' "$TEST_DB/triggers-$webhook_auto.json" >/dev/null
 echo 'PASS webhook: 既存のスケジュールがある場合は人間へ返し、手動のトリガーを消さない'
+
+# リポジトリ単位の拡張も、紐付け専用の一覧には展開しない。
+for title in 'Project scan' 'Project report'; do
+ cat >>"$TEST_PACKAGE/common/autopilots.md" <<SCHEDULE
+
+## $title {{project_key}} {{repository}}
+
+- 範囲: \`repository\`
+- 担当: {{agent.orchestrator.name}}
+- 実行: \`run_only\`
+- スケジュール: \`0 0 * * 1\`（Asia/Tokyo）
+
+\`\`\`text
+{{repository}} を確認する。
+\`\`\`
+SCHEDULE
+done
+reset_db
+run
+jq -e 'length==6' "$TEST_DB/autopilots.json" >/dev/null
+cp "$TEST_DB/autopilots.json" "$test_dir/one-code"
+printf '["example/linked"]\n' >"$TEST_PACKAGE/extension-link-repositories.json"
+: >"$TEST_DB/calls"; run; no_autopilot_writes
+cmp "$test_dir/one-code" "$TEST_DB/autopilots.json"
+! jq -es 'any(.[]; any(.[]; type=="string" and contains("example/linked")))' "$TEST_DB/calls" >/dev/null
+[[ $(jq -sr '[.[][]|select(.kind=="webhook")]|length' "$TEST_DB"/triggers-*.json) == 1 ]]
+echo 'PASS scope: 紐付け先を追加しても単一選択の6件と Webhook 1件を保ち、追加先の定期処理を作らない'
+rm "$TEST_PACKAGE/extension-link-repositories.json"
+reset_db
+TEST_REPOSITORIES='["example/project","example/client"]' run
+jq -e 'length==11' "$TEST_DB/autopilots.json" >/dev/null
+[[ $(jq -sr '[.[][]|select(.kind=="webhook")]|length' "$TEST_DB"/triggers-*.json) == 2 ]]
+echo 'PASS scope: 追加指定なしの二選択は従来どおり11件と Webhook 2件を作る'

@@ -45,6 +45,7 @@ choose_extension
 choose_server
 check_login
 ask_questions
+resolve_link_repositories
 load_extension_inventory
 confirm_answers
 save_answers
