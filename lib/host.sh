@@ -25,19 +25,20 @@ host_shared_file() {
 }
 
 prepare_host() {
-	local tool file auth
+	local file auth
 	host_paths
-	for tool in claude codex; do
-		command -v "$tool" >/dev/null || die "$tool がありません。エージェント用の Claude Code と Codex を入れて流し直してください。"
-	done
+	check_runtime_tools || die '選んだランタイムを導入してから流し直してください。'
 	(umask 077; mkdir -p "$agent_home/claude" "$agent_home/codex" "$agent_home/bin" "$agent_home/git-hooks") || die 'ホストの置き場を作れませんでした。'
 	host_shared_file "$root/common/guard/gh" "$agent_home/bin/gh" yes
 	host_shared_file "$root/common/guard/pre-push" "$agent_home/git-hooks/pre-push" yes
-	host_shared_file "$root/common/codex/config.toml" "$agent_home/codex/config.toml" no
-	printf '使用する gh の関所: %s\n使用する git push の関所: %s\n使用する Codex の設定: %s\n' "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" "$agent_home/codex/config.toml" >&2
-	[[ -f $agent_home/bin/gh && -x $agent_home/bin/gh && -f $agent_home/git-hooks/pre-push && -x $agent_home/git-hooks/pre-push && -r $agent_home/codex/config.toml ]] || die '既存の関所または Codex の設定を利用できません。表示したファイルの実行権限・読み取り権限を管理者に確認してもらい、流し直してください。既存のファイルは上書きしません。'
-	# ログインシェルでは別の起動ファイルが効くため、確認した環境とそろえる。
-	if ! python3 - "$agent_home/codex/config.toml" <<'PY'
+	printf '使用する gh の関所: %s\n使用する git push の関所: %s\n' "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" >&2
+	[[ -f $agent_home/bin/gh && -x $agent_home/bin/gh && -f $agent_home/git-hooks/pre-push && -x $agent_home/git-hooks/pre-push ]] || die '既存の関所を利用できません。表示したファイルの実行権限・読み取り権限を管理者に確認してもらい、流し直してください。既存のファイルは上書きしません。'
+	if uses_runtime codex; then
+		host_shared_file "$root/common/codex/config.toml" "$agent_home/codex/config.toml" no
+		printf '使用する Codex の設定: %s\n' "$agent_home/codex/config.toml" >&2
+		[[ -r $agent_home/codex/config.toml ]] || die 'Codex の設定を利用できません。表示したファイルの読み取り権限を管理者に確認してもらい、流し直してください。既存の設定は上書きしません。'
+		# ログインシェルでは別の起動ファイルが効くため、確認した環境とそろえる。
+		if ! python3 - "$agent_home/codex/config.toml" <<'PY'
 import sys
 
 try:
@@ -48,15 +49,20 @@ except (ImportError, OSError, ValueError):
     sys.exit(1)
 sys.exit(0 if config.get("allow_login_shell") is False else 1)
 PY
-	then
-		die 'Codex の設定で allow_login_shell = false を確認できません。表示した設定が正しい TOML で、トップレベルの値が真偽値の false か管理者に確認してもらってください。既存の設定は上書きしません。'
+		then
+			die 'Codex の設定で allow_login_shell = false を確認できません。表示した設定が正しい TOML で、トップレベルの値が真偽値の false か管理者に確認してもらってください。既存の設定は上書きしません。'
+		fi
 	fi
 	for file in "$root/common/monitor/"squad-*; do
 		host_shared_file "$file" "$agent_home/bin/$(basename "$file")" yes
 	done
-	auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
-	jq -e 'type=="object" and .loggedIn==true' >/dev/null <<<"$auth" || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
-	CODEX_HOME="$agent_home/codex" codex login status >/dev/null 2>&1 || die "エージェント用の Codex にログインしてください: CODEX_HOME=$agent_home/codex codex login"
+	if uses_runtime claude; then
+		auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+		jq -e 'type=="object" and .loggedIn==true' >/dev/null <<<"$auth" || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+	fi
+	if uses_runtime codex; then
+		CODEX_HOME="$agent_home/codex" codex login status >/dev/null 2>&1 || die "エージェント用の Codex にログインしてください: CODEX_HOME=$agent_home/codex codex login"
+	fi
 	prepare_daemon
 }
 
@@ -222,13 +228,19 @@ read_daemon_status() {
 }
 
 read_host_runtimes() {
-	local runtimes
-	runtimes=$(mc runtime list --output json) || die 'ランタイムを取得できませんでした。'
-	jq -e 'type=="array" and all(.[]; (.id|type=="string") and (.owner_id|type=="string") and (.provider|type=="string") and (.status|type=="string"))' >/dev/null <<<"$runtimes" || die 'ランタイムの応答が不正です。'
+	local observed_runtimes
+	observed_runtimes=$(mc runtime list --output json) || die 'ランタイムを取得できませんでした。'
+	jq -e 'type=="array" and all(.[]; (.id|type=="string") and (.owner_id|type=="string") and (.provider|type=="string") and (.status|type=="string"))' >/dev/null <<<"$observed_runtimes" || die 'ランタイムの応答が不正です。'
 	claude_runtime_id=''; codex_runtime_id=''
 	[[ -n $daemon_id ]] || return 0
-	claude_runtime_id=$(jq -r --arg owner "$host_owner_id" --arg daemon "$daemon_id" '[.[] | select(.owner_id==$owner and .daemon_id==$daemon and .provider=="claude" and .status=="online")][0].id // empty' <<<"$runtimes")
-	codex_runtime_id=$(jq -r --arg owner "$host_owner_id" --arg daemon "$daemon_id" '[.[] | select(.owner_id==$owner and .daemon_id==$daemon and .provider=="codex" and .status=="online")][0].id // empty' <<<"$runtimes")
+	claude_runtime_id=$(jq -r --arg owner "$host_owner_id" --arg daemon "$daemon_id" '[.[] | select(.owner_id==$owner and .daemon_id==$daemon and .provider=="claude" and .status=="online")][0].id // empty' <<<"$observed_runtimes")
+	codex_runtime_id=$(jq -r --arg owner "$host_owner_id" --arg daemon "$daemon_id" '[.[] | select(.owner_id==$owner and .daemon_id==$daemon and .provider=="codex" and .status=="online")][0].id // empty' <<<"$observed_runtimes")
+}
+
+host_runtimes_online() {
+	if uses_runtime claude && [[ -z $claude_runtime_id ]]; then return 1; fi
+	if uses_runtime codex && [[ -z $codex_runtime_id ]]; then return 1; fi
+	return 0
 }
 
 daemon_has_agent_env() {
@@ -245,7 +257,7 @@ prepare_daemon() {
 	read_daemon_status
 	read_host_runtimes
 	if [[ -n $daemon_pid ]]; then
-		if [[ -n $claude_runtime_id && -n $codex_runtime_id ]] && daemon_has_agent_env; then return; fi
+		if host_runtimes_online && daemon_has_agent_env; then return; fi
 		# 止める直前に読み直す。取得不能やタスク数不明は安全とみなさない。
 		read_daemon_status
 		active=$(jq -er '[.active_task_count,.running_task_count,.resource_wait_task_count] | map(select(.!=null)) | select(length>0 and all(.[]; type=="number" and .>=0 and floor==.)) | max' <<<"$daemon_status") || die '実行中のタスク数が不明なため、デーモンを止めません。'
@@ -259,7 +271,7 @@ prepare_daemon() {
 	for ((i=0; i<30; i++)); do
 		read_daemon_status
 		read_host_runtimes
-		if [[ -n $claude_runtime_id && -n $codex_runtime_id ]] && daemon_has_agent_env; then return; fi
+		if host_runtimes_online && daemon_has_agent_env; then return; fi
 		sleep 2
 	done
 	die 'ランタイムがオンラインになりません。daemon status とログを確認してください。'

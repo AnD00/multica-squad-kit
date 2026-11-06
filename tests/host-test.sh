@@ -23,7 +23,7 @@ case "$*" in
  *) echo '{"status":"running","pid":4242,"daemon_id":"daemon-a","running_task_count":0,"active_task_count":0,"server_url":"https://example.test"}' ;;
  esac ;;
 'runtime list --output json')
- if [[ $mode == stopped || -f $base/no-runtimes ]]; then echo '[]'; else
+ if [[ $mode == stopped || -f $base/no-runtimes ]]; then echo '[]'; elif [[ -n ${TEST_RUNTIME_LIST:-} ]]; then cat "$TEST_RUNTIME_LIST"; else
   echo '[{"id":"runtime-claude","owner_id":"member-a","daemon_id":"daemon-a","provider":"claude","status":"online"},{"id":"runtime-codex","owner_id":"member-a","daemon_id":"daemon-a","provider":"codex","status":"online"},{"id":"foreign","owner_id":"member-b","daemon_id":"daemon-a","provider":"claude","status":"online"},{"id":"other-host","owner_id":"member-a","daemon_id":"daemon-b","provider":"codex","status":"online"}]'
  fi ;;
 'daemon stop') echo stopped >"$base/mode" ;;
@@ -61,10 +61,16 @@ cat >"$test_dir/run.sh" <<'RUN'
 #!/bin/bash
 set -euo pipefail
 root=$1
+source "$root/lib/check.sh"
 source "$root/lib/host.sh"
 die() { printf '%s\n' "$*" >&2; exit 1; }
 mc() { multica "$@"; }
 server_url=https://example.test
+runtimes=${TEST_RUNTIMES:-[\"claude\",\"codex\"]}
+command() {
+ if [[ $* == "-v ${TEST_MISSING_RUNTIME:-__none__}" ]]; then return 1; fi
+ builtin command "$@"
+}
 prepare_host
 RUN
 run() { /bin/bash "$test_dir/run.sh" "$root" >"$test_dir/out" 2>"$test_dir/err"; }
@@ -145,6 +151,38 @@ grep -q 'オンラインになりません' "$test_dir/err"
 [[ $(grep -c '^daemon start$' "$test_dir/calls") == 1 ]]
 rm "$test_dir/no-runtimes"
 echo 'PASS host: 停止・起動の失敗とオンライン待ちの上限を失敗として返す'
+# 使わない側はコマンドなし・未ログイン・オフラインでも準備できる。
+for selected in claude codex; do
+ (
+  export TEST_RUNTIMES="[\"$selected\"]" TEST_RUNTIME_LIST="$test_dir/selected-runtime.json"
+  export TEMPLATE_AGENT_HOME="$test_dir/$selected-only"
+  if [[ $selected == claude ]]; then export TEST_MISSING_RUNTIME=codex; else export TEST_MISSING_RUNTIME=claude; fi
+  touch "$test_dir/no-$TEST_MISSING_RUNTIME-auth"
+  printf '[{"id":"runtime-%s","owner_id":"member-a","daemon_id":"daemon-a","provider":"%s","status":"online"}]\n' "$selected" "$selected" >"$TEST_RUNTIME_LIST"
+  set_mode stopped
+  run
+  grep -qx 'daemon start' "$test_dir/calls"
+  if [[ $selected == claude ]]; then
+   [[ ! -e $TEMPLATE_AGENT_HOME/codex/config.toml ]]
+   ! grep -q '使用する Codex の設定' "$test_dir/err"
+   printf 'invalid existing config\n' >"$TEMPLATE_AGENT_HOME/codex/config.toml"
+  else
+   cmp "$root/common/codex/config.toml" "$TEMPLATE_AGENT_HOME/codex/config.toml"
+  fi
+  set_mode busy
+  agent_env
+  run
+  ! grep -Eq '^daemon (stop|start)$' "$test_dir/calls"
+  if [[ $selected == claude ]]; then grep -qx 'invalid existing config' "$TEMPLATE_AGENT_HOME/codex/config.toml"; fi
+  touch "$test_dir/no-$selected-auth"
+  : >"$test_dir/calls"
+  deny
+  grep -q 'ログインしてください' "$test_dir/err"
+  [[ ! -s $test_dir/calls ]]
+  rm "$test_dir/no-$selected-auth" "$test_dir/no-$TEST_MISSING_RUNTIME-auth"
+ )
+ echo "PASS host: $selected だけで起動・再利用し、選んだ側の認証を求め、使わない側は求めない"
+done
 # 同居する既存システムの Mac の代わり。印のないファイルと資格情報を残す。
 sed '/^# multica-squad-kit-managed$/d' "$root/common/guard/gh" >"$TEMPLATE_AGENT_HOME/bin/gh"
 sed '/^# multica-squad-kit-managed$/d' "$root/common/guard/pre-push" >"$TEMPLATE_AGENT_HOME/git-hooks/pre-push"

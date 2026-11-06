@@ -4,7 +4,7 @@ source "$(dirname "$0")/setup-fixture.sh"
 manifest
 export TEST_REPOS_FILE="$test_dir/repos.json"
 printf '%s\n' '[{"url":"https://github.com/example/one"},{"url":"https://github.com/example/two"},{"url":"https://github.com/example/three"}]' >"$TEST_REPOS_FILE"
-printf 'https://example.test\n1\n1\nshop\n1 3\nmember1\n1 2\n5 7\nno\n' >"$test_dir/input"
+printf 'https://example.test\n1\n1\nshop\n1 3\nmember1\n1 2\n1\n5 7\nno\n' >"$test_dir/input"
 TEST_SERVER='(not set)' deny
 no_state
 # 実際の質問画面を取り、手で書いた各質問の節に説明と例があることを照合する。
@@ -13,7 +13,7 @@ check_manual() {
   ($screen|split("\n")) as $lines |
   [range(0;$lines|length) as $i | select($lines[$i]|test("^\\([0-9]+/[0-9]+\\) ")) |
    {title:($lines[$i]|sub("^\\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
-  if ($questions|length)!=8 then error("8問の画面を取得できませんでした") else . end |
+  if ($questions|length)!=9 then error("9問の画面を取得できませんでした") else . end |
   ($document|gsub("`";"")) as $doc |
   [$questions[] | . as $q |
    (($doc|split("#### "+$q.title+"\n"))[1] // "" | split("\n#### ")[0] | split("\n### ")[0]) as $section |
@@ -25,10 +25,10 @@ check_manual() {
   if ($roles|length)!=12 then error("12役の画面を取得できませんでした") else . end |
   (($doc|split("#### 外す役\n"))[1] // "" | split("\n### ")[0] | split("\n")) as $role_lines |
   [$roles[] | . as $role | select(any($role_lines[]; startswith("| "+$role.number+" | "+$role.role+" | ") and contains($role.purpose))|not) | "担当の説明がない: "+.role] as $missing_roles |
-  if ($missing_roles|length)==0 then "8問の説明・例と12役の担当内容が手順書にある" else error($missing_roles|join("、")) end'
+  if ($missing_roles|length)==0 then "9問の説明・例と12役の担当内容が手順書にある" else error($missing_roles|join("、")) end'
 }
 check_manual "$root/manual.md" >"$test_dir/checked"
-echo 'PASS manual: CLIを差し替えた実際の8問の画面と、手で書いた各質問の節の説明・例が一致する'
+echo 'PASS manual: CLIを差し替えた実際の9問の画面と、手で書いた各質問の節の説明・例が一致する'
 sed '/^この Mac のデーモン/d' "$root/manual.md" >"$test_dir/no-description.md"
 if check_manual "$test_dir/no-description.md" >"$test_dir/out" 2>"$test_dir/check-error"; then exit 1; fi
 grep -q '説明がない: サーバーの URL' "$test_dir/check-error"

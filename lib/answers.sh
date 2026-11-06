@@ -35,12 +35,14 @@ repository_choices() {
 # 回答はリポジトリの一覧を持つ一つの形式で保存する。
 load_answers() {
 	jq -e "$repository_filter"'
+		if type=="object" and (has("runtimes")|not) then .runtimes=["claude","codex"] else . end |
 		if type=="object" and .schema==1 and
 			all(.server_url,.workspace_id,.workspace_name,.project_name,.project_key,.member_key; type=="string" and length>0) and
 			(.project_id|type=="string") and
 			(.project_key|test("^[a-z][a-z0-9]{1,11}$")) and
 			(.member_key|test("^[a-z][a-z0-9]{1,11}$")) and
 			(.member_ids|type=="array" and all(.[]; type=="string" and length>0)) and
+			(.runtimes|type=="array" and length>0 and length==(unique|length) and all(.[]; .=="claude" or .=="codex")) and
 			(.excluded_roles|type=="array" and all(.[]; . as $r | ["planner","designer","claude-implementer","claude-fixer","codex-implementer","codex-fixer","code-reviewer","security-reviewer","ux-reviewer","performance-reviewer","qa","ci-monitor","usage-monitor","dependabot-merger"] | index($r)!=null)) and
 			((.excluded_roles|index("claude-implementer")!=null)==(.excluded_roles|index("claude-fixer")!=null)) and
 			((.excluded_roles|index("codex-implementer")!=null)==(.excluded_roles|index("codex-fixer")!=null)) and
