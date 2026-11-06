@@ -120,13 +120,14 @@ prepare_project() (
 	squad_name=$(printf '%s-%s' "$project_key" "$member_key" | LC_ALL=C tr '[:lower:]' '[:upper:]')
 	printf 'スクワッドを準備しています: %s\n' "$squad_name" >&2
 	result=$(mc squad list --output json) || die 'スクワッドを取得できませんでした。'
-	project_named "$result" name "$squad_name"
+	squad_named "$result" "$squad_name"
 	squad_id=$(jq -r '.[0].id // empty' <<<"$matches")
 	if [[ -z $squad_id ]]; then
 		result=$(mc squad create --name "$squad_name" --leader "$(jq -r '.orchestrator.id' <<<"$records")" --output json) || die 'スクワッドの器を作れませんでした。'
 		squad_id=$(project_result_id "$result") || die 'スクワッド作成の応答が不正です。'
 		created_squads=$((created_squads+1))
 	else
+		squad_name=$(jq -r '.[0].name' <<<"$matches")
 		result=$(mc squad get "$squad_id" --output json) || die 'スクワッドを読めませんでした。'
 		[[ $(jq -r '.creator_id // empty' <<<"$result") == "$host_owner_id" ]] || die 'ほかの人のスクワッドです。メンバーの区別を変えてください。'
 	fi

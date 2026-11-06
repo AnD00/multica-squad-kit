@@ -17,7 +17,7 @@ sys.dont_write_bytecode = True
 spec.loader.exec_module(module)
 ext = work / 'extension'
 ext.mkdir()
-(ext / 'kit-version').write_text('v1.0.0\n')
+(ext / 'kit-version').write_text((kit / 'VERSION').read_text())
 (ext / 'instructions').mkdir()
 (ext / 'instructions/qa.md').write_text('## Project checks\n\nRead the project test manual.\n')
 patch = {'qa': {'skills': ['browser-check'], 'max_concurrent_tasks': 2, 'mcp_config': {'mcpServers': {'browser': {'command': 'browser-tool'}}}, 'instructions_file': 'instructions/qa.md'}}
@@ -51,7 +51,7 @@ def deny(name):
 (ext / 'kit-version').write_text('v0.0.0\n')
 deny('wrong-version')
 assert not (work / 'wrong-version').exists()
-(ext / 'kit-version').write_text('v1.0.0\n')
+(ext / 'kit-version').write_text((kit / 'VERSION').read_text())
 (ext / 'additions.json').write_text(json.dumps({'qa': {'instructions': 'replace'}}))
 deny('replace-instructions')
 (ext / 'additions.json').write_text('{}')
@@ -90,3 +90,31 @@ save_extension_inventory
 jq -e '.roles==[] and .autopilots==""' "$extension_inventory" >/dev/null
 SH
 echo 'PASS extensions: tmp のない原本で拡張なしを選んでも、消した役とオートパイロットを停止・切り離しの管理対象に残す'
+
+source "$root/lib/autopilots.sh"
+cat >"$test_dir/webhook.md" <<'WEBHOOK'
+## Issue events {{project_key}} {{repository}}
+
+- 範囲: `repository`
+- 担当: {{agent.orchestrator.name}}
+- 実行: `run_only`
+- トリガー: `webhook`
+
+```text
+Handle issue events.
+```
+WEBHOOK
+autopilot_sections "$test_dir/webhook.md" >"$test_dir/sections.json"
+jq -e 'length==1 and .[0].trigger=="webhook" and (.[0]|has("cron")|not)' "$test_dir/sections.json" >/dev/null
+for variant in missing unknown mixed; do
+ case $variant in
+ missing) sed '/^- トリガー:/d' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ unknown) sed 's/`webhook`/`other`/' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ mixed) sed '/^- トリガー:/a\
+- スケジュール: `0 0 * * *`（Asia/Tokyo）
+' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ esac
+ if autopilot_sections "$test_dir/bad.md" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+ [[ -s $test_dir/err ]]
+done
+echo 'PASS extensions: Webhook の明示を受け取り、指定漏れ・未知の種類・スケジュールの混在を拒否する'

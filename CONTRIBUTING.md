@@ -12,7 +12,7 @@
   git switch main
   git pull --ff-only origin main
   test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
-  release_tag=v1.0.0
+  release_tag=v1.0.1
   test "$(cat VERSION)" = "$release_tag"
   test "$(awk '/^## / {print $2; exit}' CHANGELOG.md)" = "$release_tag"
   git tag -a "$release_tag" -m "$release_tag"
@@ -31,7 +31,7 @@
 ```bash
 (
   set -eu
-  release_tag=v1.0.0
+  release_tag=v1.0.1
   notes=$(git show "$release_tag:CHANGELOG.md" |
     awk -v heading="## $release_tag" '$0 == heading {found = 1; next} found && /^## / {exit} found')
   test -n "$(printf '%s' "$notes" | tr -d '[:space:]')"
