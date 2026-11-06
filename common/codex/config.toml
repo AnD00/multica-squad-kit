@@ -1,0 +1,5 @@
+# multica-squad-kit-managed
+# エージェント用の設定。人の Codex のプラグイン、MCP、notify と切り離す。
+# ログイン時の個人の設定を読まず、プロジェクトのシェルの起動ファイルを使う。
+# zsh は ZDOTDIR の .zshenv、bash は BASH_ENV を読む。
+allow_login_shell = false

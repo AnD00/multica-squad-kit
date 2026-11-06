@@ -1,0 +1,32 @@
+name: Checks
+on:
+  pull_request:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  scripts:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install jq python ripgrep
+      - name: Tests
+        run: bash tests/run.sh
+      - name: Syntax and integrity
+        run: |
+          bash scripts/check.sh
+          bash scripts/manifest.sh
+          git diff --exit-code -- MANIFEST
+  content:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Content scan
+        env:
+          FORBIDDEN_TERMS: ${{ secrets.FORBIDDEN_TERMS }}
+        run: |
+          umask 077
+          mkdir -p tmp
+          printf '%s\n' "$FORBIDDEN_TERMS" > tmp/forbidden.txt
+          SQUAD_KIT_FORBIDDEN_FILE="$PWD/tmp/forbidden.txt" bash tests/check-content.sh
