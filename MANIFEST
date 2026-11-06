@@ -46,7 +46,7 @@ b9a558a2018b02bd26ebffee5ab9ce88b2aa2cd6af3e5c4fec7d608ac313f5a5  ./common/skill
 a663b797c0d65770c5ccafab53706d27f7fd6c82b4d93d92dfa70db0515524cd  ./lib/autopilots.sh
 f5f4237ecab5f4214c6b628f2cf79bd26c6295dac2bd7fc0942640b70bf9834c  ./lib/check.sh
 bfad31a5be800c277f7a47beb391c3639512cd9d49b83437c5106a9c2ab53e48  ./lib/extensions.py
-84279cd5eb30259b1fb7acbb45b7cce7901c07a31cb3055b14af5be84895d4d5  ./lib/extensions.sh
+961a62067c3176d472e8f7ae32daf5ae476b783e99034bf4dbbbba452bc3370e  ./lib/extensions.sh
 dbab2324351c683eff0e258f638e4cdf43fe0c9c906ca2539ec5c4ed58012636  ./lib/host.sh
 7b87d5276a20b3c548e621e63899d9fb7e975fe7d9f964091b828ea47f444f09  ./lib/migrate.py
 ce546b445cba23bbf8a3cb12a6c9ebbd5ae1f6cf124bc5921a5296dbd4901d99  ./lib/migrate.sh
@@ -71,7 +71,7 @@ f13b9d6f1d3d251a28f825e23de024d5a81bd817a10ea7f2ccace772b91aea78  ./skeleton/ver
 652723d0d604daa3599abccdf863468790297df334e55ab242ae548fd0c741e4  ./tests/check-content.py
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh
 0dc1ed5f1fea04eb14614dba2e98fd88d5ab76cafa79240f71d2633fb8742693  ./tests/content-test.sh
-4a849ad5a6b0c3f0c5938e318f4a11bc2987f437fde7dd3091d93f467c451588  ./tests/extensions-test.sh
+29275720957b4647dd5f5ad2b4620a96873b39fba13b03876a1232707c93e7ea  ./tests/extensions-test.sh
 36c5ce42871a1c766e388e670abe09805e02cc99574fd529ef4a9c592e44cbf2  ./tests/fixtures/legacy/.zshenv.txt
 36c5ce42871a1c766e388e670abe09805e02cc99574fd529ef4a9c592e44cbf2  ./tests/fixtures/legacy/env.sh.txt
 1875579419cf73bc167e0c2ed43c8241f46e2910e1bf5846acdd992af55fb6ec  ./tests/fixtures/legacy/squad-dependabot-merge.txt

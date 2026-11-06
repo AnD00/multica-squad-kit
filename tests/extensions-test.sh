@@ -66,17 +66,27 @@ PY
 # 前の拡張を外したときも、停止対象を原本とは別に引き継ぐ。
 /bin/bash -s -- "$root" "$test_dir" <<'SH'
 set -euo pipefail
-root=$1; kit_root=$1; test_dir=$2
+die() { printf '%s\n' "$*" >&2; exit 1; }
+root=$1; test_dir=$2
 source "$root/lib/render.sh"
 source "$root/lib/extensions.sh"
+# 新しい clone と同じく tmp がない原本から、拡張なしを選ぶ。
+mkdir "$test_dir/fresh-clone"
+cp -R "$root/common" "$root/skeleton" "$root/VERSION" "$test_dir/fresh-clone/"
+root=$test_dir/fresh-clone
+[[ ! -e $root/tmp ]]
+choose_extension <<<''
+[[ ! -e $kit_root/tmp ]]
 state_root=$test_dir/state
 workspace_id=ws-a; project_key=demo; member_key=membera
 mkdir -p "$state_root/$workspace_id"
 printf '%s\n' '{"roles":["helper"],"autopilots":"## Old demo membera\n"}' >"$state_root/ws-a/demo-membera.extensions.json"
 load_extension_inventory
+[[ -d $extension_work && $root == "$extension_work" && $root != "$kit_root" ]]
+cmp "$kit_root/common/autopilots.md" "$root/common/autopilots.md"
 [[ " $template_roles " == *' helper '* && " $extension_disabled_roles " == *' helper '* ]]
 grep -q '^## Old demo membera' "$autopilots_known_source"
 save_extension_inventory
 jq -e '.roles==[] and .autopilots==""' "$extension_inventory" >/dev/null
 SH
-echo 'PASS extensions: 消した拡張の役とオートパイロットを、停止・切り離しの管理対象に残す'
+echo 'PASS extensions: tmp のない原本で拡張なしを選んでも、消した役とオートパイロットを停止・切り離しの管理対象に残す'

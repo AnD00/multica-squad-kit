@@ -29,6 +29,7 @@ load_extension_inventory() {
 	fi
 	# 拡張を外すときも原本の一時コピーを作る。
 	if [[ -z ${extension_work:-} && $(jq '.roles|length' <<<"$previous") != 0 || -z ${extension_work:-} && $(jq -r '.autopilots' <<<"$previous") != '' ]]; then
+		mkdir -p "$kit_root/tmp"
 		extension_work=$(mktemp -d "$kit_root/tmp/extension.XXXXXX") || die '拡張の作業場所を作れません。'
 		[[ ${setup_cleanup_enabled:-no} == yes ]] || trap 'rm -rf -- "$extension_work"' EXIT
 		cp -R "$kit_root/common" "$kit_root/skeleton" "$extension_work/"
