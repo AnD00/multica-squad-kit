@@ -106,7 +106,9 @@ default=USER
 
 `provision.sh` を流す最初の起動だけは、まだドライブが見える。この起動では、`wsl.ps1` が渡した原本を読むだけにし、使う人のログインはまだない。WSL 全体の設定（`%USERPROFILE%\.wslconfig`）は変えない。ほかのディストリにも効き、ホストに設定が残るため。
 
-`--name` と `--location` を受ける WSL の最低の版は、実装で確かめる。`wsl.ps1` は、`wsl --version` が足りなければ止まる。WSL の出力は UTF-16 になるので、`wsl.ps1` は `WSL_UTF8=1` を設定してから読む。
+WSL は、[公開された 2.6.1 の実装](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/common/WslClient.cpp)で、`--name`、`--location`、`--no-launch` と `WSL_UTF8` を確認した。最低の版を 2.6.1 とし、`wsl.ps1` は `wsl --version` が足りなければ止まる。子の `wsl.exe` に `WSL_UTF8=1` を渡し、UTF-8 で出力を読む。作るときは `--version 2` も渡し、普段の WSL の既定を変えずに WSL 2 にする。
+
+初回は `--no-launch` で通常のシェルを開かず、`-u root --exec` で `wslpath` と準備のスクリプトを流す。[コマンドを明示した起動](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/service/exe/LxssInstance.cpp)は対話の初回設定を始めない。使う人と `wsl.conf` を用意してからディストリを止め、次の起動で閉じ込めを効かせる。
 
 Docker Desktop を使っている人は、このディストリの WSL の統合を切ったままにする。統合を入れると、Docker Desktop が Windows 側のファイルと実行ファイルを中に持ち込むため。`verify` で、統合で入るファイルがないことも確かめる。
 
@@ -201,6 +203,8 @@ WSL は、ディストリにつながる `wsl.exe` がなくなると、少し�
 
 この `wsl.exe` は、Windows からサインアウトするまで動く。Windows の起動時やサインイン時に自動で動かす設定（タスク スケジューラなど）は入れない。ホストに残るものを、WSL と VM のディスクだけにするため。Windows を起動し直したあとは、`wsl.ps1 start` を流す。
 
+起こした `wsl.exe` の PID、起動時刻、ディストリの名前は、中の root だけが書ける `/var/lib/multica-squad-vm/keepalive.json` に置く。止めるときは PID と起動時刻、実行ファイルと引数が一致するものだけを止める。PID が別のプロセスに使われていたら、そのプロセスは止めない。ホストに PID の記録は置かない。
+
 Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動する。Mac のログイン時に自動で起動する設定（`limactl start-at-login`）は、同じ理由で入れない。
 
 ## 止める・消す
@@ -264,7 +268,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 - `wsl.ps1` は、ドットで読み込んだときは操作を流さない形にし、テストで `Start-Process` などを差し替える
 - `wsl.ps1` は PowerShell 5.1 の構文だけで書き、BOM 付きの UTF-8 で保存する。5.1 は BOM のない日本語を読み違えるため
 
-`pwsh` がない手元では、`tests/vm-wsl-test.sh` を飛ばしたことを出して通す。CI では `SQUAD_KIT_REQUIRE_PWSH=1` を設定し、`pwsh` がなければ失敗にする。GitHub の macOS と Ubuntu のランナーに `pwsh` があることは、実装で確かめる。
+`pwsh` がない手元では、`tests/vm-wsl-test.sh` を飛ばしたことを出して通す。CI では `SQUAD_KIT_REQUIRE_PWSH=1` を設定し、`pwsh` がなければ失敗にする。GitHub の [macOS](https://github.com/actions/runner-images/tree/main/images/macos) と [Ubuntu 24.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) の構成表で、PowerShell が含まれることを確認した。
 
 `scripts/check.sh` に、`vm/*.sh` と `vm/guest/*` の `bash -n` と、`pwsh` があるときの `wsl.ps1` の構文の確かめを足す。
 
