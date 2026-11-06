@@ -1,0 +1,61 @@
+役の指示のひな形
+
+ファイル名（拡張子を除く）を役のキーとする。無効な役のファイルは登録しない。
+front matter の name はプロジェクトとメンバーの区別を含む完成名になる。
+skills は共通スキルの名前と、プロジェクトの区別を除いたスキル名で記載する。
+
+段落の印:
+  <!-- IF planner -->
+  その役が有効なときに残す段落
+  <!-- ELSE -->
+  無効なときに残す段落（ELSE は省略できる）
+  <!-- ENDIF -->
+複数の役を IF に並べると、そのどれかが有効なときに残す。入れ子にできる。
+印はそれぞれ独立した行とし、他の役に触れる行は、その役の IF の中に置く。
+役のキーは、agents/ のファイル名と同じものを使う。スクワッドとオートパイロットも同じ印で外した役への参照を消す。
+orchestrator は必須。claude-implementer と claude-fixer、codex-implementer と
+codex-fixer は、それぞれ系統として一緒に有効・無効にする。少なくとも一系統を残す。
+
+値の差し込み:
+  {{project_name}}、{{project_key}}、{{member_key}}、{{member_name}}
+  {{project_id}}、{{repositories}}、{{squad_id}}、{{squad_mention}}、{{owner_mention}}
+  {{repository_roles}}、{{repository_checks}} は skeleton/ のリポジトリごとの記入欄
+  {{repository}} は一つの対象。オートパイロットの指示や検証の節に使う
+  {{agent.役のキー.name}}、{{agent.役のキー.id}}、{{agent.役のキー.mention}}
+  {{model}}、{{thinking_level}} は、そのファイルの front matter の値
+メンションは完成したリンクを渡す。テンプレートの中で ID からリンクを組み立てない。
+
+展開の順:
+1. 無効な役のファイルを除く。
+2. IF と ELSE の条件を評価し、不要な段落と印の行を消す。
+3. 残った箇所だけに値を差し込む。無効な役の値は不要。
+4. 未知の役・印の不整合・残った差し込み・必要な値の不足があれば登録しない。
+
+各指示の末尾に「このプロジェクトの値」を置く。共通のスキルはここを参照する。
+repositories は選んだ全 OWNER/REPO をバッククォートで囲み、読点で区切った一覧。
+役とスクワッドでは単一の repository を作業先の既定にせず、この一覧を使う。
+repository_roles は説明の表（見出し行を含む）、repository_checks は検証スキルの節の文字列。
+検証の節は skeleton/verify-repository.md の repository を一つずつ展開し、
+見出しを一段下げて連結する。確認のコマンドなどの記入欄は人が補う。
+値を差し込んだあとに印や差し込みとして読み直さない。
+本体の展開は lib/render.sh、登録は lib/project.sh。検証は agent-templates-test.sh と project-test.sh。
+
+front matter も条件の印の対象とする。印を消したあとで YAML として読む。
+レビューの 4 役は Codex 系統がなければ Claude のモデルにする。
+model と thinking_level の差し込み値は、印を消したあとの front matter から読む。
+スクワッドの外の見張りには role を付けない。使用上限の見張りは Claude の
+枠と一緒に止まらないよう Codex のままにする。3 つの見張りの同時実行数は
+通知やマージの重複を避けるため 1 を保つ。Docker のメモリに合わせた上限は入れない。
+common/squad.md と common/autopilots.md もこの記法で展開する。
+autopilots.md の各節の「範囲」は repository または member。
+repository の節は選んだ各リポジトリで展開し、名前を「 {{repository}}」で終える。
+member の節はプロジェクトとメンバーごとに一度だけ展開する。
+member_name はセットアップを流すメンバー（呼ぶ人間）の Multica 上の名前。
+labels はコメントと空行以外を 名前|色|説明 の 3 列として読む。
+
+初回登録は承認済みの二段階で行う。ID 確保用レコードだけは private と停止用指示、
+完成した環境変数で作り、本作業・状態変更・コメント・他者の呼び出しをさせない。
+既存のレコードの ID と従来の指示は保つ。進行役の実 ID でスクワッドの器を作り、
+全 ID で全有効役の本指示を展開・検証したあと、本指示・スキルを反映し、最後に公開する。
+本指示の値が不足していたら登録しない規則は変えない。仮 ID と空の値は使わない。
+スクワッドの器の作成までが段12、指示・メンバー・オートパイロットは段13。

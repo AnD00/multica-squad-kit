@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# Multica のエージェントの実行で、git push を、ワークスペースに紐付いたリポジトリだけに絞る関所。
+# エージェントの git は、ホストの人の認証（gh auth git-credential）で、その人が書けるリポジトリのすべてに push できるため。
+# setup.sh が ~/.multica-agent/git-hooks/pre-push に写し、エージェントの環境変数（GIT_CONFIG_*）で core.hooksPath をそこにする。
+# 許すリポジトリは gh の関所と同じく、SQUAD_KIT_ALLOWED_REPOS、未設定ならホストの既定のファイルから読む。
+set -euo pipefail
+
+ALLOWED_FILE=${SQUAD_KIT_ALLOWED_REPOS:-$HOME/.multica-agent/allowed-repos}
+url=${2:-}
+
+# GitHub の HTTPS・SSH の許可形式だけから、OWNER/REPO を取り出す。
+# URL 全体を照合し、ほかのホストやローカルパスに含まれる github.com は許さない。
+repo=
+if [[ $url =~ ^(https://github\.com/|git@github\.com:|ssh://git@github\.com/)([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)$ ]]; then
+	repo="${BASH_REMATCH[2]}/${BASH_REMATCH[3]%.git}"
+fi
+if [[ -z $repo ]] || [[ ! -f $ALLOWED_FILE ]] || ! grep -qxiF -- "$repo" "$ALLOWED_FILE"; then
+	echo "git push の関所: ${url} への push は止めた。ワークスペースに紐付いたリポジトリ（$(tr '\n' ' ' <"$ALLOWED_FILE" 2>/dev/null)）にだけ push できる" >&2
+	exit 1
+fi
+
+# pre-push の更新行を保存して検査する。後続の hook にも同じ入力を渡す。
+umask 077
+updates=$(mktemp "${TMPDIR:-/tmp}/multica-pre-push.XXXXXX")
+trap 'rm -f -- "$updates"' EXIT
+cat >"$updates"
+while read -r local_ref local_oid remote_ref remote_oid extra || [[ -n ${local_ref:-} ]]; do
+	if [[ -z $local_ref || -z $remote_ref || -n $extra ||
+		! $local_oid =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ||
+		! $remote_oid =~ ^([0-9a-f]{40}|[0-9a-f]{64})$ ]]; then
+		echo 'git push の関所: 更新行を判定できないため止めた' >&2
+		exit 1
+	fi
+	# 新規作成と削除は履歴の巻き戻しではない。同じ OID の更新も許す。
+	if [[ $remote_oid =~ ^0+$ || $local_oid =~ ^0+$ || $local_oid == "$remote_oid" ]]; then
+		continue
+	fi
+	case $remote_ref in
+	refs/tags/*)
+		echo "git push の関所: 既存タグ ${remote_ref} の付け替えは止めた" >&2
+		exit 1
+		;;
+	*)
+		# オブジェクトの不足や読み取り失敗も、許可と判定しない。
+		if ! git merge-base --is-ancestor "$remote_oid" "$local_oid"; then
+			echo "git push の関所: ${remote_ref} の非 fast-forward 更新、または履歴を確認できない更新は止めた" >&2
+			exit 1
+		fi
+		;;
+	esac
+done <"$updates"
+
+# core.hooksPath を替えると、リポジトリ自身の pre-push が動かなくなるので、あれば続けて動かす。
+own=$(git rev-parse --git-common-dir)/hooks/pre-push
+if [[ -x $own ]]; then
+	"$own" "$@" <"$updates"
+fi

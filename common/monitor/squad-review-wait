@@ -1,0 +1,333 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# 並行で頼んだレビューと E2E の結果を集め、そろったとき、役の実行の失敗・取り消し、待つ上限で orchestrator を起こす。
+# 結果のたびに orchestrator が起きると、まだそろっていない回は何もせずに終わり、利用枠だけを使うため。
+#
+# 「回」は、`返事を待つ役:` の行を持つ、タスクの最新のコメント。待つ役は、その行のメンションの UUID。
+# 「返した」は、その役のエージェントが回より後に書いたコメントがあること。
+#
+#   squad-review-wait watch <タスク> <きっかけのコメント> <役の ID>...
+#     回のコメントを書く前に、役ごとの失敗・取り消しと、待つ上限の wakeup を入れる。
+#   squad-review-wait unwatch <タスク>
+#     そのタスクの返事の待ちの wakeup を消す。CI とコンフリクトの規則は残す。
+#   squad-review-wait status <タスク> [--timeout]
+#     最新の回を調べ、何もしない・拾い直す・記録する・人間を呼ぶの判定と、返っていない役の実行の状態を出す。
+#     上限用の wakeup は --timeout を付け、コメントからの経過を待たずに未返答の役と状態を記録する。
+#     拾い直すは、全員が返していて、そろった知らせがない回。
+#   squad-review-wait proceed <タスク> <きっかけのコメント>
+#     orchestrator が次の工程に進む前に通す。同じ回の知らせのうち、いちばん早いものに当たる実行だけに `次に進む` を返し、
+#     回の見張りを消す。知らせがなければ、拾い直しの知らせを書いてから判定する。
+#   squad-review-wait report <タスク> <親のコメント> <結果のファイル>
+#     役が結果を書くときに使う。結果は `/note` で始めて書き、誰も起こさない。
+#     書いたあとにコメントを読み直し、待つ役の全員が返していれば、`返事がそろいました` で orchestrator を起こす。
+#     返していない役がいれば、少し待ってからもう 1 回だけ読み直す。
+#     回がなければ投稿せずエラーにする。呼び出した役は、従来の引き継ぎで結果を返す。
+#
+# 親のコメントは、その実行のきっかけのコメント（ふつうは回のコメント）。Multica は、コメントで起きた実行に、
+# きっかけのコメントへの返信しか書かせないため。
+set -euo pipefail
+
+# 待つ上限（分）。レビューの役の実行は 90 パーセンタイルで 10 分以下、同時実行の上限による待ちは最大 15 分なので、その倍をとる。
+REVIEW_WAIT_LIMIT_MINUTES=${REVIEW_WAIT_LIMIT_MINUTES:-60}
+
+# report と proceed が、同じ回の返事を読み直す前に待つ秒数。ほぼ同時に返した役の結果は、書いた直後の読み直しには
+# 見えないことがある。待ちによる役の実行ののびを 30 秒以内に収めるため、待ちは 20 秒と読み直し 1 回にする。
+REVIEW_WAIT_RECHECK_SECONDS=${REVIEW_WAIT_RECHECK_SECONDS:-20}
+
+ROUND_MARK='返事を待つ役:'
+READY_MARK='返事がそろいました'
+WATCH_MARK='レビューと E2E の返事の待ちの見張りで起きました。'
+
+for cmd in jq multica; do
+	if ! command -v "$cmd" >/dev/null 2>&1; then
+		echo "${cmd} が見つからない。" >&2
+		exit 1
+	fi
+done
+
+usage() {
+	echo '使い方: squad-review-wait watch <タスク> <きっかけのコメント> <役の ID>... | unwatch <タスク> | status <タスク> [--timeout] | proceed <タスク> <きっかけのコメント> | report <タスク> <親のコメント> <結果のファイル>' >&2
+	exit 2
+}
+
+# タスクのコメントを、古い順の JSON の配列で出す。各コメントに、時刻の数値（ts）を足す。
+# 回の始まりからの経過は秒で足りるが、同じ秒の前後を取り違えないよう、小数も読む。
+comments_of() {
+	multica issue comment list "$1" --full --output json | jq '
+		def ts: . as $t
+			| ($t | sub("\\.[0-9]+"; "") | sub("[+-]00:00$"; "Z") | fromdateiso8601)
+			+ ((($t | capture("\\.(?<f>[0-9]+)") | .f) // "0") | ("0." + .) | tonumber);
+		map(. + {ts: (.created_at | ts)}) | sort_by(.ts)'
+}
+
+# 最新の回を JSON で出す: {id, author_id, ts, waiting: [UUID...], returned: [UUID...], ready_ids: [ID...], ready}。回がなければ何も出さない。
+# ready_ids は、回より後の、そろった知らせのコメントの ID を、時刻の早い順（同じ時刻なら ID の順）に並べたもの。
+# ready は、ready_ids が空でないこと。
+latest_round() {
+	jq -c --arg round "$ROUND_MARK" --arg ready "$READY_MARK" '
+		def line_of($mark): (.content | split("\n") | map(select(startswith($mark))) | first // "");
+		def first_line: (.content | split("\n") | first // "");
+		def waiting_of: line_of($round) | [scan("mention://agent/([A-Za-z0-9-]+)") | .[0]] | unique;
+		. as $all
+		| ([$all[] | select(.author_type == "agent" and (waiting_of | length) > 0)] | last) as $r
+		| if $r == null then empty else
+			($r | waiting_of) as $waiting
+			| [$all[] | select(.ts > $r.ts)] as $after
+			| {
+				id: $r.id, author_id: $r.author_id, ts: $r.ts, waiting: $waiting,
+				returned: ([$after[] | select(.author_type == "agent") | .author_id] | unique | map(select(IN($waiting[])))),
+				ready_ids: ([$after[] | select(.author_type == "agent" and (first_line | contains($ready)))] | sort_by([.ts, .id]) | map(.id))
+			} | . + {ready: (.ready_ids | length > 0)} end'
+}
+
+# 待つ役のうち、返していない役の UUID を 1 行ずつ出す。
+missing_of() {
+	jq -r '.waiting - .returned | .[]' <<<"$1"
+}
+
+agent_name() {
+	local name
+	name=$(multica agent get "$1" --output json | jq -r '.name // empty' 2>/dev/null) || true
+	printf '%s' "${name:-$1}"
+}
+
+# 役の名前を、メンションのリンクで出す。
+mention_of() {
+	local name
+	name=$(agent_name "$1")
+	printf '[@%s](mention://agent/%s)' "${name:-$1}" "$1"
+}
+
+# 引数の ID が有効なエージェントかを、前の見張りを消す前に確かめる。
+check_agent() {
+	multica agent get "$1" --output json | jq -e --arg id "$1" '
+		.id == $id and .archived_at == null' >/dev/null
+}
+
+unwatch() {
+	local issue=$1 rules ids id
+	rules=$(multica issue wakeup list "$issue" --output json)
+	# 有効かどうかを問わず、見張りの印で始まる規則だけを消す。
+	ids=$(jq -r --arg mark "$WATCH_MARK" '.[] | select((.instruction // "") | startswith($mark)) | .id' <<<"$rules")
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		multica issue wakeup delete "$issue" "$id" --output json >/dev/null
+	done <<<"$ids"
+}
+
+watch() {
+	local issue=$1 parent=$2 id ids='' instruction
+	shift 2
+	# ID の誤りでは前の見張りを失わないよう、消す前に全員を確かめる。
+	for id in "$@"; do
+		check_agent "$id"
+		ids+="${id}"$'\n'
+	done
+	unwatch "$issue"
+	mkdir -p tmp
+	instruction=$(mktemp tmp/review-wait-watch.XXXXXX)
+	# EXIT の時点で local が消えていても片付けられるよう、パスを埋め込む。
+	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
+	{
+		printf '%s\n' "$WATCH_MARK"
+		printf '`squad-review-wait status %s` を実行し、あなたの指示の「返事の待ちの見張りで起きたとき」に従ってください。\n' "$issue"
+	} >"$instruction"
+	# --agent-id を省き、呼び出した orchestrator 自身を起こす。mode は once、期限の扱いは end。
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		multica issue wakeup create "$issue" --event task.failed,task.cancelled --filter-agent-id "$id" \
+			--expires-in "${REVIEW_WAIT_LIMIT_MINUTES}m" --parent "$parent" --instruction-file "$instruction" --output json
+	done <<<"$ids"
+	# 上限で役の数だけ起きないよう、時刻の規則は 1 つだけにする。
+	# 登録からコメントまでの時間差で空振りしないよう、上限用の判定を指示する。
+	{
+		printf '%s\n' "$WATCH_MARK"
+		printf '`squad-review-wait status %s --timeout` を実行し、あなたの指示の「返事の待ちの見張りで起きたとき」に従ってください。\n' "$issue"
+	} >"$instruction"
+	multica issue wakeup create "$issue" --kind at --after "${REVIEW_WAIT_LIMIT_MINUTES}m" \
+		--parent "$parent" --instruction-file "$instruction" --output json
+	rm -f "$instruction"
+	trap - EXIT
+}
+
+wait_status() {
+	local issue=$1 timeout=${2:-} round missing runs latest id state lines='' failed=false now started
+	round=$(comments_of "$issue" | latest_round)
+	if [[ -z $round ]]; then
+		printf '/note\n返事の待ち: 回がないので何もしない\n'
+		return 0
+	fi
+	missing=$(missing_of "$round")
+	if [[ $(jq -r .ready <<<"$round") == true ]]; then
+		printf '/note\n返事の待ち: 返事がそろっているので何もしない\n'
+		return 0
+	fi
+	if [[ -z $missing ]]; then
+		printf '返事の待ち: 知らせのないまま返事がそろっている\n'
+		return 0
+	fi
+	runs=$(multica issue runs "$issue" --output json)
+	# CLI の時刻は秒までの場合がある。回と対応する実行は、同じ秒でも拾う。
+	# 実行中に届いた依頼は delivered_comment_ids にある。
+	latest=$(jq --arg round "$(jq -r .id <<<"$round")" --argjson started "$(jq .ts <<<"$round")" '
+		def ts: . as $t
+			| ($t | sub("\\.[0-9]+"; "") | sub("[+-]00:00$"; "Z") | fromdateiso8601)
+			+ ((($t | capture("\\.(?<f>[0-9]+)") | .f) // "0") | ("0." + .) | tonumber);
+		map(. + {ts: (.created_at | ts)})
+		| map(select(.ts > $started or .trigger_comment_id == $round
+			or ((.delivered_comment_ids // []) | index($round) != null)))
+		| group_by(.agent_id) | map(sort_by(.ts) | last)' <<<"$runs")
+	while IFS= read -r id; do
+		state=$(jq -r --arg id "$id" '
+			map(select(.agent_id == $id)) | first
+			| if . == null then "実行なし"
+			  else .status + (if (.error // "") != "" then "（" + .error + "）" else "" end) end' <<<"$latest")
+		lines+="- $(agent_name "$id"): ${state}"$'\n'
+		if jq -e --arg id "$id" 'any(.[]; .agent_id == $id and (.status == "failed" or .status == "cancelled"))' <<<"$latest" >/dev/null; then
+			failed=true
+		fi
+	done <<<"$missing"
+	if [[ $failed == true ]]; then
+		printf '返事の待ち: 人間を呼ぶ\n%s' "$lines"
+		return 0
+	fi
+	if [[ $timeout == --timeout ]]; then
+		printf '/note\n返事の待ち: 待つ上限に達しても返っていない役がいます\n%s' "$lines"
+		return 0
+	fi
+	now=$(date +%s)
+	started=$(jq -r '.ts | floor' <<<"$round")
+	if ((now - started >= REVIEW_WAIT_LIMIT_MINUTES * 60)); then
+		printf '/note\n返事の待ち: 回から %s 分たっても返っていない役がいます\n%s' "$(((now - started) / 60))" "$lines"
+	else
+		printf '/note\n返事の待ち: 返っていない役は待ちか実行中なので何もしない\n'
+	fi
+}
+
+# 回の返事がそろったことを知らせるコメントを書き、そのコメントの ID を出す。headline は知らせの 1 行目。
+post_ready() {
+	local issue=$1 parent=$2 round=$3 headline=$4 id roster='' body status=0
+	while read -r id; do
+		roster+="- $(agent_name "$id")"$'\n'
+	done < <(jq -r '.waiting[]' <<<"$round")
+	mkdir -p tmp || return 1
+	body=$(mktemp tmp/squad-review-ready.XXXXXX) || return 1
+	printf '%s\n\n%s\n\n返した役:\n%s' "$headline" "待っていた役の結果が、すべてそろいました。" "$roster" >"$body" || { rm -f -- "$body"; return 1; }
+	multica issue comment add "$issue" --parent "$parent" --content-file "$body" --output json | jq -r .id || status=$?
+	rm -f -- "$body" || return 1
+	return "$status"
+}
+
+# コメントを読み直し、全員が返していて知らせがなければ、知らせを書く。
+# 返していない役がいれば 2、取得・JSON 処理・投稿に失敗したら 1 を返す。
+announce_if_ready() {
+	local issue=$1 parent=$2 round missing ready orchestrator
+	# 条件として呼ばれる関数内では set -e が効かないため、失敗を明示的に返す。
+	round=$(comments_of "$issue" | latest_round) || return 1
+	[[ -n $round ]] || return 0
+	missing=$(missing_of "$round") || return 1
+	[[ -z $missing ]] || return 2
+	ready=$(jq -r .ready <<<"$round") || return 1
+	if [[ $ready != true ]]; then
+		orchestrator=$(jq -r .author_id <<<"$round") || return 1
+		post_ready "$issue" "$parent" "$round" "$(mention_of "$orchestrator") ${READY_MARK}。" >/dev/null || return 1
+	fi
+}
+
+report() {
+	local issue=$1 parent=$2 file=$3 body round attempt status
+	[[ -r $file ]] || {
+		echo "結果のファイルが読めない: ${file}" >&2
+		exit 1
+	}
+	# 回のない依頼を /note で返すと、orchestrator に届かず止まる。投稿する前に確かめる。
+	round=$(comments_of "$issue" | latest_round)
+	if [[ -z $round ]]; then
+		echo '返事を待つ役の登録がありません。結果は投稿していません。スキル squad-handoff の「引き継ぐとき」に従い、orchestrator をメンションして返してください。' >&2
+		return 1
+	fi
+	# 先頭が /note でなければ足す。ファイルで渡して改行を保つ。
+	mkdir -p tmp
+	body=$(mktemp tmp/squad-review-report.XXXXXX)
+	trap "$(printf 'rm -f -- %q' "$body")" EXIT
+	if [[ $(head -n 1 "$file") == /note* ]]; then
+		cat "$file" >"$body"
+	else
+		printf '/note\n%s\n' "$(<"$file")" >"$body"
+	fi
+	multica issue comment add "$issue" --parent "$parent" --content-file "$body" --output json >/dev/null
+	rm -f -- "$body"
+	trap - EXIT
+
+	# 結果を書いてからコメントを読み直す。2 役がほぼ同時に終えても、あとに読んだ方には両方の結果が見えるため。
+	# まだ返していない役がいれば、相手の結果が読めるようになるのを少し待って、もう 1 回だけ読み直す。
+	for attempt in 1 2; do
+		if announce_if_ready "$issue" "$parent"; then
+			return 0
+		else
+			status=$?
+		fi
+		[[ $status == 2 ]] || return "$status"
+		if [[ $attempt == 1 ]]; then
+			sleep "$REVIEW_WAIT_RECHECK_SECONDS"
+		fi
+	done
+	return 0
+}
+
+# 次の工程に進んでよいかを決める。進めるのは、同じ回の知らせのうち、いちばん早いものに当たる実行だけにする。
+# コメントの並びは Multica が決めるので、ほぼ同時に動く実行どうしでも、進むのは必ず 1 つになる。
+proceed() {
+	local issue=$1 trigger=$2 round again own='' first
+	round=$(comments_of "$issue" | latest_round)
+	if [[ -z $round ]]; then
+		printf '/note\n返事の待ち: 回がないので何もしない\n'
+		return 0
+	fi
+	if [[ -n $(missing_of "$round") ]]; then
+		printf '/note\n返事の待ち: 返っていない役がいるので何もしない\n'
+		return 0
+	fi
+	# 知らせがなければ、拾い直しの知らせを書く。メンションは付けない（自分のコメントでは自分は起きないため）。
+	if [[ $(jq -r .ready <<<"$round") != true ]]; then
+		own=$(post_ready "$issue" "$trigger" "$round" "${READY_MARK}（見張りで拾い直しました）。")
+	fi
+	# ほかの実行の知らせが読めるようになるのを待ってから、全員が同じ並びを見て、同じ 1 つを選ぶ。
+	sleep "$REVIEW_WAIT_RECHECK_SECONDS"
+	again=$(comments_of "$issue" | latest_round)
+	if [[ -z $again || $(jq -r .id <<<"$again") != "$(jq -r .id <<<"$round")" ]]; then
+		printf '/note\n返事の待ち: 新しい回があるので何もしない\n'
+		return 0
+	fi
+	first=$(jq -r '.ready_ids[0] // empty' <<<"$again")
+	if [[ -n $first && ( $first == "$trigger" || $first == "$own" ) ]]; then
+		unwatch "$issue"
+		printf '返事の待ち: 次に進む\n'
+	else
+		printf '/note\n返事の待ち: 同じ回の知らせで、ほかの実行が次に進めるので何もしない\n'
+	fi
+}
+
+case ${1:-} in
+watch)
+	(($# >= 4)) || usage
+	watch "${@:2}"
+	;;
+unwatch)
+	(($# == 2)) || usage
+	unwatch "$2"
+	;;
+status)
+	[[ $# == 2 || ( $# == 3 && ${3:-} == --timeout ) ]] || usage
+	wait_status "$2" "${3:-}"
+	;;
+proceed)
+	(($# == 3)) || usage
+	proceed "$2" "$3"
+	;;
+report)
+	(($# == 4)) || usage
+	report "$2" "$3" "$4"
+	;;
+*) usage ;;
+esac

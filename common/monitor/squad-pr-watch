@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# PR のコンフリクトと CI の結果を、タスクの wakeup で拾う。
+# 人間に回すたびに 1 回きりの規則を入れ直し、すでにあるコンフリクトも次の確認で拾う。
+#
+#   squad-pr-watch conflicts <タスク>
+#     古いコンフリクトの規則を消し、呼び出した orchestrator 自身を起こす規則を作る。
+#   squad-pr-watch ci <タスク> <見張り役の ID> <きっかけのコメント>
+#     CI が終わるたびに見張り役を起こす規則を作る。有効な規則があれば何もしない。
+#   squad-pr-watch ci-check <タスク> <進行役の ID> <見張り役の ID>
+#     今の head で確定した CI の失敗があれば、ほかの役の作業中は保留し、それ以外は一度だけ知らせる。
+#     0 で終わるときは、記録のスレッドに残す /note と 1 行を標準出力に出す。
+#   squad-pr-watch ci-held <タスク> <きっかけのコメント>
+#     今の head の未処理の失敗を一度だけ出し、引き継ぎで受けた記録をきっかけへの返信に残す。
+set -euo pipefail
+
+usage() {
+	echo '使い方: squad-pr-watch conflicts <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <進行役の ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
+	exit 2
+}
+
+require_commands() {
+	local cmd
+	for cmd in "$@"; do
+		if ! command -v "$cmd" >/dev/null 2>&1; then
+			echo "${cmd} が見つからない。" >&2
+			exit 1
+		fi
+	done
+}
+
+
+conflicts() {
+	local issue=$1 rules ids id instruction
+	# CI など、ほかの条件の規則は残す。無効になった古い規則も消してから入れ直す。
+	rules=$(multica issue wakeup list "$issue" --output json)
+	ids=$(jq -r '.[] | select(.condition.type == "pull_request" and .condition.event == "conflicts") | .id' <<<"$rules")
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		multica issue wakeup delete "$issue" "$id" --output json >/dev/null
+	done <<<"$ids"
+
+	# 作業ディレクトリの tmp/ に置く。Multica は登録時に本文を読み込むので、登録後は消せる。
+	mkdir -p tmp
+	instruction=$(mktemp tmp/pr-watch-conflicts.XXXXXX)
+	# EXIT の時点では関数の local が消えていることがあるので、パスはここで埋め込む。
+	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
+	cat >"$instruction" <<'EOF'
+PR のコンフリクトの見張りで起きました。
+タスクの状態とコメントを読み、in_review で、最後に人間を呼んだのがマージを待つためかを確かめてください。
+マージ待ちで、レビューと E2E の返事を待つ回の途中でなければ、進行役の「実装・修正の振り分け」に従い、有効な修正の役を選んでください。選んだ役にタスクの metadata の pr_url を書いて、main とのコンフリクトの解消を頼み、タスクを in_progress にしてください。
+そうでなければ、何もせずに終えてください。作業中のコンフリクトは、次にマージに回すときに入れ直す見張りが拾います。
+EOF
+	# --agent-id を省くと、呼び出した orchestrator 自身を起こす。既定の mode は once。
+	multica issue wakeup create "$issue" --until-pr conflicts --instruction-file "$instruction" --output json
+	rm -f "$instruction"
+	trap - EXIT
+}
+
+ci() {
+	local issue=$1 monitor=$2 trigger=$3 id rules paused old old_id instruction task thread status
+	id=$monitor
+	rules=$(multica issue wakeup list "$issue" --output json | jq --arg id "$id" '
+		[.[] | select(.agent_id == $id and .mode == "continuous"
+			and .condition.type == "pull_request" and .condition.event == "checks_finished")]')
+	# 暴走の防止で止まった規則は、作り直して解除しない。
+	paused=$(jq -r '[.[] | select(.paused_reason == "loop" or .paused_reason == "rate") | .paused_reason] | unique | join(", ")' <<<"$rules")
+	if [[ -n $paused ]]; then
+		echo "CI の見張りが止まっています（${paused}）。次に人間を呼ぶコメントに添えてください。"
+		return 0
+	fi
+	if jq -e 'any(.[]; .enabled == true)' <<<"$rules" >/dev/null; then
+		return 0
+	fi
+	# 規則を消して入れ直しても、タスクごとの同じ記録のスレッドに続ける。
+	task=$(multica issue get "$issue" --output json)
+	thread=$(jq -r '.metadata.ci_watch_thread // empty' <<<"$task")
+	if [[ -n $thread ]]; then
+		if multica issue comment list "$issue" --thread "$thread" --tail 0 --compact --output json >/dev/null; then
+			:
+		else
+			status=$?
+			# CLI の終了コード 4 は 404。それ以外は記録先も規則も変えず、エラーを返す。
+			((status == 4)) || return "$status"
+			thread=
+		fi
+	fi
+	if [[ -z $thread ]]; then
+		# コメントで起きた実行は、きっかけへの返信しか書けない。根のコメントは作らない。
+		thread=$trigger
+		multica issue metadata set "$issue" --key ci_watch_thread --value "$thread" --output json >/dev/null
+	fi
+	# max_fires に達した規則など、有効でなくなった古い規則は入れ直す。
+	old=$(jq -r '.[].id' <<<"$rules")
+	while IFS= read -r old_id; do
+		[[ -n $old_id ]] || continue
+		multica issue wakeup delete "$issue" "$old_id" --output json >/dev/null
+	done <<<"$old"
+	mkdir -p tmp
+	instruction=$(mktemp tmp/pr-watch-ci.XXXXXX)
+	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
+	cat >"$instruction" <<'EOF'
+PR の CI が終わりました。あなたの指示に従い、「このプロジェクトの値」から進行役と見張り役の ID を渡して squad-pr-watch ci-check で今の head の CI を確かめてください。
+判定と失敗の知らせはスクリプトが行います。スクリプトが 0 で終わったら、標準出力をそのまま最後の返答にしてください。
+EOF
+	printf '記録のスレッド: %s（0 以外で終わったときの返信先）\n' "$thread" >>"$instruction"
+	multica issue wakeup create "$issue" --until-pr checks --mode continuous --agent-id "$id" \
+		--max-fires 200 --parent "$thread" --instruction-file "$instruction" --output json
+	rm -f "$instruction"
+	trap - EXIT
+}
+
+ci_record() {
+	printf '/note\n%s\n' "$1"
+}
+
+# ci-check と ci-held は同じ結論を失敗として扱う。
+ci_failures() {
+	jq '[.[]
+		| select((.__typename == "CheckRun" and .status == "COMPLETED" and (.conclusion == "FAILURE" or .conclusion == "TIMED_OUT" or .conclusion == "STARTUP_FAILURE"))
+			or (.__typename == "StatusContext" and (.state == "FAILURE" or .state == "ERROR")))
+		| if .__typename == "CheckRun" then
+			(if (.workflowName // "") != "" then .workflowName + " / " else "" end) + .name
+		  else .context end] | unique' <<<"$1"
+}
+
+ci_handled() {
+	jq -e --arg prefix "head: ${2}"$'\nCI の失敗を検出しました。' \
+		--arg received "/note"$'\n'"CI ${2}: 保留した失敗を進行役が引き継ぎで受けた" '
+		any(.[]; .author_type == "agent" and
+			((.content // "" | startswith($prefix)) or (.content // "" | rtrimstr("\n")) == $received))
+	' <<<"$1" >/dev/null
+}
+
+ci_check() {
+	local issue=$1 id=$2 monitor_id=$3 orchestrator task thread pr_url pr checks failures head short comments body runs active names role name squad handoffs
+	task=$(multica issue get "$issue" --output json)
+	thread=$(jq -r '.metadata.ci_watch_thread // empty' <<<"$task")
+	if [[ -z $thread ]]; then
+		echo 'metadata に ci_watch_thread がありません。CI の見張りを登録し直してください。' >&2
+		return 1
+	fi
+	case $(jq -r '.status_category // .status' <<<"$task") in
+	done | cancelled)
+		ci_record 'CI: タスクが終わっているので見ない'
+		return 0
+		;;
+	esac
+	pr_url=$(jq -er '.metadata.pr_url // empty' <<<"$task")
+	pr=$(gh pr view "$pr_url" --json state,headRefOid,statusCheckRollup)
+	head=$(jq -er '.headRefOid | select(length > 0)' <<<"$pr")
+	short=${head:0:7}
+	case $(jq -r .state <<<"$pr") in
+	MERGED | CLOSED)
+		ci_record "CI ${short}: PR がマージ済みか閉じているので見ない"
+		return 0
+		;;
+	esac
+	checks=$(jq '.statusCheckRollup // []' <<<"$pr")
+	if [[ $(jq length <<<"$checks") == 0 ]]; then
+		ci_record "CI ${short}: チェックなし"
+		return 0
+	fi
+	# 失敗が確定した時点で wakeup は発火する。同じ head の失敗では発火し直さないため、
+	# ほかのチェックの終了は待たない。CANCELLED は失敗に数えない。
+	failures=$(ci_failures "$checks")
+	if [[ $(jq length <<<"$failures") == 0 ]]; then
+		if jq -e 'any(.[];
+			if .__typename == "CheckRun" then .status != "COMPLETED"
+			elif .__typename == "StatusContext" then (.state != "SUCCESS" and .state != "FAILURE" and .state != "ERROR")
+			else true end)' <<<"$checks" >/dev/null; then
+			ci_record "CI ${short}: 失敗なし（実行中のチェックあり）"
+		else
+			ci_record "CI ${short}: 失敗なし"
+		fi
+		return 0
+	fi
+	# 取得記録は起点への返信なので、別のスレッドや解決済みの記録も含めて重複を防ぐ。
+	# source_task_id で、run が終わる前に投稿された引き継ぎを対応付ける。
+	comments=$(multica issue comment list "$issue" --full --output json)
+	if ci_handled "$comments" "$short"; then
+		ci_record "CI ${short}: 失敗は知らせ済み"
+		return 0
+	fi
+	orchestrator=$(multica agent get "$id" --output json | jq -er '.name')
+	runs=$(multica issue runs "$issue" --output json)
+	# 引き継ぎ後も run は短時間 running のまま残る。引き継ぎ済みの run では
+	# 保留しない。取得の確認より後に確定した失敗も、通常の通知で拾えるようにする。
+	# 引き継ぎは、担当のスクワッドへのメンション（今の形式）か、進行役へのエージェントのメンション。
+	squad=$(jq -r 'select(.assignee_type == "squad") | .assignee_id // empty' <<<"$task")
+	handoffs=$(jq -cn --arg agent "mention://agent/${id})" --arg squad "$squad" \
+		'[$agent] + if $squad != "" then ["mention://squad/" + $squad + ")"] else [] end')
+	active=$(jq -r --arg id "$id" --arg monitor "$monitor_id" --argjson comments "$comments" \
+		--argjson handoffs "$handoffs" --arg report $'/note\n確かめたコミット:' '[.[] | . as $run
+		| select(.agent_id != null and .agent_id != $id and .agent_id != $monitor
+			and .status != "completed" and .status != "failed" and .status != "cancelled")
+		| select(any($comments[]; $run.id != null and .source_task_id == $run.id
+			and .author_type == "agent" and .author_id == $run.agent_id
+			and (.content // "" | . as $content | startswith($report) or any($handoffs[]; . as $handoff | $content | contains($handoff)))) | not)
+		| .agent_id] | unique | .[]' <<<"$runs")
+	if [[ -n $active ]]; then
+		names=''
+		while IFS= read -r role; do
+			name=$(multica agent get "$role" --output json | jq -er '.name')
+			names+="${names:+、}${name}"
+		done <<<"$active"
+		ci_record "CI ${short}: 失敗あり（${names} の作業中なので保留）"
+		return 0
+	fi
+	mkdir -p tmp
+	body=$(mktemp tmp/pr-watch-ci-result.XXXXXX)
+	trap "$(printf 'rm -f -- %q' "$body")" EXIT
+	{
+		printf 'head: %s\nCI の失敗を検出しました。\n\n[@%s](mention://agent/%s)\n\nPR: %s\n\n失敗したチェック:\n' "$short" "$orchestrator" "$id" "$pr_url"
+		jq -r '.[] | "- " + .' <<<"$failures"
+	} >"$body"
+	# Actions の URL は書かず、PR とチェックの名前で知らせる。
+	multica issue comment add "$issue" --parent "$thread" --content-file "$body" --output table >/dev/null
+	rm -f "$body"
+	trap - EXIT
+	ci_record "CI ${short}: 失敗を進行役に知らせた"
+}
+
+ci_held() {
+	local issue=$1 trigger=$2 task thread pr_url pr head short failures comments received body
+	task=$(multica issue get "$issue" --output json)
+	case $(jq -r '.status_category // .status' <<<"$task") in
+	done | cancelled) return 0 ;;
+	esac
+	thread=$(jq -r '.metadata.ci_watch_thread // empty' <<<"$task")
+	[[ -n $thread ]] || return 0
+	pr_url=$(jq -er '.metadata.pr_url // empty' <<<"$task")
+	pr=$(gh pr view "$pr_url" --json state,headRefOid,statusCheckRollup)
+	case $(jq -r .state <<<"$pr") in
+	MERGED | CLOSED) return 0 ;;
+	esac
+	head=$(jq -er '.headRefOid | select(length > 0)' <<<"$pr")
+	short=${head:0:7}
+	failures=$(ci_failures "$(jq '.statusCheckRollup // []' <<<"$pr")")
+	[[ $(jq length <<<"$failures") != 0 ]] || return 0
+	comments=$(multica issue comment list "$issue" --full --compact --output json)
+	if ci_handled "$comments" "$short"; then
+		return 0
+	fi
+	# 見張り役の保留コメントより先に引き継ぎが届くことがある。
+	# 保留の投稿を待たず、GitHub で確定した今の head の失敗を拾う。
+	received="CI ${short}: 保留した失敗を進行役が引き継ぎで受けた"
+	mkdir -p tmp
+	body=$(mktemp tmp/pr-watch-ci-held.XXXXXX)
+	trap "$(printf 'rm -f -- %q' "$body")" EXIT
+	ci_record "$received" >"$body"
+	multica issue comment add "$issue" --parent "$trigger" --content-file "$body" --output table >/dev/null
+	rm -f "$body"
+	trap - EXIT
+	jq -r '.[]' <<<"$failures"
+}
+
+case ${1:-} in
+conflicts)
+	(($# == 2)) || usage
+	require_commands jq multica
+	conflicts "$2"
+	;;
+ci)
+	(($# == 4)) || usage
+	require_commands jq multica
+	ci "$2" "$3" "$4"
+	;;
+ci-check)
+	(($# == 4)) || usage
+	require_commands jq multica gh
+	ci_check "$2" "$3" "$4"
+	;;
+ci-held)
+	(($# == 3)) || usage
+	require_commands jq multica gh
+	ci_held "$2" "$3"
+	;;
+*) usage ;;
+esac

@@ -1,0 +1,298 @@
+#!/usr/bin/env bash
+# Multica のエージェントの実行で、gh の書き込みを、ワークスペースに紐付いたリポジトリだけに絞る関所。
+# エージェントはホストの人の gh の認証で動き、その人が書けるリポジトリのすべてに issue や PR を作れるため。
+# multica-squad-kit-managed
+# setup.sh が ~/.multica-agent/bin/gh に写し、デーモンの PATH の先頭に置く。
+# 許すリポジトリは SQUAD_KIT_ALLOWED_REPOS のファイルから読む。未設定ならホストの既定のファイルを使う。
+# 読むだけの操作は止めない。本物の gh を絶対パスで呼べばすり抜けられるので、指示（スキル squad-handoff）と合わせて使う。
+# macOS の bash 3.2 でも動くよう、連想配列は使わない。
+set -euo pipefail
+
+ALLOWED_FILE=${SQUAD_KIT_ALLOWED_REPOS:-$HOME/.multica-agent/allowed-repos}
+SELF_DIR=$(cd "$(dirname "$0")" && pwd)
+
+# PATH から、この関所の次にある本物の gh を探す。
+real_gh() {
+	local dir
+	local IFS=:
+	for dir in $PATH; do
+		if [[ -n $dir && -x $dir/gh && $(cd "$dir" 2>/dev/null && pwd) != "$SELF_DIR" ]]; then
+			echo "$dir/gh"
+			return
+		fi
+	done
+	echo "gh の関所: 本物の gh が PATH に見つからない" >&2
+	exit 1
+}
+GH=$(real_gh)
+
+deny() {
+	echo "gh の関所: $1。ワークスペースに紐付いたリポジトリ（$(tr '\n' ' ' <"$ALLOWED_FILE" 2>/dev/null)）にだけ書き込める" >&2
+	exit 1
+}
+
+allowed() {
+	[[ -f $ALLOWED_FILE ]] && grep -qxiF -- "$1" "$ALLOWED_FILE"
+}
+
+# URL か OWNER/REPO から、OWNER/REPO を取り出す。取り出せなければ空を返す。
+repo_of() {
+	local s=$1
+	case $s in
+	https://github.com/* | http://github.com/*) s=${s#*://github.com/} ;;
+	github.com/*) s=${s#github.com/} ;;
+	*://*) return ;;
+	esac
+	if [[ $s =~ ^([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)(/.*)?$ ]]; then
+		echo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]%.git}"
+	fi
+}
+
+# 今のディレクトリのリポジトリ（gh が --repo なしで対象にするもの）。
+current_repo() {
+	"$GH" repo view --json nameWithOwner,url \
+		--jq 'select(.url | startswith("https://github.com/")) | .nameWithOwner' 2>/dev/null || true
+}
+
+# 本物の gh の help からフラグの型を読む。コマンドごとに -b などの意味が違うため、
+# 値の有無を独自の一覧で推測しない。認識できない構文は実行前に止める。
+# help の FLAGS は「--name 型名  説明」、bool は「--name  説明」の形式。
+parse_args() {
+	local help line short long spaces rest spec arg name value takes_value
+	local specs='' flags=false positional=false
+	POSITIONAL=()
+	OPTIONS=()
+	help=$(GH_PAGER=cat PAGER=cat NO_COLOR=1 "$GH" "$group" ${sub:+"$sub"} --help) || deny "gh のフラグを確認できないので止めた"
+	while IFS= read -r line; do
+		case $line in
+		FLAGS | 'INHERITED FLAGS') flags=true; continue ;;
+		'') flags=false; continue ;;
+		esac
+		$flags || continue
+		if [[ $line =~ ^[[:space:]]+(-[[:alnum:]],[[:space:]]+)?(--[[:alnum:]-]+)([[:space:]]+)(.*)$ ]]; then
+			short=${BASH_REMATCH[1]}
+			long=${BASH_REMATCH[2]}
+			spaces=${BASH_REMATCH[3]}
+			takes_value=false
+			[[ ${#spaces} == 1 ]] && takes_value=true
+			specs+="$long:$takes_value "
+			[[ -z $short ]] || specs+="${short:0:2}:$takes_value:$long "
+		fi
+	done <<<"$help"
+	while (( $# )); do
+		arg=$1; shift
+		if $positional; then POSITIONAL+=("$arg"); continue; fi
+		case $arg in
+		--) positional=true; continue ;;
+		- | [!-]*) POSITIONAL+=("$arg"); continue ;;
+		esac
+		# 短いフラグの連結（-at、-bTEXT）も gh と同じ順番で読む。
+		while [[ -n $arg ]]; do
+			value=''
+			if [[ $arg == --* ]]; then name=${arg%%=*}; else name=${arg:0:2}; fi
+			takes_value=''
+			long=$name
+			for spec in $specs; do
+				if [[ ${spec%%:*} == "$name" ]]; then
+					rest=${spec#*:}; takes_value=${rest%%:*}
+					[[ $rest != *:* ]] || long=${rest#*:}
+					break
+				fi
+			done
+			[[ -n $takes_value ]] || deny "${name} のフラグの型が分からないので止めた"
+			if [[ $arg == --*=* ]]; then
+				value=${arg#*=}; arg=''
+			elif $takes_value; then
+				if [[ $arg != --* && ${#arg} -gt 2 ]]; then
+					value=${arg:2}; value=${value#=}
+				else
+					(( $# )) || deny "${name} の値がないので止めた"
+					value=$1; shift
+				fi
+				arg=''
+			elif [[ $arg == --* || ${#arg} == 2 ]]; then
+				arg=''
+			else
+				arg=-${arg:2}
+			fi
+			OPTIONS+=("$long" "$value")
+		done
+	done
+}
+
+# URL はフラグの値から探さず、操作対象の位置引数から探す。
+# URL は --repo より優先されるため、両方ある場合も必ず検査する。
+target_repo() {
+	local repo='' index
+	for ((index=0; index<${#OPTIONS[@]}; index+=2)); do
+		[[ ${OPTIONS[index]} != --repo ]] || repo=${OPTIONS[index+1]}
+	done
+	if [[ ( $group == issue || $group == pr ) && ${POSITIONAL[0]:-} == *://* ]]; then
+		repo=${POSITIONAL[0]}
+	elif [[ $group == repo && $sub != rename && -n ${POSITIONAL[0]:-} ]]; then
+		repo=${POSITIONAL[0]}
+	fi
+	if [[ -n $repo ]]; then repo_of "$repo"; else current_repo; fi
+}
+
+check_repo() {
+	local repo=$1 what=$2
+	[[ ${GH_HOST:-github.com} == github.com ]] || deny "github.com 以外への書き込みは止めた"
+	[[ -n $repo ]] || deny "${what} の対象のリポジトリが分からないので止めた"
+	allowed "$repo" || deny "${repo} への ${what} は止めた"
+}
+
+# マージは週次の専用エージェントに限る。head の照合は gh に任せ、
+# 作者の取得に失敗したときも、確認できないままマージを通さない。
+check_pr_merge() {
+	local repo=$1 index name value head='' author
+	[[ ${SQUAD_KIT_GH_DEPENDABOT_MERGE:-} == 1 ]] || deny "PR のマージは専用エージェントだけに許している"
+	[[ ${#POSITIONAL[@]} -le 1 ]] || deny "マージする PR を一意に判定できないので止めた"
+	for ((index=0; index<${#OPTIONS[@]}; index+=2)); do
+		name=${OPTIONS[index]}; value=${OPTIONS[index+1]}
+		case $name in
+		--admin | --auto) deny "PR のマージで ${name} は使えない" ;;
+		--match-head-commit) head=$value ;;
+		esac
+	done
+	[[ -n $head ]] || deny "PR のマージには --match-head-commit が必要"
+	author=$("$GH" pr view "${POSITIONAL[@]+${POSITIONAL[@]}}" --repo "$repo" \
+		--json author --jq '.author | select(.is_bot == true) | .login') || deny "PR の作者を確認できないので止めた"
+	[[ $author == app/dependabot ]] || deny "Dependabot 以外の PR のマージは止めた"
+}
+
+# gh api: 書き込み（GET 以外）だけを見る。パスの repos/<OWNER>/<REPO> で判定し、リポジトリの外への書き込みは止める。
+check_api() {
+	local method='' has_field=false endpoint=${POSITIONAL[0]:-} index name value
+	local query='' has_input=false query_seen=false host=${GH_HOST:-github.com}
+	[[ ${#POSITIONAL[@]} == 1 ]] || deny "gh api の endpoint を一意に判定できないので止めた"
+	for ((index=0; index<${#OPTIONS[@]}; index+=2)); do
+		name=${OPTIONS[index]}; value=${OPTIONS[index+1]}
+		case $name in
+		--method) method=$value ;;
+		--hostname) host=$value ;;
+		--field | --raw-field)
+			has_field=true
+			if [[ $value == query=* ]]; then
+				$query_seen && deny "GraphQL の query の重複指定は止めた"
+				query_seen=true
+				query=${value#query=}
+				# --field はファイルとプレースホルダーを展開するため、
+				# 実際に送る query と検査した文字列が変わる形式は止める。
+				if [[ $name == --field ]]; then
+					case $query in
+					@* | *'{owner}'* | *'{repo}'* | *'{branch}'*) has_input=true ;;
+					esac
+				fi
+			fi
+			;;
+		--input) has_field=true; has_input=true ;;
+		esac
+	done
+	if [[ -z $method ]]; then
+		if $has_field; then method=POST; else method=GET; fi
+	fi
+	method=$(tr '[:lower:]' '[:upper:]' <<<"$method")
+	if [[ $endpoint == graphql || $endpoint == /graphql ]]; then
+		$has_input && deny "GraphQL のファイル・標準入力・プレースホルダーは検査できないので止めた。query を直接指定する"
+		[[ -n $query ]] || deny "GraphQL の query を確認できないので止めた"
+		# GraphQL の変更（mutation）は、対象のリポジトリをここでは読み取れないので止める。
+		if printf '%s\n' "$query" | grep -i 'mutation' >/dev/null; then
+			deny "gh api graphql の mutation は止めた。gh issue / gh pr のコマンドを使う"
+		fi
+		return 0
+	fi
+	endpoint=${endpoint#/}
+	# フラグメントは送信時に落ちるため、検査した endpoint とのすり替えを止める。
+	# query 付きの GraphQL やエンコード・パス正規化も同様に拒否する。
+	case $endpoint in
+	graphql[/?\#]* | *\#* | *%* | *\\* | *://* | */../* | */./* | ../* | ./* | */.. | */.)
+		deny "gh api の正規化できない endpoint は止めた" ;;
+	esac
+	[[ $method == GET || $method == HEAD ]] && return 0
+	[[ $host == github.com ]] || deny "github.com 以外への API 書き込みは止めた"
+	case $endpoint in
+	repos/*/transfer | repos/*/transfer\?*)
+		deny "API の転送先は判定できないので止めた。gh issue transfer を使う" ;;
+	esac
+	if [[ $endpoint == *'{owner}/{repo}'* ]]; then
+		endpoint=${endpoint//\{owner\}\/\{repo\}/$(current_repo)}
+	fi
+	case $endpoint in
+	repos/*/pulls/*/merge | repos/*/pulls/*/merge\?* | repos/*/pulls/*/merge/ | repos/*/pulls/*/merge/\?*)
+		deny "API でのマージは止めた。gh pr merge を使う" ;;
+	esac
+	if [[ $endpoint =~ ^repos/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)(/|\?|$) ]]; then
+		check_repo "${BASH_REMATCH[1]}/${BASH_REMATCH[2]}" "書き込み（gh api ${method}）"
+	else
+		deny "リポジトリの外への書き込み（gh api ${method} ${endpoint}）は止めた"
+	fi
+}
+
+group=${1:-}
+sub=${2:-}
+case $group in
+"" | -h | --help | help | version | --version | status | search | browse | completion) ;;
+api)
+	sub=''
+	parse_args "${@:2}"
+	check_api
+	;;
+auth)
+	# トークンを取り出すと、curl で関所を通らずに書き込めるので止める。認証を変える操作も止める。
+	case $sub in
+	status)
+		parse_args "${@:3}"
+		for ((index=0; index<${#OPTIONS[@]}; index+=2)); do
+			[[ ${OPTIONS[index]} != --show-token ]] || deny "認証トークンの表示は止めた"
+		done
+		;;
+	*) deny "gh auth ${sub} は止めた" ;;
+	esac
+	;;
+issue | pr | release | label | secret | variable | workflow | run | cache | ruleset)
+	case $sub in
+	"" | -h | --help | list | view | status | diff | checks | download | watch | checkout) ;;
+	*)
+		parse_args "${@:3}"
+		check_repo "$(target_repo)" "gh ${group} ${sub}"
+		# issue edit は複数の URL を受け付ける。すべての操作対象を検査する。
+		if [[ $group == issue || $group == pr ]]; then
+			for arg in "${POSITIONAL[@]+${POSITIONAL[@]}}"; do
+				[[ $arg != *://* ]] || check_repo "$(repo_of "$arg")" "gh ${group} ${sub}"
+			done
+		fi
+		if [[ $group == issue && $sub == develop ]]; then
+			for ((index=0; index<${#OPTIONS[@]}; index+=2)); do
+				if [[ ${OPTIONS[index]} == --branch-repo ]]; then
+					check_repo "$(repo_of "${OPTIONS[index+1]}")" "issue のブランチの作成"
+				fi
+			done
+		fi
+		if [[ $group == issue && $sub == transfer ]]; then
+			[[ ${#POSITIONAL[@]} == 2 ]] || deny "issue の転送先を判定できないので止めた"
+			check_repo "$(repo_of "${POSITIONAL[1]}")" "issue の転送"
+		fi
+		if [[ $group == pr && $sub == merge ]]; then
+			check_pr_merge "$(target_repo)"
+		fi
+		;;
+	esac
+	;;
+repo)
+	case $sub in
+	"" | -h | --help | view | list | clone) ;;
+	create | fork) deny "gh repo ${sub} は止めた" ;;
+	*)
+		parse_args "${@:3}"
+		check_repo "$(target_repo)" "gh repo ${sub}"
+		;;
+	esac
+	;;
+*)
+	# gh の alias と拡張は、本物の gh の中で展開されて関所を通らないので、知らないコマンドは止める。
+	deny "gh ${group} は、関所が知らないコマンドなので止めた"
+	;;
+esac
+
+exec "$GH" "$@"
