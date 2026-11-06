@@ -25,6 +25,7 @@ codex-fixer は、それぞれ系統として一緒に有効・無効にする�
 値の差し込み:
   {{project_name}}、{{project_key}}、{{member_key}}、{{member_name}}
   {{project_id}}、{{repositories}}、{{squad_id}}、{{squad_mention}}、{{owner_mention}}
+  {{link_repositories}} は拡張で追加した紐付け専用の一覧。省略時は空文字列
   {{repository_roles}}、{{repository_checks}} は skeleton/ のリポジトリごとの記入欄
   {{repository}} は一つの対象。オートパイロットの指示や検証の節に使う
   {{agent.役のキー.name}}、{{agent.役のキー.id}}、{{agent.役のキー.mention}}
@@ -39,6 +40,9 @@ codex-fixer は、それぞれ系統として一緒に有効・無効にする�
 
 各指示の末尾に「このプロジェクトの値」を置く。共通のスキルはここを参照する。
 repositories は選んだ全 OWNER/REPO をバッククォートで囲み、読点で区切った一覧。
+link_repositories はコード作業先と重ならない追加分だけを同じ書式で渡す。
+追加分があるときは、全役の本文の末尾にも「紐付け専用のリポジトリ」を付ける。
+紐付けコメントと Assignees の同期だけを許可し、コード作業や定期処理には使わない。
 役とスクワッドでは単一の repository を作業先の既定にせず、この一覧を使う。
 repository_roles は説明の表（見出し行を含む）、repository_checks は検証スキルの節の文字列。
 検証の節は skeleton/verify-repository.md の repository を一つずつ展開し、

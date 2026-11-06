@@ -349,6 +349,10 @@ confirmation_plan() {
 			auto_plan=$(jq -c --arg kind "$role" --arg title "$title" --arg action "$action" '.+[{kind:$kind,title:$title,action:$action}]' <<<"$auto_plan") || return 1
 		done
 	done < <(jq -r '.[].repository' <<<"$repositories")
+	if [[ $(jq length <<<"${link_repositories:-[]}") != 0 ]]; then
+		printf '紐付け専用のリポジトリ（既存 issue のコメントと Assignees の同期だけ。コード作業・定期処理は追加しない）:\n'
+		jq -r '.[]|"  "+.' <<<"$link_repositories"
+	fi
 	if ! jq -e 'index("usage-monitor")!=null' >/dev/null <<<"$excluded_roles"; then
 		title="使用上限の見張り $project_key-$member_key"
 		action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1

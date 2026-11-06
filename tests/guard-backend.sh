@@ -11,10 +11,11 @@ FLAGS
 
 HELP
  ;;
-'pr comment --help')
+'pr comment --help'|'issue comment --help'|'issue edit --help')
  cat <<'HELP'
 FLAGS
   -b, --body text               Comment body
+      --add-assignee login     Add an assignee
 
 INHERITED FLAGS
   -R, --repo [HOST/]OWNER/REPO   Select repository
@@ -30,7 +31,7 @@ HELP
  201) printf 'HTTP/2.0 201\n\n{}\n'; exit 0 ;;
  *) printf 'HTTP/2.0 %s\n\n{"message":"Validation Failed"}\n' "${TEST_GUARD_RESPONSE:-422}"; exit 1 ;;
  esac ;;
-'pr comment '*)
+'pr comment '*|'issue comment '*|'issue edit '*)
  [[ -z ${HOST_GH_CALLS:-} ]] || jq -nc --args '$ARGS.positional' -- "$@" >>"$HOST_GH_CALLS" ;;
 *) echo "Unexpected gh call: $*" >&2; exit 90 ;;
 esac
