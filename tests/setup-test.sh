@@ -3,10 +3,17 @@ set -euo pipefail
 source "$(dirname "$0")/setup-fixture.sh"
 manifest
 : >"$test_dir/input"
-TEST_OS=Linux deny
+for os in MINGW64_NT-10.0 MSYS_NT-10.0 CYGWIN_NT-10.0 FreeBSD; do
+ TEST_OS="$os" deny
+ grep -q '対象外' "$test_dir/err"
+ no_state
+ [[ ! -e $TEST_CALLS ]]
+done
+TEST_OS=Linux TEST_KERNEL=4.4.0-19041-Microsoft deny
+grep -q 'WSL 1 は対象外' "$test_dir/err"
 no_state
 [[ ! -e $TEST_CALLS ]]
-echo 'PASS setup: macOS 以外は CLI と保存を行わない'
+echo 'PASS setup: 対象外の OS と WSL 1 は CLI と保存を行わない'
 mv "$test_dir/package/MANIFEST" "$test_dir/saved-manifest"
 deny
 cp "$test_dir/saved-manifest" "$test_dir/package/MANIFEST"
@@ -23,14 +30,20 @@ no_state
 [[ ! -e $TEST_CALLS ]]
 echo 'PASS setup: MANIFEST の欠落・改変・ファイル不足・余分なファイルは CLI より前に止まる'
 mkdir "$test_dir/restricted"
-for tool in bash dirname uname find sort shasum awk; do ln -s "$(command -v "$tool")" "$test_dir/restricted/$tool"; done
-PATH="$test_dir/restricted" deny
+for tool in bash cat dirname uname find sort shasum awk; do ln -s "$(command -v "$tool")" "$test_dir/restricted/$tool"; done
+ln -sf "$test_dir/bin/uname" "$test_dir/restricted/uname"
+TEST_OS=Darwin PATH="$test_dir/restricted" deny
 grep -q 'brew install multica-ai/tap/multica' "$test_dir/err"
 grep -q 'brew install jq' "$test_dir/err"
 grep -q 'brew install gh' "$test_dir/err"
 grep -q 'brew install python' "$test_dir/err"
 no_state
-echo 'PASS setup: 道具の不足は入れ方を表示し、何も保存しない'
+TEST_OS=Linux PATH="$test_dir/restricted" deny
+grep -q 'sudo apt-get install' "$test_dir/err"
+grep -q 'CLI_INSTALL.md' "$test_dir/err"
+no_state
+[[ ! -e $TEST_CALLS ]]
+echo 'PASS setup: macOS と Linux の道具の不足は入れ方を表示し、何も保存しない'
 mkdir "$test_dir/old-python"
 printf '#!/bin/bash\nexit 1\n' >"$test_dir/old-python/python3"
 chmod +x "$test_dir/old-python/python3"
@@ -50,7 +63,7 @@ base_input yes
 run
 saved="$test_dir/state/ws-a/demo.json"
 jq -e '.workspace_id=="ws-a" and .project_id=="project-a" and .repositories[0].repository=="example/two" and .repositories[0].url=="git@github.com:example/two.git" and .member_ids==["member-a","member-b"] and .excluded_roles==["claude-fixer","claude-implementer","planner"]' "$saved" >/dev/null
-[[ $(stat -f '%Lp' "$saved") == 600 ]]
+[[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$saved") == 600 ]]
 grep -q 'TEST-project-prepared' "$test_dir/out"
 grep -qF '答えを保存しました。' "$test_dir/err"
 ! grep -qF "$test_dir/state" "$test_dir/err"
@@ -128,7 +141,7 @@ printf '1\n1\nmulti\n2,1 2\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
 run
 multiple="$TEMPLATE_STATE_ROOT/ws-a/multi.json"
 jq -e '.schema==1 and [.repositories[].repository]==["example/two","example/one"]' "$multiple" >/dev/null
-[[ $(stat -f '%Lp' "$multiple") == 600 ]]
+[[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$multiple") == 600 ]]
 echo 'PASS repositories: 空白とカンマで複数を選び、番号と URL 表記の重複を除き、選択順を保存する'
 cp "$multiple" "$test_dir/multi-before"
 printf '1\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
@@ -202,3 +215,15 @@ for damage in '.repositories=[]' '.repositories[0].repository="example/other"' '
  cmp "$multiple" "$test_dir/damaged"
 done
 echo 'PASS repositories: 空の保存一覧・URL と違うリポジトリ名・未知の保存形式は拒否して上書きしない'
+
+# Linux と WSL 2 も、同じ回答で新規導入と再実行を通す。
+unset TEST_REPOS_FILE
+for kernel in 6.8.0-generic 6.6.87.2-microsoft-standard-WSL2; do
+ export TEST_OS=Linux TEST_KERNEL="$kernel" TEMPLATE_STATE_ROOT="$test_dir/linux-$kernel"
+ base_input yes
+ run
+ cp "$TEMPLATE_STATE_ROOT/ws-a/demo.json" "$test_dir/linux-before"
+ run
+ cmp "$TEMPLATE_STATE_ROOT/ws-a/demo.json" "$test_dir/linux-before"
+done
+echo 'PASS setup: Linux と WSL 2 の導入・再実行は同じ保存値になる'

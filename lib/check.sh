@@ -1,20 +1,26 @@
 # 何も変更しない事前確認。
 check_tools() {
 	local tool missing=0
-	for tool in multica jq gh; do
+	for tool in multica jq gh git zip unzip ps; do
 		if ! command -v "$tool" >/dev/null; then
-			case $tool in
-			multica) printf '%s\n' 'multica がありません。Homebrew で brew install multica-ai/tap/multica を実行してください。' >&2 ;;
-			jq|gh) printf '%s\n' "$tool がありません。Homebrew で brew install $tool を実行してください。" >&2 ;;
+			case $(uname -s):$tool in
+			Darwin:multica) printf '%s\n' 'multica がありません。Homebrew で brew install multica-ai/tap/multica を実行してください。' >&2 ;;
+			Darwin:*) printf '%s\n' "$tool がありません。macOS の標準の道具を確認し、Homebrew の道具は brew install $tool で導入してください。" >&2 ;;
+			Linux:multica) printf '%s\n' 'multica がありません。公式の Linux 向け導入手順 https://github.com/multica-ai/multica/blob/main/CLI_INSTALL.md に従って導入してください。Homebrew は必須ではありません。' >&2 ;;
+			Linux:*) printf '%s\n' "$tool がありません。Ubuntu では sudo apt-get install jq gh git zip unzip procps を実行してください。他の Linux ではディストリビューションのパッケージで導入してください。" >&2 ;;
 			esac
 			missing=1
 		fi
 	done
-	if ! python3 -c 'import tomllib' >/dev/null 2>&1; then
-		printf '%s\n' 'TOML の確認に Python 3.11 以上（tomllib）が必要です。Homebrew で brew install python を実行し、python3 の PATH を確認してください。' >&2
+	if [[ ! -x /bin/bash || ! -x /bin/zsh ]]; then
+		printf '%s\n' '/bin/bash と /bin/zsh が必要です。Ubuntu では sudo apt-get install bash zsh、macOS では標準のシェルを確認してください。' >&2
 		missing=1
 	fi
-	[[ $missing == 0 ]] || die '道具を入れてから流し直してください。Homebrew がなければ https://brew.sh を参照してください。'
+	if ! python3 -c 'import tomllib; from zoneinfo import ZoneInfo; ZoneInfo("UTC"); ZoneInfo("Asia/Tokyo")' >/dev/null 2>&1; then
+		printf '%s\n' 'TOML と時刻の確認に Python 3.11 以上（tomllib）とタイムゾーンデータが必要です。macOS では brew install python、Ubuntu 24.04 では sudo apt-get install python3 tzdata を実行し、python3 の版と PATH を確認してください。' >&2
+		missing=1
+	fi
+	[[ $missing == 0 ]] || die 'manual.md の「受け取る人の準備」に従って道具を入れてから流し直してください。'
 	if ! command -v claude >/dev/null && ! command -v codex >/dev/null; then
 		die 'claude と codex がありません。利用する組織の手順で Claude Code か Codex CLI を導入し、PATH を確認して流し直してください。'
 	fi

@@ -11,7 +11,7 @@ script=$root/common/monitor/squad-usage-read
 source "$script"
 export TZ=UTC
 
-now=$(date -j -f '%Y-%m-%d %H:%M:%S %z' '2026-10-27 00:00:00 +0000' '+%s')
+now=1793059200
 assert_reset() {
 	local actual
 	actual=$(epoch_rfc3339 "$(claude_reset_epoch "$1" "$2")")
@@ -22,7 +22,7 @@ assert_reset 'Oct 31 at 5am (Asia/Tokyo)' "$now" '2026-10-30T20:00:00+00:00'
 assert_reset '12:29pm (Asia/Tokyo)' "$now" '2026-10-27T03:29:00+00:00'
 assert_reset '5am (Asia/Tokyo)' "$now" '2026-10-27T20:00:00+00:00'
 assert_reset '12am (UTC)' "$now" '2026-10-27T00:00:00+00:00'
-year_end=$(date -j -f '%Y-%m-%d %H:%M:%S %z' '2026-12-31 12:00:00 +0000' '+%s')
+year_end=1798718400
 assert_reset 'Jan 2 at 5am (Asia/Tokyo)' "$year_end" '2027-01-01T20:00:00+00:00'
 assert_reset '1am (UTC)' "$year_end" '2027-01-01T01:00:00+00:00'
 for reset in '読めない' 'Oct 31 at 25:00pm (Asia/Tokyo)' 'Oct 31 at 5:99am (UTC)'; do
@@ -32,10 +32,14 @@ for reset in '読めない' 'Oct 31 at 25:00pm (Asia/Tokyo)' 'Oct 31 at 5:99am (
 	fi
 done
 echo 'PASS reset: 分の有無・時間帯・今日と明日・年越し・不正な表示'
+[[ $(TZ=Asia/Tokyo epoch_rfc3339 "$now") == '2026-10-27T09:00:00+09:00' ]]
+[[ $(TZ=UTC usage_epoch_format "$now" '%m/%d %H:%M') == '10/27 00:00' ]]
+[[ $(TZ=Asia/Tokyo usage_epoch_format "$now" '%m/%d %H:%M') == '10/27 09:00' ]]
+echo 'PASS time zone: ホストの UTC と Asia/Tokyo の表示は同じ秒数を表す'
 
 # PATH を閉じ、コマンド欠落のテストでも実物へ抜けないようにする。
 mkdir -p "$test_dir/bin"
-for cmd in jq date sed mktemp cat rm grep seq head dirname mkdir; do
+for cmd in python3 jq date sed mktemp cat rm grep seq head dirname mkdir; do
 	ln -s "$(command -v "$cmd")" "$test_dir/bin/$cmd"
 done
 cat >"$test_dir/bin/claude" <<'MOCK'
@@ -68,7 +72,7 @@ MOCK
 chmod +x "$test_dir/bin/claude" "$test_dir/bin/codex" "$test_dir/bin/sleep" "$test_dir/bin/multica"
 export USAGE_TEST_DIR=$test_dir
 future_epoch=$(( ($(date '+%s') / 60 + 2880) * 60 ))
-reset=$(LC_ALL=C date -r "$future_epoch" '+%b %d at %I:%M%p (UTC)' | sed -e 's/AM /am /' -e 's/PM /pm /')
+reset=$(LC_ALL=C usage_epoch_format "$future_epoch" '%b %d at %I:%M%p (UTC)' | sed -e 's/AM /am /' -e 's/PM /pm /')
 resets_at=$(epoch_rfc3339 "$future_epoch")
 
 fixtures() {

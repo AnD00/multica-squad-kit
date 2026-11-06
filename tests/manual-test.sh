@@ -29,7 +29,7 @@ check_manual() {
 }
 check_manual "$root/manual.md" >"$test_dir/checked"
 echo 'PASS manual: CLIを差し替えた実際の9問の画面と、手で書いた各質問の節の説明・例が一致する'
-sed '/^この Mac のデーモン/d' "$root/manual.md" >"$test_dir/no-description.md"
+sed '/^このホストのデーモン/d' "$root/manual.md" >"$test_dir/no-description.md"
 if check_manual "$test_dir/no-description.md" >"$test_dir/out" 2>"$test_dir/check-error"; then exit 1; fi
 grep -q '説明がない: サーバーの URL' "$test_dir/check-error"
 sed '/multica.example.test/d' "$root/manual.md" >"$test_dir/no-example.md"

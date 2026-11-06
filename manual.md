@@ -18,14 +18,14 @@ bash setup.sh
 
 ## 受け取る人の準備
 
-macOS の担当者のアカウントで実行する。標準の bash 3.2、zsh、Git、zip、unzip、shasum と、次の道具を PATH から使えるようにする。
+macOS または Linux（WSL 2 を含む）の担当者のアカウントで実行する。bash 3.2 以上、`/bin/bash` と `/bin/zsh`、Git、zip、unzip、shasum、標準の Unix の道具（find、sort、date、ps など）と、次の道具を PATH から使えるようにする。macOS は標準の bash 3.2 と zsh、Linux の自動テストは Ubuntu 24.04 の bash と zsh を使う。
 
 | 道具 | 用途 |
 | --- | --- |
 | `multica` | サーバーへのログイン、設定の登録、デーモンとランタイム |
 | `jq` | CLI の応答と質問の答えを読む |
 | `gh` | ホストの関所と、エージェントの GitHub 操作 |
-| Python 3.11 以上（`python3` と標準の `tomllib`） | 既存の Codex 設定を TOML として読む |
+| Python 3.11 以上（`python3` と標準の `tomllib`・`zoneinfo`）、タイムゾーンデータ | 既存の Codex 設定を TOML として読み、使用上限のリセット時刻を読む |
 | `claude` と `codex` の一方または両方 | エージェントのランタイム。使うものだけを入れる（[片方だけのランタイムで動かす](#片方だけのランタイムで動かす)） |
 
 不足した道具はスクリプトの案内に従って入れる。`multica`、`jq`、`gh`、Python は Homebrew なら次で入れられる。Claude Code と Codex CLI は、利用する組織の手順で導入する。`python3` が古い場合は PATH を確認する。TOML を読めない環境では、回答の保存や登録を始める前に止まる。`claude` と `codex` が両方ともなければ、質問を始める前に止まる。
@@ -33,6 +33,20 @@ macOS の担当者のアカウントで実行する。標準の bash 3.2、zsh�
 ```bash
 brew install multica-ai/tap/multica jq gh python
 ```
+
+Linux は Homebrew を使わずに導入できる。Ubuntu 24.04 では次で道具をそろえる。他のディストリビューションでは同等のパッケージを使い、Python が 3.11 以上であることを確認する。
+
+```bash
+sudo apt-get update
+sudo apt-get install bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps
+python3 -c 'import tomllib; from zoneinfo import ZoneInfo; print(ZoneInfo("Asia/Tokyo"))'
+```
+
+Multica は [公式 CLI 導入手順の Linux 向けバイナリ](https://github.com/multica-ai/multica/blob/main/CLI_INSTALL.md#option-b-download-from-github-releases-macoslinux-no-homebrew) から導入できる。Claude Code と Codex も Linux 向けのものを使う。jq は Ubuntu 24.04 の 1.7 でも動く。
+
+WSL は WSL 2 だけを対象とする。Windows 側の `wsl --list --verbose` でバージョン 2 を確認し、作業コピーと Git・Multica・ランタイム・認証をすべて WSL 内の Linux 側にそろえる。Windows 側の exe は使わない。セットアップは既知の WSL 1 のカーネルと、Windows の Git Bash などを、回答の保存や登録より前に拒否する。
+
+Linux と WSL 2 の認証済み実行と常駐は、実機では未確認である。WSL 2 は [Microsoft の Linux 互換性の説明](https://learn.microsoft.com/en-us/windows/wsl/compare-versions)、[Claude Code の対応環境](https://code.claude.com/docs/en/setup)、[Codex の WSL 対応](https://learn.chatgpt.com/docs/windows/wsl) に基づく。CI では macOS と Ubuntu の全体テストを実行し、CLI・サーバーをスタブにして導入・再実行・関所・見張りを確かめる。
 
 Multica で、使用するサーバーにログインしておく。サーバーの URL が CLI に設定されていなければ質問される。CLI に設定済み、または `MULTICA_SERVER_URL` があれば、そのサーバーが使われる。違うサーバーを使うときは、実行前に CLI の設定と環境変数を確認する。セットアップは CLI の既定のサーバーやワークスペースを変更しない。
 
@@ -109,9 +123,9 @@ Claude Code か Codex の片方だけのホストでも導入できる。質問�
 
 #### サーバーの URL
 
-この Mac のデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。
+このホストのデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。
 
-例: `https://multica.example.test（例ではなく、案内された実際の URL を入力）`。既定値はない。CLIまたは環境変数に設定済みなら、この質問は出ず、その接続先を使う。Macのデーモンは一つなので、別のサーバーへつながるデーモンを重ねて作らない。
+例: `https://multica.example.test（例ではなく、案内された実際の URL を入力）`。既定値はない。CLIまたは環境変数に設定済みなら、この質問は出ず、その接続先を使う。ホストのデーモンは一つなので、別のサーバーへつながるデーモンを重ねて作らない。
 
 入力したURLが `https://` で始まらない、応答しない、ログインしていないときは、同じ質問で入力し直す。ログインが必要なら表示されたコマンドを別のターミナルで実行する。設定済みの接続先の不備で止まったときは、CLIの設定とログインを直してから流し直す。
 
@@ -149,7 +163,7 @@ Claude Code か Codex の片方だけのホストでも導入できる。質問�
 
 #### メンバーの区別
 
-導入する人の短い目印です。一式の名前の末尾に付き、その人の Mac と AI の利用枠で動く一式を見分けます。1人でも必要です。
+導入する人の短い目印です。一式の名前の末尾に付き、その人のホストと AI の利用枠で動く一式を見分けます。1人でも必要です。
 
 例: `member1（名字の頭と番号など。英小文字で始まる英小文字と数字の2〜12文字）`。既定値は前回の答え、なければログイン中のメールアドレスの `@` より前から英小文字と数字だけを残して作った値。プロジェクトの区別と同じ文字の形にする。
 
@@ -165,7 +179,7 @@ Claude Code か Codex の片方だけのホストでも導入できる。質問�
 
 #### 使うランタイム
 
-エージェントを動かすランタイムです。この Mac に入っていて、エージェント用にログインするものを選びます。
+エージェントを動かすランタイムです。このホストに入っていて、エージェント用にログインするものを選びます。
 
 例: `1（両方）、2（Claude Code だけ）、3（Codex だけ）`。既定値は前回の答え。前回の答えにこの項目がなければ両方で、前の版で導入したプロジェクトはEnterだけで前と同じになる。前回の答えがなければ、入っているコマンドに合わせる。両方あれば両方、片方だけならその片方にする。
 
@@ -198,7 +212,7 @@ Claude Code か Codex の片方だけのホストでも導入できる。質問�
 
 ### 二つの区別と、最後の確認
 
-プロジェクトの区別 `shop` は、みんなで使うシステムの目印。メンバーの区別 `member1` は、導入する人と、その人のMac・AIの利用枠の目印である。この組み合わせなら、エージェントは `shop-designer-member1`、スクワッドは `SHOP-MEMBER1`、プロジェクトの検証スキルは `shop-verify` となる。別の人が `member2` で導入すれば、`shop-designer-member2` と `SHOP-MEMBER2` を持ち、検証スキルは同じ `shop-verify` を使う。
+プロジェクトの区別 `shop` は、みんなで使うシステムの目印。メンバーの区別 `member1` は、導入する人と、その人のホスト・AIの利用枠の目印である。この組み合わせなら、エージェントは `shop-designer-member1`、スクワッドは `SHOP-MEMBER1`、プロジェクトの検証スキルは `shop-verify` となる。別の人が `member2` で導入すれば、`shop-designer-member2` と `SHOP-MEMBER2` を持ち、検証スキルは同じ `shop-verify` を使う。
 
 流し直すときに区別を変えると、別の一組になる。古い目印が新しい形に合わないときも、既存の一式を勝手に改名・削除せず、警告と新しい名前を確認する。既存の一式の扱いは担当者と確認する。
 
@@ -279,7 +293,7 @@ ZIP で導入済みの場合は、人が配置ファイルと保存済み回答�
 
 ## 更新と、途中で止まったあとの再実行
 
-GitHub で原本のリポジトリの Watch を「Custom」にし、「Releases」を選んでおく。通知が来たら、Release の本文で変更を確かめ、各 Mac とプロジェクトで次の手順を流す。
+GitHub で原本のリポジトリの Watch を「Custom」にし、「Releases」を選んでおく。通知が来たら、Release の本文で変更を確かめ、各ホストとプロジェクトで次の手順を流す。
 
 `git fetch origin --tags` で新しいタグを取り、`git checkout --detach <タグ>` をして、同じサーバー・ワークスペース・プロジェクトと、同じ二つの区別で `bash setup.sh` を流す。引数で質問を省略するモードはない。ワークスペース以外の前回の答えは質問の既定になるが、現在の一覧を読み直して名前で登録先を探す。ワークスペースは毎回番号で選び直す。
 
@@ -304,7 +318,7 @@ GitHub で原本のリポジトリの Watch を「Custom」にし、「Releases�
 
 | 表示・状態 | 確認と再開 |
 | --- | --- |
-| macOS 以外、MANIFEST の異常 | 対応する Mac で、原本を clone してタグを取り出し直す。登録前に止まっている |
+| 対象外の OS、MANIFEST の異常 | macOS または Linux（WSL 2 を含む）で、原本を clone してタグを取り出し直す。登録前に止まっている |
 | 道具・ログイン・リポジトリが不足 | 表示された道具、接続先、ログイン、管理者の GitHub 連携を済ませ、同じ質問で再実行する |
 | 使うランタイムがオンラインにならない | 選んだランタイムのコマンドとエージェント用のログインを確かめる。使わないなら「使うランタイム」で外して再実行する |
 | 拡張の役が、使うランタイムにないモデルを使う | 登録前に止まっている。拡張の役の front matter を、[FORMAT](common/agents/FORMAT) のランタイムの印でモデルを分ける形に直す |

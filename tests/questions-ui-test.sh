@@ -20,7 +20,7 @@ grep -qF '2件、名前の規則: Dependabot の PR の週次の確認 shop <OWN
 grep -qF 'スクワッドに入れる人間: Member A' "$test_dir/err"
 # 説明に、人の目印との違いと、使う場所がある。
 grep -qF '人の目印とは別です' "$test_dir/err"
-grep -qF 'Mac と AI の利用枠' "$test_dir/err"
+grep -qF 'ホストと AI の利用枠' "$test_dir/err"
 grep -qF '選んだものだけに push と PR' "$test_dir/err"
 awk '/^\(4\/8\) リポジトリ/ {show=1} /^\(5\/8\)/ {show=0} show {print}' "$test_dir/err" >"$test_dir/repository-question"
 grep -qxF '1: example/one' "$test_dir/repository-question"

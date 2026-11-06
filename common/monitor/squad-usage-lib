@@ -2,6 +2,16 @@
 # multica-squad-kit-managed
 # 使用量を読む関数。呼び出し元が source して使う。
 
+# BSD/GNU date のオプションに依存せず、ホストの TZ で表示する。
+usage_epoch_format() {
+	python3 - "$1" "$2" <<'PY'
+import sys
+from datetime import datetime
+
+print(datetime.fromtimestamp(int(sys.argv[1])).astimezone().strftime(sys.argv[2]))
+PY
+}
+
 # 一時ファイルは実行の作業ディレクトリの中に置く。
 usage_tmpfile() {
 	mkdir -p "$PWD/tmp" || return 1

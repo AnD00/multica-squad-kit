@@ -6,7 +6,7 @@
 # Multica のオートパイロットから、各プロジェクト・メンバーの使用上限の見張り役が定期的に実行する。
 # エージェントの実行の中で動かすのは、issue をエージェントとして作り、担当者の受信箱に通知を届けるため
 # （人のアカウントで作ると、自分の操作は自分に通知されない）。
-# デーモンのホスト（macOS）で動く前提なので、macOS の書き方（date -r など）を使う。
+# デーモンのホスト（macOS・Linux）で動く。
 set -euo pipefail
 
 # issue の担当にする人（Multica のメンバーの名前）。担当者の受信箱に通知が届く。
@@ -30,7 +30,7 @@ USAGE_WARN_PERCENT=${USAGE_WARN_PERCENT:-80}
 # 作る issue に付けるラベル。開発の issue と分け、開発の進み具合に数えないため（セットアップで作るラベル）。
 LABEL_NAME=運用
 
-for cmd in jq claude codex multica; do
+for cmd in jq python3 claude codex multica; do
 	if ! command -v "$cmd" >/dev/null 2>&1; then
 		echo "${cmd} が見つからない。デーモンのホストに入れる。" >&2
 		exit 1
@@ -81,7 +81,7 @@ fetch_codex() {
 		esac
 		printf 'codex:%s:%s\t%s\tCodex の %s の%sの枠\t%s%%（%s にリセット）\n' \
 			"$limit_id" "$window_mins" "$(level_of "$percent")" "$limit_id" "$window_name" "$percent" \
-			"$(date -r "$resets_at" '+%m/%d %H:%M')"
+			"$(usage_epoch_format "$resets_at" '%m/%d %H:%M')"
 	done < <(jq -r '
 		.rateLimitsByLimitId | to_entries[] | .key as $id
 		| (.value.primary, .value.secondary) | select(. != null)

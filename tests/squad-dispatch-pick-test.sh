@@ -11,7 +11,7 @@ mkdir -p "$test_dir/monitor" "$test_dir/bin"
 cp "$root/common/monitor/squad-dispatch-pick" "$test_dir/monitor/"
 script=$test_dir/monitor/squad-dispatch-pick
 export DISPATCH_TEST_DIR=$test_dir
-for cmd in bash dirname mkdir mktemp jq cat rm sed grep seq head; do
+for cmd in python3 bash dirname mkdir mktemp jq cat rm sed grep seq head; do
 	ln -s "$(command -v "$cmd")" "$test_dir/bin/$cmd"
 done
 cat >"$test_dir/bin/date" <<'MOCK'
@@ -69,8 +69,12 @@ cat >"$test_dir/bin/cli-reset" <<'MOCK'
 set -euo pipefail
 # 表示だけの Claude CLI を模倣するため、fixture の時差付きの時刻を表示にする。
 reset=$(jq -r '.claude.week.resets_at' "$DISPATCH_TEST_DIR/usage.json" | sed -E 's/Z$/+0000/; s/([+-][0-9]{2}):([0-9]{2})$/\1\2/')
-epoch=$(/bin/date -j -f '%Y-%m-%dT%H:%M:%S%z' "$reset" '+%s')
-LC_ALL=C TZ=UTC /bin/date -r "$epoch" '+%b %d at %I:%M%p (UTC)' | sed 's/AM /am /; s/PM /pm /'
+LC_ALL=C python3 - "$reset" <<'PYTIME'
+import sys
+from datetime import datetime, timezone
+reset = datetime.fromisoformat(sys.argv[1]).astimezone(timezone.utc)
+print(reset.strftime('%b %d at %I:%M%p (UTC)').replace('AM ', 'am ').replace('PM ', 'pm '))
+PYTIME
 MOCK
 cat >"$test_dir/bin/claude" <<'MOCK'
 #!/bin/bash
