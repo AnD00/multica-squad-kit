@@ -207,6 +207,10 @@ done
 ! jq -r '.content' "$TEST_DB/skills/verify.json" | grep -q '{{'
 jq -r '.content' "$TEST_DB/skills/verify.json" | grep -qF '[記入: 実際に使うコマンドと実行順]'
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
+# 環境の修復試験の準備には、ここで本体から作った全15役の状態を使う。
+mkdir -p "$test_dir/completed"
+cp -R "$TEST_DB" "$test_dir/completed/db"
+cp -R "$TEMPLATE_AGENT_HOME" "$test_dir/completed/host"
 
 # 現在の ID と育てた説明・スキルを守り、同じ内容は再更新しない。
 cp "$TEST_DB/projects/project-a.json" "$test_dir/original-project"
@@ -400,8 +404,9 @@ grep -q '別プロジェクトに紐付いたため許可できません: exampl
 echo 'PASS project: 関所の確認の通信中に他プロジェクトへ移った選択も、許可更新直前の再確認で拒否する'
 
 export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
-reset_db
-run
+rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
+cp -R "$test_dir/completed/db" "$TEST_DB"
+cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"
 for file in "$TEST_DB/env/"*.json; do
  jq '. += {SQUAD_KIT_GH_DEPENDABOT_MERGE:"1",PERSONAL_KEEP:"yes"}' "$file" >"$TEST_DB/new"
  mv "$TEST_DB/new" "$file"

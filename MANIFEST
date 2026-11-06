@@ -73,8 +73,8 @@ ad4c4a38728052f74b469425b840f548805618b0e5c68b444c676d05281af9c6  ./tests/gh-tes
 18ba70040c69d8a03b12bd8ffe6e36fc4dcb654770d3985ed415c9d56bfb2eb7  ./tests/host-test.sh
 4760892cf2c54b0cdb844ebae2052d9dd3f0dc58650fad1c80766b3d14835445  ./tests/manual-test.sh
 770ba7e4bde97301f5a012502338b9d2db5a0305256e1bc427224b047f7c745f  ./tests/pre-push-test.sh
-b8169d82d31ff1bb328dc3dd26849bed8909bd9f6bd479990ecf38cf132fa84b  ./tests/project-followup-test.sh
-01560493d1151dc0761f5087db780076932fb8f81658a31c2f09e00b9b7da4a8  ./tests/project-test.sh
+795b2c8be0148149fd1a8a7858a3431af210daa07bfa448eacdd84c6a07ad4f9  ./tests/project-followup-test.sh
+256bda39cc51d012fae19249f2dfee54a4540ddb23db631dda1791fb188fe8f3  ./tests/project-test.sh
 d64680c6e8002d2bb84cf57e224f6d514618731943341cae3c880541e6c28fc4  ./tests/questions-ui-test.sh
 18f62d1e1174d966a6544c33505a73a3f550b2013856e924a3f85763ff4d0bf2  ./tests/release-tags-test.sh
 e9191c9a46911d287554ecbf50b37ea1bcb4828d44f3391e2067839bb3b0e41a  ./tests/run.sh
@@ -82,7 +82,7 @@ e9191c9a46911d287554ecbf50b37ea1bcb4828d44f3391e2067839bb3b0e41a  ./tests/run.sh
 2c6b7f6845ea874512c79d75c1cf24c0c4cb18c9864fc357535931d963b0712e  ./tests/setup-test.sh
 82ea572de991a34f84f16d947c6d47daffb0ba89444ec8a4319f97bddb1a34a3  ./tests/shell-test.sh
 a7cb5c83d3f2176b1ef3f58f5868c6897b0dd07fb1397099e18a707ac813e256  ./tests/squad-dependabot-merge-test.sh
-7dec5a68c7e1be5a73cabf82eaf88ce361ecb12cf1598f7fdda31c4c865be19b  ./tests/squad-dispatch-pick-test.sh
+4f50518f2a213c37068dafd63edd7e116f937feda902afcbb161b7321709850c  ./tests/squad-dispatch-pick-test.sh
 20c3d306d23e56cc3e65427ca1e880b1fe13f9dcdf86d3ed646784b1ff711e17  ./tests/squad-pr-watch-test.sh
 32f58212a346cf8ea55dfc6410467c1c6fabdd21fea464ba61f71e956621faa1  ./tests/squad-review-wait-test.sh
 45609f340b1fff3a5e6c88cc16d77601d9612c08a6dbaacb5098f29b22c82cf5  ./tests/squad-usage-check-test.sh

@@ -88,6 +88,14 @@ member_ids='["actor","person-b"]'
 excluded_roles=${TEST_EXCLUDED:-[]}
 repo_names=${TEST_REPOSITORIES:-'["example/project"]'}
 selected_repositories=$(jq 'map({repository:.})' <<<"$repo_names")
+# エージェントの指示はこの試験の入力。同じ構成の準備だけを再利用する。
+# 試験対象の squad/autopilots の展開と DB の読み書きは毎回本体を通す。
+fixture_key=$(printf '%s\n' "$excluded_roles" "$repo_names" | shasum -a 256 | cut -d ' ' -f 1)
+fixture=$TEST_FIXTURES/$fixture_key
+if [[ ! -d $fixture ]]; then
+mkdir -p "$fixture"
+saved_work=$project_work
+project_work=$fixture
 records='{}'; enabled=''
 for role in $template_roles; do
  if ! jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles"; then
@@ -101,12 +109,19 @@ for role in $enabled; do
  template_filter "$enabled" "$root/common/agents/$role.md" >"$project_work/filter"
  template_apply "$project_work/values.json" "$project_work/filter" >"$project_work/$role.rendered"
 done
+printf '%s\n' "$records" >"$fixture/records.json"
+printf '%s\n' "$enabled" >"$fixture/enabled"
+project_work=$saved_work
+fi
+records=$(cat "$fixture/records.json")
+enabled=$(cat "$fixture/enabled")
+cp "$fixture/values.json" "$fixture/"*.rendered "$project_work/"
 created_agents=0; created_squads=0; created_autopilots=0
 project_name=Demo; workspace_name="Workspace A"; agent_home="$TEST_DB/agent home"
 complete_project
 project_completion
 DRIVER
-export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package" TEST_DB="$test_dir/db"
+export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package" TEST_DB="$test_dir/db" TEST_FIXTURES="$test_dir/fixtures"
 source "$root/lib/render.sh"
 reset_db() {
  rm -rf "$TEST_DB"; mkdir -p "$TEST_DB"
@@ -136,6 +151,12 @@ echo 'PASS progress: 選んだオートパイロットの件数に合わせ、0�
 for message in 'Multica の画面で' 'skeleton/' 'Dependabot の Webhook を登録' 'CLAUDE_CONFIG_DIR=' 'CODEX_HOME='; do grep -qF "$message" "$test_dir/out"; done
 echo 'PASS completion: オートパイロットの実作成件数と画面・ひな形・Webhook・未ログイン時のログインを案内する'
 echo 'PASS followup: 3つのオートパイロットを実 ID・指示・実行モード・プロジェクト・時刻とタイムゾーンで登録する'
+# 後続ケースの初期状態は、ここで実際に作って検証したものを複製する。
+cp -R "$TEST_DB" "$test_dir/completed-one"
+restore_completed() {
+ rm -rf "$TEST_DB"
+ cp -R "$test_dir/completed-$1" "$TEST_DB"
+}
 : >"$TEST_DB/calls"; run; no_writes
 grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件' "$test_dir/out"
 echo 'PASS followup: 同じ内容で再実行すると、スクワッド・メンバー・オートパイロット・トリガーを書かない'
@@ -216,8 +237,7 @@ jq '.creator_id="another"' "$TEST_DB/squad.json" >"$TEST_DB/new"; mv "$TEST_DB/n
 deny; no_writes
 echo 'PASS followup: スクワッドの所有者が変わったときは設定の書き込みを行わない'
 
-reset_db
-run
+restore_completed one
 jq 'map(if .assignee_id=="agent-security-reviewer" then .assignee_id="agent-planner" | .description="old" else . end)' "$TEST_DB/autopilots.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/autopilots.json"
 export TEST_EXCLUDED='["planner"]'
 run
@@ -243,8 +263,7 @@ jq -e 'length==4 and any(.[]; .id=="manual-a" and .description=="Keep") and all(
 echo 'PASS followup: 外した役の停止失敗を返し、再実行でも定義にない手動のオートパイロットを残す'
 
 export TEST_EXCLUDED='[]'
-reset_db
-run
+restore_completed one
 jq 'map(if .id=="agent-security-reviewer" then .owner_id="another" else . end)' "$TEST_DB/agents.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents.json"
 export TEST_EXCLUDED='["security-reviewer"]'
 run
@@ -269,6 +288,7 @@ grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 �
 grep -qF 'オートパイロット 5/5 を設定中' "$test_dir/err"
 echo 'PASS completion: 二リポジトリの実作成5件を数え、予定数や更新した数に置き換えない'
 echo 'PASS autopilots: リポジトリごとに二種類を一つずつ作り、指示と実 ID・モード・スケジュールを分け、使用上限は一つに保つ'
+cp -R "$TEST_DB" "$test_dir/completed-two"
 
 cp "$TEST_DB/autopilots.json" "$test_dir/two-repos"
 : >"$TEST_DB/calls"; run; no_writes
@@ -285,8 +305,7 @@ jq -e 'any(.[]; .id=="auto-7" and .status=="paused") and all(.[]|select(.id=="au
 grep -q '一時停止しています.*Dependabot.*example/third' "$test_dir/err"
 echo 'PASS autopilots: 外したリポジトリを一時停止し、別の人の担当・別プロジェクト・手動の名前は変えない'
 
-reset_db
-run
+restore_completed two
 cp "$TEST_DB/autopilots.json" "$test_dir/before-remove"
 cp "$TEST_DB/triggers-auto-4.json" "$test_dir/removed-trigger"
 export TEST_REPOSITORIES='["example/project"]'
@@ -302,8 +321,7 @@ jq -e 'all(.[]|select(.title|endswith(" example/client")); .status=="paused")' "
 echo 'PASS autopilots: 外した二種類の ID・指示・トリガーを保ち、繰り返しても重ねて止めず、再選択でも既存の停止状態を勝手に変えない'
 
 export TEST_REPOSITORIES='["example/project","example/client"]'
-reset_db
-run
+restore_completed two
 export TEST_REPOSITORIES='["example/project"]'
 TEST_FAIL_PAUSE=yes deny
 [[ $(jq length "$TEST_DB/autopilots.json") == 5 ]]
@@ -312,8 +330,7 @@ jq -e 'all(.[]|select(.title|endswith(" example/client")); .status=="paused")' "
 echo 'PASS autopilots: 一時停止の失敗を返し、再実行では履歴を消さず残った停止を反映する'
 
 export TEST_REPOSITORIES='["example/project","example/client"]'
-reset_db
-run
+restore_completed two
 export TEST_REPOSITORIES='["example/project"]'
 : >"$TEST_DB/calls"
 TEST_TRANSFER_AUTO=auto-4 deny
