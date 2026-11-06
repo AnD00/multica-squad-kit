@@ -293,6 +293,8 @@ SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh
 npx markdownlint-cli2 '**/*.md' '#tmp/**'
 ```
 
+`tests/run.sh` はテストを並べて流す。並列数と 1 本ずつ流す方法は、[テストを流す](CONTRIBUTING.md#テストを流す)を参照する。
+
 `MANIFEST` はファイル不足と改変を、登録前に検出するために残す。変更したらスクリプトで作り直す。CI は同じ生成をして差分がないか確かめる。Git の管理領域と `tmp/` は一覧から除く。
 
 混入の検査の一覧は、公開リポジトリに置かない。管理者が Repository Secret `FORBIDDEN_TERMS` に一行一語で設定する。CI は一時ファイルへ渡し、値や検出した行を表示しない。一覧が空のときは失敗する。fork の PR には Secret が渡らないので、信頼できる内容を管理者が確認して同じリポジトリのブランチへ取り込み、検査を通す。未確認の PR のコードに Secret を渡さない。
