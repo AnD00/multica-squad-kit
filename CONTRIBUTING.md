@@ -29,7 +29,7 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
 
 ## タグを発行する
 
-人間が、レビューと CI を通した変更のマージ後に行う。作業ディレクトリに未コミットの変更がないことを確認し、`release_tag` を発行するタグ名に置き換えて、原本のリポジトリで次を実行する。
+人間が、レビューと CI を通した変更のマージ後に行う。作業ディレクトリに未コミットの変更がないことを確認し、原本のリポジトリで次を実行する。発行するタグ名は `VERSION` から読む。
 
 ```bash
 (
@@ -37,7 +37,7 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
   git switch main
   git pull --ff-only origin main
   test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
-  release_tag=v1.0.0
+  release_tag=$(cat VERSION)
   test "$(cat VERSION)" = "$release_tag"
   test "$(awk '/^## / {print $2; exit}' CHANGELOG.md)" = "$release_tag"
   git tag -a "$release_tag" -m "$release_tag"
@@ -51,12 +51,12 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
 
 ### Release を作る
 
-タグを push したら、そのタグの Release を作る。本文は、`CHANGELOG.md` のその版の節になる。
+タグを push したら、そのタグの Release を作る。`VERSION` が発行したタグ名のままであることを確認してから実行する。本文は、`CHANGELOG.md` のその版の節になる。
 
 ```bash
 (
   set -eu
-  release_tag=v1.0.0
+  release_tag=$(cat VERSION)
   notes=$(git show "$release_tag:CHANGELOG.md" |
     awk -v heading="## $release_tag" '$0 == heading {found = 1; next} found && /^## / {exit} found')
   test -n "$(printf '%s' "$notes" | tr -d '[:space:]')"

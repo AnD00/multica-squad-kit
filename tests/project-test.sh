@@ -207,6 +207,10 @@ done
 ! jq -r '.content' "$TEST_DB/skills/verify.json" | grep -q '{{'
 jq -r '.content' "$TEST_DB/skills/verify.json" | grep -qF '[記入: 実際に使うコマンドと実行順]'
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
+# 環境の修復試験の準備には、ここで本体から作った全15役の状態を使う。
+mkdir -p "$test_dir/completed"
+cp -R "$TEST_DB" "$test_dir/completed/db"
+cp -R "$TEMPLATE_AGENT_HOME" "$test_dir/completed/host"
 
 # 現在の ID と育てた説明・スキルを守り、同じ内容は再更新しない。
 cp "$TEST_DB/projects/project-a.json" "$test_dir/original-project"
@@ -400,8 +404,9 @@ grep -q '別プロジェクトに紐付いたため許可できません: exampl
 echo 'PASS project: 関所の確認の通信中に他プロジェクトへ移った選択も、許可更新直前の再確認で拒否する'
 
 export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
-reset_db
-run
+rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
+cp -R "$test_dir/completed/db" "$TEST_DB"
+cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"
 for file in "$TEST_DB/env/"*.json; do
  jq '. += {SQUAD_KIT_GH_DEPENDABOT_MERGE:"1",PERSONAL_KEEP:"yes"}' "$file" >"$TEST_DB/new"
  mv "$TEST_DB/new" "$file"
@@ -416,9 +421,21 @@ echo 'PASS environment: リポジトリの許可を反映し、マージ権限�
 
 reset_db
 mkdir -p "$test_dir/extension/instructions"
-printf 'v1.0.0\n' >"$test_dir/extension/kit-version"
+cp "$root/VERSION" "$test_dir/extension/kit-version"
 printf '{"qa":{"max_concurrent_tasks":2,"mcp_config":{"mcpServers":{"browser":{"command":"browser-tool"}}},"instructions_file":"instructions/qa.md"}}\n' >"$test_dir/extension/additions.json"
 printf '\n## Project checks\n\nRead the project test manual.\n' >"$test_dir/extension/instructions/qa.md"
 TEST_EXTENSION_DIR="$test_dir/extension" run
 jq -e '.max_concurrent_tasks==2 and .mcp_config.mcpServers.browser.command=="browser-tool" and (.instructions|contains("Read the project test manual."))' "$TEST_DB/agents/agent-demo-qa-owner.json" >/dev/null
 echo 'PASS extension agent: 追記の指示・MCP・同時実行の上限がサーバーへ届く'
+
+# 大文字・小文字の違いだけなら既存のスクワッドを改名せず使う。
+reset_db
+printf '%s\n' '{"id":"existing-squad","name":"Demo-owner","creator_id":"actor"}' >"$TEST_DB/squad.json"
+run
+jq -e '.id=="existing-squad" and .name=="Demo-owner"' "$TEST_DB/squad.json" >/dev/null
+! jq -es 'any(.[]; .[0:2]==["squad","create"])' "$TEST_DB/calls" >/dev/null
+jq -e '.instructions|contains("[@Demo-owner](mention://squad/existing-squad)")' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >/dev/null
+: >"$TEST_DB/calls"
+run
+! jq -es 'any(.[]; .[0:2]==["squad","create"])' "$TEST_DB/calls" >/dev/null
+echo 'PASS squad: 表記の違う既存スクワッドの ID と名前を維持し、そのメンションを指示に入れる'

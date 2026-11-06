@@ -45,8 +45,7 @@ ask_key() {
 		fi
 		if [[ $kind == member ]]; then
 			candidate=$(printf '%s-%s' "$project_key" "$answer" | LC_ALL=C tr '[:lower:]' '[:upper:]')
-			matches=$(jq -c --arg name "$candidate" '[.[] | select(.name==$name)]' <<<"$question_squads")
-			[[ $(jq length <<<"$matches") -le 1 ]] || die '同名のスクワッドが複数あります。'
+			squad_named "$question_squads" "$candidate"
 			if [[ $(jq length <<<"$matches") == 1 ]]; then
 				existing=$(mc squad get "$(jq -r '.[0].id' <<<"$matches")" --output json) || die 'スクワッドの所有者を取得できませんでした。'
 				jq -e '(.creator_id|type=="string" and length>0)' >/dev/null <<<"$existing" || die 'スクワッドの所有者の応答が不正です。'
@@ -295,7 +294,13 @@ confirmation_plan() {
 	done
 	printf 'エージェント: %s件（新規%s件、既存%s件）\n  名前の規則: %s-<役>-%s\n' "$agent_total" "$agent_new" "$agent_existing" "$project_key" "$member_key"
 	squad_name=$(printf '%s-%s' "$project_key" "$member_key" | LC_ALL=C tr '[:lower:]' '[:upper:]')
-	action=$(plan_action "$question_squads" name "$squad_name" '今あるものを直す') || return 1
+	squad_named "$question_squads" "$squad_name"
+	if [[ $(jq length <<<"$matches") == 1 ]]; then
+		squad_name=$(jq -r '.[0].name' <<<"$matches")
+		action='今あるものを直す'
+	else
+		action='新しく作る'
+	fi
 	printf 'スクワッド: %s（%s）\n' "$squad_name" "$action"
 	printf 'プロジェクトだけのスキル:\n'
 	for skill_dir in "$root/skeleton/.agents/skills/"*/; do

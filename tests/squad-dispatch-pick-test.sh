@@ -21,6 +21,21 @@ MOCK
 cat >"$test_dir/bin/sleep" <<'MOCK'
 #!/bin/bash
 [[ "$*" == 1 ]] || exit 99
+# usage-lib が応答を待つときは、Codex stub が書き終えるまで同期する。
+IFS= read -r ready <&9
+[[ "$ready" == ready ]]
+MOCK
+cat >"$test_dir/synchronize.sh" <<'DRIVER'
+#!/bin/bash
+# 対象の起動時だけ sleep を差し替える。子の CLI・読み取りには適用しない。
+# 本体は source せず直接実行し、コマンドとしての入口も検査する。
+if [[ ${DISPATCH_TEST_INITIALIZE:-} == yes ]]; then
+export DISPATCH_TEST_INITIALIZE=no
+set -euo pipefail
+exec 9<>"$DISPATCH_TEST_DIR/usage-ready"
+slow_ticks=0
+sleep() {
+[[ "$*" == 1 ]] || return 99
 if [[ -e "$DISPATCH_TEST_DIR/hang" ]]; then
 	# 意図的な時間切れだけを仮想的に進める。子の準備は FIFO で同期する。
 	if [[ ! -e "$DISPATCH_TEST_DIR/timeout-ready" ]]; then
@@ -29,11 +44,24 @@ if [[ -e "$DISPATCH_TEST_DIR/hang" ]]; then
 		: >"$DISPATCH_TEST_DIR/timeout-ready"
 	fi
 	printf 'tick\n' >>"$DISPATCH_TEST_DIR/timeout-ticks"
+elif [[ -e "$DISPATCH_TEST_DIR/slow" ]]; then
+	if ((slow_ticks == 0)); then
+		IFS= read -r ready <"$DISPATCH_TEST_DIR/slow-ready"
+		[[ "$ready" == ready ]] || return 98
+	fi
+	slow_ticks=$((slow_ticks+1))
+	printf 'tick\n' >>"$DISPATCH_TEST_DIR/slow-ticks"
+	if ((slow_ticks == 5)); then
+		printf 'resume\n' >"$DISPATCH_TEST_DIR/slow-release"
+		wait "$reader_pid" 2>/dev/null || true
+	fi
 else
-	# 通常系の実際の読み取りには、本来の 90 秒の余裕を残す。
-	exec /bin/sleep "$@"
+	# 本体が始めた読み取りの完了まで待つ。時間を待つ必要はない。
+	wait "$reader_pid" 2>/dev/null || true
 fi
-MOCK
+}
+fi
+DRIVER
 # 使用率の読み取りと共通関数は本体を使う。
 cp "$root/common/monitor/squad-usage-read" "$root/common/monitor/squad-usage-lib" "$test_dir/monitor/"
 cat >"$test_dir/bin/cli-reset" <<'MOCK'
@@ -68,6 +96,7 @@ jq -c '
 			| $utc - ($offset * (if .zone[0:1] == "-" then -1 else 1 end)) end;
 	{id:2,result:{ordinaryUsageAllowed:.codex.allowed,rateLimitsByLimitId:{codex:{primary:{
 		windowDurationMins:10080,usedPercent:.codex.week.used_percent,resetsAt:(.codex.week.resets_at | timestamp)}}}}}' "$DISPATCH_TEST_DIR/usage.json"
+printf 'ready\n' >&9
 cat >/dev/null
 MOCK
 chmod +x "$test_dir/bin/cli-reset" "$test_dir/bin/claude" "$test_dir/bin/codex"
@@ -94,7 +123,9 @@ run_pick() {
 	local expected_status=$1 expected_role=$2 status=0
 	shift 2
 	# 別の作業ディレクトリから呼び、PATH も閉じる。
-	(cd "$test_dir"; PATH="$test_dir/bin" /bin/bash "$script" "$@") \
+	rm -f "$test_dir/usage-ready"
+	mkfifo "$test_dir/usage-ready"
+	(cd "$test_dir"; PATH="$test_dir/bin" BASH_ENV="$test_dir/synchronize.sh" DISPATCH_TEST_INITIALIZE=yes /bin/bash "$script" "$@") \
 		>"$test_dir/out" 2>"$test_dir/err" || status=$?
 	if [[ "$status" != "$expected_status" ]] \
 		|| [[ $(head -n 1 "$test_dir/out") != "役: $expected_role" ]] \
@@ -168,17 +199,23 @@ if [[ -e "$DISPATCH_TEST_DIR/hang" ]]; then
 	printf 'ready\n' >"$DISPATCH_TEST_DIR/timeout-fifo"
 	wait
 fi
-[[ ! -e "$DISPATCH_TEST_DIR/slow" ]] || /bin/sleep 5
+if [[ -e "$DISPATCH_TEST_DIR/slow" ]]; then
+	printf 'ready\n' >"$DISPATCH_TEST_DIR/slow-ready"
+	IFS= read -r resume <"$DISPATCH_TEST_DIR/slow-release"
+	[[ "$resume" == resume ]]
+fi
 echo mock-private-diagnostic >&2
 cat "$DISPATCH_TEST_DIR/usage.json"
 exit "$(cat "$DISPATCH_TEST_DIR/status")"
 MOCK
 fixtures
+mkfifo "$test_dir/slow-ready" "$test_dir/slow-release"
 touch "$test_dir/slow"
 run_pick 0 claude-implementer implement 大きな
 assert_line '振り分け: Claude。Claude 週 20%'
-rm "$test_dir/slow"
-echo 'PASS 遅い読み取り: 通常系を 5 秒遅らせても短縮タイマーの時間切れにしない'
+[[ $(wc -l <"$test_dir/slow-ticks" | tr -d ' ') == 5 ]]
+rm "$test_dir/slow" "$test_dir/slow-ready" "$test_dir/slow-release" "$test_dir/slow-ticks"
+echo 'PASS 遅い読み取り: 仮想の 5 秒後の応答を時間切れにせず待つ'
 
 fixtures
 change '.claude.week.used_percent = 79.99 | .claude.session.used_percent = 79.99 | .codex.week.used_percent = 80'

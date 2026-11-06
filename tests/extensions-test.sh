@@ -17,7 +17,7 @@ sys.dont_write_bytecode = True
 spec.loader.exec_module(module)
 ext = work / 'extension'
 ext.mkdir()
-(ext / 'kit-version').write_text('v1.0.0\n')
+(ext / 'kit-version').write_text((kit / 'VERSION').read_text())
 (ext / 'instructions').mkdir()
 (ext / 'instructions/qa.md').write_text('## Project checks\n\nRead the project test manual.\n')
 patch = {'qa': {'skills': ['browser-check'], 'max_concurrent_tasks': 2, 'mcp_config': {'mcpServers': {'browser': {'command': 'browser-tool'}}}, 'instructions_file': 'instructions/qa.md'}}
@@ -51,7 +51,7 @@ def deny(name):
 (ext / 'kit-version').write_text('v0.0.0\n')
 deny('wrong-version')
 assert not (work / 'wrong-version').exists()
-(ext / 'kit-version').write_text('v1.0.0\n')
+(ext / 'kit-version').write_text((kit / 'VERSION').read_text())
 (ext / 'additions.json').write_text(json.dumps({'qa': {'instructions': 'replace'}}))
 deny('replace-instructions')
 (ext / 'additions.json').write_text('{}')
@@ -90,3 +90,51 @@ save_extension_inventory
 jq -e '.roles==[] and .autopilots==""' "$extension_inventory" >/dev/null
 SH
 echo 'PASS extensions: tmp のない原本で拡張なしを選んでも、消した役とオートパイロットを停止・切り離しの管理対象に残す'
+
+source "$root/lib/autopilots.sh"
+cat >"$test_dir/webhook.md" <<'WEBHOOK'
+## Issue events {{project_key}} {{repository}}
+
+- 範囲: `repository`
+- 担当: {{agent.orchestrator.name}}
+- 実行: `run_only`
+- トリガー: `webhook`
+
+```text
+Handle issue events.
+```
+WEBHOOK
+autopilot_sections "$test_dir/webhook.md" >"$test_dir/sections.json"
+jq -e 'length==1 and .[0].trigger=="webhook" and (.[0]|has("cron")|not)' "$test_dir/sections.json" >/dev/null
+for variant in missing unknown mixed; do
+ case $variant in
+ missing) sed '/^- トリガー:/d' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ unknown) sed 's/`webhook`/`other`/' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ mixed) sed '/^- トリガー:/a\
+- スケジュール: `0 0 * * *`（Asia/Tokyo）
+' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ esac
+ if autopilot_sections "$test_dir/bad.md" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+ [[ -s $test_dir/err ]]
+done
+echo 'PASS extensions: Webhook の明示を受け取り、指定漏れ・未知の種類・スケジュールの混在を拒否する'
+
+# 不正な行が reduce の蓄積を消し、正常な共通定義を失ったまま成功しない。
+autopilot_sections "$root/common/autopilots.md" >"$test_dir/common.json"
+jq -e 'length==3' "$test_dir/common.json" >/dev/null
+for variant in no-backticks trailing-space; do
+ case $variant in
+ no-backticks) sed 's/`webhook`/webhook/' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ trailing-space) sed 's/`webhook`$/`webhook` /' "$test_dir/webhook.md" >"$test_dir/bad.md" ;;
+ esac
+ for position in end middle; do
+  cat "$root/common/autopilots.md" "$test_dir/bad.md" >"$test_dir/combined.md"
+  if [[ $position == middle ]]; then cat "$test_dir/webhook.md" >>"$test_dir/combined.md"; fi
+  if autopilot_sections "$test_dir/combined.md" >"$test_dir/out" 2>"$test_dir/err"; then
+   echo "不正なトリガー行を受け付けました: $variant ($position)" >&2
+   exit 1
+  fi
+  grep -q 'オートパイロットの定義が不正' "$test_dir/err"
+ done
+done
+echo 'PASS extensions: 正常な共通定義の後・途中にあるバッククォート欠落と行末空白はエラーで止まる'
