@@ -1,0 +1,137 @@
+#!/usr/bin/env bash
+set -euo pipefail
+root=$(cd "$(dirname "$0")/.." && pwd)
+mkdir -p "$root/tmp"
+test_dir=$(mktemp -d "$root/tmp/webhooks-test.XXXXXX")
+trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&2; fi; rm -rf -- "$test_dir"' EXIT
+mkdir -p "$test_dir/bin" "$test_dir/package"
+cp "$root/VERSION" "$test_dir/package/"
+cp -R "$root/lib" "$root/common" "$test_dir/package/"
+printf '#!/bin/bash\nexec %q %q "$TEST_DB" "$@"\n' "$(command -v python3)" "$root/tests/setup-runtime-cli.py" >"$test_dir/bin/multica"
+printf '#!/bin/bash\nexec %q %q "$TEST_DB" "$@"\n' "$(command -v python3)" "$root/tests/webhook-gh.py" >"$test_dir/bin/gh"
+printf '#!/bin/bash\nprintf "%%s\\n" "$*" >>"$TEST_DB/sleeps"\n' >"$test_dir/bin/sleep"
+chmod +x "$test_dir/bin/"*
+cat >"$test_dir/driver" <<'DRIVER'
+set -euo pipefail
+root=$TEST_PACKAGE
+cd "$root"
+die() { printf '%s\n' "$*" >&2; exit 1; }
+source "$root/lib/check.sh"
+source "$root/lib/project.sh"
+source "$root/lib/setup-issues.sh"
+source "$root/lib/webhooks.sh"
+server_url=https://example.test; workspace_id=workspace-a
+project_id=project-a; project_key=demo; host_owner_id=actor
+records='{"dependabot-merger":{"id":"dep"}}'
+enabled=${TEST_ENABLED:-dependabot-merger}
+selected_repositories='[{"repository":"example/one"},{"repository":"example/two"}]'
+project_work=$TEST_DB/work
+mkdir -p "$project_work"
+setup_webhook_rows='[]'; setup_issue_rows='[]'; setup_issue_failures='[]'
+prepare_project_webhooks
+project_webhook_completion
+project_issue_completion
+[[ $(jq length <<<"$setup_issue_failures") == 0 ]]
+DRIVER
+export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package"
+new_case() {
+ TEST_DB="$test_dir/$1"; export TEST_DB
+ mkdir -p "$TEST_DB"
+ python3 "$root/tests/project-issues-fixture.py" "$test_dir/package" "$TEST_DB/db.json"
+ jq '.autopilots=[{id:"one",title:"Dependabot の PR の週次の確認 demo example/one",project_id:"project-a",assignee_id:"dep",assignee_type:"agent"},{id:"two",title:"Dependabot の PR の週次の確認 demo example/two",project_id:"project-a",assignee_id:"dep",assignee_type:"agent"}] |
+  .triggers={one:[{id:"schedule-one",kind:"schedule",cron_expression:"0 10 * * 2",timezone:"Asia/Tokyo"}],two:[{id:"schedule-two",kind:"schedule",cron_expression:"0 10 * * 2",timezone:"Asia/Tokyo"}]}' "$TEST_DB/db.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/db.json"
+ : >"$test_dir/out"; : >"$test_dir/err"
+}
+edit() { jq "$1" "$TEST_DB/db.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/db.json"; }
+run() { /bin/bash "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"; }
+no_leak() {
+ python3 - "$test_dir" <<'PY'
+import sys
+from pathlib import Path
+canary = ('https://' + 'webhook-canary.example.test/').encode()
+for path in Path(sys.argv[1]).rglob('*'):
+    if path.is_file() and canary in path.read_bytes():
+        raise AssertionError(f'credential leaked into {path.name}')
+PY
+}
+
+new_case created
+run
+jq -e '(.github_hooks|length)==2 and (.issues|length)==0 and all(.triggers[]; length==2 and .[0].kind=="schedule" and .[0].cron_expression=="0 10 * * 2" and .[1].kind=="webhook")' "$TEST_DB/db.json" >/dev/null
+[[ $(grep -c 'トリガー 作成、登録 作成、配信 成功（HTTP 200）' "$test_dir/out") == 2 ]]
+no_leak
+cp "$TEST_DB/db.json" "$test_dir/first.json"
+: >"$TEST_DB/calls.jsonl"; : >"$TEST_DB/gh-calls.jsonl"
+run
+cmp "$test_dir/first.json" "$TEST_DB/db.json"
+[[ $(grep -c 'トリガー 既存、登録 既存、配信 成功（HTTP 200）' "$test_dir/out") == 2 ]]
+! jq -es 'any(.[]; index("POST")!=null or .[1]=="trigger-add" or (.[1]|endswith("/pings")))' "$TEST_DB/calls.jsonl" "$TEST_DB/gh-calls.jsonl" >/dev/null
+no_leak
+echo 'PASS webhooks: 週次を残してトリガーと pull_request の登録を作り、ping の HTTP 状態を表示し、再実行は既存を使って送信しない'
+edit '.webhook_cases["example/one"].event="pull_request" | .webhook_cases["example/one"].status=202'
+run
+grep -q '登録 既存、配信 成功（HTTP 202）' "$test_dir/out"
+no_leak
+echo 'PASS webhooks: 既存の Webhook は ping 以外も含めて最新の配信を表示する'
+
+new_case excluded
+TEST_ENABLED=orchestrator run
+[[ ! -e $TEST_DB/calls.jsonl && ! -e $TEST_DB/gh-calls.jsonl ]]
+echo 'PASS webhooks: Dependabot の役を外したときは読み取りも登録も起票もしない'
+
+for failure in can-write trigger secrets signed missing-url admin hooks create deliveries ping; do
+ new_case "$failure"
+ case $failure in
+ can-write) edit '.autopilots[0].can_write=false' ;;
+ trigger) edit '.autopilots[0].fail_trigger=true' ;;
+ secrets) edit '.autopilots[0].fail_secrets=true' ;;
+ signed) edit '.autopilots[0].signed=true' ;;
+ missing-url) edit '.autopilots[0].missing_url=true' ;;
+ admin) edit '.webhook_cases["example/one"].admin=false' ;;
+ hooks) edit '.webhook_cases["example/one"].deny_hooks=true' ;;
+ create) edit '.webhook_cases["example/one"].fail_create=true' ;;
+ deliveries) edit '.webhook_cases["example/one"].deny_deliveries=true' ;;
+ ping) edit '.webhook_cases["example/one"].status=500' ;;
+ esac
+ run
+ jq -e '.issues | length==1 and (.[0] | .title=="example/one に Dependabot の Webhook を登録する" and .assignee_id=="actor" and .status=="todo" and .metadata.repository=="example/one" and .metadata.squad_kit_task=="dependabot-webhook" and .labels[0].id=="ops")' "$TEST_DB/db.json" >/dev/null
+ grep -q 'example/two:.*配信 成功' "$test_dir/out"
+ if [[ $failure == admin ]]; then grep -q '管理者ではありません' "$test_dir/out"; fi
+ if [[ $failure == hooks ]]; then grep -q 'admin:repo_hook' "$test_dir/out"; fi
+ if [[ $failure == signed || $failure == missing-url || $failure == secrets ]]; then
+  ! jq -es 'any(.[]; .[1]=="repos/example/one/hooks" and index("POST")!=null)' "$TEST_DB/gh-calls.jsonl" >/dev/null
+ fi
+ no_leak
+done
+echo 'PASS webhooks: トリガー・署名・管理者・token の範囲・登録・配信の失敗を起票して理由を出し、ほかのリポジトリを続ける'
+
+new_case pending
+edit '.webhook_cases["example/one"].missing_delivery=true'
+run
+[[ $(wc -l <"$TEST_DB/sleeps" | tr -d ' ') == 6 ]]
+grep -q '配信 記録なし' "$test_dir/out"
+jq -e '.issues|length==1' "$TEST_DB/db.json" >/dev/null
+no_leak
+new_case delayed
+edit '.webhook_cases["example/one"].delay=2 | .webhook_cases["example/one"].status=204'
+run
+[[ $(wc -l <"$TEST_DB/sleeps" | tr -d ' ') == 2 ]]
+grep -q '成功（HTTP 204）' "$test_dir/out"
+jq -e '.issues|length==0' "$TEST_DB/db.json" >/dev/null
+no_leak
+echo 'PASS webhooks: 新規の ping を最大 30 秒待ち、記録なしは起票し、遅れて届いた 2xx を成功として扱う'
+
+new_case issue-failed
+edit '.webhook_cases["example/one"].admin=false'
+printf '%s\n' 'example/one に Dependabot の Webhook を登録する' >"$TEST_DB/fail-issue"
+if run; then exit 1; fi
+grep -qF '起票できなかった issue:' "$test_dir/out"
+grep -q 'example/two:.*配信 成功' "$test_dir/out"
+no_leak
+echo 'PASS webhooks: 代わりの起票が失敗してもほかの登録と完了の表示へ進み、失敗を返す'
+
+new_case traced
+/bin/bash -x "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"
+no_leak
+echo 'PASS webhooks: 見張り用 URL が stdout・stderr・起票本文・一時ファイル・引数の記録と xtrace のどこにも出ない'

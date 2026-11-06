@@ -127,6 +127,8 @@ source "$root/lib/project-changes.sh"
 # エージェント登録の試験ではスクワッドの設定を差し替え、呼び出す順序を確かめる。
 complete_project() { echo "followup after agents"; }
 prepare_project_issues() { :; }
+prepare_project_webhooks() { :; }
+project_webhook_completion() { :; }
 server_url=https://example.test
 workspace_id=workspace-a
 project_name='Demo & literal $HOME'

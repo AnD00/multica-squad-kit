@@ -35,7 +35,11 @@ PY
  printf '#!/bin/bash\nexec %q %q %q "$@"\n' "$python" "$root/tests/setup-runtime-cli.py" "$scenario_dir" >"$scenario_dir/bin/multica"
  printf '#!/bin/bash\nexec /bin/cat %q\n' "$scenario_dir/process-env" >"$scenario_dir/bin/ps"
  printf '#!/bin/bash\necho Darwin\n' >"$scenario_dir/bin/uname"
- cp "$root/tests/guard-backend.sh" "$scenario_dir/bin/gh"
+ {
+  printf '#!/bin/bash\n'
+  printf 'if [[ $1 == api && ${2:-} == repos/* ]]; then exec %q %q %q "$@"; fi\n' "$python" "$root/tests/webhook-gh.py" "$scenario_dir"
+  printf 'exec /bin/bash %q "$@"\n' "$root/tests/guard-backend.sh"
+ } >"$scenario_dir/bin/gh"
  for runtime in $runtime_words; do
   {
    printf '#!/bin/bash\nset -euo pipefail\nscenario_dir=%q\n' "$scenario_dir"
@@ -114,7 +118,11 @@ assert {m['member_id'] for m in db['roster']} == {a['id'] for r, a in agents.ite
 assert len(db['roster']) == len(roles) - 2
 assert len(db['autopilots']) == 3
 assert {a['assignee_id'] for a in db['autopilots']} == {agents[r]['id'] for r in ('security-reviewer', 'usage-monitor', 'dependabot-merger')}
-assert all(len(t) == 1 and t[0]['kind'] == 'schedule' for t in db['triggers'].values())
+for pilot in db['autopilots']:
+    kinds = sorted(t['kind'] for t in db['triggers'][pilot['id']])
+    assert kinds == (['schedule', 'webhook'] if pilot['assignee_id'] == agents['dependabot-merger']['id'] else ['schedule'])
+assert len(db['github_hooks']) == 1
+assert '配信 成功（HTTP 200）' in (scenario / 'out').read_text()
 issues = {i['metadata']['squad_kit_task']: i for i in db['issues']}
 assert set(issues) == {'dependabot-filter', 'repository-rules', 'project-instructions', 'squad-trial'}
 for kind, issue in issues.items():

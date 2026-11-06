@@ -9,6 +9,7 @@ prepare_project() (
 	local project_host_recheck=yes
 	local setup_issue_rows='[]' setup_issue_failures='[]'
 	local setup_removed_targets='[]' project_previous_repositories=null
+	local setup_webhook_rows='[]'
 	local -a allowed_repo_names=()
 	selected_repositories=$(jq -ce "$repository_filter"'
 		if type=="array" and length>0 then . else error("リポジトリがありません") end |
@@ -205,6 +206,7 @@ prepare_project() (
 		printf 'エージェントの公開 %s/%s: %s\n' "$progress" "$agent_total" "$name" >&2
 	done
 	complete_project
+	prepare_project_webhooks
 	prepare_project_issues
 	project_completion
 	[[ $(jq length <<<"$setup_issue_failures") == 0 ]]
@@ -214,6 +216,7 @@ prepare_project() (
 project_completion() {
 	printf '\nプロジェクトの設定が終わりました: %s（%s）\n' "$project_name" "${workspace_name:-$workspace_id}"
 	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
+	project_webhook_completion
 	project_issue_completion
 	printf '%s\n' '次にすること:'
 	printf '%s\n' '1. Multica の画面で、スクワッド・エージェント・スキル・ラベル・オートパイロットと、使うランタイムがオンラインかを確認してください。'

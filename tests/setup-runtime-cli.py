@@ -162,11 +162,26 @@ elif event == ('autopilot', 'create'):
                     assignee_id=option('--agent'), assignee_type='agent', status='active')
     db['triggers'][result['id']] = []
 elif event == ('autopilot', 'get'):
-    result = dict(autopilot=record('autopilots', args[2]))
+    pilot = record('autopilots', args[2])
+    result = dict(autopilot={**pilot, 'can_write': pilot.get('can_write', True)},
+                  triggers=[dict(t) for t in db['triggers'][args[2]]])
+    if '--show-secrets' in args and pilot.get('fail_secrets'):
+        print('https://' + 'webhook-canary.example.test/' + args[2], file=sys.stderr)
+        sys.exit(71)
+    for trigger in result['triggers']:
+        if trigger['kind'] == 'webhook':
+            trigger['has_signing_secret'] = pilot.get('signed', False)
+            trigger['webhook_url'] = ('https://' + 'webhook-canary.example.test/' + args[2]
+                                      if '--show-secrets' in args and not pilot.get('missing_url') else None)
+            if '--show-secrets' in args:
+                print('unsafe credential warning', file=sys.stderr)
 elif event == ('autopilot', 'trigger-list'):
     result = dict(triggers=db['triggers'][args[2]])
 elif event == ('autopilot', 'trigger-add'):
-    db['triggers'][args[2]].append(dict(id=f'trigger-{args[2]}', kind=option('--kind'),
+    if option('--kind') == 'webhook' and record('autopilots', args[2]).get('fail_trigger'):
+        print('https://' + 'webhook-canary.example.test/' + args[2], file=sys.stderr)
+        sys.exit(71)
+    db['triggers'][args[2]].append(dict(id=f'trigger-{option("--kind")}-{args[2]}', kind=option('--kind'),
                                       cron_expression=option('--cron'),
                                       timezone=option('--timezone'), enabled=True))
 elif event == ('issue', 'create'):
