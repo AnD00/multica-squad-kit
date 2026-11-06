@@ -5,6 +5,7 @@ import re
 import sys
 import zipfile
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 scenario = Path(sys.argv[1])
 args = sys.argv[2:]
@@ -220,5 +221,8 @@ elif event == ('issue', 'status'):
 else:
     raise AssertionError(f'Unexpected CLI call: {args}')
 
-path.write_text(json.dumps(db, ensure_ascii=False))
+# Webhook のパイプでは別の CLI が同じ DB を読む。途中の JSON を見せない。
+with NamedTemporaryFile(mode='w', encoding='utf-8', dir=scenario, delete=False) as saved:
+    json.dump(db, saved, ensure_ascii=False)
+Path(saved.name).replace(path)
 print(json.dumps(result, ensure_ascii=False))

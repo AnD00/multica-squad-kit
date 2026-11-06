@@ -3,6 +3,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 scenario = Path(sys.argv[1])
 args = sys.argv[2:]
@@ -67,7 +68,10 @@ elif len(parts) == 6 and parts[-1] == 'deliveries':
 else:
     raise AssertionError(args)
 
-path.write_text(json.dumps(db, ensure_ascii=False))
+# 資格情報を渡す Multica の CLI と並行して動くため、DB は一度に置き換える。
+with NamedTemporaryFile(mode='w', encoding='utf-8', dir=scenario, delete=False) as saved:
+    json.dump(db, saved, ensure_ascii=False)
+Path(saved.name).replace(path)
 if '--paginate' in args and '--slurp' in args:
     result = [result]
 if '--jq' in args:

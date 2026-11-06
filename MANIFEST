@@ -85,7 +85,7 @@ cfcba033bb5b182af8b205bad9d217cd44949c953d9d74b37802641e38dd89a7  ./tests/manual
 172a0f16890a75bc21f3634bfc120df68be3dbf2c8b649f5ffe7b36eb5152bd5  ./tests/project-followup-test.sh
 ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/project-issues-fixture.py
 2823428e1915d4083e023689b248a061a3fb47db7a596df92d3ad5e059eda245  ./tests/project-issues-test.sh
-1d320cfd0636c1fb086a826cee8243f6eea370454a1b483de40e9834f8bea841  ./tests/project-test.sh
+25416250cf6ad47a4e360d9c2778f432191a3d441ddf475b64e1e71f6b298fb9  ./tests/project-test.sh
 9f8a8627707b05be5e3a6496cf12898853cbe092a16ca1df50e9f428e587fe0e  ./tests/questions-ui-test.sh
 18f62d1e1174d966a6544c33505a73a3f550b2013856e924a3f85763ff4d0bf2  ./tests/release-tags-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
@@ -94,7 +94,7 @@ ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/projec
 6c492669ad4f216d59091a08806290031df5378a52b72107295c4f1e527c6bc7  ./tests/runtime-selection-test.sh
 886cd075609932562e6bbbaeaa2c2c727de7733805839cbc2e66265489fceec8  ./tests/setup-fixture.sh
 536d416b3b5d0d8a9d3c88a8e71c6abc33e68d83fe2cc36ad4cbe1811466eb34  ./tests/setup-issues-test.sh
-5b13b40681ec956c6ff0d2aef6ce5871c4705703835c932da75c47ef9b3391ba  ./tests/setup-runtime-cli.py
+c8f28c411cb3c38b64125f1caa6876998257c84012e7b6302797d9f801720b89  ./tests/setup-runtime-cli.py
 ae605024b4a9d6dee273292902425404e2f83d5adaac26844d8adfb5eac67d91  ./tests/setup-runtimes-test.sh
 547709dd2ddde870a3df5101df591554e7b9a763fcfe7c6e77ba4f752b0c091a  ./tests/setup-test.sh
 82ea572de991a34f84f16d947c6d47daffb0ba89444ec8a4319f97bddb1a34a3  ./tests/shell-test.sh
@@ -105,6 +105,6 @@ eff8b05877239fcb85b764871302ee720ee7a05b6594b9e5b9a149728f63a3c0  ./tests/squad-
 8b65974d91466ca46db3afe9c8e7f4c08e9b7c9539d1ecef057417fc08943633  ./tests/squad-usage-check-test.sh
 0b4aacf6c7d2161c9704bdd8262d7829b505cd127c792e7d67c51efdb38850b9  ./tests/squad-usage-read-test.sh
 d3339f14c9b250e76f2d65cd37a449ef4220e359f389e33a4d88088ad6dc03d6  ./tests/test-runner-test.sh
-ab8abda3e10954a57a0bdb3cfa397f8c018110c64ecf84f9358af329a0435436  ./tests/webhook-gh.py
+ad23881201b6c86fc46e0874951cf5475cf560122867b4c6d7d46d9eec2e99e3  ./tests/webhook-gh.py
 c0039893ad8af5a5415493d053c994bf5508624d90f5e0c6755b98f2f8ecccb4  ./tests/webhooks-test.sh
 e17bfe6fb362a0e097bcdeca448896bf6f23d16e429be331ef44c1c6aa21a13f  ./tests/workspace-test.sh
