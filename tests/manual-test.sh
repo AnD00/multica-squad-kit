@@ -40,3 +40,32 @@ sed 's/画面の使いやすさを確認する/未記入/' "$root/manual.md" >"$
 if check_manual "$test_dir/no-role-purpose.md" >"$test_dir/out" 2>"$test_dir/check-error"; then exit 1; fi
 grep -q '担当の説明がない: UX' "$test_dir/check-error"
 echo 'PASS manual: 画面の12役それぞれの担当内容を照合し、名前と外した影響だけでは通さない'
+
+# 入れ直しの案内には、配置ファイルと対象プロジェクトの回答の片付けが必要。
+python3 - "$root" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+readme = (root / 'README.md').read_text()
+section = (root / 'manual.md').read_text().split('## 導入済みの配布物を入れ直す\n')[1].split('\n## ')[0]
+for document in (readme, section):
+    assert '保存済み回答' in document
+    assert '~/.multica-agent/template/answers/<workspace-id>/<project-key>.json' in document
+assert '別のワークスペースやプロジェクトの回答は消さない' in section
+PY
+base_input yes
+mkdir -p "$TEMPLATE_STATE_ROOT/ws-a"
+printf '%s\n' '{"schema":0}' >"$TEMPLATE_STATE_ROOT/ws-a/demo.json"
+printf '%s\n' '{"schema":0}' >"$TEMPLATE_STATE_ROOT/ws-a/other.json"
+cp "$TEMPLATE_STATE_ROOT/ws-a/other.json" "$test_dir/other-answer"
+deny
+grep -qF '保存済みの答えが不正です。内容を確認してください。' "$test_dir/err"
+! grep -q 'TEST-project-prepared' "$test_dir/out"
+# 手順どおり、対象の回答だけを片付けて質問に答え直す。
+rm "$TEMPLATE_STATE_ROOT/ws-a/demo.json"
+run
+grep -q 'TEST-project-prepared' "$test_dir/out"
+jq -e '.schema==1 and .workspace_id=="ws-a" and .project_key=="demo"' "$TEMPLATE_STATE_ROOT/ws-a/demo.json" >/dev/null
+cmp "$TEMPLATE_STATE_ROOT/ws-a/other.json" "$test_dir/other-answer"
+echo 'PASS manual: 入れ直しで対象の保存済み回答を片付けると設定が成功し、別プロジェクトの回答を保つ'
