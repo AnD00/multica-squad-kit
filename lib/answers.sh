@@ -14,6 +14,27 @@ def repository_name:
 	then . else error("OWNER/REPO の形ではありません") end;
 '
 
+# 紐付け先はコード作業先と分け、ワークスペースの登録だけを確かめる。
+resolve_link_repositories() {
+	local requested='[]' registered
+	if [[ -f $root/extension-link-repositories.json ]]; then
+		requested=$(jq -ce '
+			if type=="array" and all(.[]; type=="string" and
+				test("^[A-Za-z0-9][A-Za-z0-9_.-]*/[A-Za-z0-9_.-]+$") and
+				(split("/")[1]!="." and split("/")[1]!=".."))
+			then map(ascii_downcase)|unique else error("紐付け先が不正です") end
+		' "$root/extension-link-repositories.json") || die '紐付け専用のリポジトリの指定が不正です。'
+	fi
+	if [[ $(jq length <<<"$requested") != 0 ]]; then
+		registered=$(read_list リポジトリ repo list) || die '紐付け先の確認に必要なリポジトリを取得できませんでした。'
+		registered=$(jq -ce "$repository_filter"'[.[]|.url|repository_name]|unique' <<<"$registered") || die '登録済みのリポジトリの URL が不正です。'
+		jq -e --argjson registered "$registered" 'all(.[]; . as $repo | $registered|index($repo)!=null)' >/dev/null <<<"$requested" || die '紐付け専用のリポジトリは、選んだワークスペースに登録済みのものだけ指定できます。'
+	fi
+	# コード作業先は従来の選択のまま。追加分だけを別の範囲として指示に渡す。
+	link_repositories=$(jq -nc --argjson requested "$requested" --argjson repos "$repositories" '$requested-($repos|map(.repository|ascii_downcase))')
+	allowed_repository_names=$(jq -nc --argjson repos "$repositories" --argjson links "$link_repositories" '($repos|map(.repository|ascii_downcase))+$links|reduce .[] as $repo ([]; if index($repo)==null then .+[$repo] else . end)')
+}
+
 # 質問時と登録直前で同じ除外を使う。自分自身は実際の ID で除く。
 repository_choices() {
 	local registered=$1 projects_list=$2 self_id=$3 owners='{}' project other_id title resources names
