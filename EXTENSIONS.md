@@ -16,7 +16,7 @@ extension/
 
 `kit-version` は使う原本の `VERSION` に書かれたタグを一行で書く。これ以外は必要なものだけ置く。原本の `VERSION` と違うと、サーバーの設定やホストへの配置を始める前に止まる。
 
-`agents` は原本にない役を、`common/agents/FORMAT` と同じ形式で置く。ファイル名を役のキーにし、名前を `{{project_key}}-helper-{{member_key}}` の形にする。追加した役は毎回登録し、指示を流し直す。モデルの条件分岐なども原本と同じ形式を使える。
+`agents` は原本にない役を、`common/agents/FORMAT` と同じ形式で置く。ファイル名を役のキーにし、名前を `{{project_key}}-helper-{{member_key}}` の形にする。追加した役は毎回登録し、指示を流し直す。モデルの条件分岐なども原本と同じ形式を使える。片方だけのランタイムで導入するプロジェクトでは、`runtime-claude` と `runtime-codex` の印でモデルを分ける。使うランタイムにないモデルの役は、登録前に止まる。
 
 `additions.json` は役ごとの追記である。次のキー以外は拒否する。
 
