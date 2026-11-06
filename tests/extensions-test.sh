@@ -40,6 +40,12 @@ assert json.loads((work / 'combined/extension-mcp.json').read_text())['qa'] == p
 assert (work / 'combined/skeleton/.agents/skills/browser-check/SKILL.md').exists()
 assert (work / 'combined/common/monitor/squad-custom-check').exists()
 print('PASS extensions: 原本を変えず、指示・スキル・MCP・上限・役・見張り・オートパイロットを足す')
+assert json.loads((work / 'combined/extension-link-repositories.json').read_text()) == []
+(ext / 'link-repositories.json').write_text(json.dumps(['Example/Tools', 'example/tools']))
+module.materialize(kit, ext, work / 'with-links')
+assert json.loads((work / 'with-links/extension-link-repositories.json').read_text()) == ['example/tools']
+assert (work / 'with-links/common/autopilots.md').read_text() == (work / 'combined/common/autopilots.md').read_text()
+print('PASS extensions: 紐付け先を正規化し、共通の定義を置き換えずに渡す')
 
 def deny(name):
     try:
@@ -47,6 +53,15 @@ def deny(name):
     except ValueError:
         return
     raise AssertionError('extension was accepted: ' + name)
+
+for i, invalid in enumerate(({}, 'example/tools', [False], ['https://github.com/example/tools'], ['example/..'], ['example/tools\n'])):
+    (ext / 'link-repositories.json').write_text(json.dumps(invalid))
+    deny('bad-links-' + str(i))
+    assert not (work / ('bad-links-' + str(i))).exists()
+(ext / 'link-repositories.json').write_text('{')
+deny('bad-links-json')
+(ext / 'link-repositories.json').unlink()
+print('PASS extensions: 不正な紐付け先は結合ファイルを作る前に拒否する')
 
 (ext / 'kit-version').write_text('v0.0.0\n')
 deny('wrong-version')
