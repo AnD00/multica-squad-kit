@@ -89,4 +89,5 @@ a7cb5c83d3f2176b1ef3f58f5868c6897b0dd07fb1397099e18a707ac813e256  ./tests/squad-
 32f58212a346cf8ea55dfc6410467c1c6fabdd21fea464ba61f71e956621faa1  ./tests/squad-review-wait-test.sh
 45609f340b1fff3a5e6c88cc16d77601d9612c08a6dbaacb5098f29b22c82cf5  ./tests/squad-usage-check-test.sh
 f495c640a7447bd84215f4e809e0a591eb57d422147c356816be0665c51da015  ./tests/squad-usage-read-test.sh
+a7a50724ad2b4f8bea7d4f96cd74b082a0b776227b5340af9bf599ec9859350f  ./tests/test-runner-test.sh
 e17bfe6fb362a0e097bcdeca448896bf6f23d16e429be331ef44c1c6aa21a13f  ./tests/workspace-test.sh
