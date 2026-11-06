@@ -187,5 +187,21 @@ assert all(i['project_id'] == 'projects-1' and i['assignee'] == 'Owner' and i['l
 state = json.loads((scenario / 'usage-state/projects-1/owner.state').read_text())
 assert {key.split(':')[0] for key in state} == set(db['runtimes'])
 PY
+ # 更新の権限がない共通スキルと、既存の検証スキルから消えた選択を入口から確かめる。
+ if [[ $selected == both ]]; then
+  jq '.members=[{user_id:"member-a",name:"Owner",role:"member"},{user_id:"creator",name:"Creator",role:"member"}] |
+   .skills |= map(if .name=="squad-handoff" then .content="older content" | .created_by="creator"
+    elif .name=="demo-verify" then .content += "\n## `example/removed`\n前からある検証手順\n" else . end)' "$scenario_dir/db.json" >"$scenario_dir/new"
+  mv "$scenario_dir/new" "$scenario_dir/db.json"
+  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
+  grep -qF '更新を飛ばしました: squad-handoff' "$scenario_dir/err"
+  jq -e 'any(.issues[]; .metadata.squad_kit_task=="handoff-skill-update" and .assignee_id=="creator" and .status=="todo") and
+   any(.issues[]; .metadata.squad_kit_task=="repository-change" and .metadata.squad_kit_targets=="[\"removed:example/removed\"]") and
+   any(.skills[]; .name=="demo-verify" and (.content|contains("前からある検証手順")))' "$scenario_dir/db.json" >/dev/null
+  before_issues=$(jq '.issues|length' "$scenario_dir/db.json")
+  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
+  [[ $(jq '.issues|length' "$scenario_dir/db.json") == "$before_issues" ]]
+  echo 'PASS setup changes: 更新を飛ばしたスキルの作成者への起票と既存の検証スキルとの差を入口から確かめ、再実行で重ねない'
+ fi
  echo "PASS setup runtimes: $selected の入口・ホスト・登録・再実行・配置した見張りが通り、使わない側を求めない"
 done

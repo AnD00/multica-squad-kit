@@ -13,13 +13,17 @@ cat >"$test_dir/driver" <<'DRIVER'
 set -euo pipefail
 root=$TEST_PACKAGE
 cd "$root"
+die() { printf '%s\n' "$*" >&2; exit 1; }
 source "$root/lib/check.sh"
+source "$root/lib/workspace.sh"
 source "$root/lib/project.sh"
 source "$root/lib/setup-issues.sh"
+source "$root/lib/project-changes.sh"
 server_url=https://example.test
 workspace_id=workspace-a
 project_id=project-a
 host_owner_id=actor
+people=$(mc workspace member list --output json)
 squad_id=squad-a
 project_work=$TEST_DB/work
 mkdir -p "$project_work"
@@ -37,7 +41,7 @@ export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package"
 new_case() {
  TEST_DB="$test_dir/$1"; export TEST_DB
  mkdir -p "$TEST_DB"
- printf '%s\n' '{"issues":[],"labels":[{"id":"ops","name":"運用"},{"id":"instructions","name":"指示の改善"},{"id":"trial","name":"検証"}]}' >"$TEST_DB/db.json"
+ python3 "$root/tests/project-issues-fixture.py" "$test_dir/package" "$TEST_DB/db.json"
  : >"$test_dir/out"; : >"$test_dir/err"
 }
 run() { /bin/bash "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"; }

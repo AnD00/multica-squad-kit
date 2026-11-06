@@ -98,6 +98,7 @@ case "$event" in
  jq -n --arg name "$(option --name "$@")" --arg leader "$(option --leader "$@")" '{id:"squad-a",name:$name,creator_id:"actor",leader_id:$leader,instructions:"",members:[]}' >"$TEST_DB/squad.json"
  cat "$TEST_DB/squad.json" ;;
 'skill list') jq -s . "$TEST_DB"/skills/*.json ;;
+'skill get') jq -s --arg id "$3" '.[] | select(.id==$id)' "$TEST_DB"/skills/*.json ;;
 'skill import')
  mkdir -p "$TEST_DB/imported"
  unzip -qo "$(option --file "$@")" -d "$TEST_DB/imported"
@@ -122,6 +123,7 @@ source "$root/lib/answers.sh"
 source "$root/lib/host.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
+source "$root/lib/project-changes.sh"
 # エージェント登録の試験ではスクワッドの設定を差し替え、呼び出す順序を確かめる。
 complete_project() { echo "followup after agents"; }
 prepare_project_issues() { :; }

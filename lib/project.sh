@@ -8,6 +8,7 @@ prepare_project() (
 	local agent_total progress agent_action
 	local project_host_recheck=yes
 	local setup_issue_rows='[]' setup_issue_failures='[]'
+	local setup_removed_targets='[]' project_previous_repositories=null
 	local -a allowed_repo_names=()
 	selected_repositories=$(jq -ce "$repository_filter"'
 		if type=="array" and length>0 then . else error("リポジトリがありません") end |
@@ -239,19 +240,25 @@ prepare_project_issues() {
 	done < <(jq -r '.[].repository' <<<"$selected_repositories")
 	queue_project_issue project-instructions '["project"]' "$host_owner_id"
 	queue_project_issue squad-trial '["project"]' "$host_owner_id"
+	prepare_project_change_issues
 }
 
 # 1 件の失敗では止めず、完了の表示のために結果と理由をためる。
 queue_project_issue() {
-	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result title reason
+	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result reason
 	if result=$(ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
 		setup_issue_rows=$(jq -c --argjson rows "$result" '.+$rows' <<<"$setup_issue_rows")
 	else
-		title=$(jq -r --arg kind "$kind" --arg repo "$repo" '.[$kind].title | split("{{repository}}") | join($repo)' "$root/common/setup-issues.json")
 		reason=$(tail -n 1 "$project_work/issue-error")
 		reason=${reason:-起票の処理に失敗しました。同じ答えで流し直してください。}
-		setup_issue_failures=$(jq -c --arg title "$title" --arg reason "$reason" '.+[{title:$title,reason:$reason}]' <<<"$setup_issue_failures")
+		record_project_issue_failure "$kind" "$repo" "$reason"
 	fi
+}
+
+record_project_issue_failure() {
+	local title
+	title=$(jq -r --arg kind "$1" --arg repo "$2" '.[$kind].title | split("{{repository}}") | join($repo)' "$root/common/setup-issues.json")
+	setup_issue_failures=$(jq -c --arg title "$title" --arg reason "$3" '.+[{title:$title,reason:$reason}]' <<<"$setup_issue_failures")
 }
 
 project_issue_completion() {
@@ -356,6 +363,11 @@ project_skills() {
 		[[ $(template_field "$dir/SKILL.md" name) == "$skill_base" ]] || die 'プロジェクトのスキル名が不正です。'
 		project_named "$skills" name "$skill_name"
 		skill_id=$(jq -r '.[0].id // empty' <<<"$matches")
+		if [[ $skill_base == verify && -n $skill_id ]]; then
+			result=$(mc skill get "$skill_id" --with-content --output json) || die '既存の検証スキルを読めませんでした。'
+			jq -e --arg id "$skill_id" --arg name "$skill_name" '.id==$id and .name==$name and (.content|type=="string")' >/dev/null <<<"$result" || die '既存の検証スキルの応答が不正です。'
+			project_previous_repositories=$(project_verify_repositories "$result") || die '既存の検証スキルのリポジトリを読めませんでした。'
+		fi
 		if [[ -n $skill_id ]] && { [[ ! -f $root/extension-skills ]] || ! grep -qx "$skill_base" "$root/extension-skills"; }; then continue; fi
 		mkdir -p "$project_work/skills/$skill_name"
 		cp -R "$dir". "$project_work/skills/$skill_name/" || die 'スキルを準備できませんでした。'

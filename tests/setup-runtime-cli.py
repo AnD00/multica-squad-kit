@@ -42,6 +42,10 @@ def skill_data(files, config):
 
 
 event = tuple(args[:2])
+failure = scenario / 'fail-read'
+if failure.exists() and failure.read_text().strip() == ' '.join(event):
+    print('read denied', file=sys.stderr)
+    sys.exit(71)
 result = {}
 if event == ('config', 'show'):
     print('server_url: https://example.test')
@@ -53,7 +57,7 @@ elif event == ('user', 'profile'):
 elif event == ('workspace', 'list'):
     result = [dict(id='ws-a', name='Workspace A')]
 elif event == ('workspace', 'member'):
-    result = [dict(user_id='member-a', name='Owner', role='owner')]
+    result = db.get('members', [dict(user_id='member-a', name='Owner', role='owner')])
 elif event == ('repo', 'list'):
     result = [dict(url='https://github.com/example/project')]
 elif event == ('daemon', 'status'):
