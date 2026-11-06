@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# systemd から、セットアップと同じ環境でデーモンを前面で起動する。
+set -euo pipefail
+die() { printf 'start-daemon: %s\n' "$*" >&2; exit 1; }
+
+agent_home=$HOME/.multica-agent
+[[ -f $agent_home/bin/gh ]] || exit 0
+
+# system の unit の PATH には、使う人の ~/.local/bin がないことがある。
+# 状態を読む CLI も、ログインの PATH から探す。
+login_path=$(bash -lc 'printf "%s\n" "$PATH"') || die 'ログインの PATH を読めませんでした。'
+[[ -n $login_path ]] || die 'ログインの PATH が空です。'
+export PATH=$login_path
+
+if status=$(multica daemon status --output json); then :; else
+	jq -e '.status=="stopped" or .status=="not_running"' >/dev/null <<<"$status" || die 'デーモンの状態を取得できませんでした。'
+fi
+jq -e 'type=="object" and (.status=="running" or .status=="stopped" or .status=="not_running")' >/dev/null <<<"$status" || die 'デーモンの状態の応答が不正です。'
+[[ $(jq -r '.status' <<<"$status") != running ]] || exit 0
+
+# lib/questions.sh の choose_server と同じ形式を読む。ここでは質問しない。
+config=$(multica config show) || die 'CLI の設定を読めませんでした。'
+configured=$(printf '%s\n' "$config" | awk '$1=="server_url:" && $2!="(not" {print $2}')
+server_url=${MULTICA_SERVER_URL:-$configured}
+[[ -n $server_url ]] || die 'サーバーの URL がありません。MULTICA_SERVER_URL または CLI の設定を確認してください。'
+[[ $server_url =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]] || die 'CLI のサーバー設定を確認し、https:// で始まる URL に直してください。'
+server_url=${server_url%/}
+
+# lib/host.sh の prepare_daemon の変数名とそろえる（テストで照合する）。
+exec env -i HOME="$HOME" USER="${USER:-}" SHELL=/bin/zsh PATH="$agent_home/bin:$login_path" CODEX_HOME="$agent_home/codex" MULTICA_SERVER_URL="$server_url" multica daemon start --foreground

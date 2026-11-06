@@ -1,3 +1,4 @@
+63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull_request_template.md
 b513b2e7505494a3219e76b109641ccc810e2a7fb4df1dc7e8e7b4669d118fac  ./.github/workflows/check.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
@@ -95,4 +96,6 @@ eff8b05877239fcb85b764871302ee720ee7a05b6594b9e5b9a149728f63a3c0  ./tests/squad-
 8b65974d91466ca46db3afe9c8e7f4c08e9b7c9539d1ecef057417fc08943633  ./tests/squad-usage-check-test.sh
 0b4aacf6c7d2161c9704bdd8262d7829b505cd127c792e7d67c51efdb38850b9  ./tests/squad-usage-read-test.sh
 d3339f14c9b250e76f2d65cd37a449ef4220e359f389e33a4d88088ad6dc03d6  ./tests/test-runner-test.sh
+92247a69b3b894d3ab98f64f682df3a4d016e424db4c92735a1e4483eb057198  ./tests/vm-guest-test.sh
 e17bfe6fb362a0e097bcdeca448896bf6f23d16e429be331ef44c1c6aa21a13f  ./tests/workspace-test.sh
+48b2bb27319248006a38620036f2ad0f1e793d3f59bddc3f0c807132917804c1  ./vm/guest/start-daemon
