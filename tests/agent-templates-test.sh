@@ -15,17 +15,19 @@ render() {
  template_apply "$test_dir/values.json" "$test_dir/filter"
 }
 
-for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews minimum; do
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews minimum runtime-claude-only runtime-codex-only; do
 	enabled=" $roles "
+	runtimes='["claude","codex"]'
 	case $scenario in
 	no-planner) enabled=${enabled/ planner / } ;;
 	no-designer) enabled=${enabled/ designer / } ;;
 	no-planning) enabled=${enabled/ planner / }; enabled=${enabled/ designer / } ;;
-	claude-only) enabled=${enabled/ codex-implementer / }; enabled=${enabled/ codex-fixer / } ;;
-	codex-only) enabled=${enabled/ claude-implementer / }; enabled=${enabled/ claude-fixer / } ;;
+	claude-only|runtime-claude-only) enabled=${enabled/ codex-implementer / }; enabled=${enabled/ codex-fixer / } ;;
+	codex-only|runtime-codex-only) enabled=${enabled/ claude-implementer / }; enabled=${enabled/ claude-fixer / } ;;
 	no-reviews) for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa; do enabled=${enabled/ $role / }; done ;;
 	minimum) enabled=' orchestrator codex-implementer codex-fixer ' ;;
 	esac
+	case $scenario in runtime-claude-only) runtimes='["claude"]' ;; runtime-codex-only) runtimes='["codex"]' ;; esac
 	mkdir "$test_dir/$scenario"
 	cat >"$test_dir/values" <<'EOF'
 project_key	demo
@@ -66,6 +68,29 @@ EOF
 	done
 	echo "PASS templates: $scenario の有効な役だけが残り、値を文字列のまま差し込む"
 done
+runtimes='["claude","codex"]'
+
+for runtime in claude codex; do
+	if [[ $runtime == claude ]]; then expected=claude-sonnet-5-5; else expected=gpt-6.1-sol; fi
+	for file in "$test_dir/runtime-$runtime-only/"*; do
+		case ${file##*/} in squad|autopilots) continue ;; esac
+		role=${file##*/}
+		model=$(template_field "$file" model)
+		if [[ $runtime == claude && ( $role == planner || $role == designer ) ]]; then
+			[[ $model == claude-opus-5-5 ]]
+		else [[ $model == "$expected" ]]; fi
+		for field in thinking_level max_concurrent_tasks skills; do
+			[[ $(template_field "$file" "$field") == "$(template_field "$test_dir/all/$role" "$field")" ]]
+		done
+	done
+done
+echo 'PASS templates: 片方だけのランタイムでは設計表のモデルへ移し、思考の深さ・同時実行数・スキルを保つ'
+
+printf '<!-- IF runtime-claude -->\nclaude\n<!-- ELSE -->\ncodex\n<!-- ENDIF -->\n<!-- IF planner runtime-codex -->\neither\n<!-- ENDIF -->\n' >"$test_dir/runtime-conditions"
+runtimes='["codex"]' template_filter '' "$test_dir/runtime-conditions" >"$test_dir/runtime-result"
+printf 'codex\neither\n' >"$test_dir/runtime-want"
+cmp "$test_dir/runtime-result" "$test_dir/runtime-want"
+echo 'PASS templates: ランタイムの印を役とは別に評価し、ELSEと役とのOR条件を展開する'
 
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"

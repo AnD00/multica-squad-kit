@@ -2,7 +2,11 @@
 name: "{{project_key}}-planner-{{member_key}}"
 description: ステークホルダーと要件を詰めて定義し、タスクに分ける
 role: 要件定義とタスク分割。新しい要望は最初にここへ回す
+<!-- IF runtime-claude -->
 model: claude-opus-5-5
+<!-- ELSE -->
+model: gpt-6.1-sol
+<!-- ENDIF -->
 thinking_level: medium
 skills: squad-handoff
 ---

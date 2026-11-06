@@ -2,8 +2,12 @@
 name: "{{project_key}}-ux-reviewer-{{member_key}}"
 description: プロジェクトの画面と文言が、利用者に伝わるかをレビューする
 role: UX レビュー。画面や文言を変える PR を受ける
+<!-- IF runtime-codex -->
 <!-- IF codex-implementer -->
 model: gpt-6.1-sol
+<!-- ELSE -->
+model: claude-sonnet-5-5
+<!-- ENDIF -->
 <!-- ELSE -->
 model: claude-sonnet-5-5
 <!-- ENDIF -->

@@ -24,6 +24,12 @@ prepare_project() (
 	trap 'rm -rf -- "$project_work"' EXIT
 	enabled=''
 	jq -e --arg known " $template_roles " 'type=="array" and all(.[]; . as $role | type=="string" and ($known|contains(" "+$role+" ")))' >/dev/null <<<"$excluded_roles" || die '外す役の指定が不正です。'
+	# 登録する系統だけに反映する。保存済みの回答には自分で外した役だけを残す。
+	for role in claude codex; do
+		if ! uses_runtime "$role"; then
+			excluded_roles=$(jq -c --arg runtime "$role" '.+[$runtime+"-implementer",$runtime+"-fixer"]|unique' <<<"$excluded_roles")
+		fi
+	done
 	for role in $template_roles; do
 		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || continue
 		if ! jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles"; then enabled+=" $role"; fi
@@ -73,7 +79,15 @@ prepare_project() (
 		model=$(template_field "$project_work/$role.filtered" model) || die 'モデルの書式が不正です。'
 		thinking=$(template_field "$project_work/$role.filtered" thinking_level) || die '思考の深さの書式が不正です。'
 		[[ -n $model && -n $thinking ]] || die 'モデルと考え方が必要です。'
-		case $model in claude-*) runtime=$claude_runtime_id ;; gpt-*) runtime=$codex_runtime_id ;; *) die "未知のモデルです: $model" ;; esac
+		case $model in
+		claude-*)
+			uses_runtime claude || die "使うランタイムにないモデルです: $role ($model)。拡張の front matter をランタイムの印で分けてください。"
+			runtime=$claude_runtime_id ;;
+		gpt-*)
+			uses_runtime codex || die "使うランタイムにないモデルです: $role ($model)。拡張の front matter をランタイムの印で分けてください。"
+			runtime=$codex_runtime_id ;;
+		*) die "未知のモデルです: $model" ;;
+		esac
 		[[ -n $runtime ]] || die 'オンラインのランタイムがありません。'
 		name=$(template_field "$project_work/$role.filtered" name) || die '名前の書式が不正です。'
 		printf '%s' "$name" >"$project_work/name"
@@ -157,7 +171,7 @@ prepare_project() (
 		current=$(mc agent get "$id" --output json) || die 'エージェントを読めませんでした。'
 		result=$(mc agent env get "$id" --output json) || die '環境変数を読めませんでした。'
 		jq -e '(.custom_env // {}) | type=="object" and all(.[]; type=="string")' >/dev/null <<<"$result" || die '環境変数の応答が不正です。'
-		jq --slurpfile desired "$project_work/$role.env" '(.custom_env // {} | del(.SQUAD_KIT_GH_DEPENDABOT_MERGE)) + $desired[0]' <<<"$result" >"$project_work/env.json"
+		jq --slurpfile desired "$project_work/$role.env" '(.custom_env // {} | del(.SQUAD_KIT_GH_DEPENDABOT_MERGE,.CLAUDE_CONFIG_DIR,.ENABLE_CLAUDEAI_MCP_SERVERS,.CLAUDE_CODE_SHELL,.CLAUDE_CODE_AUTO_COMPACT_WINDOW)) + $desired[0]' <<<"$result" >"$project_work/env.json"
 		if [[ $(jq -Sc '.custom_env // {}' <<<"$result") != "$(jq -Sc . "$project_work/env.json")" ]]; then
 			mc agent env set "$id" --custom-env-file "$project_work/env.json" --output json >/dev/null || die '環境変数を反映できませんでした。'
 		fi
@@ -193,7 +207,7 @@ project_completion() {
 	printf '\nプロジェクトの設定が終わりました: %s（%s）\n' "$project_name" "${workspace_name:-$workspace_id}"
 	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
 	printf '%s\n' '次にすること:'
-	printf '%s\n' '1. Multica の画面で、スクワッド・エージェント・スキル・ラベル・オートパイロットと、ランタイムがオンラインかを確認してください。'
+	printf '%s\n' '1. Multica の画面で、スクワッド・エージェント・スキル・ラベル・オートパイロットと、使うランタイムがオンラインかを確認してください。'
 	printf '%s\n' '2. skeleton/ の案内に従い、各リポジトリの AGENTS.md・作業別のルールと、プロジェクトの説明・検証スキルを記入してください。'
 	if [[ " $enabled " == *' dependabot-merger '* ]]; then
 		printf '%s\n' '3. 選んだ各リポジトリに Dependabot の Webhook を登録してください（manual.md の「人間が行う Webhook の登録」）。'
@@ -201,7 +215,8 @@ project_completion() {
 		printf '%s\n' '3. Dependabot の役は外したため、この役の Webhook の登録は不要です。'
 	fi
 	printf '%s\n' 'エージェント用のログインが切れた場合は、次を実行してから bash setup.sh を流し直してください。'
-	printf '  CLAUDE_CONFIG_DIR=%q claude\n  CODEX_HOME=%q codex login\n' "$agent_home/claude" "$agent_home/codex"
+	if uses_runtime claude; then printf '  CLAUDE_CONFIG_DIR=%q claude\n' "$agent_home/claude"; fi
+	if uses_runtime codex; then printf '  CODEX_HOME=%q codex login\n' "$agent_home/codex"; fi
 }
 
 # 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。
@@ -262,10 +277,12 @@ project_role() {
 	max=$(jq -r --arg role "$1" '.[$role].max_concurrent_tasks' <<<"$records")
 }
 project_desired_env() {
-	jq -n --arg a "$allowed_repos_file" --arg z "$project_shell_dir" --arg h "$agent_home/git-hooks" --arg c "$agent_home/claude" --arg role "$1" --arg model "$2" '
+	local use_claude=false
+	if uses_runtime claude; then use_claude=true; fi
+	jq -n --arg a "$allowed_repos_file" --arg z "$project_shell_dir" --arg h "$agent_home/git-hooks" --arg c "$agent_home/claude" --arg role "$1" --arg model "$2" --argjson use_claude "$use_claude" '
 		{SQUAD_KIT_ALLOWED_REPOS:$a,ZDOTDIR:$z,BASH_ENV:($z+"/env.sh"),GIT_CONFIG_COUNT:"1",GIT_CONFIG_KEY_0:"core.hooksPath",GIT_CONFIG_VALUE_0:$h} |
 		if ($model|startswith("claude-")) then .+{CLAUDE_CONFIG_DIR:$c,ENABLE_CLAUDEAI_MCP_SERVERS:"false",CLAUDE_CODE_SHELL:"/bin/zsh",CLAUDE_CODE_AUTO_COMPACT_WINDOW:"150000"} else . end |
-		if $role=="usage-monitor" then .+{CLAUDE_CONFIG_DIR:$c} else . end |
+		if $role=="usage-monitor" and $use_claude then .+{CLAUDE_CONFIG_DIR:$c} else . end |
 		if $role=="dependabot-merger" then .+{SQUAD_KIT_GH_DEPENDABOT_MERGE:"1"} else . end'
 }
 

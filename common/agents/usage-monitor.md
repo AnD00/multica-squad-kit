@@ -1,7 +1,11 @@
 ---
 name: "{{project_key}}-usage-monitor-{{member_key}}"
 description: Claude と Codex の使用上限が近いときと戻ったときに issue で知らせる
+<!-- IF runtime-codex -->
 model: gpt-6.1-sol
+<!-- ELSE -->
+model: claude-sonnet-5-5
+<!-- ENDIF -->
 thinking_level: low
 max_concurrent_tasks: 1
 ---

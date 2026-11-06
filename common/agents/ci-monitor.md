@@ -1,7 +1,11 @@
 ---
 name: "{{project_key}}-ci-monitor-{{member_key}}"
 description: PR の CI が終わるたびに記録のスレッドへ返し、今の head の CI の失敗だけを進行役へ知らせる
+<!-- IF runtime-codex -->
 model: gpt-6.1-sol
+<!-- ELSE -->
+model: claude-sonnet-5-5
+<!-- ENDIF -->
 thinking_level: low
 max_concurrent_tasks: 1
 ---
