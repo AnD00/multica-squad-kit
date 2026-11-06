@@ -421,9 +421,21 @@ echo 'PASS environment: リポジトリの許可を反映し、マージ権限�
 
 reset_db
 mkdir -p "$test_dir/extension/instructions"
-printf 'v1.0.0\n' >"$test_dir/extension/kit-version"
+cp "$root/VERSION" "$test_dir/extension/kit-version"
 printf '{"qa":{"max_concurrent_tasks":2,"mcp_config":{"mcpServers":{"browser":{"command":"browser-tool"}}},"instructions_file":"instructions/qa.md"}}\n' >"$test_dir/extension/additions.json"
 printf '\n## Project checks\n\nRead the project test manual.\n' >"$test_dir/extension/instructions/qa.md"
 TEST_EXTENSION_DIR="$test_dir/extension" run
 jq -e '.max_concurrent_tasks==2 and .mcp_config.mcpServers.browser.command=="browser-tool" and (.instructions|contains("Read the project test manual."))' "$TEST_DB/agents/agent-demo-qa-owner.json" >/dev/null
 echo 'PASS extension agent: 追記の指示・MCP・同時実行の上限がサーバーへ届く'
+
+# 大文字・小文字の違いだけなら既存のスクワッドを改名せず使う。
+reset_db
+printf '%s\n' '{"id":"existing-squad","name":"Demo-owner","creator_id":"actor"}' >"$TEST_DB/squad.json"
+run
+jq -e '.id=="existing-squad" and .name=="Demo-owner"' "$TEST_DB/squad.json" >/dev/null
+! jq -es 'any(.[]; .[0:2]==["squad","create"])' "$TEST_DB/calls" >/dev/null
+jq -e '.instructions|contains("[@Demo-owner](mention://squad/existing-squad)")' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >/dev/null
+: >"$TEST_DB/calls"
+run
+! jq -es 'any(.[]; .[0:2]==["squad","create"])' "$TEST_DB/calls" >/dev/null
+echo 'PASS squad: 表記の違う既存スクワッドの ID と名前を維持し、そのメンションを指示に入れる'

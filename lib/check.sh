@@ -33,3 +33,10 @@ read_list() {
 	esac
 	printf '%s\n' "$raw"
 }
+
+# スクワッドだけは既存の大文字・小文字の表記を保って引き継ぐ。
+squad_named() {
+	jq -e 'type=="array" and all(.[]; (.id|type=="string" and length>0) and (.name|type=="string" and length>0))' >/dev/null <<<"$1" || die 'スクワッド一覧の応答が不正です。'
+	matches=$(jq -c --arg name "$2" '[.[] | select((.name|ascii_downcase)==($name|ascii_downcase))]' <<<"$1")
+	[[ $(jq length <<<"$matches") -le 1 ]] || die "大文字小文字の違いだけのスクワッドが複数あります: $2"
+}

@@ -12,6 +12,7 @@ autopilot_sections() {
 			elif ($line|startswith("- 範囲: ")) then .current.scope=($line|capture("^- 範囲: `(?<scope>[^`]+)`$").scope)
 			elif ($line|startswith("- 担当: ")) then .current.agent=($line|ltrimstr("- 担当: "))
 			elif ($line|startswith("- 実行: ")) then .current.mode=($line|capture("^- 実行: `(?<mode>[^`]+)`$").mode)
+			elif ($line|startswith("- トリガー: ")) then .current.trigger=($line|(capture("^- トリガー: `(?<kind>[^`]+)`$") // error("オートパイロットの定義が不正: トリガー行の書式")).kind)
 			elif ($line|startswith("- スケジュール: ")) then
 				($line|capture("^- スケジュール: `(?<cron>[^`]+)`（(?<timezone>[^）]+)）$")) as $schedule |
 				.current.cron=$schedule.cron | .current.timezone=$schedule.timezone
@@ -21,7 +22,8 @@ autopilot_sections() {
 		end | if all(.[]; (.title|type=="string" and length>0) and (.agent|type=="string" and length>0) and
 			(.scope=="repository" or .scope=="member") and
 			(.mode=="create_issue" or .mode=="run_only") and (.instructions|length>0) and
-			(.cron|type=="string" and length>0) and (.timezone|type=="string" and length>0))
+			(if .trigger=="webhook" then (has("cron")|not) and (has("timezone")|not)
+			else (has("trigger")|not) and (.cron|type=="string" and length>0) and (.timezone|type=="string" and length>0) end))
 		then . else error("オートパイロットの定義が不正") end' "$1"
 }
 
@@ -95,6 +97,18 @@ sync_project_autopilots() {
 			created_autopilots=$((${created_autopilots:-0}+1))
 		elif ! jq -e --arg instructions "$instructions" --arg mode "$mode" --arg assignee "$assignee" '.description==$instructions and .execution_mode==$mode and .assignee_id==$assignee' >/dev/null <<<"$current"; then
 			mc autopilot update "$id" --description "$instructions" --mode "$mode" --project "$project_id" --agent "$assignee" --output json >/dev/null || die "オートパイロットを更新できませんでした: $title"
+		fi
+		# Webhook だけの拡張にスケジュールを足さない。既存の URL と設定は保つ。
+		if [[ $(jq -r '.trigger // "schedule"' <<<"$record") == webhook ]]; then
+			triggers=$(mc autopilot trigger-list "$id" --output json) || die 'オートパイロットのトリガーを読めませんでした。'
+			jq -e '.triggers | type=="array" and all(.[]; (.id|type=="string" and length>0) and (.kind|type=="string"))' >/dev/null <<<"$triggers" || die 'トリガーの応答が不正です。'
+			if jq -e 'any(.triggers[]; .kind=="schedule")' >/dev/null <<<"$triggers"; then
+				die "Webhook だけの定義に既存のスケジュールがあります。人間が確認して外してから流し直してください: $title"
+			fi
+			if ! jq -e 'any(.triggers[]; .kind=="webhook")' >/dev/null <<<"$triggers"; then
+				mc autopilot trigger-add "$id" --kind webhook --label 'プロジェクトの拡張' --output json >/dev/null || die 'Webhook のトリガーを追加できませんでした。'
+			fi
+			continue
 		fi
 		# 作成後にも読む。作成に成功してトリガー追加で失敗した回を再実行できる。
 		triggers=$(mc autopilot trigger-list "$id" --output json) || die 'オートパイロットのスケジュールを読めませんでした。'

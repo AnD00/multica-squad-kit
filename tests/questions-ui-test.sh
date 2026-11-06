@@ -99,6 +99,19 @@ grep -qF 'エージェント: 15件（新規0件、既存15件）' "$test_dir/er
 grep -qF 'オートパイロット: 3件（新規0件、既存3件）' "$test_dir/err"
 ! grep -qF '保持する既存の設定:' "$test_dir/err"
 echo 'PASS display: 全件が既存のときも正しく集計し、作り直す予定と表示しない'
+echo '[{"id":"squad-a","name":"Shop-owner"}]' >"$TEST_SQUADS_FILE"
+deny; no_state
+grep -qF 'Shop-owner（今あるものを直す）' "$test_dir/err"
+echo 'PASS questions: 大文字・小文字が違っても既存の表記で引き継ぐ予定を表示する'
+echo '[{"id":"squad-a","name":"Shop-owner"},{"id":"squad-b","name":"SHOP-OWNER"}]' >"$TEST_SQUADS_FILE"
+deny; no_state
+grep -qF '大文字小文字の違いだけのスクワッドが複数あります' "$test_dir/err"
+echo 'PASS questions: 表記の違いだけの候補が複数なら登録前に止まる'
+echo '[{"id":"squad-a","name":"Shop-owner"}]' >"$TEST_SQUADS_FILE"
+printf '1\n1\nshop\n1\nowner\nowner2\n0\n0\nno\n' >"$test_dir/input"
+TEST_SQUAD_OWNER=someone-else deny; no_state
+grep -qF 'ほかの人が作ったスクワッド' "$test_dir/err"
+echo 'PASS questions: 表記が違っても他人のスクワッドの所有者確認を省かない'
 unset TEST_SQUADS_FILE TEST_AGENTS_FILE TEST_SKILLS_FILE TEST_AUTOPILOTS_FILE TEST_RESOURCES_DIR
 
 printf 'http://wrong.example.test\nhttps://offline.example.test\nhttps://okay.example.test\n1\n1\nsecure\n1\nowner\n0\n0\nno\n' >"$test_dir/input"
