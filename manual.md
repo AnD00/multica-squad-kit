@@ -293,7 +293,7 @@ SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh
 npx markdownlint-cli2 '**/*.md' '#tmp/**'
 ```
 
-`tests/run.sh` はテストを並べて流す。並列数と 1 本ずつ流す方法は、[テストを流す](CONTRIBUTING.md#テストを流す)を参照する。
+`tests/run.sh` はテストを並べて流す。並列数、1 本ずつ流す方法、テストを書く決まりは、[テストを流す](CONTRIBUTING.md#テストを流す)を参照する。
 
 `MANIFEST` はファイル不足と改変を、登録前に検出するために残す。変更したらスクリプトで作り直す。CI は同じ生成をして差分がないか確かめる。Git の管理領域と `tmp/` は一覧から除く。
 
