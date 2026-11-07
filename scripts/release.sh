@@ -66,9 +66,56 @@ git fetch --quiet --no-tags origin main || stop 'origin の main を取ってこ
 [[ $(git rev-parse HEAD) == "$(git rev-parse FETCH_HEAD)" ]] || stop '手元の main が origin/main と一致しません。未公開のコミットがあるか、origin/main に遅れています。`git pull --ff-only origin main` をしても合わないときは、PR でマージしてから流してください。'
 commit=$(git rev-parse HEAD)
 
-# 6: VERSION の形。公開する中身と同じコミットから読む。
+# 6: VERSION の形。タグの名前を決めるため、まず手元の main の先頭から読む。
 version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || version=
 [[ $version =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || stop "VERSION が vX.Y.Z の形ではありません: ${version:-（空）}"
+
+work_tmp=$(mktemp -d "${TMPDIR:-/tmp}/release.XXXXXX")
+trap 'rm -rf -- "$work_tmp"' EXIT
+
+# タグと Release の状態: 手元と origin のタグを読み、表（docs/release.md）ですることを決める。--tags では取ってこない。
+local_tag=$(git rev-parse --verify --quiet "refs/tags/$version") || local_tag=
+remote_out=$(git ls-remote origin "refs/tags/$version") || stop 'origin のタグを読めません。'
+remote_tag=$(printf '%s\n' "$remote_out" | awk -v ref="refs/tags/$version" '$2 == ref {print $1; exit}')
+if [[ -n $local_tag && $(git cat-file -t "$local_tag") != tag ]]; then
+	stop "手元の $version のタグは、注釈付きではありません。手で付けたタグのおそれがあるため、動かしません。"
+fi
+if [[ -n $local_tag && -z $remote_tag ]]; then
+	stop "手元に $version のタグがありますが、origin にはありません（まだ公開されていません）。\`git tag -d $version\` で消してから流し直してください。"
+fi
+if [[ -z $local_tag && -n $remote_tag ]]; then
+	stop "origin に $version のタグがありますが、手元にはありません。\`git fetch origin tag $version\` で取ってきてから流し直してください。"
+fi
+if [[ -n $local_tag && $local_tag != "$remote_tag" ]]; then
+	stop "手元と origin の $version のタグが違います。タグは動かしません。"
+fi
+# Release: 成功すればあり、HTTP 404 ならなし。それ以外の失敗（認証、ネットワーク）は読めないので止まる。
+release_url=
+if release_url=$(gh api "repos/$repo/releases/tags/$version" --jq .html_url 2>"$work_tmp/gh-err"); then
+	release=yes
+elif grep -q 'HTTP 404' "$work_tmp/gh-err"; then
+	release=no
+else
+	stop "$version の Release の有無を GitHub から読めません: $(tr '\n' ' ' <"$work_tmp/gh-err")"
+fi
+if [[ -z $local_tag && $release == yes ]]; then
+	stop "$version のタグはありませんが、Release があります: $release_url"
+fi
+if [[ -n $local_tag && $release == yes ]]; then
+	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"
+	exit 0
+fi
+# タグを付けるコミット: タグがなければ main の先頭、あればそのタグが指すコミット。
+if [[ -n $local_tag ]]; then
+	commit=$(git rev-parse "refs/tags/$version^{commit}")
+	action=release
+else
+	action=tag-and-release
+fi
+
+# 6〜8: タグを付けるコミットの VERSION と CHANGELOG.md から確かめ、Release の本文を作る。
+commit_version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || commit_version=
+[[ $commit_version == "$version" ]] || stop "$version のタグが指すコミットの VERSION（${commit_version:-空}）が、タグの名前と違います。"
 
 # 7: CHANGELOG.md の先頭の版
 changelog=$(git show "$commit:CHANGELOG.md" 2>/dev/null) || stop 'CHANGELOG.md を読めません。'
@@ -80,16 +127,16 @@ notes=$(printf '%s\n' "$changelog" | awk -v heading="## $version" '$0 == heading
 [[ -n $(printf '%s' "$notes" | tr -d '[:space:]') ]] || stop "CHANGELOG.md の $version の節が空です。"
 notes=$(printf '%s\n' "$notes" | awk 'NF {if (started) for (; blank > 0; blank--) print ""; started = 1; blank = 0; print; next} started {blank++}')
 
-# 段 2 で、すでにあるタグと Release の状態の読み分けに置き換える。
-[[ -z $(git rev-parse --verify --quiet "refs/tags/$version") ]] || stop "手元に $version のタグがすでにあります。"
-[[ -z $(git ls-remote origin "refs/tags/$version") ]] || stop "origin に $version のタグがすでにあります。"
-
 # 確認: 中身を標準出力に出し、問いを標準エラー出力に出して、標準入力の答えを読む。
 [[ -t 0 ]] || stop '標準入力が端末でないため、確認を求められません。端末から流してください。'
 printf 'リポジトリ: %s\n' "$repo"
 printf '出す版: %s\n' "$version"
 printf 'タグを付けるコミット: %s %s\n' "$commit" "$(git log -1 --format=%s "$commit")"
-printf 'すること: 注釈付きのタグを作って origin に push し、Release を作る\n'
+if [[ $action == release ]]; then
+	printf 'すること: すでにあるタグのまま、Release だけを作る\n'
+else
+	printf 'すること: 注釈付きのタグを作って origin に push し、Release を作る\n'
+fi
 printf 'Release の本文:\n----------------------------------------\n%s\n----------------------------------------\n' "$notes"
 printf '公開しますか [y/N]: ' >&2
 answer=
@@ -97,15 +144,22 @@ read -r answer || :
 [[ $answer == y || $answer == Y ]] || stop '公開を取りやめました。'
 
 # 公開: 確認で出したコミットを明示してタグを作る。--force は付けない。
-notes_file=$(mktemp "${TMPDIR:-/tmp}/release-notes.XXXXXX")
-trap 'rm -f -- "$notes_file"' EXIT
-printf '%s\n' "$notes" >"$notes_file"
-git tag -a "$version" -m "$version" "$commit"
-if ! git push origin "refs/tags/$version"; then
-	git tag -d "$version" >/dev/null
-	stop "タグの push に失敗しました。手元のタグを消したので、流し直せます。"
+printf '%s\n' "$notes" >"$work_tmp/notes"
+if [[ $action == tag-and-release ]]; then
+	git tag -a "$version" -m "$version" "$commit"
+	if ! git push origin "refs/tags/$version"; then
+		git tag -d "$version" >/dev/null
+		stop "タグの push に失敗しました。手元のタグを消したので、流し直せます。"
+	fi
 fi
-if ! url=$(gh release create "$version" --repo "$repo" --verify-tag --title "$version" --notes-file "$notes_file"); then
+if ! url=$(gh release create "$version" --repo "$repo" --verify-tag --title "$version" --notes-file "$work_tmp/notes"); then
+	if [[ $action == release ]]; then
+		stop "Release の作成に失敗しました。同じコマンドを流し直すと、Release だけを作ります。"
+	fi
 	stop "タグは push しましたが、Release の作成に失敗しました。同じコマンドを流し直すと、Release だけを作ります。"
 fi
-printf 'タグと Release を出しました: %s\n' "$url"
+if [[ $action == release ]]; then
+	printf 'Release を出しました: %s\n' "$url"
+else
+	printf 'タグと Release を出しました: %s\n' "$url"
+fi

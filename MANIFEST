@@ -62,7 +62,7 @@ e9680446dc24c32571fd0af3729609d20202f59a8bdba0aee84f6e91f6a68e96  ./lib/webhooks
 b82e7ab7af198b46a6dd4145f4f9e509e3b4f1e1a286e1c1c7ee17ac8f6e60c0  ./manual.md
 70234570a08252ccf4bc8054663c1e55439d6620121c31dbd701252d8bca2939  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
-489af7c23aa159e2786f6e53aa0304a7f71cd7ca646d14f997473182b323dc87  ./scripts/release.sh
+78bcf440c10ffd3d14f27c6ece8a6d39bba42a4fecea81c6b6cec79f92063798  ./scripts/release.sh
 c46201338d441461baa9b0aeaf613a54765d27d756e34380654aa3cb79b9d15c  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
 813658fb296b853b8b45077b49a4d02defcec11a572638cd0b0246116a47a6a7  ./skeleton/.agents/rules/docs.md
@@ -95,7 +95,7 @@ f1a9a325264809366a41e5ee7d5053a94cfe26f3ff5a1abc583f72a3c38e28b1  ./tests/projec
 25448b2a123e8036f12bcdac4abc1d7edb33bda6659c35f7bce046d42dd7a007  ./tests/project-test.sh
 69e47c2d4ce089522304292046e36851c343985780c74bdaf652ad5ea5a08553  ./tests/questions-ui-test.sh
 18f62d1e1174d966a6544c33505a73a3f550b2013856e924a3f85763ff4d0bf2  ./tests/release-tags-test.sh
-043de2303c372a1cf9f81d6abd4fc5fc2621ed2b65b7ccf5fea3ab31b5c9bfec  ./tests/release-test.sh
+5e1e030ff44655ec4f0ed4020c90d8da82558298ed2d18abbede3473e4f03f16  ./tests/release-test.sh
 e30c1d1aeb6eda26229edec71d25388d40173888fd5fa6cac065ff2307224446  ./tests/role-choices-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
 95737260b4ead2219f5599907d5f5ad99231f3bc73d48fa8600dacd07e2d42a2  ./tests/run-one.sh

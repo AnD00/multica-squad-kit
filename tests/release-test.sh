@@ -13,6 +13,7 @@ export GIT_AUTHOR_NAME='Test User' GIT_AUTHOR_EMAIL=test@example.test
 export GIT_COMMITTER_NAME='Test User' GIT_COMMITTER_EMAIL=test@example.test
 
 # スタブの gh は、受けた引数を行にして記録し、release create の --notes-file の中身を写す。
+# api は GH_API で、Release が exists（ある）、fail（404 のほかの失敗）、それ以外（なし: 404）を切り替える。
 mkdir -p "$test_dir/bin"
 cat >"$test_dir/bin/gh" <<'STUB'
 #!/bin/bash
@@ -25,6 +26,13 @@ if [[ ${1:-} == release && ${2:-} == create ]]; then
 	done
 	echo "https://github.com/example/kit/releases/tag/$GH_TAG"
 	exit 0
+fi
+if [[ ${1:-} == api && ${2:-} == repos/example/kit/releases/tags/* ]]; then
+	case ${GH_API:-none} in
+	exists) echo "https://github.com/example/kit/releases/tag/${2##*/}"; exit 0 ;;
+	fail) echo 'gh: Bad credentials (HTTP 401)' >&2; exit 1 ;;
+	*) echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
+	esac
 fi
 echo "unexpected gh call: $*" >&2
 exit 1
@@ -92,6 +100,7 @@ run_release() {
 	shift
 	rm -f "$case_dir/rc"
 	(cd "$work" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 \
+		GH_API="${GH_API:-none}" GH_CREATE_FAIL="${GH_CREATE_FAIL:-}" \
 		python3 "$root/tests/ui-pty.py" none "$case_dir/out" "$case_dir/err" --stdin-tty "$input" -- \
 		/bin/bash -c 'rc=0; /bin/bash scripts/release.sh "$@" || rc=$?; printf "%s" "$rc" >"$0"' "$case_dir/rc" "$@")
 	rc=$(<"$case_dir/rc")
@@ -100,7 +109,7 @@ run_release() {
 # run_release_notty <引数...>: 標準入力を /dev/null にして流す（端末でない）。
 run_release_notty() {
 	rc=0
-	(cd "$work" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 \
+	(cd "$work" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 GH_API="${GH_API:-none}" \
 		/bin/bash scripts/release.sh "$@") </dev/null >"$case_dir/out" 2>"$case_dir/err" || rc=$?
 }
 
@@ -172,17 +181,21 @@ no_tag
 no_release
 
 # 確かめで止まるケース: 理由を出し、fetch のほかは何も変えず、タグも Release も作らない。
-# expect_stop <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まることを確かめる。
-expect_stop() {
+# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確かめる。タグがあるケース用。
+expect_stop_keep() {
 	local before
 	before=$(snapshot)
 	run_release "$test_dir/answer-y"
 	[[ $rc == 1 ]]
-	no_tag
 	no_release
 	[[ $(snapshot) == "$before" ]]
 	grep -qF "$1" "$case_dir/err"
 	! grep -qF '公開しますか' "$case_dir/err"
+}
+# expect_stop <理由に含む文字>: expect_stop_keep に、手元にも origin にもタグがないことを足す。
+expect_stop() {
+	expect_stop_keep "$1"
+	no_tag
 }
 
 # 2: origin が GitHub のリポジトリでない
@@ -252,14 +265,115 @@ rc=0
 grep -qF 'ルートで流してください' "$case_dir/err"
 no_release
 
-# すでにタグがあるとき（段 2 で、状態の読み分けに置き換える）は、タグを動かさずに止まる。
-make_case stop-existing-tag
-git -C "$work" tag -a v1.6.0 -m v1.6.0
+# tag_here: 手元の main の先頭に注釈付きのタグを作り、origin に push する。
+tag_here() {
+	git -C "$work" tag -a v1.6.0 -m v1.6.0
+	git -C "$work" push -q origin refs/tags/v1.6.0
+}
+
+# タグがあって Release がない: 承認すると、タグを変えずに Release だけを作る。
+# タグのあとに main に別のコミットがあっても、本文と確認の画面はタグの中身から作る。
+make_case tag-only
+tag_here
 tag_sha=$(git -C "$work" rev-parse v1.6.0)
+tag_commit=$(git -C "$work" rev-parse HEAD)
+sed 's/新しい版の 1 段落目。/main のあとの本文。/' "$work/CHANGELOG.md" >"$work/CHANGELOG.new"
+mv "$work/CHANGELOG.new" "$work/CHANGELOG.md"
+commit_work 'Content after the tag'
+before=$(snapshot)
 run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+[[ $(snapshot) == "$before" ]]
+[[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
+[[ $(grep -c '^release create' "$case_dir/gh.log") == 1 ]]
+grep -qxF 'api repos/example/kit/releases/tags/v1.6.0 --jq .html_url' "$case_dir/gh.log"
+[[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
+grep -qxF 'すること: すでにあるタグのまま、Release だけを作る' "$case_dir/out"
+grep -qF "タグを付けるコミット: $tag_commit Release content" "$case_dir/out"
+grep -qF 'https://github.com/example/kit/releases/tag/v1.6.0' "$case_dir/out"
+# 承認しないときは、Release を作らない。
+make_case tag-only-decline
+tag_here
+before=$(snapshot)
+run_release "$test_dir/answer-n"
 [[ $rc == 1 ]]
-[[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" && -z $(git -C "$bare" tag) ]]
 no_release
+[[ $(snapshot) == "$before" ]]
+grep -qF '公開を取りやめました。' "$case_dir/err"
+
+# タグも Release もある: 問いを出さず、何も変えずに 0 で終わる。標準入力が端末でなくても同じ。
+make_case both-exist
+tag_here
+before=$(snapshot)
+GH_API=exists run_release "$test_dir/answer-n"
+[[ $rc == 0 ]]
+no_release
+[[ $(snapshot) == "$before" ]]
+grep -qF 'すでに出してあります' "$case_dir/out"
+grep -qF 'https://github.com/example/kit/releases/tag/v1.6.0' "$case_dir/out"
+! grep -qF '公開しますか' "$case_dir/err"
+GH_API=exists run_release_notty
+[[ $rc == 0 ]]
+no_release
+[[ $(snapshot) == "$before" ]]
+grep -qF 'すでに出してあります' "$case_dir/out"
+
+# 手元だけにタグがある: 公開されていないと出し、消すコマンドを添えて止まる。
+make_case tag-local-only
+git -C "$work" tag -a v1.6.0 -m v1.6.0
+expect_stop_keep 'origin にはありません'
+grep -qF 'git tag -d v1.6.0' "$case_dir/err"
+
+# origin だけにタグがある: 取ってくるコマンドを添えて止まり、タグを手元に持ち込まない。
+make_case tag-origin-only
+tag_here
+git -C "$work" tag -d v1.6.0 >/dev/null
+expect_stop_keep '手元にはありません'
+grep -qF 'git fetch origin tag v1.6.0' "$case_dir/err"
+[[ -z $(git -C "$work" tag) ]]
+
+# 手元と origin のタグが違う
+make_case tag-differs
+tag_here
+git -C "$work" tag -d v1.6.0 >/dev/null
+git -C "$work" tag -a v1.6.0 -m 'another tag'
+[[ $(git -C "$work" rev-parse v1.6.0) != "$(git -C "$bare" rev-parse v1.6.0)" ]]
+expect_stop_keep 'タグが違います'
+
+# 注釈付きでないタグ（origin にも同じものがあっても止まる）
+make_case tag-lightweight
+git -C "$work" tag v1.6.0
+git -C "$work" push -q origin refs/tags/v1.6.0
+expect_stop_keep '注釈付きではありません'
+
+# タグのない Release
+make_case release-without-tag
+GH_API=exists expect_stop_keep 'Release があります'
+no_tag
+
+# gh api が 404 のほかで失敗する: 読めないので止まる。タグがあっても、ないときも。
+make_case api-fails
+GH_API=fail expect_stop 'GitHub から読めません'
+grep -qF 'Bad credentials' "$case_dir/err"
+make_case api-fails-with-tag
+tag_here
+GH_API=fail expect_stop_keep 'GitHub から読めません'
+
+# 6〜8 は、タグが指すコミットで確かめる。main がそのあとで直っていても、タグの中身が悪ければ止まる。
+make_case tag-commit-version
+printf 'v1.5.9\n' >"$work/VERSION"
+commit_work 'Other version'
+tag_here
+printf 'v1.6.0\n' >"$work/VERSION"
+commit_work 'Back to the version'
+expect_stop_keep 'タグが指すコミットの VERSION'
+make_case tag-commit-empty-section
+printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+commit_work 'Empty section'
+tag_here
+changelog_default >"$work/CHANGELOG.md"
+commit_work 'Fill the section'
+expect_stop_keep '節が空です'
 
 # push が失敗する: 手元のタグが消え、Release を作らずに 1 で終わる。
 make_case push-fails
@@ -271,17 +385,27 @@ no_tag
 no_release
 grep -qF 'push に失敗しました' "$case_dir/err"
 
-# Release の作成が失敗する: タグは残り、1 で終わる。
+# Release の作成が失敗する: タグは残り、1 で終わる。流し直すと、タグを変えずに Release だけを作る。
 make_case release-fails
-rc=0
-rm -f "$case_dir/rc"
-(cd "$work" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 GH_CREATE_FAIL=1 \
-	python3 "$root/tests/ui-pty.py" none "$case_dir/out" "$case_dir/err" --stdin-tty "$test_dir/answer-y" -- \
-	/bin/bash -c 'rc=0; /bin/bash scripts/release.sh || rc=$?; printf "%s" "$rc" >"$0"' "$case_dir/rc")
-[[ $(<"$case_dir/rc") == 1 ]]
+GH_CREATE_FAIL=1 run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
 [[ $(git -C "$bare" cat-file -t v1.6.0) == tag && $(git -C "$work" cat-file -t v1.6.0) == tag ]]
 grep -q '^release create' "$case_dir/gh.log"
 grep -qF 'Release の作成に失敗しました' "$case_dir/err"
+tag_sha=$(git -C "$work" rev-parse v1.6.0)
+before=$(snapshot)
+rm -f "$case_dir/gh.log"
+run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+[[ $(snapshot) == "$before" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
+[[ $(grep -c '^release create' "$case_dir/gh.log") == 1 ]]
+[[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
+grep -qxF 'すること: すでにあるタグのまま、Release だけを作る' "$case_dir/out"
+# Release だけを作るときの失敗も、同じコマンドで流し直せると出す。
+GH_CREATE_FAIL=1 run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+[[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" ]]
+grep -qF 'Release の作成に失敗しました。同じコマンドを流し直すと、Release だけを作ります。' "$case_dir/err"
 
 # 引数: 知らない引数と余分な引数は、使い方を出して 2 で終わる。--help と -h は、使い方を出して 0 で終わる。
 make_case args
@@ -299,4 +423,4 @@ for flag in --help -h; do
 	no_tag
 	[[ ! -e $case_dir/gh.log ]]
 done
-echo 'PASS release: 確かめで止まり、承認でだけ注釈付きのタグと Release を作る。拒否・端末でない・push と Release の失敗・引数を確かめた'
+echo 'PASS release: 確かめで止まり、承認でだけ注釈付きのタグと Release を作る。拒否・端末でない・push と Release の失敗・すでにあるタグと Release の状態・引数を確かめた'
