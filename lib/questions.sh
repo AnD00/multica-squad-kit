@@ -68,7 +68,7 @@ ask_key() {
 	local default=$1 previous=$2 kind=$3 matches existing candidate
 	if [[ -n $previous ]] && valid_key "$previous"; then default=$previous
 	elif [[ -n $previous ]]; then
-		question_notice="前回の目印「$previous」は今の形に合いません。既存の一式は残し、今回の新しい名前を確認します。"; question_notice_kind=warning
+		question_notice="前回の目印「${previous}」は今の形に合いません。既存の一式は残し、今回の新しい名前を確認します。"; question_notice_kind=warning
 	fi
 	while :; do
 		question_prompt "$default"
@@ -83,7 +83,7 @@ ask_key() {
 				existing=$(mc squad get "$(jq -r '.[0].id' <<<"$matches")" --output json) || die 'スクワッドの所有者を取得できませんでした。'
 				jq -e '(.creator_id|type=="string" and length>0)' >/dev/null <<<"$existing" || die 'スクワッドの所有者の応答が不正です。'
 				if [[ $(jq -r '.creator_id' <<<"$existing") != "$question_actor_id" ]]; then
-					input_error "「$candidate」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。"
+					input_error "「${candidate}」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。"
 					continue
 				fi
 			fi

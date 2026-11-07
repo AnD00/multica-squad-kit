@@ -82,7 +82,7 @@ workspace_can_update() {
 	creator=$(jq -r '.created_by // empty' <<<"$remote_skill")
 	if [[ $creator == "$workspace_actor_id" ]] || jq -e --arg id "$workspace_actor_id" 'any(.[]; .user_id==$id and (.role=="owner" or .role=="admin"))' >/dev/null <<<"$workspace_people"; then return 0; fi
 	creator_name=$(jq -r --arg id "$creator" '[.[] | select(.user_id==$id) | .name][0] // "最初に取り込んだ人"' <<<"$workspace_people")
-	ui_warning "更新を飛ばしました: $skill_name。更新できる人: ワークスペースのオーナー・管理者、$creator_name。"
+	ui_warning "更新を飛ばしました: ${skill_name}。更新できる人: ワークスペースのオーナー・管理者、${creator_name}。"
 	return 1
 }
 

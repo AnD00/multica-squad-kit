@@ -48,14 +48,14 @@ d5c1e862dd878501fc22869e252cbc15dc6a6f380d106655660b0d59c28fdde4  ./lib/extensio
 ec5236de6c933ea9957a4bcbd282715e8de4d92ba994e5719080f47910c55d5a  ./lib/host.sh
 e042f7692fd3b291d67de0297ba39e0e3bc4cb98245b480f6013f64c35988d3c  ./lib/installation.sh
 5347a2157370ff88cf75f0532603f715270a57c63fa749a3e95e32b57fa09825  ./lib/project-changes.sh
-be4eeb2057a038fd43039480585880cc9bb7c15687132c32475d27b569255833  ./lib/project.sh
-8561b24e87c82ba1b018646baa5cd5099bfab2c0dc7da2fd6e2fb28ae2ad92b9  ./lib/questions.sh
+28c1f45d84741e0ee7bfea4e6d40082cee0a8b75110a554bc0fc4cae7c83a84e  ./lib/project.sh
+c920e2eb38313ea57a3dec71cd5b10ccf4c62a6aa55fc4640df1f3afb3ade2b7  ./lib/questions.sh
 af59cb0214f207efade15807d56aa76ba39b451f769d814b54cc8c580a123f2d  ./lib/render.sh
 71d66b78ecc28c366f9cc3c540d01e98a65c0f682c1d6d910ccc909a53b80372  ./lib/setup-issues.sh
 fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
 16a853f062651f4e81566b9da19cc45dbd3c7c612708fa49eba6a0cbe5b2f17b  ./lib/ui.sh
 e9680446dc24c32571fd0af3729609d20202f59a8bdba0aee84f6e91f6a68e96  ./lib/webhooks.sh
-029b95c370b28eb4fb18c7ce5f47d9c0defe3b71635beb688d1ae4884f1a1840  ./lib/workspace.sh
+6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
 8f1c7da8a039f2f3d58b7be7276034ef497710e2e9e8946fb65d8c1835e7349e  ./manual.md
 6ef7ca009fb1494f977adcecfa6a7ab629ee14223e8f896213972c10ebaba380  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
@@ -71,7 +71,7 @@ f13b9d6f1d3d251a28f825e23de024d5a81bd817a10ea7f2ccace772b91aea78  ./skeleton/ver
 d73e920a3651a121bf01ba68493c4da40ea1c45901dd0259e809e953f6c217aa  ./tests/agent-templates-test.sh
 652723d0d604daa3599abccdf863468790297df334e55ab242ae548fd0c741e4  ./tests/check-content.py
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh
-2c95e89a5f9492b1fe2b5a6cfaf4c7609a83ba167720fb63681e319d25aa77e1  ./tests/completion-colors-test.sh
+a64d8892356f2ccc4f1ce2b0376e2cff1aa67040808126ed18f17e5b66f21bea  ./tests/completion-colors-test.sh
 0dc1ed5f1fea04eb14614dba2e98fd88d5ab76cafa79240f71d2633fb8742693  ./tests/content-test.sh
 98de274bd4aa284acf6e92ed6a39dbfba9a8dcdb272bde724d66b48b37617883  ./tests/error-marks-test.sh
 cf8d5df4fd30bfb56020bd43a3ec48d14bbb8c0f2776948f55a74933722dc930  ./tests/extensions-test.sh

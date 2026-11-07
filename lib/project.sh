@@ -271,13 +271,15 @@ record_project_issue_failure() {
 }
 
 project_issue_completion() {
-	local identifier title action
+	local row action
 	printf '%s\n' '起票した issue:'
-	while IFS=$'\t' read -r identifier title action; do
-		printf '  %s %s（' "$identifier" "$title"
+	# タイトルに \ やタブがあっても元の文字のまま出すため、行ごとに JSON から取り出す。
+	while IFS= read -r row; do
+		printf '  %s %s（' "$(jq -r '.identifier' <<<"$row")" "$(jq -r '.title' <<<"$row")"
+		action=$(jq -r 'if .action=="created" then "新規" else "既存" end' <<<"$row")
 		ui_result "$action"
 		printf '）\n'
-	done < <(jq -r '.[] | [.identifier,.title,(if .action=="created" then "新規" else "既存" end)] | @tsv' <<<"${setup_issue_rows:-[]}")
+	done < <(jq -c '.[]' <<<"${setup_issue_rows:-[]}")
 	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
 		printf '%s\n' '起票できなかった issue:'
 		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"
