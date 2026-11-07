@@ -19,7 +19,7 @@ register_dependabot_webhook() (
 		jq -nc --arg repository "$repo" --arg trigger "$trigger" --arg registration "$registration" --arg delivery "$delivery" --arg reason "$reason" '{repository:$repository,trigger:$trigger,registration:$registration,delivery:$delivery,reason:$reason}'
 	}
 	webhook_abort() { reason=$1; webhook_result; exit 0; }
-	title="Dependabot の PR の週次の確認 $project_key $repo"
+	title=$(autopilot_title dependabot-merger "$repo")
 	agent=$(jq -er '.["dependabot-merger"].id' <<<"$records") || webhook_abort 'Dependabot の担当を確認できませんでした。'
 	id=$(mc autopilot list --output json 2>/dev/null | jq -er --arg title "$title" --arg project "$project_id" --arg agent "$agent" '
 		[.autopilots[] | select(.title==$title and .project_id==$project and .assignee_type=="agent" and .assignee_id==$agent)] |

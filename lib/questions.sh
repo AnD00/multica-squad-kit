@@ -49,8 +49,8 @@ question_prompt() {
 	if [[ -n $1 ]]; then ui_line err default "既定値: $1（Enter で使います）"
 	else ui_line err default '既定値: なし。例と説明を見て入力してください。'; fi
 	if [[ -n $question_fixed ]]; then printf '常に入る役:\n%s\n外せる役:\n' "$question_fixed" >&2; fi
-	local number text
-	while IFS=$'\t' read -r number text; do question_choice "$number" "$text"; done < <(jq -r 'to_entries[] | "\(.key+1)\t\(.value)"' <<<"$question_items")
+	local number
+	for ((number=1; number<=$(jq length <<<"$question_items"); number++)); do question_choice "$number" "$(jq -r --argjson i "$number" '.[$i-1]' <<<"$question_items")"; done
 	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
 	question_notice_show
 	ask '入力' "$1"
@@ -179,21 +179,62 @@ pick_project() {
 	done
 }
 
+# オートパイロットの名前は、ここだけで作る。リポジトリごとのものには OWNER/REPO を渡す。
+# 登録する名前は common/autopilots.md の見出しで、tests/role-choices-test.sh が同じ名前になることを確かめる。
+autopilot_title() {
+	case $1 in
+	security-reviewer) printf '週 1 回の依存ライブラリの脆弱性チェック %s %s' "$project_key" "$2" ;;
+	dependabot-merger) printf 'Dependabot の PR の週次の確認 %s %s' "$project_key" "$2" ;;
+	usage-monitor) printf '使用上限の見張り %s-%s' "$project_key" "$member_key" ;;
+	esac
+}
+
 # 外せる項目と、その項目に含まれる役の対応。進行役は含めない。
+# roles はエージェントの役、autopilots は一緒に外れるオートパイロットの種類、watch はオートパイロットではない見張りである。
 role_choices='[
- {"key":"planner","roles":["planner"],"text":"要件定義: 要望をまとめて人間と合意する。外すと要件を人間が補う"},
- {"key":"designer","roles":["designer"],"text":"設計: 設計と実装の段を作る。外すと設計を人間が補う"},
- {"key":"claude","roles":["claude-implementer","claude-fixer"],"text":"Claude の実装・修正: 新規実装と指摘の修正を行う。Claude の実装者と Claude の修正者の2役を一緒に外す"},
- {"key":"codex","roles":["codex-implementer","codex-fixer"],"text":"Codex の実装・修正: 新規実装と指摘の修正を行う。Codex の実装者と Codex の修正者の2役を一緒に外す"},
- {"key":"code-reviewer","roles":["code-reviewer"],"text":"コードレビュー: 正しさとテストを確認する。返事を待つ役から外れる"},
- {"key":"security-reviewer","roles":["security-reviewer"],"text":"セキュリティ: 危険な実装を確認する。返事を待つ役から外れ、週次の脆弱性チェックも外れる"},
- {"key":"ux-reviewer","roles":["ux-reviewer"],"text":"UX: 画面の使いやすさを確認する。返事を待つ役から外れる"},
- {"key":"performance-reviewer","roles":["performance-reviewer"],"text":"パフォーマンス: 遅さや負荷を確認する。返事を待つ役から外れる"},
- {"key":"qa","roles":["qa"],"text":"QA: 動作とE2Eを確認する。返事を待つ役から外れる"},
- {"key":"ci-monitor","roles":["ci-monitor"],"text":"PR の CI の見張り: CIの結果を知らせる。この見張りを外す"},
- {"key":"usage-monitor","roles":["usage-monitor"],"text":"使用上限の見張り: AIの残量を見張る。使用上限のオートパイロットも外れる"},
- {"key":"dependabot-merger","roles":["dependabot-merger"],"text":"Dependabot の PR: 更新を週次で扱う。対応するオートパイロットも外れる"}
+ {"key":"planner","roles":["planner"],"title":"要件定義","purpose":"要望をまとめて人間と合意する","changes":"要件は人間に補ってもらう"},
+ {"key":"designer","roles":["designer"],"title":"設計","purpose":"設計と実装の段を作る","changes":"設計は人間に補ってもらう"},
+ {"key":"claude","roles":["claude-implementer","claude-fixer"],"title":"Claude の実装・修正","purpose":"新規実装と指摘の修正を行う","changes":"振り分け先から外れる"},
+ {"key":"codex","roles":["codex-implementer","codex-fixer"],"title":"Codex の実装・修正","purpose":"新規実装と指摘の修正を行う","changes":"振り分け先から外れる。レビューの4役はClaudeのモデルになる"},
+ {"key":"code-reviewer","roles":["code-reviewer"],"title":"コードレビュー","purpose":"正しさとテストを確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"security-reviewer","roles":["security-reviewer"],"title":"セキュリティ","purpose":"危険な実装を確認する","autopilots":["security-reviewer"],"changes":"返事を待つ役の一覧から外れる"},
+ {"key":"ux-reviewer","roles":["ux-reviewer"],"title":"UX","purpose":"画面の使いやすさを確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"performance-reviewer","roles":["performance-reviewer"],"title":"パフォーマンス","purpose":"遅さや負荷を確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"qa","roles":["qa"],"title":"QA","purpose":"動作とE2Eを確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"ci-monitor","roles":["ci-monitor"],"title":"PR の CI の見張り","purpose":"CIの結果を知らせる","watch":"進行役が PR ごとに置く CI の見張り"},
+ {"key":"usage-monitor","roles":["usage-monitor"],"title":"使用上限の見張り","purpose":"AIの残量を見張る","autopilots":["usage-monitor"]},
+ {"key":"dependabot-merger","roles":["dependabot-merger"],"title":"Dependabot の PR","purpose":"更新を週次で扱う","autopilots":["dependabot-merger"],"changes":"GitHub への Webhook の登録をしない"}
 ]'
+
+# 外せる項目の文。1 行目は「役: 担当。」で、続けて一緒に外れるものを種類ごとの見出しに分ける。
+# 引数は、項目の JSON、見出しの字下げ、1 行目の末尾に添える注意。該当するものがない見出しは出さない。
+role_choice_text() {
+	local choice=$1 indent=$2 note=$3 title purpose changes watch roles kinds role kind repo names=''
+	{ IFS= read -r title; IFS= read -r purpose; IFS= read -r changes; IFS= read -r watch; IFS= read -r roles; IFS= read -r kinds; } < <(jq -r '.title,.purpose,(.changes//""),(.watch//""),(.roles|join(" ")),((.autopilots//[])|join(" "))' <<<"$choice")
+	printf '%s: %s。%s\n%sエージェント: ' "$title" "$purpose" "$note" "$indent"
+	for role in $roles; do printf '%s%s-%s-%s' "${names:+、}" "$project_key" "$role" "$member_key"; names=yes; done
+	names=''
+	for kind in $kinds; do
+		if [[ $kind == usage-monitor ]]; then
+			names=${names:+${names}、}$(autopilot_title "$kind")
+		else
+			while IFS= read -r repo; do names=${names:+${names}、}$(autopilot_title "$kind" "$repo"); done < <(jq -r '.[].repository' <<<"$repositories")
+		fi
+	done
+	[[ -z $names ]] || printf '\n%sオートパイロット: %s' "$indent" "$names"
+	[[ -z $watch ]] || printf '\n%s見張り: %s' "$indent" "$watch"
+	[[ -z $changes ]] || printf '\n%sほかに変わること: %s' "$indent" "$changes"
+}
+
+# 使うランタイムにない系統の項目には、選ばなくても外れることを添える。
+role_choice_note() {
+	if [[ $1 == claude || $1 == codex ]] && jq -e --arg key "$1" 'index($key)==null' >/dev/null <<<"$runtimes"; then printf '（使うランタイムにないため外れます）'; fi
+}
+
+# 進行役のエージェントは、ほかの役と同じ見出しで名前を出す。
+role_fixed_text() {
+	printf '進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: %s-orchestrator-%s' "$project_key" "$member_key"
+}
 
 pick_runtimes() {
 	local previous=$1 default=1 claude_status='コマンドが見つかりません' codex_status='コマンドが見つかりません'
@@ -220,7 +261,7 @@ pick_runtimes() {
 }
 
 ask_questions() {
-	local workspaces projects repos members profile cached='{}' raw files=0 candidate default index token previous_key selected
+	local workspaces projects repos members profile cached='{}' raw files=0 candidate default index token previous_key selected i choice
 	workspace_id=''
 	workspaces=$(read_list ワークスペース workspace list)
 	question_begin 'ワークスペース' 'エージェントのチームを作る置き場です。自分が入っているものから選びます。' '1（一覧の番号）'
@@ -290,8 +331,13 @@ ask_questions() {
 	member_ids=$(jq -nc --argjson members "$members" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $members[$i-1].user_id]|unique')
 	pick_runtimes "$saved"
 	question_begin '外す役' '要らない役を番号で選びます。進行役は必須で、実装・修正は少なくとも一系統を残します。' '5 7、または 5,7（0なら何も外さない）'
-	question_items=$(jq --argjson runtimes "$runtimes" '[.[] | .key as $key | .text + (if ($key=="claude" or $key=="codex") and ($runtimes|index($key))==null then "（使うランタイムにないため外れます）" else "" end)]' <<<"$role_choices"); question_zero='何も外さない'
-	question_fixed='進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。'
+	question_items='[]'
+	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
+		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
+		question_items=$(jq -c --arg text "$(role_choice_text "$choice" '  ' "$(role_choice_note "$(jq -r '.key' <<<"$choice")")")" '.+[$text]' <<<"$question_items")
+	done
+	question_zero='何も外さない'
+	question_fixed=$(role_fixed_text)
 	default=$(jq -nr --argjson choices "$role_choices" --argjson excluded "$(jq -c '.excluded_roles // []' <<<"$saved")" '[$choices|to_entries[]|select(any(.value.roles[]; . as $role | $excluded|index($role)))|(.key+1|tostring)]|join(" ")'); default=${default:-0}
 	while :; do
 		pick_numbers "$default" yes
@@ -332,7 +378,7 @@ plan_autopilot_action() {
 
 confirmation_plan() {
 	local agents skills autopilots squad_name role name action skill_dir repo title humans resources bound='[]'
-	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern
+	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern i choice excluded_shown=no
 	# 表示の予定だけに、選ばなかったランタイムの系統を足す。保存する答えは変えない。
 	local excluded_roles=$excluded_roles
 	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer"] | unique' <<<"$excluded_roles")
@@ -380,7 +426,7 @@ confirmation_plan() {
 		printf '  %s（%s）\n' "$repo" "$action"
 		for role in security-reviewer dependabot-merger; do
 			jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
-			if [[ $role == security-reviewer ]]; then title="週 1 回の依存ライブラリの脆弱性チェック $project_key $repo"; else title="Dependabot の PR の週次の確認 $project_key $repo"; fi
+			title=$(autopilot_title "$role" "$repo")
 			action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
 			auto_plan=$(jq -c --arg kind "$role" --arg title "$title" --arg action "$action" '.+[{kind:$kind,title:$title,action:$action}]' <<<"$auto_plan") || return 1
 		done
@@ -390,7 +436,7 @@ confirmation_plan() {
 		jq -r '.[]|"  "+.' <<<"$link_repositories"
 	fi
 	if ! jq -e 'index("usage-monitor")!=null' >/dev/null <<<"$excluded_roles"; then
-		title="使用上限の見張り $project_key-$member_key"
+		title=$(autopilot_title usage-monitor)
 		action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
 		auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{kind:"usage-monitor",title:$title,action:$action}]' <<<"$auto_plan") || return 1
 	fi
@@ -402,9 +448,8 @@ confirmation_plan() {
 		count=$(jq --arg kind "$kind" '[.[]|select(.kind==$kind)]|length' <<<"$auto_plan")
 		[[ $count != 0 ]] || continue
 		case $kind in
-		security-reviewer) pattern="週 1 回の依存ライブラリの脆弱性チェック $project_key <OWNER/REPO>" ;;
-		dependabot-merger) pattern="Dependabot の PR の週次の確認 $project_key <OWNER/REPO>" ;;
-		usage-monitor) pattern="使用上限の見張り $project_key-$member_key" ;;
+		usage-monitor) pattern=$(autopilot_title "$kind") ;;
+		*) pattern=$(autopilot_title "$kind" '<OWNER/REPO>') ;;
 		esac
 		printf '  %s件、名前の規則: %s\n' "$count" "$pattern"
 	done
@@ -413,8 +458,13 @@ confirmation_plan() {
 	humans=$(jq -r --argjson ids "$member_ids" '[.[]|select(.user_id as $id|$ids|index($id))|.name]|join("、")' <<<"$question_people")
 	printf 'スクワッドに入れる人間: %s（既存の人をスクワッドへ追加・維持）\n' "${humans:-なし}"
 	printf '外す役と、一緒に外れるもの:\n'
-	jq -r --argjson excluded "$excluded_roles" --argjson runtimes "$runtimes" '.[]|select(any(.roles[]; . as $role|$excluded|index($role)))|.key as $key|"  \(.text)" + (if ($key=="claude" or $key=="codex") and ($runtimes|index($key))==null then "（使うランタイムにないため外れます）" else "" end)' <<<"$role_choices"
-	if [[ $(jq length <<<"$excluded_roles") == 0 ]]; then printf '  なし\n'; fi
+	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
+		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
+		jq -e --argjson excluded "$excluded_roles" 'any(.roles[]; . as $role | $excluded|index($role))' >/dev/null <<<"$choice" || continue
+		printf '  %s\n' "$(role_choice_text "$choice" '    ' "$(role_choice_note "$(jq -r '.key' <<<"$choice")")")"
+		excluded_shown=yes
+	done
+	[[ $excluded_shown == yes ]] || printf '  なし\n'
 }
 
 confirm_answers() {
