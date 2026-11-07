@@ -28,6 +28,8 @@ function Invoke-SquadWsl {
     $info.RedirectStandardOutput = $true
     $info.StandardOutputEncoding = New-Object System.Text.UTF8Encoding($false)
     $info.EnvironmentVariables['WSL_UTF8'] = '1'
+    # WSLENV に挙がったホストの変数（トークンなど）を、ゲストへ渡さない。
+    $info.EnvironmentVariables.Remove('WSLENV')
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $info
     try {
@@ -88,10 +90,16 @@ function Start-SquadKeeper {
     if (Get-SquadKeeperProcess $DistroName) { return }
     $arguments = Get-SquadKeeperArguments $DistroName
     $previousUtf8 = $env:WSL_UTF8
+    $previousWslenv = $env:WSLENV
     try {
         $env:WSL_UTF8 = '1'
+        # 常駐する sleep が WSLENV のホストの変数を持たないよう、子に渡す間だけ外す。
+        $env:WSLENV = $null
         $keeper = Start-Process -FilePath $script:SquadWslPath -ArgumentList $arguments -WindowStyle Hidden -PassThru
-    } finally { $env:WSL_UTF8 = $previousUtf8 }
+    } finally {
+        $env:WSL_UTF8 = $previousUtf8
+        $env:WSLENV = $previousWslenv
+    }
     try {
         $record = @{ KeeperId = $keeper.Id; StartedAt = $keeper.StartTime.ToUniversalTime().Ticks.ToString(); Name = $DistroName } | ConvertTo-Json -Compress
         $write = 'set -eu; umask 077; mkdir -p /var/lib/multica-squad-vm; temporary=$(mktemp /var/lib/multica-squad-vm/keepalive.XXXXXX); printf "%s\n" "$1" >"$temporary"; mv -f "$temporary" /var/lib/multica-squad-vm/keepalive.json'
@@ -171,7 +179,7 @@ function Invoke-SquadWslVm {
             $null = Invoke-SquadWsl -WslArguments @('--terminate', $Name)
             Start-SquadKeeper $Name
             Test-SquadGuest $Name
-            Write-Host "ディストリを作りました。中に入る: wsl -d $Name"
+            Write-Host "ディストリを作りました。中に入る: cmd /c `"set WSLENV=&& wsl -d $Name`""
             Write-Host '中で manual.md の「受け取る人の準備」とセットアップの手順を流してください。'
         } catch {
             $failure = $_

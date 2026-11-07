@@ -9,7 +9,7 @@ args = sys.argv[2:]
 state_file = base / 'state.json'
 state = json.loads(state_file.read_text())
 with (base / 'calls.jsonl').open('a') as log:
-    log.write(json.dumps(dict(args=args, utf8=os.environ.get('WSL_UTF8'))) + '\n')
+    log.write(json.dumps(dict(args=args, utf8=os.environ.get('WSL_UTF8'), wslenv=os.environ.get('WSLENV'))) + '\n')
 fail = state.get('fail')
 if fail == args[0] and args[0] != '--install':
     sys.exit('intentional WSL failure')

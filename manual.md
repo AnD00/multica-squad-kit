@@ -162,8 +162,10 @@ limactl shell multica-squad
 Windows は、次で入る。
 
 ```powershell
-wsl -d multica-squad
+cmd /c "set WSLENV=&& wsl -d multica-squad"
 ```
+
+`cmd /c "set WSLENV=&& …"` は、Windows で `WSLENV` を設定しているときに、その変数を中へ渡さないための書き方である。`WSLENV` に挙げた変数（トークンなど）は、中の同じユーザーのプロセスから読めてしまう。
 
 ここから先のコマンドは、特に書かない限り、VM の中で流す。
 
@@ -240,7 +242,7 @@ powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete
 WSL の VM では、使う人に sudo を持たせない。中の root は、Windows のドライブをつなぎ直せるため。`apt-get` など root が要る作業は、Windows 側から次のように流す。
 
 ```powershell
-wsl -d multica-squad -u root --exec apt-get update
+cmd /c "set WSLENV=&& wsl -d multica-squad -u root --exec apt-get update"
 ```
 
 Lima の VM では、使う人に sudo が残る。中で `sudo apt-get` を使ってよい。

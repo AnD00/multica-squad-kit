@@ -53,7 +53,7 @@ powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete [-Name NAME] [-Force]
 - `create` の最後に、中に入るコマンドと、中でセットアップを流す手順の案内を出す
 - 引数の誤りと、Lima・WSL の版が足りないときは、何も変えずに止まる
 
-中に入るときは、Lima なら `limactl shell NAME`、WSL なら `wsl -d NAME` を使う。スクリプトに中に入る操作は足さない。どちらの道具にもある操作で、包んでも得るものがないため。
+中に入るときは、Lima なら `limactl shell NAME`、WSL なら `cmd /c "set WSLENV=&& wsl -d NAME"` を使う（WSL の理由は「閉じ込めの設定」の WSL）。スクリプトに中に入る操作は足さない。どちらの道具にもある操作で、包んでも得るものがないため。
 
 ## 閉じ込めの設定
 
@@ -110,6 +110,8 @@ default=USER
 WSL は、[公開された 2.6.1 の実装](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/common/WslClient.cpp)で、`--name`、`--location`、`--no-launch` と `WSL_UTF8` を確認した。最低の版を 2.6.1 とし、`wsl.ps1` は `wsl --version` が足りなければ止まる。子の `wsl.exe` に `WSL_UTF8=1` を渡し、UTF-8 で出力を読む。作るときは `--version 2` も渡し、普段の WSL の既定を変えずに WSL 2 にする。
 
 初回は `--no-launch` で通常のシェルを開かず、`-u root --exec` で `wslpath` と準備のスクリプトを流す。[コマンドを明示した起動](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/service/exe/LxssInstance.cpp)は対話の初回設定を始めない。使う人と `wsl.conf` を用意してからディストリを止め、次の起動で閉じ込めを効かせる。
+
+Windows で `WSLENV` を設定していると、`wsl.exe` は挙がった変数（トークンなど）をゲストの起動したプロセスへ渡す。ドライブの共有と Windows の実行を切っても、これは残り、常駐する `sleep` の環境から使う人が読める。そのため `wsl.ps1` は、どの `wsl.exe` にも `WSLENV` を渡さず（呼び出し元の環境は変えない）、手で入るときも `cmd /c "set WSLENV=&& wsl -d NAME"` を使う。
 
 Docker Desktop を使っている人は、このディストリの WSL の統合を切ったままにする。統合を入れると、Docker Desktop が Windows 側のファイルと実行ファイルを中に持ち込むため。`verify` で、統合で入るファイルがないことも確かめる。
 

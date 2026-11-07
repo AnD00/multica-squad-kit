@@ -49,6 +49,7 @@ function Start-Process {
     param([string]$FilePath, [string[]]$ArgumentList, [string]$WindowStyle, [switch]$PassThru)
     Assert-Test ($WindowStyle -eq 'Hidden' -and $PassThru) 'Keeper window is not hidden'
     Assert-Test ($env:WSL_UTF8 -eq '1') 'Keeper does not use UTF-8'
+    Assert-Test (-not $env:WSLENV) 'Keeper inherits WSLENV'
     $state = Read-State
     if ($state.PSObject.Properties['fail'] -and $state.fail -eq 'keeper-start') { throw 'intentional keeper startup failure' }
     $script:NextKeeperId++
@@ -78,12 +79,17 @@ function Stop-Process {
 }
 function Read-Host { param([string]$Prompt) $script:Prompt = $Prompt; return $script:Answer }
 
+# ホストが WSLENV でトークンを共有していても、どの wsl.exe にも渡さず、呼び出し元の環境は保つ。
+$env:WSLENV = 'GH_TOKEN/u'
+$env:GH_TOKEN = 'review-sentinel'
 Invoke-SquadWslVm -Action create
 $calls = @(Read-Calls)
 $install = @($calls | Where-Object { $_.args[0] -eq '--install' })[0]
 $location = Join-Path (Join-Path $env:LOCALAPPDATA 'multica-squad') 'multica-squad'
 Assert-Test (($install.args -join '|') -eq "--install|Ubuntu-24.04|--name|multica-squad|--location|$location|--no-launch|--version|2") 'Wrong installation arguments'
 Assert-Test (@($calls | Where-Object { $_.utf8 -ne '1' }).Count -eq 0) 'WSL_UTF8 was not set'
+Assert-Test (@($calls | Where-Object { $_.wslenv }).Count -eq 0) 'WSLENV was passed to wsl.exe'
+Assert-Test ($env:WSLENV -eq 'GH_TOKEN/u' -and $env:GH_TOKEN -eq 'review-sentinel') 'Caller environment was changed'
 Assert-Test ((Read-State).user -eq 'agent') 'Default guest user was not provisioned'
 Assert-Test ($script:Started.Count -eq 1) 'Keeper was not started'
 $terminateIndex = -1
@@ -98,6 +104,8 @@ Invoke-SquadWslVm -Action start
 Assert-Test ($script:Started.Count -eq 1) 'Repeated start duplicated the keeper'
 Invoke-SquadWslVm -Action verify
 Invoke-SquadWslVm -Action stop
+Assert-Test (@(Read-Calls | Where-Object { $_.wslenv }).Count -eq 0) 'WSLENV was passed to wsl.exe'
+Assert-Test ($env:WSLENV -eq 'GH_TOKEN/u') 'Caller WSLENV was changed'
 Assert-Test ($script:Stopped.Count -eq 1 -and (Read-State).running.Count -eq 0) 'Stop did not stop the keeper and distro'
 Write-Output 'PASS WSL: install, provision as root, reboot, hidden keeper and guest verification; repeated start reuses the keeper'
 
