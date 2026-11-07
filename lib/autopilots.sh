@@ -152,6 +152,7 @@ sync_project_autopilots() {
 				mc autopilot update "$id" --status paused --output json >/dev/null || die "外した定義のオートパイロットを一時停止できませんでした: $title"
 			fi
 			printf '外したリポジトリ・役・定義のオートパイロットを一時停止しています（履歴は保持）: %s\n' "$title" >&2
+			setup_removed_targets=$(jq -c --arg name "$title" '.+[$name]|unique' <<<"${setup_removed_targets:-[]}")
 		done < <(jq -c '.[]' <<<"$list")
 	done < <(jq -c '.[]' "$project_work/autopilots.known")
 }

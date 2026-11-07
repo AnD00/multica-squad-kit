@@ -1,0 +1,56 @@
+{
+  "dependabot-filter": {
+    "title": "{{repository}} の Dependabot の Webhook のフィルターを設定する",
+    "assignee": "actor",
+    "label": "運用",
+    "body": "Multica の週次の確認の Webhook のトリガーで、受け取る PR のアクションと対象のリポジトリ、Dependabot の PR へのイベントフィルターを設定してください。トリガーがなければ、先に Webhook の登録の issue を済ませてください。GitHub の配信履歴と Multica の実行履歴で、対象だけが動くことを確かめてください。\n\n手順: [Dependabot のイベントフィルター]({{manual_url}}#dependabot-のイベントフィルター)"
+  },
+  "dependabot-webhook": {
+    "title": "{{repository}} に Dependabot の Webhook を登録する",
+    "assignee": "actor",
+    "label": "運用",
+    "body": "リポジトリの管理者に Dependabot の Webhook の登録を頼んでください。管理者の権限と gh の admin:repo_hook の範囲を持つ人が、同じ答えでセットアップを流し直せば、自動で登録と ping の確認が行われます。画面で登録する場合も、配信履歴を確かめてください。Webhook の URL は認証情報なので、issue やログに貼らないでください。\n\n手順: [人間が行う Webhook の登録]({{manual_url}}#人間が行う-webhook-の登録)"
+  },
+  "repository-rules": {
+    "title": "{{repository}} に AGENTS.md と作業別のルールを置く",
+    "assignee": "squad",
+    "label": "指示の改善",
+    "body": "ひな形を参考に、対象のリポジトリに AGENTS.md と作業別のルールを置いてください。既存のファイルを丸ごと上書きせず、必要な内容を取り入れてください。\n\n「プロジェクトの説明と検証スキルを記入する」と「スクワッドの動きを試す」の二つの issue を終えてから、この issue を todo にしてください。\n\n手順: [プロジェクトのひな形を記入する]({{manual_url}}#プロジェクトのひな形を記入する)"
+  },
+  "project-instructions": {
+    "title": "プロジェクトの説明と検証スキルを記入する",
+    "assignee": "actor",
+    "label": "指示の改善",
+    "body": "プロジェクトの説明に、各リポジトリの役割と受けるタスクを記入してください。プロジェクトの検証スキルには、リポジトリごとのテスト・lint・E2E・監査の手順を記入し、実行して確かめてください。育てた内容を Multica の説明とスキルにも反映してください。\n\n手順: [プロジェクトのひな形を記入する]({{manual_url}}#プロジェクトのひな形を記入する)"
+  },
+  "squad-trial": {
+    "title": "スクワッドの動きを試す",
+    "assignee": "actor",
+    "label": "検証",
+    "body": "専用の検証用リポジトリと小さな issue を使い、選んだ役への引き継ぎ、結果、担当と状態の扱いを確かめてください。通常のランタイムで、許可していないリポジトリへの gh の書き込みと git push が関所で拒否されることも確かめてください。関所を迂回しないでください。\n\n手順: [スクワッドの動きを試す]({{manual_url}}#スクワッドの動きを試す)"
+  },
+  "handoff-skill-update": {
+    "title": "共通スキル squad-handoff を更新する",
+    "assignee": "skill-creator",
+    "label": "指示の改善",
+    "body": "共通スキル squad-handoff の更新を飛ばしました。スキルを作った人か、ワークスペースのオーナー・管理者に更新を頼んでください。対象のタグへ更新できる人がセットアップを流し直し、本文と補助ファイルが原本に合うことを確かめてください。\n\n手順: [更新と、途中で止まったあとの再実行]({{manual_url}}#更新と途中で止まったあとの再実行)"
+  },
+  "removed-roles": {
+    "title": "外した役のエージェントを消すか決める",
+    "assignee": "actor",
+    "label": "運用",
+    "body": "次の、残したエージェントと一時停止したオートパイロットをどう扱うか決めてください。セットアップはエージェントを自動で削除しません。不要なものだけを、持ち主が確認して片付けてください。\n\n{{targets}}\n\n手順: [更新と、途中で止まったあとの再実行]({{manual_url}}#更新と途中で止まったあとの再実行)"
+  },
+  "repository-change": {
+    "title": "{{repository}} の増減を説明と検証スキルに反映する",
+    "assignee": "actor",
+    "label": "指示の改善",
+    "body": "対象のリポジトリの増減を、プロジェクトの説明と検証スキルの節へ反映してください。残したリポジトリの役割と検証手順も、現在の構成に合うことを確かめてください。\n\n{{targets}}\n\n手順: [プロジェクトのひな形を記入する]({{manual_url}}#プロジェクトのひな形を記入する)"
+  },
+  "installation-check": {
+    "title": "導入の確認で要確認になった項目を直す",
+    "assignee": "actor",
+    "label": "運用",
+    "body": "次の、導入の確認で要確認になった項目か読み直せなかった項目を確認してください。定義と現在の設定を合わせてから、セットアップを流し直して確かめてください。\n\n{{targets}}\n\n手順: [導入の確認]({{manual_url}}#導入の確認)"
+  }
+}

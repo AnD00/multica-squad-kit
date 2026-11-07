@@ -10,7 +10,7 @@ mkdir -p "$test_dir/package" "$test_dir/tools"
 cp "$root/setup.sh" "$root/VERSION" "$test_dir/package/"
 cp -R "$root/lib" "$root/common" "$root/skeleton" "$test_dir/package/"
 python=$(command -v python3)
-for tool in awk basename bash cat chmod cmp cp cut date dirname env find git grep head jq mkdir mktemp mv python3 rm sed seq shasum sleep sort stat tr unzip zip; do
+for tool in awk basename bash cat chmod cmp cp cut date dirname env find git grep head jq mkdir mktemp mv python3 rm sed seq shasum sleep sort stat tail tr unzip zip; do
  ln -s "$(command -v "$tool")" "$test_dir/tools/$tool"
 done
 # コピーした原本だけの配布物検査も、実際の入口で通す。
@@ -35,7 +35,11 @@ PY
  printf '#!/bin/bash\nexec %q %q %q "$@"\n' "$python" "$root/tests/setup-runtime-cli.py" "$scenario_dir" >"$scenario_dir/bin/multica"
  printf '#!/bin/bash\nexec /bin/cat %q\n' "$scenario_dir/process-env" >"$scenario_dir/bin/ps"
  printf '#!/bin/bash\necho Darwin\n' >"$scenario_dir/bin/uname"
- cp "$root/tests/guard-backend.sh" "$scenario_dir/bin/gh"
+ {
+  printf '#!/bin/bash\n'
+  printf 'if [[ $1 == api && ${2:-} == repos/* ]]; then exec %q %q %q "$@"; fi\n' "$python" "$root/tests/webhook-gh.py" "$scenario_dir"
+  printf 'exec /bin/bash %q "$@"\n' "$root/tests/guard-backend.sh"
+ } >"$scenario_dir/bin/gh"
  for runtime in $runtime_words; do
   {
    printf '#!/bin/bash\nset -euo pipefail\nscenario_dir=%q\n' "$scenario_dir"
@@ -114,7 +118,28 @@ assert {m['member_id'] for m in db['roster']} == {a['id'] for r, a in agents.ite
 assert len(db['roster']) == len(roles) - 2
 assert len(db['autopilots']) == 3
 assert {a['assignee_id'] for a in db['autopilots']} == {agents[r]['id'] for r in ('security-reviewer', 'usage-monitor', 'dependabot-merger')}
-assert all(len(t) == 1 and t[0]['kind'] == 'schedule' for t in db['triggers'].values())
+for pilot in db['autopilots']:
+    kinds = sorted(t['kind'] for t in db['triggers'][pilot['id']])
+    assert kinds == (['schedule', 'webhook'] if pilot['assignee_id'] == agents['dependabot-merger']['id'] else ['schedule'])
+assert len(db['github_hooks']) == 1
+assert '配信 成功（HTTP 200）' in (scenario / 'out').read_text()
+display = (scenario / 'out').read_text()
+assert display.count(': 一致') == 5 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
+assert ': 要確認' not in display
+assert display.index('導入の確認:') < display.index('Webhook の登録:') < display.index('起票した issue:')
+issues = {i['metadata']['squad_kit_task']: i for i in db['issues']}
+assert set(issues) == {'dependabot-filter', 'repository-rules', 'project-instructions', 'squad-trial'}
+for kind, issue in issues.items():
+    assert issue['project_id'] == db['projects'][0]['id']
+    assert issue['assignee_id'] == (db['squads'][0]['id'] if kind == 'repository-rules' else 'member-a')
+    assert issue['status'] == ('backlog' if kind == 'repository-rules' else 'todo')
+    assert issue['labels'] and '/manual.md#' in issue['description']
+calls = [json.loads(line) for line in (scenario / 'calls.jsonl').read_text().splitlines()]
+first_issue = next(n for n, call in enumerate(calls) if call[:2] == ['issue', 'create'])
+last_registration = max(n for n, call in enumerate(calls) if call[:2] == ['agent', 'update'] or call[:2] == ['autopilot', 'trigger-add'])
+assert first_issue > last_registration
+assert (scenario / 'out').read_text().count('（新規）') == 4
+assert '起票できなかった issue:' not in (scenario / 'out').read_text()
 pilot = next(a for a in db['autopilots'] if a['assignee_id'] == agents['usage-monitor']['id'])
 value = re.search(r'USAGE_CHECK_RUNTIMES に "([^"]+)"', pilot['description'])[1]
 assert value == ' '.join(runtimes)
@@ -140,9 +165,25 @@ import sys
 from pathlib import Path
 scenario = Path(sys.argv[1])
 assert json.loads((scenario / 'first-db.json').read_text()) == json.loads((scenario / 'db.json').read_text())
+assert (scenario / 'out').read_text().count('（既存）') == 4
 PY
  ! jq -es 'any(.[]; .[1]=="create" or .[1]=="update" or .[1]=="import" or .[1]=="trigger-add" or .[0:3]==["agent","env","set"] or .[0:3]==["agent","skills","set"] or .[0:3]==["squad","member","add"])' "$scenario_dir/calls.jsonl" >/dev/null
  jq -e --arg words "$runtime_words" '.runtimes==($words|split(" ")) and .excluded_roles==[]' "$TEMPLATE_STATE_ROOT/ws-a/demo.json" >/dev/null
+ # 最後の起票に失敗しても登録済みの完了を表示し、入口の終了コードを 0 以外にする。
+ if [[ $selected == both ]]; then
+  jq '.issues |= map(select(.metadata.squad_kit_task!="squad-trial"))' "$scenario_dir/db.json" >"$scenario_dir/new"
+  mv "$scenario_dir/new" "$scenario_dir/db.json"
+  printf '%s\n' 'スクワッドの動きを試す' >"$scenario_dir/fail-issue"
+  if /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"; then exit 1; fi
+  grep -qF 'プロジェクトの設定が終わりました' "$scenario_dir/out"
+  grep -qF '起票できなかった issue:' "$scenario_dir/out"
+  grep -qF 'スクワッドの動きを試す: issue を作れませんでした。' "$scenario_dir/out"
+  jq -e '.issues|length==3' "$scenario_dir/db.json" >/dev/null
+  rm "$scenario_dir/fail-issue"
+  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
+  [[ $(grep -c '（新規）' "$scenario_dir/out") == 1 && $(grep -c '（既存）' "$scenario_dir/out") == 3 ]]
+  jq -e '.issues|length==4' "$scenario_dir/db.json" >/dev/null
+ fi
  # 登録されたオートパイロットの選択を、実際に配置した見張りへ渡す。
  if [[ $selected == codex ]]; then unset CLAUDE_CONFIG_DIR; else export CLAUDE_CONFIG_DIR="$scenario_dir/host/claude"; fi
  USAGE_CHECK_RUNTIMES=$(cat "$scenario_dir/usage-runtimes") USAGE_CHECK_ASSIGNEE=Owner USAGE_CHECK_PROJECT=projects-1 USAGE_CHECK_MEMBER=owner USAGE_CHECK_STATE_ROOT="$scenario_dir/usage-state" TEST_USAGE_PERCENT=80 CODEX_HOME="$scenario_dir/host/codex" "$scenario_dir/host/bin/squad-usage-check" >"$scenario_dir/out" 2>"$scenario_dir/err"
@@ -152,10 +193,27 @@ import sys
 from pathlib import Path
 scenario = Path(sys.argv[1])
 db = json.loads((scenario / 'db.json').read_text())
-assert len(db['issues']) == len(db['runtimes'])
-assert all(i['project_id'] == 'projects-1' and i['assignee'] == 'Owner' and i['label_id'] for i in db['issues'])
+usage_issues = [i for i in db['issues'] if not i['metadata'].get('squad_kit_task')]
+assert len(usage_issues) == len(db['runtimes'])
+assert all(i['project_id'] == 'projects-1' and i['assignee'] == 'Owner' and i['label_id'] for i in usage_issues)
 state = json.loads((scenario / 'usage-state/projects-1/owner.state').read_text())
 assert {key.split(':')[0] for key in state} == set(db['runtimes'])
 PY
+ # 更新の権限がない共通スキルと、既存の検証スキルから消えた選択を入口から確かめる。
+ if [[ $selected == both ]]; then
+  jq '.members=[{user_id:"member-a",name:"Owner",role:"member"},{user_id:"creator",name:"Creator",role:"member"}] |
+   .skills |= map(if .name=="squad-handoff" then .content="older content" | .created_by="creator"
+    elif .name=="demo-verify" then .content += "\n## `example/removed`\n前からある検証手順\n" else . end)' "$scenario_dir/db.json" >"$scenario_dir/new"
+  mv "$scenario_dir/new" "$scenario_dir/db.json"
+  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
+  grep -qF '更新を飛ばしました: squad-handoff' "$scenario_dir/err"
+  jq -e 'any(.issues[]; .metadata.squad_kit_task=="handoff-skill-update" and .assignee_id=="creator" and .status=="todo") and
+   any(.issues[]; .metadata.squad_kit_task=="repository-change" and .metadata.squad_kit_targets=="[\"removed:example/removed\"]") and
+   any(.skills[]; .name=="demo-verify" and (.content|contains("前からある検証手順")))' "$scenario_dir/db.json" >/dev/null
+  before_issues=$(jq '.issues|length' "$scenario_dir/db.json")
+  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
+  [[ $(jq '.issues|length' "$scenario_dir/db.json") == "$before_issues" ]]
+  echo 'PASS setup changes: 更新を飛ばしたスキルの作成者への起票と既存の検証スキルとの差を入口から確かめ、再実行で重ねない'
+ fi
  echo "PASS setup runtimes: $selected の入口・ホスト・登録・再実行・配置した見張りが通り、使わない側を求めない"
 done
