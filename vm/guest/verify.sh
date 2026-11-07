@@ -79,7 +79,7 @@ server_recorded() {
 	login_path=$(bash -lc 'printf "%s\n" "$PATH"') || return 1
 	status=$(PATH="$HOME/.multica-agent/bin:$login_path" multica daemon status --output json) || return 1
 	expected=$(jq -er 'select(.status=="running") | .server_url | select(type=="string")' <<<"$status") || return 1
-	[[ $(<"$HOME/.config/multica-squad-vm/server-url") == "${expected%/}" ]]
+	[[ -f $HOME/.config/multica-squad-vm/server-url && $(cat "$HOME/.config/multica-squad-vm/server-url") == "${expected%/}" ]]
 }
 
 isolation

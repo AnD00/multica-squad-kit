@@ -132,5 +132,7 @@ default=$guest_user
 EOF
 fi
 systemctl daemon-reload
-systemctl enable multica-squad-daemon.service multica-squad-record-server.timer
+# timer はすぐに開始する。セットアップの前の実行は何もせず、セットアップの終わりから 1 分以内に最初の記録を取るため。
+systemctl enable multica-squad-daemon.service
+systemctl enable --now multica-squad-record-server.timer
 printf 'PASS provision: %s のゲストを準備しました（%s）。\n' "$platform" "$guest_user"

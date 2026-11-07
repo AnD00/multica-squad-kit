@@ -205,7 +205,7 @@ Multica の `multica daemon autostart` は使わない。引数を受けず、`C
 記録は、`record-server` を使う人として 1 分ごとに流す timer で取る。
 
 - `/etc/systemd/system/multica-squad-record-server.service` は、`Type=oneshot`、`User=USER`、`ExecStart=/usr/local/lib/multica-squad-vm/record-server` にする
-- `/etc/systemd/system/multica-squad-record-server.timer` は、`OnBootSec=1min`、`OnUnitActiveSec=1min`、`WantedBy=timers.target` にし、有効にする
+- `/etc/systemd/system/multica-squad-record-server.timer` は、`OnBootSec=1min`、`OnUnitActiveSec=1min`、`WantedBy=timers.target` にする。`provision.sh` は `systemctl enable --now` で、有効にしてすぐ開始する。セットアップの前の実行は何もせず、セットアップの終わりから 1 分以内に最初の記録を取るため
 
 `record-server` は、次の順に動く。記録を変えないときは、何も書かずに 0 で終わる。
 
@@ -217,7 +217,7 @@ Multica の `multica daemon autostart` は使わない。引数を受けず、`C
 
 記録は `~/.config/multica-squad-vm/server-url` に、URL を 1 行で置く。ホストには何も残さず、VM を消すと一緒に消える。セットアップを別の接続先で流し直すと、次の記録で新しい接続先に変わる。記録を消せば、`start-daemon` は CLI の既定に戻る。
 
-セットアップを終えてから最初の記録までの 1 分ほどの間に VM を止めると、記録は残らない。そのときは、次の起動で CLI の既定を使う。`verify` は、デーモンの確かめが通ったあとに `record-server` を 1 回流し、記録が動いているデーモンの接続先と同じことを確かめる。手順書では、セットアップのあとに `verify` を流すよう案内し、この間を待たずに閉じる。
+セットアップを終えてから最初の記録までの 1 分ほどの間に VM を止めると、記録は残らない。そのときは、次の起動で CLI の既定を使う。この間を閉じるため、`verify` は、デーモンの確かめが通ったあとに `record-server` を 1 回流し、記録が動いているデーモンの接続先と同じことを確かめる。手順書では、セットアップのあとに `verify` を流すよう案内し、この間を待たずに閉じる。
 
 ### WSL のディストリを止めない
 

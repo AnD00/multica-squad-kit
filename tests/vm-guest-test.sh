@@ -181,6 +181,18 @@ for file in vm/lima.sh vm/guest/start-daemon vm/guest/record-server vm/guest/pro
 done
 echo 'PASS vm guest: ホストとゲストのシェルスクリプトを LF に固定する'
 
+# Mac 標準の bash 3.2 は、UTF-8 では、変数名の直後の日本語を名前の一部として読み、unbound variable で止まる。
+# CI の bash では起きないので、書き方を見て止める。
+python3 - "$root" <<'PY'
+import re, sys
+from pathlib import Path
+root = Path(sys.argv[1])
+for name in ('vm/lima.sh', 'vm/guest/start-daemon', 'vm/guest/record-server', 'vm/guest/provision.sh', 'vm/guest/verify.sh'):
+    for number, line in enumerate((root / name).read_text(encoding='utf-8').splitlines(), 1):
+        assert not re.search(r'\$[A-Za-z_][A-Za-z_0-9]*[^\x00-\x7f]', line), f'{name}:{number}: 変数名の直後が日本語です。${{名前}} にしてください。'
+PY
+echo 'PASS vm guest: 変数名の直後に日本語を置かない（bash 3.2 の UTF-8 対策）'
+
 # 以降の特権コマンドと VM の状態は、専用の根とスタブだけで扱う。
 mkdir -p "$test_dir/guest-bin" "$test_dir/guest-root"
 printf '#!%s\n' "$(command -v python3)" >"$test_dir/guest-stub"
@@ -252,7 +264,7 @@ elif name == 'systemctl':
     assert args in (
         ['disable', '--now', 'docker.service', 'docker.socket'],
         ['start', 'user@1000.service'], ['--user', 'enable', '--now', 'docker.service'],
-        ['daemon-reload'], ['enable', 'multica-squad-daemon.service', 'multica-squad-record-server.timer'],
+        ['daemon-reload'], ['enable', 'multica-squad-daemon.service'], ['enable', '--now', 'multica-squad-record-server.timer'],
     ), args
 elif name == 'runuser':
     assert args[:3] == ['-u', 'vm-user', '--'], args
@@ -377,7 +389,8 @@ assert commands.index('systemctl disable --now docker.service docker.socket') < 
 assert commands.index('loginctl enable-linger vm-user') < commands.index('systemctl start user@1000.service') < commands.index('dockerd-rootless-setuptool.sh install')
 assert 'systemctl --user enable --now docker.service' in commands
 assert 'docker context use rootless' in commands
-assert 'systemctl enable multica-squad-daemon.service multica-squad-record-server.timer' in commands
+assert 'systemctl enable multica-squad-daemon.service' in commands
+assert commands.index('systemctl daemon-reload') < commands.index('systemctl enable --now multica-squad-record-server.timer')
 record_service = (root / 'etc/systemd/system/multica-squad-record-server.service').read_text()
 assert record_service == '''[Unit]
 Description=Record the Multica daemon server URL for multica-squad-kit

@@ -26,8 +26,8 @@ if [[ -n ${MULTICA_SERVER_URL:-} ]]; then
 	origin='MULTICA_SERVER_URL'
 	server_url=$MULTICA_SERVER_URL
 elif [[ -e $record || -L $record ]]; then
-	origin="記録した接続先（$record。消すと CLI の設定を使います）"
-	server_url=$(<"$record") || die "$origin を読めませんでした。"
+	origin="記録した接続先（${record}。消すと CLI の設定を使います）"
+	server_url=$(cat "$record") || die "$origin を読めませんでした。"
 else
 	origin='CLI のサーバー設定'
 	config=$(multica config show) || die 'CLI の設定を読めませんでした。'
