@@ -41,7 +41,7 @@ e9f15f86292771797e2d0e08b54dab4443cb214d3e6f3b3ce5a90f33603d11a5  ./common/setup
 924d5f82eca08218e0e4c2ee45152a3e2bd5d2d57cf4fccbd9c53e53e7a6a748  ./common/shell/env.sh
 17b2059a500db5aa83cd93d74e6aacd6d0a40452df174c19652b5cfe88d76071  ./common/skills/squad-handoff/SKILL.md
 701c6c80154c174ee084905458c196687e4b1acd54f8b5586d4b9f80f9a0cb35  ./common/squad.md
-8ecb49a3d34dc732fde9efba857d65d2ac819d131b63a20dcd53b7ddb5448f42  ./docs/release.md
+afbf08f046a4be2de638fc9e798f7ca440f117b344f7cd88d694406d7d383dbe  ./docs/release.md
 e9053dbffa1e3541f4b1a2d8dabd618e569980424bee5897b58c3d498742a1ec  ./docs/vm.md
 7676fba0003b177ab77c8f8473b4acfdc5452b05f8129d78aa81776887d1bdaf  ./lib/answers.sh
 d5da15ab6568bd6b3cf2c635f9e8d3c50b63492177f2085a77a6d7f2dd61907d  ./lib/autopilots.sh
@@ -62,7 +62,7 @@ e9680446dc24c32571fd0af3729609d20202f59a8bdba0aee84f6e91f6a68e96  ./lib/webhooks
 e60caa7df9bab9f4cca9ffec349b6e38116ffcfb37f99d0d57deefc7cc3f3b22  ./manual.md
 70234570a08252ccf4bc8054663c1e55439d6620121c31dbd701252d8bca2939  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
-78bcf440c10ffd3d14f27c6ece8a6d39bba42a4fecea81c6b6cec79f92063798  ./scripts/release.sh
+c1caad86c1e1e14c701ad45486d8cf371cfedc745441e3d85fcc144b9f6e2e1f  ./scripts/release.sh
 c46201338d441461baa9b0aeaf613a54765d27d756e34380654aa3cb79b9d15c  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
 813658fb296b853b8b45077b49a4d02defcec11a572638cd0b0246116a47a6a7  ./skeleton/.agents/rules/docs.md
@@ -94,7 +94,7 @@ ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/projec
 f1a9a325264809366a41e5ee7d5053a94cfe26f3ff5a1abc583f72a3c38e28b1  ./tests/project-issues-test.sh
 25448b2a123e8036f12bcdac4abc1d7edb33bda6659c35f7bce046d42dd7a007  ./tests/project-test.sh
 69e47c2d4ce089522304292046e36851c343985780c74bdaf652ad5ea5a08553  ./tests/questions-ui-test.sh
-5e1e030ff44655ec4f0ed4020c90d8da82558298ed2d18abbede3473e4f03f16  ./tests/release-test.sh
+5838d6173f7f98c486ee22f82f207e866c884c34aa85f366aa60e737e33f720c  ./tests/release-test.sh
 e30c1d1aeb6eda26229edec71d25388d40173888fd5fa6cac065ff2307224446  ./tests/role-choices-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
 95737260b4ead2219f5599907d5f5ad99231f3bc73d48fa8600dacd07e2d42a2  ./tests/run-one.sh

@@ -101,14 +101,14 @@ fi
 if [[ -z $local_tag && $release == yes ]]; then
 	stop "$version のタグはありませんが、Release があります: $release_url"
 fi
-if [[ -n $local_tag && $release == yes ]]; then
-	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"
-	exit 0
-fi
 # タグを付けるコミット: タグがなければ main の先頭、あればそのタグが指すコミット。
 if [[ -n $local_tag ]]; then
 	commit=$(git rev-parse "refs/tags/$version^{commit}")
-	action=release
+	if [[ $release == yes ]]; then
+		action=published
+	else
+		action=release
+	fi
 else
 	action=tag-and-release
 fi
@@ -126,6 +126,12 @@ top_version=$(printf '%s\n' "$changelog" | awk '/^## / {print $2; exit}')
 notes=$(printf '%s\n' "$changelog" | awk -v heading="## $version" '$0 == heading {found = 1; next} found && /^## / {exit} found')
 [[ -n $(printf '%s' "$notes" | tr -d '[:space:]') ]] || stop "CHANGELOG.md の $version の節が空です。"
 notes=$(printf '%s\n' "$notes" | awk 'NF {if (started) for (; blank > 0; blank--) print ""; started = 1; blank = 0; print; next} started {blank++}')
+
+# 両方ある版は、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
+if [[ $action == published ]]; then
+	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"
+	exit 0
+fi
 
 # 確認: 中身を標準出力に出し、問いを標準エラー出力に出して、標準入力の答えを読む。
 [[ -t 0 ]] || stop '標準入力が端末でないため、確認を求められません。端末から流してください。'

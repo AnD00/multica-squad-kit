@@ -375,6 +375,53 @@ changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fill the section'
 expect_stop_keep '節が空です'
 
+# タグも Release もあるときも、タグが指すコミットで 6〜8 を確かめてから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
+make_case published-tag-commit-version
+printf 'v1.5.9\n' >"$work/VERSION"
+commit_work 'Other version'
+tag_here
+printf 'v1.6.0\n' >"$work/VERSION"
+commit_work 'Back to the version'
+GH_API=exists expect_stop_keep 'タグが指すコミットの VERSION'
+! grep -qF 'すでに出してあります' "$case_dir/out"
+before=$(snapshot)
+GH_API=exists run_release_notty
+[[ $rc == 1 ]]
+[[ $(snapshot) == "$before" ]]
+grep -qF 'タグが指すコミットの VERSION' "$case_dir/err"
+make_case published-tag-commit-changelog-top
+printf '# 変更の記録\n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+commit_work 'Other top version'
+tag_here
+changelog_default >"$work/CHANGELOG.md"
+commit_work 'Fix the changelog'
+GH_API=exists expect_stop_keep 'CHANGELOG.md の先頭の版'
+! grep -qF 'すでに出してあります' "$case_dir/out"
+make_case published-tag-commit-empty-section
+printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+commit_work 'Empty section'
+tag_here
+changelog_default >"$work/CHANGELOG.md"
+commit_work 'Fill the section'
+GH_API=exists expect_stop_keep '節が空です'
+! grep -qF 'すでに出してあります' "$case_dir/out"
+before=$(snapshot)
+GH_API=exists run_release_notty
+[[ $rc == 1 ]]
+[[ $(snapshot) == "$before" ]]
+grep -qF '節が空です' "$case_dir/err"
+# main が先に進んでいても、タグの中身が正しければ、公開済みとして 0 で終わる。
+make_case published-after-main-moves
+tag_here
+printf '# 変更の記録\n' >"$work/CHANGELOG.md"
+commit_work 'Main moves on'
+before=$(snapshot)
+GH_API=exists run_release_notty
+[[ $rc == 0 ]]
+no_release
+[[ $(snapshot) == "$before" ]]
+grep -qF 'すでに出してあります' "$case_dir/out"
+
 # push が失敗する: 手元のタグが消え、Release を作らずに 1 で終わる。
 make_case push-fails
 printf '#!/bin/sh\nexit 1\n' >"$bare/hooks/pre-receive"
