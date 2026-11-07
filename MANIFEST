@@ -40,7 +40,7 @@ f87ce93cd7c9f6de487af338772b8fe7f027b5a9d83a76fe629ece721df14aca  ./common/monit
 924d5f82eca08218e0e4c2ee45152a3e2bd5d2d57cf4fccbd9c53e53e7a6a748  ./common/shell/env.sh
 17b2059a500db5aa83cd93d74e6aacd6d0a40452df174c19652b5cfe88d76071  ./common/skills/squad-handoff/SKILL.md
 701c6c80154c174ee084905458c196687e4b1acd54f8b5586d4b9f80f9a0cb35  ./common/squad.md
-a5ddaeda21e291d070630b22e5d8ddb87410aecaad6a262c278bef1bc094ad63  ./docs/vm.md
+b5a35fbcfde1978d0f6241d80e3737048fe1597b5f411a4139def71a424fbb46  ./docs/vm.md
 7676fba0003b177ab77c8f8473b4acfdc5452b05f8129d78aa81776887d1bdaf  ./lib/answers.sh
 a41c34125ad75e066f58958603d74bba6ce19de2d36fe6e4120c686426eed5a0  ./lib/autopilots.sh
 b5fe9da39e612a630e3ab0499675dd6623caf2a73e571d6ff1603511e0de1b01  ./lib/check.sh

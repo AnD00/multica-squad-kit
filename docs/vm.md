@@ -25,6 +25,7 @@
 | `vm/wsl.ps1` | Windows（PowerShell 5.1 以上） | WSL の専用のディストリを、同じように扱う |
 | `vm/guest/provision.sh` | VM の中（root） | 道具、Docker、デーモンの自動の起動を入れる |
 | `vm/guest/start-daemon` | VM の中（使う人） | デーモンを、セットアップと同じ環境で前面で起動する |
+| `vm/guest/record-server` | VM の中（使う人） | 動いているデーモンの接続先を、次の起動のために記録する |
 | `vm/guest/verify.sh` | VM の中（使う人） | 閉じ込め、Docker、自動の起動を確かめる |
 
 中のファイルは、VM の `/usr/local/lib/multica-squad-vm/` に置く。`.gitattributes` で `vm/` の `*.sh` と `vm/guest/*` を `eol=lf` にする。Windows で clone しても、改行が CRLF になって中で動かなくなるのを防ぐため。
@@ -132,7 +133,7 @@ Lima では、Lima の既定どおり、使う人に sudo を残す。共有の�
 2. WSL では、使う人を `useradd` で作る。sudo の群には入れない
 3. Docker を rootless で入れる（[Docker](#docker)）
 4. 使う人の linger を入れる（`loginctl enable-linger USER`）
-5. デーモンの自動の起動の unit を置き、有効にする（[デーモンの自動の起動](#デーモンの自動の起動)）
+5. デーモンの自動の起動の unit と、接続先を記録する timer を置き、有効にする（[デーモンの自動の起動](#デーモンの自動の起動)）
 6. WSL では、`/etc/wsl.conf` を書く
 
 `multica`、`claude`、`codex` は入れない。どれをどの手順で入れるかは、使う人と組織が決めるため。中で `manual.md` の「受け取る人の準備」のとおりに、使う人のホームの下（`~/.local/bin` など）へ入れる。
@@ -187,7 +188,7 @@ WantedBy=multi-user.target
 
 1. セットアップがまだなら（`~/.multica-agent/bin/gh` がない）、何もせずに 0 で終わる。VM を作った直後は、ログインもセットアップもまだのため
 2. `multica daemon status --output json` で、すでに動いていれば 0 で終わる。セットアップが起動したデーモンと二重にしないため
-3. サーバーの URL を、`MULTICA_SERVER_URL` か `multica config show` から、`lib/host.sh` の `choose_server` と同じ読み方で読む。読めなければ、理由をログに出して 0 以外で終わる
+3. サーバーの URL を、`MULTICA_SERVER_URL`、記録した接続先（[接続先を残す](#接続先を残す)）、`multica config show` の順に、最初にあるものから読む。確かめ方は `lib/host.sh` の `choose_server` と同じにする。どれもないか、読んだ値が正しくなければ、理由をログに出して 0 以外で終わる。正しくない値のときに次の読み先へ進まないのは、別のサーバーへ黙ってつながないため
 4. PATH を、`$HOME/.multica-agent/bin:` と、`bash -lc` で読んだ使う人のログインの PATH をつないで作る。`~/.local/bin` に入れた道具を見付けるため
 5. `env -i HOME USER SHELL=/bin/zsh PATH CODEX_HOME=$HOME/.multica-agent/codex MULTICA_SERVER_URL` で、`multica daemon start --foreground` を exec する
 
@@ -196,6 +197,27 @@ WantedBy=multi-user.target
 セットアップがデーモンを止めて起動し直すと、unit の前面のデーモンは終わり、以後はセットアップが起動したデーモンが動く。次に VM を起動したときから、また unit が起動する。
 
 Multica の `multica daemon autostart` は使わない。引数を受けず、`CODEX_HOME` と関所の PATH を渡せないため。
+
+### 接続先を残す
+
+セットアップが選んだ接続先を、動いているデーモンから読んで VM の中に記録し、次の起動で `start-daemon` が使う。セットアップは `MULTICA_SERVER_URL` や質問で選んだ URL でデーモンを起動し、CLI の既定は変えない。unit は環境変数を受けないので、記録がないと、再起動のあとに CLI の既定の別のサーバーへつなぐか、既定がなければ起動できないため。
+
+記録は、`record-server` を使う人として 1 分ごとに流す timer で取る。
+
+- `/etc/systemd/system/multica-squad-record-server.service` は、`Type=oneshot`、`User=USER`、`ExecStart=/usr/local/lib/multica-squad-vm/record-server` にする
+- `/etc/systemd/system/multica-squad-record-server.timer` は、`OnBootSec=1min`、`OnUnitActiveSec=1min`、`WantedBy=timers.target` にし、有効にする
+
+`record-server` は、次の順に動く。記録を変えないときは、何も書かずに 0 で終わる。
+
+1. セットアップがまだなら（`~/.multica-agent/bin/gh` がない）、何もしない
+2. PATH を `start-daemon` と同じに作り、`multica daemon status --output json` を読む。動いていなければ、何もしない
+3. 動いているデーモンが、`daemon_has_agent_env` と同じ変数を持つことを `ps eww` で確かめる。持たなければ、何もしない。セットアップか `start-daemon` が起動したデーモンだけを記録の元にし、手で別の設定で起動したデーモンの接続先を残さないため
+4. 状態の `.server_url` を、`start-daemon` と同じ規則で確かめ、末尾の `/` を除く。正しくなければ、理由をログに出して 0 以外で終わる
+5. 記録と違えば、同じディレクトリの一時のファイルに書いてから `mv` で置き換える。書きかけの記録を `start-daemon` が読まないようにするため
+
+記録は `~/.config/multica-squad-vm/server-url` に、URL を 1 行で置く。ホストには何も残さず、VM を消すと一緒に消える。セットアップを別の接続先で流し直すと、次の記録で新しい接続先に変わる。記録を消せば、`start-daemon` は CLI の既定に戻る。
+
+セットアップを終えてから最初の記録までの 1 分ほどの間に VM を止めると、記録は残らない。そのときは、次の起動で CLI の既定を使う。`verify` は、デーモンの確かめが通ったあとに `record-server` を 1 回流し、記録が動いているデーモンの接続先と同じことを確かめる。手順書では、セットアップのあとに `verify` を流すよう案内し、この間を待たずに閉じる。
 
 ### WSL のディストリを止めない
 
@@ -234,9 +256,9 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 | Windows の実行ファイルを呼べない | 対象外 | `WSLInterop` の binfmt がなく、`cmd.exe` を呼べない |
 | 使う人が root になれない | 対象外 | `sudo -n true` が失敗する |
 | Docker | `docker run --rm hello-world` が通り、そのあとも上の項目が成り立つ | 同じ |
-| 自動の起動 | unit が有効で、linger が入っている | 同じ |
+| 自動の起動 | unit と記録の timer が有効で、linger が入っている | 同じ |
 
-セットアップのあとに流すと、デーモンが動いていて、`daemon_has_agent_env` と同じ変数を持つことも確かめる。セットアップの前に流したときは、この項目を飛ばしたことを出す。
+セットアップのあとに流すと、デーモンが動いていて、`daemon_has_agent_env` と同じ変数を持つことも確かめる。続けて、接続先を記録し、記録がデーモンの接続先と同じことを確かめる（[接続先を残す](#接続先を残す)）。セットアップの前に流したときは、この項目を飛ばしたことを出す。
 
 ## ログインと認証
 
@@ -260,7 +282,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 | テスト | 確かめること |
 | --- | --- |
 | `tests/vm-lima-test.sh` | スタブの `limactl` に渡す上書き、版の不足と同じ名前での停止、起動前の設定の確かめで消して止まること、止める・消す前のタスク数の扱い、確かめの求め |
-| `tests/vm-guest-test.sh` | `provision.sh` が書く `wsl.conf` と unit、sudo の群に入れないこと、二度流しても同じこと。`start-daemon` の 5 つの手順。`verify.sh` の各項目の成否 |
+| `tests/vm-guest-test.sh` | `provision.sh` が書く `wsl.conf` と unit、sudo の群に入れないこと、二度流しても同じこと。`start-daemon` の 5 つの手順と、接続先を環境変数、記録、CLI の設定の順に読むこと。CLI の既定が記録と違うときと、CLI の設定がないときに、記録した接続先で起動すること。`record-server` が、デーモンが動いていないときと、`daemon_has_agent_env` の変数を持たないときに記録を変えないこと。`verify.sh` の各項目の成否 |
 | `tests/vm-wsl-test.sh` | スタブの `wsl.exe` を置いた `pwsh` で、`wsl.ps1` の各操作が渡す引数と、版・名前・タスク数での停止 |
 
 - `provision.sh` と `verify.sh` は、書き込む先と読む先の根（`/etc` など）を環境変数で差し替えられるようにし、テストは一時の置き場で流す
@@ -283,7 +305,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 - 普段のユーザーで動かすと、エージェントがホームの SSH の鍵や普段の `gh` の認証を読めること
 - 確かめた範囲に、Mac の Lima と WSL の専用のディストリを足す。版を出す前に人が確かめる範囲であることも書く
 
-`manual.md` には、「閉じ込めて動かす」の章を足す。作る、中に入る、道具とログイン、セットアップ、止める・起動する、消すの順に、コマンドを書く。ネットワークを閉じ込めないことと、WSL の root の作業の仕方も書く。
+`manual.md` には、「閉じ込めて動かす」の章を足す。作る、中に入る、道具とログイン、セットアップ、止める・起動する、消すの順に、コマンドを書く。ネットワークを閉じ込めないことと、WSL の root の作業の仕方も書く。セットアップのあとに `verify` を流すことと、接続先を変えるときはセットアップを流し直すことも書く。
 
 `CONTRIBUTING.md` には、「タグを発行する」の前に「版を出す前に VM で確かめる」の節を足す。Mac と WSL のそれぞれで、次を確かめて、結果を版を上げる PR に書く。
 
@@ -304,5 +326,9 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 | Docker を root で動かし、docker の群に入れる | 群の人は中の root になれ、WSL ではドライブをつなぎ直せる |
 | WSL を Ubuntu のイメージから `wsl --import` で作る | イメージの URL と照合値を原本で保つ手間が増える。公式の `wsl --install` で足りる |
 | Windows のタスク スケジューラや `limactl start-at-login` で自動で起動する | ホストに設定が残り、要件の「残るのは Lima（WSL）と VM のディスクだけ」に反する |
+| 接続先を `verify` のときだけ記録する | `verify` を流さずに VM を止めると、記録が残らない |
+| セットアップの前に `multica config set` で CLI の既定を手で合わせる | 手作業で、セットアップが CLI の既定を変えない方針と食い違う。合わせ忘れると黙って別のサーバーへつなぐ |
+| `lima.sh` と `wsl.ps1` の `stop` のときに接続先を記録する | ホストの再起動や、`limactl` と `wsl` で直に止めたときに記録されない |
+| systemd の path の unit で、Multica の設定のファイルの変化を見て記録する | Multica が中に置くファイルの名前と形に頼る。動いているデーモンの接続先は、どのファイルにも残らない |
 | Lima のポートの転送をすべて切る | Codex と Multica のログインがホストのブラウザから戻れなくなる。中からホストのファイルは読めないままなので、閉じ込めには効かない |
 | WSL でも使う人に sudo を残す | 中の root が `mount -t drvfs` でドライブをつなぎ直せる |
