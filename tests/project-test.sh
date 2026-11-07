@@ -98,6 +98,7 @@ case "$event" in
  jq -n --arg name "$(option --name "$@")" --arg leader "$(option --leader "$@")" '{id:"squad-a",name:$name,creator_id:"actor",leader_id:$leader,instructions:"",members:[]}' >"$TEST_DB/squad.json"
  cat "$TEST_DB/squad.json" ;;
 'skill list') jq -s . "$TEST_DB"/skills/*.json ;;
+'skill get') jq -s --arg id "$3" '.[] | select(.id==$id)' "$TEST_DB"/skills/*.json ;;
 'skill import')
  mkdir -p "$TEST_DB/imported"
  unzip -qo "$(option --file "$@")" -d "$TEST_DB/imported"
@@ -122,8 +123,14 @@ source "$root/lib/answers.sh"
 source "$root/lib/host.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
+source "$root/lib/project-changes.sh"
 # エージェント登録の試験ではスクワッドの設定を差し替え、呼び出す順序を確かめる。
 complete_project() { echo "followup after agents"; }
+prepare_project_issues() { :; }
+prepare_project_webhooks() { :; }
+project_webhook_completion() { :; }
+verify_project_installation() { :; }
+project_installation_completion() { :; }
 server_url=https://example.test
 workspace_id=workspace-a
 project_name='Demo & literal $HOME'
@@ -205,13 +212,13 @@ echo 'PASS project: 新規プロジェクトでは選んだ全件をエージェ
 
 jq -es 'all(.[]|select(.name|startswith("demo-")); (.instructions|contains("`example/project`、`example/second`、`example/third`")))' "$TEST_DB"/agents/*.json >/dev/null
 for repo in example/project example/second example/third; do
- jq -er '.description' "$TEST_DB/projects/project-a.json" | grep -Fq "| \`$repo\` | [記入:"
- jq -er '.content' "$TEST_DB/skills/verify.json" | grep -Fqx "## \`$repo\`"
+ jq -e --arg repo "$repo" '.description|contains("| `"+$repo+"` | [記入:")' "$TEST_DB/projects/project-a.json" >/dev/null
+ jq -e --arg repo "$repo" '.content|split("\n")|index("## `"+$repo+"`")!=null' "$TEST_DB/skills/verify.json" >/dev/null
 done
-[[ $(jq -r '.content' "$TEST_DB/skills/verify.json" | grep -c '^## `') == 3 ]]
-! jq -r '.description' "$TEST_DB/projects/project-a.json" | grep -q '{{'
-! jq -r '.content' "$TEST_DB/skills/verify.json" | grep -q '{{'
-jq -r '.content' "$TEST_DB/skills/verify.json" | grep -qF '[記入: 実際に使うコマンドと実行順]'
+jq -e '.content|split("\n")|map(select(startswith("## `")))|length==3' "$TEST_DB/skills/verify.json" >/dev/null
+jq -e '.description|contains("{{")|not' "$TEST_DB/projects/project-a.json" >/dev/null
+jq -e '.content|contains("{{")|not' "$TEST_DB/skills/verify.json" >/dev/null
+jq -e '.content|contains("[記入: 実際に使うコマンドと実行順]")' "$TEST_DB/skills/verify.json" >/dev/null
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
 # 環境の修復試験の準備には、ここで本体から作った全15役の状態を使う。
 mkdir -p "$test_dir/completed"

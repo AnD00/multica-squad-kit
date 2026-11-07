@@ -5,6 +5,7 @@ import re
 import sys
 import zipfile
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 scenario = Path(sys.argv[1])
 args = sys.argv[2:]
@@ -42,6 +43,14 @@ def skill_data(files, config):
 
 
 event = tuple(args[:2])
+failure = scenario / 'fail-read'
+if failure.exists() and failure.read_text().strip() in (' '.join(event), ' '.join(args[:3])):
+    print('read denied', file=sys.stderr)
+    sys.exit(71)
+malformed = scenario / 'bad-read'
+if malformed.exists() and malformed.read_text().strip() in (' '.join(event), ' '.join(args[:3])):
+    print('{}')
+    sys.exit()
 result = {}
 if event == ('config', 'show'):
     print('server_url: https://example.test')
@@ -53,7 +62,7 @@ elif event == ('user', 'profile'):
 elif event == ('workspace', 'list'):
     result = [dict(id='ws-a', name='Workspace A')]
 elif event == ('workspace', 'member'):
-    result = [dict(user_id='member-a', name='Owner', role='owner')]
+    result = db.get('members', [dict(user_id='member-a', name='Owner', role='owner')])
 elif event == ('repo', 'list'):
     result = [dict(url='https://github.com/example/project')]
 elif event == ('daemon', 'status'):
@@ -67,7 +76,7 @@ elif event == ('daemon', 'start'):
     (scenario / 'process-env').write_text(db['daemon_env'])
 elif event == ('runtime', 'list'):
     result = [dict(id=f'runtime-{runtime}', owner_id='member-a',
-                   daemon_id='daemon-a', provider=runtime, status='online')
+                   daemon_id='daemon-a', provider=runtime, status=db.get('runtime_status', {}).get(runtime, 'online'))
               for runtime in db['runtimes']] if db['running'] else []
 elif event == ('label', 'list'):
     result = db['labels']
@@ -158,20 +167,62 @@ elif event == ('autopilot', 'create'):
                     assignee_id=option('--agent'), assignee_type='agent', status='active')
     db['triggers'][result['id']] = []
 elif event == ('autopilot', 'get'):
-    result = dict(autopilot=record('autopilots', args[2]))
+    pilot = record('autopilots', args[2])
+    result = dict(autopilot={**pilot, 'can_write': pilot.get('can_write', True)},
+                  triggers=[dict(t) for t in db['triggers'][args[2]]])
+    if '--show-secrets' in args and pilot.get('fail_secrets'):
+        print('https://' + 'webhook-canary.example.test/' + args[2], file=sys.stderr)
+        sys.exit(71)
+    for trigger in result['triggers']:
+        if trigger['kind'] == 'webhook':
+            trigger['has_signing_secret'] = pilot.get('signed', False)
+            trigger['webhook_url'] = ('https://' + 'webhook-canary.example.test/' + args[2]
+                                      if ('--show-secrets' in args or pilot.get('canary_on_default_get')) and not pilot.get('missing_url') else None)
+            if '--show-secrets' in args:
+                print('unsafe credential warning', file=sys.stderr)
 elif event == ('autopilot', 'trigger-list'):
     result = dict(triggers=db['triggers'][args[2]])
 elif event == ('autopilot', 'trigger-add'):
-    db['triggers'][args[2]].append(dict(id=f'trigger-{args[2]}', kind=option('--kind'),
+    if option('--kind') == 'webhook' and record('autopilots', args[2]).get('fail_trigger'):
+        print('https://' + 'webhook-canary.example.test/' + args[2], file=sys.stderr)
+        sys.exit(71)
+    db['triggers'][args[2]].append(dict(id=f'trigger-{option("--kind")}-{args[2]}', kind=option('--kind'),
                                       cron_expression=option('--cron'),
                                       timezone=option('--timezone'), enabled=True))
 elif event == ('issue', 'create'):
+    failure = scenario / 'fail-issue'
+    if failure.exists() and failure.read_text().strip() == option('--title'):
+        print('issue creation denied', file=sys.stderr)
+        sys.exit(71)
     result = create('issues', title=option('--title'), description=content('--description-file'),
-                    project_id=option('--project'), assignee=option('--assignee'))
+                    project_id=option('--project'), assignee=option('--assignee'),
+                    assignee_id=option('--assignee-id'), status=option('--status', 'todo'),
+                    identifier=f'TEST-{len(db["issues"]) + 1}', metadata={}, labels=[])
+elif event == ('issue', 'list'):
+    issues = [i for i in db['issues'] if i['project_id'] == option('--project')]
+    metadata = option('--metadata')
+    if metadata:
+        key, value = metadata.split('=', 1)
+        issues = [i for i in issues if i['metadata'].get(key) == value]
+    offset, limit = int(option('--offset', '0')), int(option('--limit', '100'))
+    result = dict(issues=issues[offset:offset + limit], has_more=offset + limit < len(issues))
+elif tuple(args[:3]) == ('issue', 'metadata', 'set'):
+    assert option('--type') == 'string'
+    record('issues', args[3])['metadata'][option('--key')] = option('--value')
 elif tuple(args[:3]) == ('issue', 'label', 'add'):
-    record('issues', args[3])['label_id'] = args[4]
+    issue = record('issues', args[3])
+    issue['label_id'] = args[4]
+    if not any(label['id'] == args[4] for label in issue['labels']):
+        issue['labels'].append(dict(id=args[4]))
+elif event == ('issue', 'status'):
+    issue = record('issues', args[2])
+    assert issue['labels'] and issue['metadata']['squad_kit_task']
+    issue['status'] = args[3]
 else:
     raise AssertionError(f'Unexpected CLI call: {args}')
 
-path.write_text(json.dumps(db, ensure_ascii=False))
+# Webhook のパイプでは別の CLI が同じ DB を読む。途中の JSON を見せない。
+with NamedTemporaryFile(mode='w', encoding='utf-8', dir=scenario, delete=False) as saved:
+    json.dump(db, saved, ensure_ascii=False)
+Path(saved.name).replace(path)
 print(json.dumps(result, ensure_ascii=False))

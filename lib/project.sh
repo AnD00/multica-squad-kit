@@ -7,6 +7,10 @@ prepare_project() (
 	local created_agents=0 created_squads=0 created_autopilots=0
 	local agent_total progress agent_action
 	local project_host_recheck=yes
+	local setup_issue_rows='[]' setup_issue_failures='[]'
+	local setup_removed_targets='[]' project_previous_repositories=null
+	local setup_webhook_rows='[]'
+	local setup_installation_rows='[]'
 	local -a allowed_repo_names=()
 	selected_repositories=$(jq -ce "$repository_filter"'
 		if type=="array" and length>0 then . else error("リポジトリがありません") end |
@@ -203,24 +207,73 @@ prepare_project() (
 		printf 'エージェントの公開 %s/%s: %s\n' "$progress" "$agent_total" "$name" >&2
 	done
 	complete_project
+	prepare_project_webhooks
+	verify_project_installation
+	prepare_project_issues
 	project_completion
+	[[ $(jq length <<<"$setup_issue_failures") == 0 ]]
 )
 
 # 実際に成功した create の件数だけを出す。再実行の既存利用は数えない。
 project_completion() {
 	printf '\nプロジェクトの設定が終わりました: %s（%s）\n' "$project_name" "${workspace_name:-$workspace_id}"
 	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
+	project_installation_completion
+	project_webhook_completion
+	project_issue_completion
 	printf '%s\n' '次にすること:'
-	printf '%s\n' '1. Multica の画面で、スクワッド・エージェント・スキル・ラベル・オートパイロットと、使うランタイムがオンラインかを確認してください。'
-	printf '%s\n' '2. skeleton/ の案内に従い、各リポジトリの AGENTS.md・作業別のルールと、プロジェクトの説明・検証スキルを記入してください。'
+	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
+	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if [[ " $enabled " == *' dependabot-merger '* ]]; then
-		printf '%s\n' '3. 選んだ各リポジトリに Dependabot の Webhook を登録してください（manual.md の「人間が行う Webhook の登録」）。'
+		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
 	else
-		printf '%s\n' '3. Dependabot の役は外したため、この役の Webhook の登録は不要です。'
+		printf '%s\n' 'Dependabot の役は外したため、この役の Webhook の登録は不要です。'
 	fi
 	printf '%s\n' 'エージェント用のログインが切れた場合は、次を実行してから bash setup.sh を流し直してください。'
 	if uses_runtime claude; then printf '  CLAUDE_CONFIG_DIR=%q claude\n' "$agent_home/claude"; fi
 	if uses_runtime codex; then printf '  CODEX_HOME=%q codex login\n' "$agent_home/codex"; fi
+}
+
+# 登録を終えてから、人間に残る作業を対象のプロジェクトへ起票する。
+prepare_project_issues() {
+	local repo targets
+	while IFS= read -r repo; do
+		targets=$(jq -nc --arg repo "$repo" '[$repo]')
+		if [[ " $enabled " == *' dependabot-merger '* ]]; then
+			queue_project_issue dependabot-filter "$targets" "$host_owner_id" "$repo"
+		fi
+		queue_project_issue repository-rules "$targets" "$squad_id" "$repo"
+	done < <(jq -r '.[].repository' <<<"$selected_repositories")
+	queue_project_issue project-instructions '["project"]' "$host_owner_id"
+	queue_project_issue squad-trial '["project"]' "$host_owner_id"
+	prepare_project_change_issues
+}
+
+# 1 件の失敗では止めず、完了の表示のために結果と理由をためる。
+queue_project_issue() {
+	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result reason
+	if result=$(ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
+		setup_issue_rows=$(jq -c --argjson rows "$result" '.+$rows' <<<"$setup_issue_rows")
+	else
+		reason=$(tail -n 1 "$project_work/issue-error")
+		reason=${reason:-起票の処理に失敗しました。同じ答えで流し直してください。}
+		record_project_issue_failure "$kind" "$repo" "$reason"
+	fi
+}
+
+record_project_issue_failure() {
+	local title
+	title=$(jq -r --arg kind "$1" --arg repo "$2" '.[$kind].title | split("{{repository}}") | join($repo)' "$root/common/setup-issues.json")
+	setup_issue_failures=$(jq -c --arg title "$title" --arg reason "$3" '.+[{title:$title,reason:$reason}]' <<<"$setup_issue_failures")
+}
+
+project_issue_completion() {
+	printf '%s\n' '起票した issue:'
+	jq -r '.[] | "  \(.identifier) \(.title)（\(if .action=="created" then "新規" else "既存" end)）"' <<<"${setup_issue_rows:-[]}"
+	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
+		printf '%s\n' '起票できなかった issue:'
+		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"
+	fi
 }
 
 # 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。
@@ -316,6 +369,11 @@ project_skills() {
 		[[ $(template_field "$dir/SKILL.md" name) == "$skill_base" ]] || die 'プロジェクトのスキル名が不正です。'
 		project_named "$skills" name "$skill_name"
 		skill_id=$(jq -r '.[0].id // empty' <<<"$matches")
+		if [[ $skill_base == verify && -n $skill_id ]]; then
+			result=$(mc skill get "$skill_id" --with-content --output json) || die '既存の検証スキルを読めませんでした。'
+			jq -e --arg id "$skill_id" --arg name "$skill_name" '.id==$id and .name==$name and (.content|type=="string")' >/dev/null <<<"$result" || die '既存の検証スキルの応答が不正です。'
+			project_previous_repositories=$(project_verify_repositories "$result") || die '既存の検証スキルのリポジトリを読めませんでした。'
+		fi
 		if [[ -n $skill_id ]] && { [[ ! -f $root/extension-skills ]] || ! grep -qx "$skill_base" "$root/extension-skills"; }; then continue; fi
 		mkdir -p "$project_work/skills/$skill_name"
 		cp -R "$dir". "$project_work/skills/$skill_name/" || die 'スキルを準備できませんでした。'

@@ -78,6 +78,8 @@ source "$root/lib/check.sh"
 source "$root/lib/answers.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
+source "$root/lib/webhooks.sh"
+source "$root/lib/installation.sh"
 source "$root/lib/squad.sh"
 source "$root/lib/autopilots.sh"
 project_work=$TEST_DB/work
@@ -126,7 +128,9 @@ enabled=$(cat "$fixture/enabled")
 cp "$fixture/values.json" "$fixture/"*.rendered "$project_work/"
 created_agents=0; created_squads=0; created_autopilots=0
 project_name=Demo; workspace_name="Workspace A"; agent_home="$TEST_DB/agent home"
+setup_removed_targets='[]'
 complete_project
+printf '%s\n' "$setup_removed_targets" >"$TEST_DB/removed-targets.json"
 project_completion
 DRIVER
 export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package" TEST_DB="$test_dir/db" TEST_FIXTURES="$test_dir/fixtures"
@@ -156,8 +160,10 @@ grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 �
 for index in $(seq 0 3); do grep -qF "オートパイロット $index/3" "$test_dir/err"; done
 echo 'PASS progress: 選んだオートパイロットの件数に合わせ、0から設定中の位置を表示する'
 
-for message in 'Multica の画面で' 'skeleton/' 'Dependabot の Webhook を登録' 'CLAUDE_CONFIG_DIR=' 'CODEX_HOME='; do grep -qF "$message" "$test_dir/out"; done
-echo 'PASS completion: オートパイロットの実作成件数と画面・ひな形・Webhook・未ログイン時のログインを案内する'
+for message in '表示した issue を対象のプロジェクトで開き' 'skeleton/' 'Dependabot のイベントフィルター' '人間が行う Webhook の登録' 'CLAUDE_CONFIG_DIR=' 'CODEX_HOME='; do grep -qF "$message" "$test_dir/out"; done
+! grep -qF 'Multica の画面で、スクワッド' "$test_dir/out"
+! grep -qF '選んだ各リポジトリに Dependabot の Webhook を登録してください' "$test_dir/out"
+echo 'PASS completion: 作成件数と起票された issue・ひな形・残る Webhook の手順・ログインを案内し、自動の作業を手で頼まない'
 echo 'PASS followup: 3つのオートパイロットを実 ID・指示・実行モード・プロジェクト・時刻とタイムゾーンで登録する'
 # 後続ケースの初期状態は、ここで実際に作って検証したものを複製する。
 cp -R "$TEST_DB" "$test_dir/completed-one"
@@ -186,6 +192,7 @@ jq -e 'all(.[]; .member_id!="agent-planner" and .member_id!="agent-claude-implem
 jq -e 'length==3 and all(.[]; .status=="paused")' "$TEST_DB/autopilots.json" >/dev/null
 cmp "$TEST_DB/agents.json" "$test_dir/agents-before"
 for role in planner claude-implementer claude-fixer security-reviewer usage-monitor dependabot-merger; do grep -q "demo-$role-owner" "$test_dir/err"; done
+jq -e 'length==9 and index("demo-planner-owner")!=null and index("使用上限の見張り demo-owner")!=null and all(.[]; contains("other-agent")|not)' "$TEST_DB/removed-targets.json" >/dev/null
 ! grep -q 'demo-planner-owner' "$TEST_DB/squad.json"
 echo 'PASS followup: 外した自分の役は名簿と対応するオートパイロットから外し、エージェントを消さずに名前を表示する'
 export TEST_EXCLUDED='[]'
@@ -278,6 +285,7 @@ run
 jq -e 'any(.[]; .member_id=="agent-security-reviewer")' "$TEST_DB/roster.json" >/dev/null
 jq -e 'any(.[]; .assignee_id=="agent-security-reviewer")' "$TEST_DB/autopilots.json" >/dev/null
 echo 'PASS followup: 外した役の完成名が同じでも所有者が違えば名簿とオートパイロットを変更しない'
+jq -e 'all(.[]; contains("security-reviewer")|not)' "$TEST_DB/removed-targets.json" >/dev/null
 
 export TEST_EXCLUDED='[]' TEST_REPOSITORIES='["example/project","example/client"]'
 reset_db
@@ -311,6 +319,7 @@ jq 'map(if .id=="auto-6" then .assignee_id="foreign-agent" else . end)+[{id:"for
 run
 jq -e 'any(.[]; .id=="auto-7" and .status=="paused") and all(.[]|select(.id=="auto-6" or .id=="foreign-project" or .id=="manual"); .status=="active")' "$TEST_DB/autopilots.json" >/dev/null
 grep -q '一時停止しています.*Dependabot.*example/third' "$test_dir/err"
+jq -e '.[0]=="Dependabot の PR の週次の確認 demo example/third" and length==1' "$TEST_DB/removed-targets.json" >/dev/null
 echo 'PASS autopilots: 外したリポジトリを一時停止し、別の人の担当・別プロジェクト・手動の名前は変えない'
 
 restore_completed two
