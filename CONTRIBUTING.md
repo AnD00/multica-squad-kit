@@ -39,41 +39,18 @@ VM を作るスクリプト（`vm/lima.sh` と `vm/wsl.ps1`）と、中で流す
 
 Mac は Lima、Windows は WSL の専用のディストリで、それぞれ確かめる。片方の実機が使えないときは、確かめなかった側と理由を PR に書き、そのままバージョンを出すかを人が決める。
 
-## タグを発行する
+## タグと Release を出す
 
-人間が、レビューと CI を通した変更のマージ後に行う。作業ディレクトリに未コミットの変更がないことを確認し、原本のリポジトリで次を実行する。発行するタグ名は `VERSION` から読む。
-
-```bash
-(
-  set -eu
-  git switch main
-  git pull --ff-only origin main
-  test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
-  release_tag=$(cat VERSION)
-  test "$(cat VERSION)" = "$release_tag"
-  test "$(awk '/^## / {print $2; exit}' CHANGELOG.md)" = "$release_tag"
-  git tag -a "$release_tag" -m "$release_tag"
-  git push origin "refs/tags/$release_tag"
-)
-```
-
-タグを付ける main が `origin/main` と一致しなければ、タグを作らずに止まる。未公開コミットがある場合は、その変更を PR でレビュー・マージしてからやり直す。
-
-`VERSION` と `CHANGELOG.md` の先頭の版がタグ名と一致しなければ、タグを作らずに止まる。一致しない場合は、版と変更の記録を直す PR をレビュー・マージしてからやり直す。タグは注釈付きで作り、発行済みのタグは動かさない。修正は新しいタグで配る。
-
-### Release を作る
-
-タグを push したら、そのタグの Release を作る。`VERSION` が発行したタグ名のままであることを確認してから実行する。本文は、`CHANGELOG.md` のその版の節になる。
+人間が、レビューと CI を通した変更のマージ後に、原本のリポジトリのルートで次を流す。タグの名前は `VERSION` から読む。
 
 ```bash
-(
-  set -eu
-  release_tag=$(cat VERSION)
-  notes=$(git show "$release_tag:CHANGELOG.md" |
-    awk -v heading="## $release_tag" '$0 == heading {found = 1; next} found && /^## / {exit} found')
-  test -n "$(printf '%s' "$notes" | tr -d '[:space:]')"
-  gh release create "$release_tag" --repo AnD00/multica-squad-kit --verify-tag --title "$release_tag" --notes "$notes"
-)
+git switch main
+git pull --ff-only origin main
+bash scripts/release.sh
 ```
 
-その版の節が空なら、Release を作らずに止まる。Release の作成だけが失敗したときは、タグを作り直さず、このコマンドだけを流し直す。
+コマンドは、公開の前に、版、タグを付けるコミット、Release の本文（`CHANGELOG.md` のその版の節）を出して、確認を求める。`y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、Release を作る。確認は端末で答えるので、端末から流す。パイプや自動の実行では、公開されない。
+
+止まったときは、出た理由に従って直してから、流し直す。未公開のコミットがあるときや、`VERSION` と `CHANGELOG.md` の先頭の版が違うときは、変更を PR でレビュー・マージしてからやり直す。Release の作成だけが失敗したときも、同じコマンドを流し直す。タグは作り直さず、Release だけを作る。
+
+発行済みのタグは動かさない。修正は新しいタグで配る。
