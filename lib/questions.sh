@@ -1,7 +1,9 @@
 # 質問は stdin から読み、既定値でも Enter を待つ。質問中は登録・保存しない。
 ask() {
 	local label=$1 default=$2
-	printf '%s [%s]: ' "$label" "$default" >&2
+	printf '%s ' "$label" >&2
+	ui_paint err default "[$default]" >&2
+	printf ': ' >&2
 	IFS= read -r answer || die '入力が終わりました。答えは保存していません。'
 	[[ -n $answer ]] || answer=$default
 }
@@ -9,17 +11,48 @@ ask() {
 question_begin() {
 	question_number=$((${question_number:-0}+1))
 	question_title=$1; question_description=$2; question_example=$3
-	question_items='[]'; question_zero=''; question_notice=''; question_fixed=''
+	question_items='[]'; question_zero=''; question_notice=''; question_notice_kind=description; question_fixed=''
+}
+
+# 質問に添える注意の文は色なしで作り、画面に出すときに種類の色と印を付ける。
+# question_notice_kind は description（印も色もなし）か warning。行ごとに印を付ける。
+question_notice_show() {
+	local line
+	[[ -n $question_notice ]] || return 0
+	while IFS= read -r line; do
+		if [[ $question_notice_kind == warning ]]; then ui_warning "$line"; else printf '%s\n' "$line" >&2; fi
+	done <<<"$question_notice"
+}
+
+# 画面の種類ごとの色と印は manual.md の「表示の色と印」に従い、lib/ui.sh で付ける。
+# 入力を受け付けずに同じ質問へ戻るときは、行頭に印の「エラー:」を付ける。続く行は同じ色にする。
+input_error() {
+	local line
+	ui_error "$1"
+	shift
+	for line; do ui_line err error "$line"; done
+}
+
+question_heading() {
+	printf '\n' >&2
+	ui_line err question "質問 ($question_number/$question_total) $question_title"
+	printf '%s\n例: %s\n' "$question_description" "$question_example" >&2
+}
+
+question_choice() {
+	ui_paint err choice "$1:" >&2
+	printf ' %s\n' "$2" >&2
 }
 
 question_prompt() {
-	printf '\n(%s/%s) %s\n%s\n例: %s\n' "$question_number" "$question_total" "$question_title" "$question_description" "$question_example" >&2
-	if [[ -n $1 ]]; then printf '既定値: %s（Enter で使います）\n' "$1" >&2
-	else printf '%s\n' '既定値: なし。例と説明を見て入力してください。' >&2; fi
+	question_heading
+	if [[ -n $1 ]]; then ui_line err default "既定値: $1（Enter で使います）"
+	else ui_line err default '既定値: なし。例と説明を見て入力してください。'; fi
 	if [[ -n $question_fixed ]]; then printf '常に入る役:\n%s\n外せる役:\n' "$question_fixed" >&2; fi
-	jq -r 'to_entries[] | "\(.key+1): \(.value)"' <<<"$question_items" >&2
-	[[ -z $question_zero ]] || printf '0: %s\n' "$question_zero" >&2
-	[[ -z $question_notice ]] || printf '%s\n' "$question_notice" >&2
+	local number
+	for ((number=1; number<=$(jq length <<<"$question_items"); number++)); do question_choice "$number" "$(jq -r --argjson i "$number" '.[$i-1]' <<<"$question_items")"; done
+	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
+	question_notice_show
 	ask '入力' "$1"
 }
 
@@ -35,12 +68,12 @@ ask_key() {
 	local default=$1 previous=$2 kind=$3 matches existing candidate
 	if [[ -n $previous ]] && valid_key "$previous"; then default=$previous
 	elif [[ -n $previous ]]; then
-		question_notice="前回の目印「$previous」は今の形に合いません。既存の一式は残し、今回の新しい名前を確認します。"
+		question_notice="前回の目印「${previous}」は今の形に合いません。既存の一式は残し、今回の新しい名前を確認します。"; question_notice_kind=warning
 	fi
 	while :; do
 		question_prompt "$default"
 		if ! valid_key "$answer"; then
-			printf '%s\n' '英小文字で始まる英小文字と数字の2〜12文字にしてください。大文字・ハイフン・記号は使えません。' >&2
+			input_error '英小文字で始まる英小文字と数字の2〜12文字にしてください。大文字・ハイフン・記号は使えません。'
 			continue
 		fi
 		if [[ $kind == member ]]; then
@@ -50,7 +83,7 @@ ask_key() {
 				existing=$(mc squad get "$(jq -r '.[0].id' <<<"$matches")" --output json) || die 'スクワッドの所有者を取得できませんでした。'
 				jq -e '(.creator_id|type=="string" and length>0)' >/dev/null <<<"$existing" || die 'スクワッドの所有者の応答が不正です。'
 				if [[ $(jq -r '.creator_id' <<<"$existing") != "$question_actor_id" ]]; then
-					printf '「%s」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。\n' "$candidate" >&2
+					input_error "「${candidate}」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。"
 					continue
 				fi
 			fi
@@ -76,17 +109,18 @@ choose_server() {
 	question_begin 'サーバーの URL' 'このホストのデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
 	while :; do
 		question_prompt ''
-		if ! valid_server "$answer"; then printf '%s\n' 'https:// で始まるサーバーの URL を入力してください。' >&2; continue; fi
+		if ! valid_server "$answer"; then input_error 'https:// で始まるサーバーの URL を入力してください。'; continue; fi
 		server_url=${answer%/}
 		if mc auth status >/dev/null 2>&1; then question_server_checked=yes; break; fi
-		printf '%s\n' 'サーバーに接続できないか、ログインしていません。URL と接続を確認してください。' >&2
-		printf '未ログインなら別のターミナルで multica --server-url %q login を済ませ、同じ質問へ入力してください。\n' "$server_url" >&2
+		input_error 'サーバーに接続できないか、ログインしていません。URL と接続を確認してください。' \
+			"$(printf '未ログインなら別のターミナルで multica --server-url %q login を済ませ、同じ質問へ入力してください。' "$server_url")"
 	done
 }
 check_login() {
 	[[ ${question_server_checked:-no} != yes ]] || return 0
 	if ! mc auth status >/dev/null 2>&1; then
-		printf 'Multica の接続とログインを確認してください。\nmultica --server-url %q login\n' "$server_url" >&2
+		ui_error 'Multica の接続とログインを確認してください。'
+		printf 'multica --server-url %q login\n' "$server_url" >&2
 		die 'ログイン後に流し直してください。ここではログインや設定の変更を行いません。'
 	fi
 }
@@ -114,8 +148,8 @@ pick_numbers() {
 			picked_numbers=$(jq -c --argjson i "$index" 'if index($i)==null then .+[$i] else . end' <<<"$picked_numbers")
 		done
 		[[ -z $picked_numbers ]] || break
-		if [[ $allow_zero == yes ]]; then printf '%s\n' '一覧の番号を半角数字で、空白かカンマで区切ってください。0 は単独で入力します。' >&2
-		else printf '%s\n' '1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。' >&2; fi
+		if [[ $allow_zero == yes ]]; then input_error '一覧の番号を半角数字で、空白かカンマで区切ってください。0 は単独で入力します。'
+		else input_error '1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。'; fi
 	done
 }
 
@@ -127,7 +161,7 @@ pick_project() {
 	if [[ $(jq length <<<"$projects") == 0 ]]; then question_notice='まだプロジェクトがありません。新しい名前を入れると作ります。'; question_example='Demo Project のような新しい名前'; fi
 	while :; do
 		question_prompt "$default"
-		if [[ -z ${answer//[[:space:]]/} || $answer == *$'\r'* ]]; then printf '%s\n' 'プロジェクトの名前が空です。名前か、一覧の番号を入力してください。' >&2; continue; fi
+		if [[ -z ${answer//[[:space:]]/} || $answer == *$'\r'* ]]; then input_error 'プロジェクトの名前が空です。名前か、一覧の番号を入力してください。'; continue; fi
 		if [[ $answer =~ ^[0-9]+$ ]]; then
 			if [[ ${#answer} -le 6 ]]; then
 				index=$((10#$answer))
@@ -136,30 +170,71 @@ pick_project() {
 					project_name=$(jq -r --argjson i "$index" '.[$i-1].title' <<<"$projects"); break
 				fi
 			fi
-			printf '%s\n' '一覧にない番号です。新しい名前は数字だけにせず、文字を含めて入力してください。' >&2; continue
+			input_error '一覧にない番号です。新しい名前は数字だけにせず、文字を含めて入力してください。'; continue
 		fi
 		project_name=$answer
 		matches=$(jq -c --arg name "$project_name" '[.[]|select(.title==$name)]' <<<"$projects")
-		if [[ $(jq length <<<"$matches") -gt 1 ]]; then printf '%s\n' '同名のプロジェクトが複数あります。一覧の番号で選んでください。' >&2; continue; fi
+		if [[ $(jq length <<<"$matches") -gt 1 ]]; then input_error '同名のプロジェクトが複数あります。一覧の番号で選んでください。'; continue; fi
 		project_id=$(jq -r '.[0].id // empty' <<<"$matches"); break
 	done
 }
 
+# オートパイロットの名前は、ここだけで作る。リポジトリごとのものには OWNER/REPO を渡す。
+# 登録する名前は common/autopilots.md の見出しで、tests/role-choices-test.sh が同じ名前になることを確かめる。
+autopilot_title() {
+	case $1 in
+	security-reviewer) printf '週 1 回の依存ライブラリの脆弱性チェック %s %s' "$project_key" "$2" ;;
+	dependabot-merger) printf 'Dependabot の PR の週次の確認 %s %s' "$project_key" "$2" ;;
+	usage-monitor) printf '使用上限の見張り %s-%s' "$project_key" "$member_key" ;;
+	esac
+}
+
 # 外せる項目と、その項目に含まれる役の対応。進行役は含めない。
+# roles はエージェントの役、autopilots は一緒に外れるオートパイロットの種類、watch はオートパイロットではない見張りである。
 role_choices='[
- {"key":"planner","roles":["planner"],"text":"要件定義: 要望をまとめて人間と合意する。外すと要件を人間が補う"},
- {"key":"designer","roles":["designer"],"text":"設計: 設計と実装の段を作る。外すと設計を人間が補う"},
- {"key":"claude","roles":["claude-implementer","claude-fixer"],"text":"Claude の実装・修正: 新規実装と指摘の修正を行う。Claude の実装者と Claude の修正者の2役を一緒に外す"},
- {"key":"codex","roles":["codex-implementer","codex-fixer"],"text":"Codex の実装・修正: 新規実装と指摘の修正を行う。Codex の実装者と Codex の修正者の2役を一緒に外す"},
- {"key":"code-reviewer","roles":["code-reviewer"],"text":"コードレビュー: 正しさとテストを確認する。返事を待つ役から外れる"},
- {"key":"security-reviewer","roles":["security-reviewer"],"text":"セキュリティ: 危険な実装を確認する。返事を待つ役から外れ、週次の脆弱性チェックも外れる"},
- {"key":"ux-reviewer","roles":["ux-reviewer"],"text":"UX: 画面の使いやすさを確認する。返事を待つ役から外れる"},
- {"key":"performance-reviewer","roles":["performance-reviewer"],"text":"パフォーマンス: 遅さや負荷を確認する。返事を待つ役から外れる"},
- {"key":"qa","roles":["qa"],"text":"QA: 動作とE2Eを確認する。返事を待つ役から外れる"},
- {"key":"ci-monitor","roles":["ci-monitor"],"text":"PR の CI の見張り: CIの結果を知らせる。この見張りを外す"},
- {"key":"usage-monitor","roles":["usage-monitor"],"text":"使用上限の見張り: AIの残量を見張る。使用上限のオートパイロットも外れる"},
- {"key":"dependabot-merger","roles":["dependabot-merger"],"text":"Dependabot の PR: 更新を週次で扱う。対応するオートパイロットも外れる"}
+ {"key":"planner","roles":["planner"],"title":"要件定義","purpose":"要望をまとめて人間と合意する","changes":"要件は人間に補ってもらう"},
+ {"key":"designer","roles":["designer"],"title":"設計","purpose":"設計と実装の段を作る","changes":"設計は人間に補ってもらう"},
+ {"key":"claude","roles":["claude-implementer","claude-fixer"],"title":"Claude の実装・修正","purpose":"新規実装と指摘の修正を行う","changes":"振り分け先から外れる"},
+ {"key":"codex","roles":["codex-implementer","codex-fixer"],"title":"Codex の実装・修正","purpose":"新規実装と指摘の修正を行う","changes":"振り分け先から外れる。レビューの4役はClaudeのモデルになる"},
+ {"key":"code-reviewer","roles":["code-reviewer"],"title":"コードレビュー","purpose":"正しさとテストを確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"security-reviewer","roles":["security-reviewer"],"title":"セキュリティ","purpose":"危険な実装を確認する","autopilots":["security-reviewer"],"changes":"返事を待つ役の一覧から外れる"},
+ {"key":"ux-reviewer","roles":["ux-reviewer"],"title":"UX","purpose":"画面の使いやすさを確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"performance-reviewer","roles":["performance-reviewer"],"title":"パフォーマンス","purpose":"遅さや負荷を確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"qa","roles":["qa"],"title":"QA","purpose":"動作とE2Eを確認する","changes":"返事を待つ役の一覧から外れる"},
+ {"key":"ci-monitor","roles":["ci-monitor"],"title":"PR の CI の見張り","purpose":"CIの結果を知らせる","watch":"進行役が PR ごとに置く CI の見張り"},
+ {"key":"usage-monitor","roles":["usage-monitor"],"title":"使用上限の見張り","purpose":"AIの残量を見張る","autopilots":["usage-monitor"]},
+ {"key":"dependabot-merger","roles":["dependabot-merger"],"title":"Dependabot の PR","purpose":"更新を週次で扱う","autopilots":["dependabot-merger"],"changes":"GitHub への Webhook の登録をしない"}
 ]'
+
+# 外せる項目の文。1 行目は「役: 担当。」で、続けて一緒に外れるものを種類ごとの見出しに分ける。
+# 引数は、項目の JSON、見出しの字下げ、1 行目の末尾に添える注意。該当するものがない見出しは出さない。
+role_choice_text() {
+	local choice=$1 indent=$2 note=$3 title purpose changes watch roles kinds role kind repo names=''
+	{ IFS= read -r title; IFS= read -r purpose; IFS= read -r changes; IFS= read -r watch; IFS= read -r roles; IFS= read -r kinds; } < <(jq -r '.title,.purpose,(.changes//""),(.watch//""),(.roles|join(" ")),((.autopilots//[])|join(" "))' <<<"$choice")
+	printf '%s: %s。%s\n%sエージェント: ' "$title" "$purpose" "$note" "$indent"
+	for role in $roles; do printf '%s%s-%s-%s' "${names:+、}" "$project_key" "$role" "$member_key"; names=yes; done
+	names=''
+	for kind in $kinds; do
+		if [[ $kind == usage-monitor ]]; then
+			names=${names:+${names}、}$(autopilot_title "$kind")
+		else
+			while IFS= read -r repo; do names=${names:+${names}、}$(autopilot_title "$kind" "$repo"); done < <(jq -r '.[].repository' <<<"$repositories")
+		fi
+	done
+	[[ -z $names ]] || printf '\n%sオートパイロット: %s' "$indent" "$names"
+	[[ -z $watch ]] || printf '\n%s見張り: %s' "$indent" "$watch"
+	[[ -z $changes ]] || printf '\n%sほかに変わること: %s' "$indent" "$changes"
+}
+
+# 使うランタイムにない系統の項目には、選ばなくても外れることを添える。
+role_choice_note() {
+	if [[ $1 == claude || $1 == codex ]] && jq -e --arg key "$1" 'index($key)==null' >/dev/null <<<"$runtimes"; then printf '（使うランタイムにないため外れます）'; fi
+}
+
+# 進行役のエージェントは、ほかの役と同じ見出しで名前を出す。
+role_fixed_text() {
+	printf '進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: %s-orchestrator-%s' "$project_key" "$member_key"
+}
 
 pick_runtimes() {
 	local previous=$1 default=1 claude_status='コマンドが見つかりません' codex_status='コマンドが見つかりません'
@@ -175,18 +250,18 @@ pick_runtimes() {
 	while :; do
 		pick_numbers "$default" no
 		if [[ $(jq length <<<"$picked_numbers") != 1 ]]; then
-			printf '%s\n' '使うランタイムは一つの番号だけを選んでください。' >&2; continue
+			input_error '使うランタイムは一つの番号だけを選んでください。'; continue
 		fi
 		case $(jq -r '.[0]' <<<"$picked_numbers") in
 		1) runtimes='["claude","codex"]' ;; 2) runtimes='["claude"]' ;; 3) runtimes='["codex"]' ;;
 		esac
 		if check_runtime_tools; then break; fi
-		printf '%s\n' 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。' >&2
+		input_error 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。'
 	done
 }
 
 ask_questions() {
-	local workspaces projects repos members profile cached='{}' raw files=0 candidate default index token previous_key selected
+	local workspaces projects repos members profile cached='{}' raw files=0 candidate default index token previous_key selected i choice
 	workspace_id=''
 	workspaces=$(read_list ワークスペース workspace list)
 	question_begin 'ワークスペース' 'エージェントのチームを作る置き場です。自分が入っているものから選びます。' '1（一覧の番号）'
@@ -199,7 +274,7 @@ ask_questions() {
 	while :; do
 		pick_numbers '' no
 		if [[ $(jq length <<<"$picked_numbers") == 1 ]]; then break; fi
-		printf '%s\n' 'ワークスペースは一つの番号だけを選んでください。' >&2
+		input_error 'ワークスペースは一つの番号だけを選んでください。'
 	done
 	index=$(jq -r '.[0]' <<<"$picked_numbers")
 	workspace_id=$(jq -r --argjson i "$index" '.[$i-1].id' <<<"$workspaces")
@@ -219,7 +294,7 @@ ask_questions() {
 			[[ ! -L $answers_file ]] && valid_answers "$answers_file" || die '保存済みの答えが不正です。内容を確認してください。'
 			saved=$(load_answers "$answers_file")
 			if ! jq -e --arg ws "$workspace_id" --arg url "$server_url" --arg name "$project_name" --arg key "$project_key" '.workspace_id==$ws and .server_url==$url and .project_name==$name and .project_key==$key' >/dev/null <<<"$saved"; then
-				printf '%s\n' 'そのプロジェクトの区別は別の答えに使われています。別の目印を入力してください。' >&2; continue
+				input_error 'そのプロジェクトの区別は別の答えに使われています。別の目印を入力してください。'; continue
 			fi
 		fi
 		break
@@ -229,7 +304,7 @@ ask_questions() {
 	question_begin 'リポジトリ' 'このプロジェクトのエージェントが作業し、書き込める場所です。選んだものだけに push と PR ができ、複数選べます。' '1 3、または 1,3（1つ以上）'
 	question_items=$(jq '[.[].repository]' <<<"$eligible_repos")
 	case $(jq length <<<"$eligible_repos") in 1) question_example='1（候補は一つです）' ;; 2) question_example='1 2、または 1,2（1つ以上）' ;; esac
-	question_notice=$(jq -r '.[]|"選べないリポジトリ: \(.repository)（別プロジェクト: \(.projects|join("、"))）"' <<<"$blocked_repos")
+	question_notice=$(jq -r '.[]|"選べないリポジトリ: \(.repository)（別プロジェクト: \(.projects|join("、"))）"' <<<"$blocked_repos"); question_notice_kind=warning
 	if [[ $(jq length <<<"$eligible_repos") == 0 ]]; then
 		question_prompt_no_input
 		printf '%s\n' 'ワークスペースのオーナーか管理者に、次の準備を依頼してください。' \
@@ -256,14 +331,19 @@ ask_questions() {
 	member_ids=$(jq -nc --argjson members "$members" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $members[$i-1].user_id]|unique')
 	pick_runtimes "$saved"
 	question_begin '外す役' '要らない役を番号で選びます。進行役は必須で、実装・修正は少なくとも一系統を残します。' '5 7、または 5,7（0なら何も外さない）'
-	question_items=$(jq --argjson runtimes "$runtimes" '[.[] | .key as $key | .text + (if ($key=="claude" or $key=="codex") and ($runtimes|index($key))==null then "（使うランタイムにないため外れます）" else "" end)]' <<<"$role_choices"); question_zero='何も外さない'
-	question_fixed='進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。'
+	question_items='[]'
+	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
+		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
+		question_items=$(jq -c --arg text "$(role_choice_text "$choice" '  ' "$(role_choice_note "$(jq -r '.key' <<<"$choice")")")" '.+[$text]' <<<"$question_items")
+	done
+	question_zero='何も外さない'
+	question_fixed=$(role_fixed_text)
 	default=$(jq -nr --argjson choices "$role_choices" --argjson excluded "$(jq -c '.excluded_roles // []' <<<"$saved")" '[$choices|to_entries[]|select(any(.value.roles[]; . as $role | $excluded|index($role)))|(.key+1|tostring)]|join(" ")'); default=${default:-0}
 	while :; do
 		pick_numbers "$default" yes
 		excluded_roles=$(jq -nc --argjson choices "$role_choices" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $choices[$i-1].roles[]]|unique')
 		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; (.+"-implementer") as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
-		printf '%s\n' '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。' >&2
+		input_error '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。'
 	done
 	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles}')
 	question_people=$members
@@ -271,7 +351,9 @@ ask_questions() {
 
 # 候補がない質問も、説明と理由を入力なしで表示してから止める。
 question_prompt_no_input() {
-	printf '\n(%s/%s) %s\n%s\n例: %s\n既定値: なし\n%s\n' "$question_number" "$question_total" "$question_title" "$question_description" "$question_example" "$question_notice" >&2
+	question_heading
+	ui_line err default '既定値: なし'
+	question_notice_show
 }
 
 plan_action() {
@@ -296,7 +378,7 @@ plan_autopilot_action() {
 
 confirmation_plan() {
 	local agents skills autopilots squad_name role name action skill_dir repo title humans resources bound='[]'
-	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern
+	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern i choice excluded_shown=no
 	# 表示の予定だけに、選ばなかったランタイムの系統を足す。保存する答えは変えない。
 	local excluded_roles=$excluded_roles
 	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer"] | unique' <<<"$excluded_roles")
@@ -344,7 +426,7 @@ confirmation_plan() {
 		printf '  %s（%s）\n' "$repo" "$action"
 		for role in security-reviewer dependabot-merger; do
 			jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
-			if [[ $role == security-reviewer ]]; then title="週 1 回の依存ライブラリの脆弱性チェック $project_key $repo"; else title="Dependabot の PR の週次の確認 $project_key $repo"; fi
+			title=$(autopilot_title "$role" "$repo")
 			action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
 			auto_plan=$(jq -c --arg kind "$role" --arg title "$title" --arg action "$action" '.+[{kind:$kind,title:$title,action:$action}]' <<<"$auto_plan") || return 1
 		done
@@ -354,7 +436,7 @@ confirmation_plan() {
 		jq -r '.[]|"  "+.' <<<"$link_repositories"
 	fi
 	if ! jq -e 'index("usage-monitor")!=null' >/dev/null <<<"$excluded_roles"; then
-		title="使用上限の見張り $project_key-$member_key"
+		title=$(autopilot_title usage-monitor)
 		action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
 		auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{kind:"usage-monitor",title:$title,action:$action}]' <<<"$auto_plan") || return 1
 	fi
@@ -366,9 +448,8 @@ confirmation_plan() {
 		count=$(jq --arg kind "$kind" '[.[]|select(.kind==$kind)]|length' <<<"$auto_plan")
 		[[ $count != 0 ]] || continue
 		case $kind in
-		security-reviewer) pattern="週 1 回の依存ライブラリの脆弱性チェック $project_key <OWNER/REPO>" ;;
-		dependabot-merger) pattern="Dependabot の PR の週次の確認 $project_key <OWNER/REPO>" ;;
-		usage-monitor) pattern="使用上限の見張り $project_key-$member_key" ;;
+		usage-monitor) pattern=$(autopilot_title "$kind") ;;
+		*) pattern=$(autopilot_title "$kind" '<OWNER/REPO>') ;;
 		esac
 		printf '  %s件、名前の規則: %s\n' "$count" "$pattern"
 	done
@@ -377,8 +458,13 @@ confirmation_plan() {
 	humans=$(jq -r --argjson ids "$member_ids" '[.[]|select(.user_id as $id|$ids|index($id))|.name]|join("、")' <<<"$question_people")
 	printf 'スクワッドに入れる人間: %s（既存の人をスクワッドへ追加・維持）\n' "${humans:-なし}"
 	printf '外す役と、一緒に外れるもの:\n'
-	jq -r --argjson excluded "$excluded_roles" --argjson runtimes "$runtimes" '.[]|select(any(.roles[]; . as $role|$excluded|index($role)))|.key as $key|"  \(.text)" + (if ($key=="claude" or $key=="codex") and ($runtimes|index($key))==null then "（使うランタイムにないため外れます）" else "" end)' <<<"$role_choices"
-	if [[ $(jq length <<<"$excluded_roles") == 0 ]]; then printf '  なし\n'; fi
+	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
+		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
+		jq -e --argjson excluded "$excluded_roles" 'any(.roles[]; . as $role | $excluded|index($role))' >/dev/null <<<"$choice" || continue
+		printf '  %s\n' "$(role_choice_text "$choice" '    ' "$(role_choice_note "$(jq -r '.key' <<<"$choice")")")"
+		excluded_shown=yes
+	done
+	[[ $excluded_shown == yes ]] || printf '  なし\n'
 }
 
 confirm_answers() {
@@ -387,6 +473,6 @@ confirm_answers() {
 	while :; do
 		printf '\n答えの一覧（まだ変更していません）:\n%s\n' "$plan" >&2
 		ask 'この答えを保存して続けますか（yes/no）' 'no'
-		case $answer in yes) return 0 ;; no) die '中止しました。答えは保存していません。' ;; *) printf '%s\n' 'yes で続けるか、no で中止してください。答えはまだ保存していません。' >&2 ;; esac
+		case $answer in yes) return 0 ;; no) die '中止しました。答えは保存していません。' ;; *) input_error 'yes で続けるか、no で中止してください。答えはまだ保存していません。' ;; esac
 	done
 }

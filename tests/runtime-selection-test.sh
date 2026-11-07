@@ -6,8 +6,10 @@ cat >"$test_dir/pick.sh" <<'DRIVER'
 set -euo pipefail
 root=$1
 die() { echo "$*" >&2; exit 1; }
+source "$root/lib/ui.sh"
 source "$root/lib/check.sh"
 source "$root/lib/questions.sh"
+ui_init
 command() {
  if [[ $# == 2 && $1 == -v && ( $2 == claude || $2 == codex ) && " $TEST_AVAILABLE " != *" $2 "* ]]; then return 1; fi
  builtin command "$@"

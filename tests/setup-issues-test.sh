@@ -91,6 +91,7 @@ STUB
 chmod +x "$test_dir/bin/multica"
 export PATH="$test_dir/bin:$PATH"
 export TEST_DB="$test_dir/db"
+source "$root/lib/ui.sh"
 source "$root/lib/check.sh"
 source "$root/lib/setup-issues.sh"
 server_url=https://example.test

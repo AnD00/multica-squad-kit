@@ -24,7 +24,7 @@ project_handoff_update_assignee() (
 
 prepare_project_change_issues() {
 	local assignee target repo selected changes
-	if assignee=$(project_handoff_update_assignee 2>"$project_work/issue-error"); then
+	if assignee=$(ui_color_err=no; project_handoff_update_assignee 2>"$project_work/issue-error"); then
 		if [[ -n $assignee ]]; then
 			target=$(jq -nc --arg tag "${kit_version:-$(cat "$root/VERSION")}" '["squad-handoff@"+$tag]')
 			queue_project_issue handoff-skill-update "$target" "$assignee"

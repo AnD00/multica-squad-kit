@@ -216,12 +216,13 @@ prepare_project() (
 
 # 実際に成功した create の件数だけを出す。再実行の既存利用は数えない。
 project_completion() {
-	printf '\nプロジェクトの設定が終わりました: %s（%s）\n' "$project_name" "${workspace_name:-$workspace_id}"
+	printf '\n'
+	ui_line out done "プロジェクトの設定が終わりました: ${project_name}（${workspace_name:-$workspace_id}）"
 	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
 	project_installation_completion
 	project_webhook_completion
 	project_issue_completion
-	printf '%s\n' '次にすること:'
+	ui_line out done '次にすること:'
 	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
 	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if [[ " $enabled " == *' dependabot-merger '* ]]; then
@@ -252,10 +253,12 @@ prepare_project_issues() {
 # 1 件の失敗では止めず、完了の表示のために結果と理由をためる。
 queue_project_issue() {
 	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result reason
-	if result=$(ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
+	# 失敗の理由は issue と完了の表示に入るので、色を付けずに受け取り、印の「エラー:」も外す。
+	if result=$(ui_color_err=no; ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
 		setup_issue_rows=$(jq -c --argjson rows "$result" '.+$rows' <<<"$setup_issue_rows")
 	else
 		reason=$(tail -n 1 "$project_work/issue-error")
+		reason=${reason#エラー: }
 		reason=${reason:-起票の処理に失敗しました。同じ答えで流し直してください。}
 		record_project_issue_failure "$kind" "$repo" "$reason"
 	fi
@@ -268,8 +271,15 @@ record_project_issue_failure() {
 }
 
 project_issue_completion() {
+	local row action
 	printf '%s\n' '起票した issue:'
-	jq -r '.[] | "  \(.identifier) \(.title)（\(if .action=="created" then "新規" else "既存" end)）"' <<<"${setup_issue_rows:-[]}"
+	# タイトルに \ やタブがあっても元の文字のまま出すため、行ごとに JSON から取り出す。
+	while IFS= read -r row; do
+		printf '  %s %s（' "$(jq -r '.identifier' <<<"$row")" "$(jq -r '.title' <<<"$row")"
+		action=$(jq -r 'if .action=="created" then "新規" else "既存" end' <<<"$row")
+		ui_result "$action"
+		printf '）\n'
+	done < <(jq -c '.[]' <<<"${setup_issue_rows:-[]}")
 	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
 		printf '%s\n' '起票できなかった issue:'
 		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"
@@ -278,13 +288,13 @@ project_issue_completion() {
 
 # 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。
 project_repositories_recheck() {
-	local latest_projects eligible_repos blocked_repos
+	local latest_projects eligible_repos blocked_repos line
 	resolve_link_repositories
 	latest_projects=$(read_list プロジェクト project list) || die '許可先の再確認に必要なプロジェクトを取得できませんでした。'
 	jq -e --arg id "$project_id" 'any(.[]; .id==$id)' >/dev/null <<<"$latest_projects" || die '許可先の再確認で対象のプロジェクトを確認できませんでした。'
 	repository_choices "$selected_repositories" "$latest_projects" "$project_id"
 	if [[ $(jq length <<<"$blocked_repos") != 0 ]]; then
-		jq -r '.[] | "別プロジェクトに紐付いたため許可できません: \(.repository)（\(.projects|join("、"))）"' <<<"$blocked_repos" >&2
+		while IFS= read -r line; do ui_error "$line"; done < <(jq -r '.[] | "別プロジェクトに紐付いたため許可できません: \(.repository)（\(.projects|join("、"))）"' <<<"$blocked_repos")
 		die 'リポジトリの紐付けが選択時から変わりました。従来の許可を保って停止します。最初から選び直してください。'
 	fi
 }

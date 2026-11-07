@@ -67,7 +67,7 @@ complete_project() {
 			mc squad member remove "$squad_id" --member-id "$id" --type agent --output json >/dev/null || die "外した役をスクワッドから外せませんでした: $name"
 		fi
 		if [[ " $enabled " != *" $role "* ]]; then
-			printf 'エージェントは残しています（削除は人間が判断）: %s\n' "$name" >&2
+			ui_warning "エージェントは残しています（削除は人間が判断）: $name"
 			setup_removed_targets=$(jq -c --arg name "$name" '.+[$name]|unique' <<<"${setup_removed_targets:-[]}")
 		fi
 	done

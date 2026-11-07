@@ -98,6 +98,7 @@ cat >"$test_dir/run.sh" <<'RUN'
 #!/bin/bash
 set -euo pipefail
 code_root=$1; root=$2
+source "$code_root/lib/ui.sh"
 source "$code_root/lib/check.sh"
 source "$code_root/lib/workspace.sh"
 die() { echo "$*" >&2; exit 1; }

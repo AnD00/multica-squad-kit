@@ -8,7 +8,7 @@ happy() { printf '1\nShop\n\n1,2\n\n\n1\n\nno\n' >"$test_dir/input"; }
 happy
 deny
 no_state
-for entry in '(1/8) ワークスペース' '(2/8) プロジェクト' '(3/8) プロジェクトの区別' '(4/8) リポジトリ' '(5/8) メンバーの区別' '(6/8) スクワッドに入れる人間' '(7/8) 使うランタイム' '(8/8) 外す役'; do grep -qF "$entry" "$test_dir/err"; done
+for entry in '質問 (1/8) ワークスペース' '質問 (2/8) プロジェクト' '質問 (3/8) プロジェクトの区別' '質問 (4/8) リポジトリ' '質問 (5/8) メンバーの区別' '質問 (6/8) スクワッドに入れる人間' '質問 (7/8) 使うランタイム' '質問 (8/8) 外す役'; do grep -qF "$entry" "$test_dir/err"; done
 [[ $(grep -c '^例:' "$test_dir/err") == 8 ]]
 [[ $(grep -c '^既定値:' "$test_dir/err") == 8 ]]
 grep -qF 'エージェント: 15件（新規15件、既存0件）' "$test_dir/err"
@@ -22,17 +22,47 @@ grep -qF 'スクワッドに入れる人間: Member A' "$test_dir/err"
 grep -qF '人の目印とは別です' "$test_dir/err"
 grep -qF 'ホストと AI の利用枠' "$test_dir/err"
 grep -qF '選んだものだけに push と PR' "$test_dir/err"
-awk '/^\(4\/8\) リポジトリ/ {show=1} /^\(5\/8\)/ {show=0} show {print}' "$test_dir/err" >"$test_dir/repository-question"
+awk '/^質問 \(4\/8\) リポジトリ/ {show=1} /^質問 \(5\/8\)/ {show=0} show {print}' "$test_dir/err" >"$test_dir/repository-question"
 grep -qxF '1: example/one' "$test_dir/repository-question"
 grep -qxF '2: example/two' "$test_dir/repository-question"
 ! grep -qE 'https://|git@|\.git' "$test_dir/repository-question"
-awk '/^\(8\/8\) 外す役/ {show=1} /^答えの一覧/ {show=0} show {print}' "$test_dir/err" >"$test_dir/role-question"
+awk '/^質問 \(8\/8\) 外す役/ {show=1} /^答えの一覧/ {show=0} show {print}' "$test_dir/err" >"$test_dir/role-question"
 awk '/^常に入る役:/ {fixed=NR} /^進行役（orchestrator）:/ {leader=NR} /^外せる役:/ {optional=NR} /^1: 要件定義:/ {first=NR} END {exit !(fixed<leader && leader<optional && optional<first)}' "$test_dir/role-question"
-grep -qF 'Claude の実装者と Claude の修正者の2役' "$test_dir/role-question"
-grep -qF 'Codex の実装者と Codex の修正者の2役' "$test_dir/role-question"
+grep -qxF '  エージェント: shop-orchestrator-owner' "$test_dir/role-question"
+grep -qxF '  エージェント: shop-claude-implementer-owner、shop-claude-fixer-owner' "$test_dir/role-question"
+grep -qxF '  エージェント: shop-codex-implementer-owner、shop-codex-fixer-owner' "$test_dir/role-question"
+grep -qxF '6: セキュリティ: 危険な実装を確認する。' "$test_dir/role-question"
+grep -qxF '  オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one、週 1 回の依存ライブラリの脆弱性チェック shop example/two' "$test_dir/role-question"
+grep -qxF '10: PR の CI の見張り: CIの結果を知らせる。' "$test_dir/role-question"
+grep -qxF '  見張り: 進行役が PR ごとに置く CI の見張り' "$test_dir/role-question"
+grep -qxF '  オートパイロット: 使用上限の見張り shop-owner' "$test_dir/role-question"
+grep -qxF '  ほかに変わること: GitHub への Webhook の登録をしない' "$test_dir/role-question"
 ! grep -qF '選べない役:' "$test_dir/role-question"
 ! grep -qE '^  shop-(orchestrator|codex-fixer)-owner（' "$test_dir/err"
 echo 'PASS display: リポジトリ候補を OWNER/REPO にそろえ、進行役を先に示し、外せる役と二つの実装・修正の組を分ける'
+# ファイルへ出した画面には色の制御文字がない。端末なら種類ごとの色が付き、制御文字を除くと同じ文字になる。
+esc=$'\033'
+! grep -qF "$esc" "$test_dir/err"
+cp "$test_dir/err" "$test_dir/err-plain"
+{ printf '\n'; printf 'x\n'; cat "$test_dir/input"; } >"$test_dir/pty-input"
+pty_setup() { env -u NO_COLOR "$@" python3 "$root/tests/ui-pty.py" err "$test_dir/pty-out" "$test_dir/pty-err" --stdin "$test_dir/pty-input" -- /bin/bash "$test_dir/package/setup.sh"; }
+pty_setup TERM=xterm-256color
+grep -qF "$esc[1;38;5;32m質問 (1/8) ワークスペース$esc[0m" "$test_dir/pty-err"
+grep -qF "$esc[38;5;244m既定値: なし。例と説明を見て入力してください。$esc[0m" "$test_dir/pty-err"
+grep -qF "$esc[1;38;5;98m1:$esc[0m" "$test_dir/pty-err"
+grep -qF "$esc[1;38;5;196mエラー: 1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。$esc[0m" "$test_dir/pty-err"
+grep -qF "入力 $esc[38;5;244m[]$esc[0m: " "$test_dir/pty-err"
+# 説明と例は色を付けない。
+grep -qxF "$(printf 'エージェントのチームを作る置き場です。自分が入っているものから選びます。\r')" "$test_dir/pty-err"
+pty_setup TERM=xterm-256color NO_COLOR=
+! grep -qF "$esc" "$test_dir/pty-err"
+grep -qF 'エラー: 1つ以上の番号を' "$test_dir/pty-err"
+pty_setup TERM=dumb
+! grep -qF "$esc" "$test_dir/pty-err"
+# 色を付けない画面は、エラーの印があっても、文字だけで質問・既定値・エラーを見分けられる。
+grep -qE '^質問 \(1/8\) ワークスペース' "$test_dir/pty-err"
+grep -qE '^既定値: ' "$test_dir/pty-err"
+echo 'PASS color: 質問の画面は端末のとき種類ごとの色が付き、ファイル・NO_COLOR・dumb では制御文字がなく、エラーは印で分かる'
 echo 'PASS questions: 8問の見出し・説明・例・既定と、件数・命名規則にまとめた予定を表示し、キャンセルで保存しない'
 
 export TEST_PROJECTS_FILE="$test_dir/projects.json"
@@ -116,8 +146,8 @@ unset TEST_SQUADS_FILE TEST_AGENTS_FILE TEST_SKILLS_FILE TEST_AUTOPILOTS_FILE TE
 
 printf 'http://wrong.example.test\nhttps://offline.example.test\nhttps://okay.example.test\n1\n1\nsecure\n1\nowner\n0\n1\n0\nno\n' >"$test_dir/input"
 TEST_SERVER='(not set)' TEST_UNREACHABLE_URL=https://offline.example.test deny; no_state
-[[ $(grep -c '(1/9) サーバーの URL' "$test_dir/err") == 3 ]]
-grep -qF '(9/9) 外す役' "$test_dir/err"
+[[ $(grep -c '質問 (1/9) サーバーの URL' "$test_dir/err") == 3 ]]
+grep -qF '質問 (9/9) 外す役' "$test_dir/err"
 grep -qF 'https:// で始まるサーバー' "$test_dir/err"
 grep -qF 'サーバーに接続できないか' "$test_dir/err"
 echo 'PASS questions: 未設定のURLだけ9問目まで表示し、HTTPSでない入力と応答しない接続先を同じ質問へ戻す'
@@ -126,7 +156,7 @@ export TEST_WORKSPACES_FILE="$test_dir/workspaces.json"
 echo '[]' >"$TEST_WORKSPACES_FILE"
 : >"$test_dir/input"
 deny; no_state
-grep -qF '(1/8) ワークスペース' "$test_dir/err"
+grep -qF '質問 (1/8) ワークスペース' "$test_dir/err"
 grep -qF '管理者に招待' "$test_dir/err"
 echo 'PASS questions: ワークスペース0件は説明と作成・招待の案内を出して保存前に止まる'
 unset TEST_WORKSPACES_FILE
@@ -135,13 +165,18 @@ printf '1\nShop\nshop\n1\nowner\n0\n1\n99\n3 4\n6,11\nno\n' >"$test_dir/input"
 deny; no_state
 grep -qF '一覧の番号を' "$test_dir/err"
 grep -qF '少なくとも一系統を残してください' "$test_dir/err"
-grep -qF '週次の脆弱性チェックも外れる' "$test_dir/err"
-grep -qF '返事を待つ役から外れ、週次の脆弱性チェックも外れる' "$test_dir/err"
-grep -qF '使用上限のオートパイロットも外れる' "$test_dir/err"
+grep -qF '  オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one' "$test_dir/err"
+grep -qF '  オートパイロット: 使用上限の見張り shop-owner' "$test_dir/err"
 # 最後の確認に、外した役を作る予定が残らない。
 awk '/^答えの一覧/ {show=1} show {print}' "$test_dir/err" >"$test_dir/summary"
-grep -qF '返事を待つ役から外れ、週次の脆弱性チェックも外れる' "$test_dir/summary"
-if grep -qE 'shop-(security-reviewer|usage-monitor)-owner' "$test_dir/summary"; then exit 1; fi
+grep -qxF '  セキュリティ: 危険な実装を確認する。' "$test_dir/summary"
+grep -qxF '    エージェント: shop-security-reviewer-owner' "$test_dir/summary"
+grep -qxF '    オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one' "$test_dir/summary"
+grep -qxF '    ほかに変わること: 返事を待つ役の一覧から外れる' "$test_dir/summary"
+grep -qxF '  使用上限の見張り: AIの残量を見張る。' "$test_dir/summary"
+grep -qxF '    オートパイロット: 使用上限の見張り shop-owner' "$test_dir/summary"
+awk '/^外す役と、一緒に外れるもの:/ {exit} {print}' "$test_dir/summary" >"$test_dir/summary-plan"
+if grep -qE 'shop-(security-reviewer|usage-monitor)-owner' "$test_dir/summary-plan"; then exit 1; fi
 grep -qF 'エージェント: 13件（新規13件、既存0件）' "$test_dir/summary"
 grep -qF 'オートパイロット: 1件（新規1件、既存0件）' "$test_dir/summary"
 ! grep -qF '名前の規則: 使用上限の見張り' "$test_dir/summary"
@@ -162,6 +197,7 @@ echo 'PASS questions: 最終一覧の読み取りに失敗したら、未存在�
 printf '1\nShop\nshop\n1\nowner\n0\n1\n0\nmaybe\nno\n' >"$test_dir/input"
 deny; no_state
 grep -qF 'yes で続けるか、no で中止' "$test_dir/err"
+grep -qxF '  なし' "$test_dir/err"
 echo 'PASS questions: 最後の確認も不正な入力はやり直し、noなら状態を残さない'
 
 
@@ -180,7 +216,7 @@ echo '[{"id":"ws-a","name":"Only workspace"}]' >"$TEST_WORKSPACES_FILE"
 printf '\n' >"$test_dir/input"
 : >"$TEST_CALLS"
 MULTICA_WORKSPACE_ID=ws-a deny; no_state
-[[ $(grep -cF '(1/8) ワークスペース' "$test_dir/err") == 2 ]]
+[[ $(grep -cF '質問 (1/8) ワークスペース' "$test_dir/err") == 2 ]]
 ! grep -qF '(2/8)' "$test_dir/err"
 ! grep -q 'project list' "$TEST_CALLS"
 grep -qF '既定値: なし' "$test_dir/err"
@@ -198,5 +234,5 @@ printf '\n2\n\n\n\n\n\n\n\nno\n' >"$test_dir/input"
 MULTICA_WORKSPACE_ID=ws-a deny
 cmp "$TEMPLATE_STATE_ROOT/ws-b/shop.json" "$test_dir/saved-before"
 grep -qF 'ワークスペース: Workspace B' "$test_dir/err"
-[[ $(grep -cF '(1/8) ワークスペース' "$test_dir/err") == 2 ]]
+[[ $(grep -cF '質問 (1/8) ワークスペース' "$test_dir/err") == 2 ]]
 echo 'PASS questions: 前回の答えとCLIの既定があっても Enter では進まず、番号で選んだ ws の保存値を使う'

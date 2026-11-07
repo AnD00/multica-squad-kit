@@ -18,7 +18,7 @@ host_install() {
 host_shared_file() {
 	local src=$1 dst=$2 executable=$3
 	if [[ -e $dst ]] && ! grep -qx '# multica-squad-kit-managed' "$dst"; then
-		printf '印のない既存のファイルをそのまま使います: %s\n' "$dst" >&2
+		ui_warning "印のない既存のファイルをそのまま使います: $dst"
 		return
 	fi
 	host_install "$src" "$dst" "$executable"
@@ -109,7 +109,7 @@ prepare_project_host() {
 		content=$(cat "$root/common/shell/$file") || die 'シェルのひな形を読めませんでした。'
 		content=${content//"$needle"/"$escaped"}
 		if [[ -e $project_shell_dir/$file || -L $project_shell_dir/$file ]] && ! grep -qx '# multica-squad-kit-managed' "$project_shell_dir/$file"; then
-			printf '印のない既存のファイルをそのまま使います: %s\n' "$project_shell_dir/$file" >&2
+			ui_warning "印のない既存のファイルをそのまま使います: $project_shell_dir/$file"
 			continue
 		fi
 		host_write "$project_shell_dir/$file" "$content"

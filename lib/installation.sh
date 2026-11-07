@@ -119,7 +119,13 @@ verify_project_installation() {
 }
 
 project_installation_completion() {
+	local name status reason
 	[[ $(jq length <<<"${setup_installation_rows:-[]}") != 0 ]] || return 0
 	printf '%s\n' '導入の確認:'
-	jq -r '.[] | "  \(.name): \(.status)" + (if .reason=="" then "" else "。\(.reason)" end)' <<<"$setup_installation_rows"
+	while IFS=$'\t' read -r name status reason; do
+		printf '  %s: ' "$name"
+		ui_result "$status"
+		[[ -z $reason ]] || printf '。%s' "$reason"
+		printf '\n'
+	done < <(jq -r '.[] | [.name,.status,.reason] | @tsv' <<<"$setup_installation_rows")
 }

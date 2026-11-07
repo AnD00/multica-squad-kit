@@ -19,7 +19,7 @@ register_dependabot_webhook() (
 		jq -nc --arg repository "$repo" --arg trigger "$trigger" --arg registration "$registration" --arg delivery "$delivery" --arg reason "$reason" '{repository:$repository,trigger:$trigger,registration:$registration,delivery:$delivery,reason:$reason}'
 	}
 	webhook_abort() { reason=$1; webhook_result; exit 0; }
-	title="Dependabot の PR の週次の確認 $project_key $repo"
+	title=$(autopilot_title dependabot-merger "$repo")
 	agent=$(jq -er '.["dependabot-merger"].id' <<<"$records") || webhook_abort 'Dependabot の担当を確認できませんでした。'
 	id=$(mc autopilot list --output json 2>/dev/null | jq -er --arg title "$title" --arg project "$project_id" --arg agent "$agent" '
 		[.autopilots[] | select(.title==$title and .project_id==$project and .assignee_type=="agent" and .assignee_id==$agent)] |
@@ -97,7 +97,17 @@ prepare_project_webhooks() {
 }
 
 project_webhook_completion() {
+	local repository trigger registration delivery reason
 	[[ $(jq length <<<"${setup_webhook_rows:-[]}") != 0 ]] || return 0
 	printf '%s\n' 'Webhook の登録:'
-	jq -r '.[] | "  \(.repository): トリガー \(.trigger)、登録 \(.registration)、配信 \(.delivery)" + (if .reason=="" then "" else "。\(.reason)" end)' <<<"$setup_webhook_rows"
+	while IFS=$'\t' read -r repository trigger registration delivery reason; do
+		printf '  %s: トリガー ' "$repository"
+		ui_result "$trigger"
+		printf '、登録 '
+		ui_result "$registration"
+		printf '、配信 '
+		ui_result "$delivery"
+		[[ -z $reason ]] || printf '。%s' "$reason"
+		printf '\n'
+	done < <(jq -r '.[] | [.repository,.trigger,.registration,.delivery,.reason] | @tsv' <<<"$setup_webhook_rows")
 }

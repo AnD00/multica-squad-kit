@@ -11,8 +11,8 @@ no_state
 check_manual() {
  jq -nr --rawfile screen "$test_dir/err" --rawfile document "$1" '
   ($screen|split("\n")) as $lines |
-  [range(0;$lines|length) as $i | select($lines[$i]|test("^\\([0-9]+/[0-9]+\\) ")) |
-   {title:($lines[$i]|sub("^\\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
+  [range(0;$lines|length) as $i | select($lines[$i]|test("^質問 \\([0-9]+/[0-9]+\\) ")) |
+   {title:($lines[$i]|sub("^質問 \\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
   if ($questions|length)!=9 then error("9問の画面を取得できませんでした") else . end |
   ($document|gsub("`";"")) as $doc |
   [$questions[] | . as $q |
@@ -25,7 +25,22 @@ check_manual() {
   if ($roles|length)!=12 then error("12役の画面を取得できませんでした") else . end |
   (($doc|split("#### 外す役\n"))[1] // "" | split("\n### ")[0] | split("\n")) as $role_lines |
   [$roles[] | . as $role | select(any($role_lines[]; startswith("| "+$role.number+" | "+$role.role+" | ") and contains($role.purpose))|not) | "担当の説明がない: "+.role] as $missing_roles |
-  if ($missing_roles|length)==0 then "9問の説明・例と12役の担当内容が手順書にある" else error($missing_roles|join("、")) end'
+  # 画面の役ごとの見出し（エージェント・オートパイロット・見張り・ほかに変わること）を、表の同じ行と照らす。
+  ([(($screen|split(") 外す役\n"))[1] // "" | split("外せる役:\n")[1] // "" | split("\n"))[] | select(test("^[1-9][0-9]*: ") or test("^  (エージェント|オートパイロット|見張り|ほかに変わること): "))] |
+   reduce .[] as $line ([]; if ($line|test("^[0-9]")) then .+[{number:($line|capture("^(?<n>[0-9]+):").n),details:{}}]
+     else .[-1].details[$line|capture("^  (?<k>[^:]+): (?<v>.*)$").k] = ($line|capture("^  (?<k>[^:]+): (?<v>.*)$").v) end)) as $blocks |
+  [$blocks[] | . as $block |
+   ([$role_lines[]|select(startswith("| "+$block.number+" | "))][0] // "" | ltrimstr("| ") | rtrimstr(" |") | gsub("`";"") | gsub("<p>";"shop") | gsub("<m>";"member1") | split(" | ")) as $cells |
+   ($block.details."エージェント" // "" | split("、")) as $agents |
+   (($block.details."オートパイロット" // "" | split("、") | map(gsub("example/(one|three)";"<OWNER/REPO>"))) + [$block.details."見張り" // empty]) as $watches |
+   select(
+    ($cells|length)!=6 or
+    ($agents|length)==0 or any($agents[]; . as $name | $cells[3]|contains($name)|not) or
+    (if ($watches|length)==0 then $cells[4]!="なし" else any($watches[]; . as $name | $cells[4]|contains($name)|not) end) or
+    (if $block.details."ほかに変わること" then ($cells[5]|contains($block.details."ほかに変わること")|not) else $cells[5]!="なし" end)
+   ) | "外れるものの表示が表と違う: "+$block.number] as $mismatch |
+  if ($blocks|length)!=12 or ($mismatch|length)>0 then error(($mismatch + (if ($blocks|length)!=12 then ["12役の見出しを取得できませんでした"] else [] end))|join("、")) else . end |
+  if ($missing_roles|length)==0 then "9問の説明・例と12役の担当内容と一緒に外れるものが手順書にある" else error($missing_roles|join("、")) end'
 }
 check_manual "$root/manual.md" >"$test_dir/checked"
 echo 'PASS manual: CLIを差し替えた実際の9問の画面と、手で書いた各質問の節の説明・例が一致する'
@@ -40,6 +55,13 @@ sed 's/画面の使いやすさを確認する/未記入/' "$root/manual.md" >"$
 if check_manual "$test_dir/no-role-purpose.md" >"$test_dir/out" 2>"$test_dir/check-error"; then exit 1; fi
 grep -q '担当の説明がない: UX' "$test_dir/check-error"
 echo 'PASS manual: 画面の12役それぞれの担当内容を照合し、名前と外した影響だけでは通さない'
+sed 's/オートパイロット: 「使用上限の見張り/オートパイロット: 「別の名前/' "$root/manual.md" >"$test_dir/no-usage-name.md"
+if check_manual "$test_dir/no-usage-name.md" >"$test_dir/out" 2>"$test_dir/check-error"; then exit 1; fi
+grep -q '外れるものの表示が表と違う: 11' "$test_dir/check-error"
+sed 's/返事を待つ役の一覧から外れる |$/なし |/' "$root/manual.md" >"$test_dir/no-change.md"
+if check_manual "$test_dir/no-change.md" >"$test_dir/out" 2>"$test_dir/check-error"; then exit 1; fi
+grep -q '外れるものの表示が表と違う: 5' "$test_dir/check-error"
+echo 'PASS manual: 画面の12役の一緒に外れるもの（エージェント・オートパイロット・見張り・ほかに変わること）を表の同じ行と照合する'
 
 # 入れ直しの案内には、配置ファイルと対象プロジェクトの回答の片付けが必要。
 python3 - "$root" <<'PY'
