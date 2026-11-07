@@ -46,7 +46,7 @@ Multica は [公式 CLI 導入手順の Linux 向けバイナリ](https://github
 
 WSL は WSL 2 だけを対象とする。Windows 側の `wsl --list --verbose` でバージョン 2 を確認し、作業コピーと Git・Multica・ランタイム・認証をすべて WSL 内の Linux 側にそろえる。Windows 側の exe は使わない。セットアップは既知の WSL 1 のカーネルと、Windows の Git Bash などを、回答の保存や登録より前に拒否する。
 
-Linux と WSL 2 の認証済み実行と常駐は、実機では未確認である。WSL 2 は [Microsoft の Linux 互換性の説明](https://learn.microsoft.com/en-us/windows/wsl/compare-versions)、[Claude Code の対応環境](https://code.claude.com/docs/en/setup)、[Codex の WSL 対応](https://learn.chatgpt.com/docs/windows/wsl) に基づく。CI では macOS と Ubuntu の全体テストを実行し、CLI・サーバーをスタブにして導入・再実行・関所・見張りを確かめる。
+Linux と WSL 2 の認証済み実行と常駐は、VM を使わない普段のユーザーでは、実機では未確認である。ホストのホームを読ませたくないときは、[閉じ込めて動かす](#閉じ込めて動かす)。WSL 2 は [Microsoft の Linux 互換性の説明](https://learn.microsoft.com/en-us/windows/wsl/compare-versions)、[Claude Code の対応環境](https://code.claude.com/docs/en/setup)、[Codex の WSL 対応](https://learn.chatgpt.com/docs/windows/wsl) に基づく。CI では macOS と Ubuntu の全体テストを実行し、CLI・サーバーをスタブにして導入・再実行・関所・見張りを確かめる。
 
 Multica で、使用するサーバーにログインしておく。サーバーの URL が CLI に設定されていなければ質問される。CLI に設定済み、または `MULTICA_SERVER_URL` があれば、そのサーバーが使われる。違うサーバーを使うときは、実行前に CLI の設定と環境変数を確認する。セットアップは CLI の既定のサーバーやワークスペースを変更しない。
 
@@ -110,6 +110,142 @@ Claude Code か Codex の片方だけのホストでも導入できる。質問�
 ホストの準備では、使うランタイムのコマンド、ログイン、オンラインのランタイムだけを求める。Codex を使わないときは、Codex の設定ファイルを置かず、確かめもしない。デーモンを起動する環境は、両方のときと同じにする。完了時のログインの案内も、使うランタイムの分だけを出す。
 
 使うランタイムは、毎回の質問で明示して選ぶ。入っているコマンドから毎回決める案は、コマンドやログインが一時的に欠けただけで、黙って役のモデルが変わり、系統が名簿から外れるので選ばない。「外す役」から決める案も、系統を外してもほかの役がそのランタイムを使うので選ばない。
+
+## 閉じ込めて動かす
+
+普段のユーザーでセットアップすると、エージェントはそのユーザーの権限で動き、ホームの SSH の鍵や普段の `gh` と Git の認証も読める。これを避けたいときは、軽い VM を作って、その中で「受け取る人の準備」から後の手順を流す。Mac は Lima の VM、Windows は WSL 2 の専用のディストリを使う。VM は原本のスクリプトで作る。
+
+VM はホストのホームを共有しない。SSH のエージェントも渡さず、ホストの `~/.ssh` の公開鍵も入れない。WSL では、Windows のドライブと実行ファイルも使えない。中のセットアップは、Linux と同じものを変えずに流す。
+
+ネットワークは閉じ込めない。中のエージェントは、インターネットに出られ、ホストで待ち受けるサービスにも届く。ホストで開いているサービスに気を付ける。
+
+作業コピーは、VM の中で「原本を取る」と同じ手順で clone して、タグを取り出す。ホスト側の clone は、VM を作るスクリプトを使うためだけに使う。
+
+### VM を作る
+
+Mac は、Lima 1.0.0 以上（`limactl`）を入れて、原本の clone で次を流す。
+
+```bash
+bash vm/lima.sh create
+```
+
+Windows は、WSL 2.6.1 以上にして、PowerShell で次を流す。WSL の VM の名前の既定は `multica-squad` である。
+
+```powershell
+powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 create
+```
+
+どちらも、Ubuntu 24.04 の VM を作り、中の準備（セットアップに必要なパッケージ、rootless の Docker、デーモンの自動の起動）をして、最後に `verify` を流す。途中で失敗したら、作りかけの VM は消える。
+
+| 指定 | Mac（`lima.sh`） | Windows（`wsl.ps1`） |
+| --- | --- | --- |
+| 名前 | `--name NAME` | `-Name NAME` |
+| CPU | `--cpus N`（既定 4） | 指定しない |
+| メモリ | `--memory GIB`（既定 8） | 指定しない。`.wslconfig` で決める |
+| ディスク | `--disk GIB`（既定 100） | 指定しない。使った分だけ伸びる |
+| 使う人 | Lima の既定（Mac と同じユーザー名） | `-User USER`（既定 `agent`） |
+
+エージェントの並行の実行と、テストの MySQL を同時に動かせる大きさとして、既定は CPU 4、メモリ 8 GiB、ディスク 100 GiB である。Lima のディスクは、使った分だけホストのディスクを使う。
+
+WSL のメモリは、WSL 全体の設定で、ディストリごとには決められない。既定はホストのメモリの半分である。変えるときは、Windows 側の `%UserProfile%\.wslconfig` の `[wsl2]` に `memory=8GB` のように書き、`wsl --shutdown` のあとに `wsl.ps1 start` を流す。
+
+WSL の VM では、Docker Desktop の WSL 連携を、この VM に対して有効にしない。`verify` が、連携の痕跡があれば失敗にする。
+
+### 中に入る
+
+Mac は、次で入る。
+
+```bash
+limactl shell multica-squad
+```
+
+Windows は、次で入る。
+
+```powershell
+cmd /c "set WSLENV=&& wsl -d multica-squad"
+```
+
+`cmd /c "set WSLENV=&& …"` は、Windows で `WSLENV` を設定しているときに、その変数を中へ渡さないための書き方である。`WSLENV` に挙げた変数（トークンなど）は、中の同じユーザーのプロセスから読めてしまう。
+
+ここから先のコマンドは、特に書かない限り、VM の中で流す。
+
+### 道具とログイン
+
+VM には、「受け取る人の準備」の Ubuntu 24.04 の道具と、rootless の Docker が入っている。`multica`、`claude`、`codex` は入っていないので、「受け取る人の準備」のとおり、利用する組織の手順で `~/.local/bin` などに入れ、PATH を通す。
+
+ログインは、すべて VM のディスクに残る。VM を止めて起動し直しても残り、VM を消すとなくなる。
+
+- Claude Code と Codex は、「ホストとエージェント用のログイン」のコマンドを使う。ブラウザへ戻れないときは、Codex は `codex login --device-auth` を使う
+- Multica は、中で `multica login` を流す
+- GitHub は、中で `gh auth login` を流し、そのあと `gh auth setup-git` で Git を HTTPS にそろえる。ホストの SSH の鍵は使わない
+
+VM の中には鍵束がないので、`gh` のトークンは VM の `~/.config/gh/hosts.yml` に平文で残る。読めるのは VM の中だけである。
+
+Lima はポートを転送するので、Multica や Codex のブラウザのログインは、ホストのブラウザから戻れる。
+
+### セットアップを流す
+
+中で、「原本を取る」の手順で clone し、タグを取り出して `bash setup.sh` を流す。そのあとは、ホストと同じ質問に答える。
+
+セットアップが終わると、中のデーモンは、VM の起動時に systemd の `multica-squad-daemon.service` が起動する。中に入っていなくても、デーモンはオンラインになる。
+
+セットアップが選んだサーバーの URL は、動いているデーモンから読んで、VM の中の `~/.config/multica-squad-vm/server-url` に 1 行で記録する。systemd の `multica-squad-record-server.timer` が 1 分ごとに記録し、VM を起動し直したあとのデーモンは、この記録のサーバーへつながる。起動するときの URL は、環境変数 `MULTICA_SERVER_URL`、この記録、CLI の設定の順で、最初にあるものを使う。
+
+セットアップが終わったら、VM を止める前に、次の `verify` を流す。記録を 1 分待たずに作り、動いているデーモンの接続先と同じことを確かめるため。別のサーバーへつなぎ直すときは、セットアップを流し直す。次の記録で、新しい接続先に変わる。記録を消すと、CLI の設定へ戻る。
+
+中の状態は、いつでも確かめられる。ホスト側から、次を流す。
+
+```bash
+bash vm/lima.sh verify
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 verify
+```
+
+ホストのファイルの共有がないこと、SSH のエージェントがないこと、Docker が動くこと、自動の起動が有効なことを確かめる。WSL では、Windows の実行ファイルを呼べないことと、使う人が root になれないことも確かめる。セットアップのあとは、デーモンが動いていることと、記録した接続先が動いているデーモンと同じことも確かめる。セットアップの前は、デーモンの確認を飛ばしたことを出す。
+
+### 止める・起動する
+
+止める前に、中のデーモンの実行中のタスクを確かめる。動いているタスクがあるか、数が分からないときは、何もせずに止まる。止めてよいと決めたときだけ `--force`（WSL は `-Force`）を付ける。
+
+```bash
+bash vm/lima.sh stop
+bash vm/lima.sh start
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 stop
+powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 start
+```
+
+Mac や Windows を起動し直したあとは、VM が止まっているので、`start` を流す。ログイン時に VM を自動で起動する設定は入れない。起動すれば、中に入らなくても、デーモンがオンラインになり、タスクが動く。
+
+WSL は、ディストリにつながる `wsl.exe` がなくなると、少しあとにディストリを止める。`wsl.ps1 start` は、窓を出さずに `wsl.exe` を 1 つ起動して、窓をすべて閉じてもディストリを動かし続ける。この `wsl.exe` は、Windows からサインアウトするまで動く。
+
+### 消す
+
+消すと、中のログインと作業コピーはなくなる。消す VM の名前を示して確かめるので、よければ `y` と答える。聞かずに進めるときは `--yes`（WSL は `-Yes`）を付ける。動いているタスクがあるときは、止めるときと同じく、`--force`（WSL は `-Force`）が要る。
+
+```bash
+bash vm/lima.sh delete
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete
+```
+
+消したあと、ホストには、Lima（または WSL）と、取り込んだイメージの控えだけが残る。Lima のイメージの控えは、`limactl prune` で消せる。WSL の VM の置き場所は、`%LOCALAPPDATA%\multica-squad\<名前>` で、消すときに一緒に消える。
+
+### WSL で root の作業をする
+
+WSL の VM では、使う人に sudo を持たせない。中の root は、Windows のドライブをつなぎ直せるため。`apt-get` など root が要る作業は、Windows 側から次のように流す。
+
+```powershell
+cmd /c "set WSLENV=&& wsl -d multica-squad -u root --exec apt-get update"
+```
+
+Lima の VM では、使う人に sudo が残る。中で `sudo apt-get` を使ってよい。
 
 ## 初めて導入する
 

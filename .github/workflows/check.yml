@@ -7,6 +7,8 @@ permissions:
   contents: read
 jobs:
   scripts:
+    env:
+      SQUAD_KIT_REQUIRE_PWSH: '1'
     strategy:
       fail-fast: false
       matrix:
