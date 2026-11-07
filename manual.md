@@ -642,7 +642,7 @@ GitHub で原本のリポジトリの Watch を「Custom」にし、「Releases�
 
 ## 原本を変える人の手順
 
-変更はブランチに積んで PR にする。人のレビューと CI の成功を確かめてから、人間がマージし、[タグを発行する手順](CONTRIBUTING.md#タグを発行する)に従ってタグと Release を作る。[変更の進め方](CONTRIBUTING.md)を参照する。
+変更はブランチに積んで PR にする。人のレビューと CI の成功を確かめてから、人間がマージし、[タグと Release を出す手順](CONTRIBUTING.md#タグと-release-を出す)に従ってタグと Release を作る。[変更の進め方](CONTRIBUTING.md)を参照する。
 
 ```bash
 bash tests/run.sh
