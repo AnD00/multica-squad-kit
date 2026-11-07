@@ -158,7 +158,7 @@ function Invoke-SquadWslVm {
     $script:SquadWslPath = (Get-Command wsl.exe -CommandType Application -ErrorAction Stop).Source
     $versionOutput = (Invoke-SquadWsl -WslArguments @('--version')).Output
     $firstLine = @($versionOutput -split '\r?\n' | Where-Object { $_.Trim() })[0]
-    if ($firstLine -notmatch '^WSL[^:]*:\s*(\d+\.\d+\.\d+(?:\.\d+)?)\s*$' -or [version]$Matches[1] -lt [version]'2.6.1') { throw 'WSL 2.6.1 以上の版が必要です。wsl --update で更新してください。' }
+    if ($firstLine -notmatch '^WSL[^:]*:\s*(\d+\.\d+\.\d+(?:\.\d+)?)\s*$' -or [version]$Matches[1] -lt [version]'2.6.1') { throw 'WSL 2.6.1 以上のバージョンが必要です。wsl --update で更新してください。' }
     $location = Get-SquadLocation $Name
     $distributions = @(Get-SquadDistributions)
     if ($Action -eq 'create') {

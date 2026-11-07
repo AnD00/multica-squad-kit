@@ -2,7 +2,7 @@
 
 セットアップを、ホストではなく軽い VM の中で流せるようにする。Mac は Lima の VM、Windows は WSL の専用のディストリを、原本のスクリプトのコマンド 1 つで作る。中では Linux のセットアップを変えずに流し、エージェントからホストのホームを読めないようにする。
 
-この文書は、VM を作るスクリプトの設計と、その理由を書く。使う人への手順は `README.md` と `manual.md` に、版を出す前の確かめは `CONTRIBUTING.md` に書く（[利用者向けの文書の変更](#利用者向けの文書の変更)）。
+この文書は、VM を作るスクリプトの設計と、その理由を書く。使う人への手順は `README.md` と `manual.md` に、バージョンを出す前の確かめは `CONTRIBUTING.md` に書く（[利用者向けの文書の変更](#利用者向けの文書の変更)）。
 
 ## 目的と範囲
 
@@ -13,7 +13,7 @@
 - コンテナ（Dev Container など）での閉じ込め。テストの Docker で閉じ込めが崩れ、イメージの保守も増えるため
 - 別の OS ユーザーでの閉じ込めと、Linux のホストの上の VM
 - VM の中のセットアップを、Linux のホストと変えること。`setup.sh` と `lib/` は変えない
-- VM を作って中でセットアップを流す通しの確かめを、CI で流すこと。版を出す前に人が確かめる
+- VM を作って中でセットアップを流す通しの確かめを、CI で流すこと。バージョンを出す前に人が確かめる
 
 ## 置くもの
 
@@ -51,7 +51,7 @@ powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete [-Name NAME] [-Force]
 - `create` は、同じ名前の VM があれば、何も変えずに止まる。作り直すときは、先に `delete` する
 - `create` は、作ったあとに `verify` を流し、通らなければ VM を消して止まる。閉じ込めの設定が効いていない VM を残さないため
 - `create` の最後に、中に入るコマンドと、中でセットアップを流す手順の案内を出す
-- 引数の誤りと、Lima・WSL の版が足りないときは、何も変えずに止まる
+- 引数の誤りと、Lima・WSL のバージョンが足りないときは、何も変えずに止まる
 
 中に入るときは、Lima なら `limactl shell NAME`、WSL なら `cmd /c "set WSLENV=&& wsl -d NAME"` を使う（WSL の理由は「閉じ込めの設定」の WSL）。スクリプトに中に入る操作は足さない。どちらの道具にもある操作で、包んでも得るものがないため。
 
@@ -76,7 +76,7 @@ powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete [-Name NAME] [-Force]
 
 ポートの転送は、Lima の既定のままにする。中の `127.0.0.1` で待つポートが、ホストの `127.0.0.1` に見える。Codex と Multica のログインが、ホストのブラウザから中の待ち受けに戻るのに使うため。中からホストのファイルは読めないので、閉じ込めは崩れない。
 
-使う Lima は 1.0.0 以上の正式版にする。[1.0.0 の create の実装](https://github.com/lima-vm/lima/blob/v1.0.0/cmd/limactl/start.go)で `--set` と Ubuntu 24.04 の雛形が使えることを確認した。`lima.sh` は版が足りなければ止まる。
+使う Lima は 1.0.0 以上の正式なバージョンにする。[1.0.0 の create の実装](https://github.com/lima-vm/lima/blob/v1.0.0/cmd/limactl/start.go)で `--set` と Ubuntu 24.04 の雛形が使えることを確認した。`lima.sh` はバージョンが足りなければ止まる。
 
 `limactl list --json` は、[1.0.0 の Instance の定義](https://github.com/lima-vm/lima/blob/v1.0.0/pkg/store/instance.go)どおり、VM ごとに JSON のオブジェクトを返す。`config` は既定と上書きを適用した実効設定で、空の `mounts` は省略される。ホストに JSON 用の道具を追加しないよう、Mac 標準の `plutil` で読み取る。
 
@@ -107,7 +107,7 @@ default=USER
 
 `provision.sh` を流す最初の起動だけは、まだドライブが見える。この起動では、`wsl.ps1` が渡した原本を読むだけにし、使う人のログインはまだない。WSL 全体の設定（`%USERPROFILE%\.wslconfig`）は変えない。ほかのディストリにも効き、ホストに設定が残るため。
 
-WSL は、[公開された 2.6.1 の実装](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/common/WslClient.cpp)で、`--name`、`--location`、`--no-launch` と `WSL_UTF8` を確認した。最低の版を 2.6.1 とし、`wsl.ps1` は `wsl --version` が足りなければ止まる。子の `wsl.exe` に `WSL_UTF8=1` を渡し、UTF-8 で出力を読む。作るときは `--version 2` も渡し、普段の WSL の既定を変えずに WSL 2 にする。
+WSL は、[公開された 2.6.1 の実装](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/common/WslClient.cpp)で、`--name`、`--location`、`--no-launch` と `WSL_UTF8` を確認した。最低のバージョンを 2.6.1 とし、`wsl.ps1` は `wsl --version` が足りなければ止まる。子の `wsl.exe` に `WSL_UTF8=1` を渡し、UTF-8 で出力を読む。作るときは `--version 2` も渡し、普段の WSL の既定を変えずに WSL 2 にする。
 
 初回は `--no-launch` で通常のシェルを開かず、`-u root --exec` で `wslpath` と準備のスクリプトを流す。[コマンドを明示した起動](https://github.com/microsoft/WSL/blob/2.6.1/src/windows/service/exe/LxssInstance.cpp)は対話の初回設定を始めない。使う人と `wsl.conf` を用意してからディストリを止め、次の起動で閉じ込めを効かせる。
 
@@ -249,7 +249,7 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 
 ## 確かめる
 
-`verify` は、中で `verify.sh` を使う人の権限で流し、閉じ込めと自動の起動を確かめる。`create` の最後と、版を出す前の確かめで使う。1 つでも通らなければ、通らなかった項目を出して 0 以外で終わる。
+`verify` は、中で `verify.sh` を使う人の権限で流し、閉じ込めと自動の起動を確かめる。`create` の最後と、バージョンを出す前の確かめで使う。1 つでも通らなければ、通らなかった項目を出して 0 以外で終わる。
 
 | 確かめること | Lima | WSL |
 | --- | --- | --- |
@@ -283,9 +283,9 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 
 | テスト | 確かめること |
 | --- | --- |
-| `tests/vm-lima-test.sh` | スタブの `limactl` に渡す上書き、版の不足と同じ名前での停止、起動前の設定の確かめで消して止まること、止める・消す前のタスク数の扱い、確かめの求め |
+| `tests/vm-lima-test.sh` | スタブの `limactl` に渡す上書き、バージョンの不足と同じ名前での停止、起動前の設定の確かめで消して止まること、止める・消す前のタスク数の扱い、確かめの求め |
 | `tests/vm-guest-test.sh` | `provision.sh` が書く `wsl.conf` と unit、sudo の群に入れないこと、二度流しても同じこと。`start-daemon` の 5 つの手順と、接続先を環境変数、記録、CLI の設定の順に読むこと。CLI の既定が記録と違うときと、CLI の設定がないときに、記録した接続先で起動すること。`record-server` が、デーモンが動いていないときと、`daemon_has_agent_env` の変数を持たないときに記録を変えないこと。`verify.sh` の各項目の成否 |
-| `tests/vm-wsl-test.sh` | スタブの `wsl.exe` を置いた `pwsh` で、`wsl.ps1` の各操作が渡す引数と、版・名前・タスク数での停止 |
+| `tests/vm-wsl-test.sh` | スタブの `wsl.exe` を置いた `pwsh` で、`wsl.ps1` の各操作が渡す引数と、バージョン・名前・タスク数での停止 |
 
 - `provision.sh` と `verify.sh` は、書き込む先と読む先の根（`/etc` など）を環境変数で差し替えられるようにし、テストは一時の置き場で流す
 - `start-daemon` の変数の名前を、`lib/host.sh` の `prepare_daemon` の `env -i` の行と照らし合わせるテストを、`tests/vm-guest-test.sh` に入れる
@@ -298,18 +298,18 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 
 ## 利用者向けの文書の変更
 
-使う人への手順は `README.md` と `manual.md` に、版を出す前の確かめは `CONTRIBUTING.md` に書く。この文書の設計の理由は写さない。
+使う人への手順は `README.md` と `manual.md` に、バージョンを出す前の確かめは `CONTRIBUTING.md` に書く。この文書の設計の理由は写さない。
 
 `README.md` には、閉じ込めて動かす節を足す。
 
 - VM を作るスクリプトの使い方と、中でセットアップを流す方法（`manual.md` の節へのリンク）
 - 割くメモリとディスクの目安と、止め方・消し方
 - 普段のユーザーで動かすと、エージェントがホームの SSH の鍵や普段の `gh` の認証を読めること
-- 確かめた範囲に、Mac の Lima と WSL の専用のディストリを足す。版を出す前に人が確かめる範囲であることも書く
+- 確かめた範囲に、Mac の Lima と WSL の専用のディストリを足す。バージョンを出す前に人が確かめる範囲であることも書く
 
 `manual.md` には、「閉じ込めて動かす」の章を足す。作る、中に入る、道具とログイン、セットアップ、止める・起動する、消すの順に、コマンドを書く。ネットワークを閉じ込めないことと、WSL の root の作業の仕方も書く。セットアップのあとに `verify` を流すことと、接続先を変えるときはセットアップを流し直すことも書く。
 
-`CONTRIBUTING.md` には、「タグを発行する」の前に「版を出す前に VM で確かめる」の節を足す。Mac と WSL のそれぞれで、次を確かめて、結果を版を上げる PR に書く。
+`CONTRIBUTING.md` には、「タグを発行する」の前に「バージョンを出す前に VM で確かめる」の節を足す。Mac と WSL のそれぞれで、次を確かめて、結果をバージョンを上げる PR に書く。
 
 1. スクリプトで VM を作り、中でセットアップを最後まで流す
 2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる

@@ -41,8 +41,8 @@ done
 [[ $(uname -s) == Darwin ]] || die 'Mac で実行してください。'
 command -v limactl >/dev/null || die 'Lima 1.0.0 以上を導入してください。'
 command -v plutil >/dev/null || die 'macOS 標準の plutil が必要です。'
-version=$(limactl --version) || die 'Lima の版を読めません。'
-[[ $version =~ ^limactl[[:space:]]version[[:space:]]([0-9]+)\.([0-9]+)\.([0-9]+)(\+[A-Za-z0-9.-]+)?$ ]] || die 'Lima 1.0.0 以上の正式版を使ってください。'
+version=$(limactl --version) || die 'Lima のバージョンを読めません。'
+[[ $version =~ ^limactl[[:space:]]version[[:space:]]([0-9]+)\.([0-9]+)\.([0-9]+)(\+[A-Za-z0-9.-]+)?$ ]] || die 'Lima 1.0.0 以上の正式なバージョンを使ってください。'
 (( 10#${BASH_REMATCH[1]} >= 1 )) || die 'Lima 1.0.0 以上が必要です。'
 script_dir=$(cd "$(dirname "$0")" && pwd)
 

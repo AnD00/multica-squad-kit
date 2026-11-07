@@ -189,7 +189,7 @@ for args in 'create --memory 0' 'create --cpus nope' 'create --name ../escape' '
  deny "${arguments[@]}"
  [[ ! -s $test_dir/calls.jsonl ]]
 done
-echo 'PASS Lima: 名前と資源の指定を渡し、同じ名前・版の不足・不正な引数では何も変えない'
+echo 'PASS Lima: 名前と資源の指定を渡し、同じ名前・バージョンの不足・不正な引数では何も変えない'
 
 for config in '{"mounts":[{"location":"~"}]}' '{"mounts":{}}' '{"ssh":{"forwardAgent":true,"forwardX11":false,"loadDotSSHPubKeys":false}}' '{"ssh":{"forwardAgent":false,"forwardX11":true,"loadDotSSHPubKeys":false}}' '{"ssh":{"forwardAgent":false,"forwardX11":false,"loadDotSSHPubKeys":true}}' '{"ssh":{}}' '{"containerd":{"system":false,"user":true}}'; do
  reset

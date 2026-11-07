@@ -12,7 +12,7 @@ guest_root=${SQUAD_VM_ROOT:-}
 guest_root=${guest_root%/}
 [[ -z $guest_root || ( $guest_root == /* && $guest_root != *$'\n'* ) ]] || die '根は改行のない絶対パスにしてください。'
 source_dir=$(cd "$(dirname "$0")" && pwd)
-[[ -r $guest_root/etc/os-release ]] || die 'Ubuntu の版を読めません。'
+[[ -r $guest_root/etc/os-release ]] || die 'Ubuntu のバージョンを読めません。'
 . "$guest_root/etc/os-release"
 [[ ${ID:-} == ubuntu && ${VERSION_ID:-} == 24.04 ]] || die 'Ubuntu 24.04 で実行してください。'
 
