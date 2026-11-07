@@ -16,6 +16,12 @@ check() {
 	if "$@"; then printf 'PASS verify: %s\n' "$label"; else printf 'FAIL verify: %s\n' "$label" >&2; failed=1; fi
 }
 absent() { [[ ! -e $1 && ! -L $1 ]]; }
+# WSL は初回起動で /mnt/c を作る。automount を切ったあとも、空のディレクトリは残る。
+absent_or_empty_directory() {
+	[[ ! -e $1 && ! -L $1 ]] && return 0
+	[[ -d $1 && ! -L $1 ]] || return 1
+	[[ -z $(ls -A "$1") ]]
+}
 no_host_mounts() {
 	local mounts
 	mounts=$(cat "$guest_root/proc/self/mountinfo") || return 1
@@ -24,10 +30,10 @@ no_host_mounts() {
 	 seen=1
 	 fs=$(i+1); source=$(i+2)
 	 if (platform=="lima" && (fs=="virtiofs" || fs=="9p" || fs=="sshfs" || fs=="fuse.sshfs")) bad=1
-	 if (platform=="wsl" && (fs=="drvfs" || (fs=="9p" && (source ~ /^[A-Za-z]:/ || tolower($0) ~ /drvfs/)))) bad=1
+	 if (platform=="wsl" && ($5 ~ /^\/mnt\/[A-Za-z]$/ || fs=="drvfs" || (fs=="9p" && (source ~ /^[A-Za-z]:/ || tolower($0) ~ /drvfs/)))) bad=1
 	 break
 	}} END {exit (bad || !seen)}' <<<"$mounts" || return 1
-	if [[ $platform == lima ]]; then absent "$guest_root/Users"; else absent "$guest_root/mnt/c"; fi
+	if [[ $platform == lima ]]; then absent "$guest_root/Users"; else absent_or_empty_directory "$guest_root/mnt/c"; fi
 }
 no_agent_socket() { [[ -z ${SSH_AUTH_SOCK:-} ]]; }
 no_windows_exec() {

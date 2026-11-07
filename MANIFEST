@@ -40,7 +40,7 @@ f87ce93cd7c9f6de487af338772b8fe7f027b5a9d83a76fe629ece721df14aca  ./common/monit
 924d5f82eca08218e0e4c2ee45152a3e2bd5d2d57cf4fccbd9c53e53e7a6a748  ./common/shell/env.sh
 17b2059a500db5aa83cd93d74e6aacd6d0a40452df174c19652b5cfe88d76071  ./common/skills/squad-handoff/SKILL.md
 701c6c80154c174ee084905458c196687e4b1acd54f8b5586d4b9f80f9a0cb35  ./common/squad.md
-58b069fa82595b34027290399c4dcf280ad74fb31f249657e31ea08136b0cf14  ./docs/vm.md
+a5ddaeda21e291d070630b22e5d8ddb87410aecaad6a262c278bef1bc094ad63  ./docs/vm.md
 7676fba0003b177ab77c8f8473b4acfdc5452b05f8129d78aa81776887d1bdaf  ./lib/answers.sh
 a41c34125ad75e066f58958603d74bba6ce19de2d36fe6e4120c686426eed5a0  ./lib/autopilots.sh
 b5fe9da39e612a630e3ab0499675dd6623caf2a73e571d6ff1603511e0de1b01  ./lib/check.sh
@@ -77,7 +77,7 @@ f8291f3beb4fd0e4a931c9627481d6fcf2d246abcf26f9a497a64538340f7a22  ./tests/link-s
 cfcba033bb5b182af8b205bad9d217cd44949c953d9d74b37802641e38dd89a7  ./tests/manual-test.sh
 770ba7e4bde97301f5a012502338b9d2db5a0305256e1bc427224b047f7c745f  ./tests/pre-push-test.sh
 d62d96a243f96de6c40c7281d71295862fb913d12434b795ed2db9f21b093d6f  ./tests/project-followup-test.sh
-c1f6155a0c8b338ba60a597125338a0d02a30a349b1a25226109c7d175091176  ./tests/project-test.sh
+e9cb96c544b9f6447d08cec84bc849d95b0fb931c7a534c134522d80c0ccf8bb  ./tests/project-test.sh
 9f8a8627707b05be5e3a6496cf12898853cbe092a16ca1df50e9f428e587fe0e  ./tests/questions-ui-test.sh
 18f62d1e1174d966a6544c33505a73a3f550b2013856e924a3f85763ff4d0bf2  ./tests/release-tags-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
@@ -96,7 +96,7 @@ eff8b05877239fcb85b764871302ee720ee7a05b6594b9e5b9a149728f63a3c0  ./tests/squad-
 8b65974d91466ca46db3afe9c8e7f4c08e9b7c9539d1ecef057417fc08943633  ./tests/squad-usage-check-test.sh
 0b4aacf6c7d2161c9704bdd8262d7829b505cd127c792e7d67c51efdb38850b9  ./tests/squad-usage-read-test.sh
 d3339f14c9b250e76f2d65cd37a449ef4220e359f389e33a4d88088ad6dc03d6  ./tests/test-runner-test.sh
-a9ce491daff60d4d9e64ad6f63fc43c2cafe282a103e78a473898b26414d0f77  ./tests/vm-guest-test.sh
+2256ba2794f0581cdf65ad8ff7f92731b96eaa6d669c5d33538cd36a1fe2d1b3  ./tests/vm-guest-test.sh
 9ad64afae6678de9a769b95e404f8fb3c42e7f0bd7a6f6f5f27e8048b27b2ee2  ./tests/vm-lima-test.sh
 b2914504387cf8d06ea41244d5ce50b58b008b322e9eaef59d4ff906ad6f48b7  ./tests/vm-wsl-cli.py
 3a8a6d13cd1c132345a04d8f8b4e8af8afe4da65b39b3bb56eecbdf2400670e5  ./tests/vm-wsl-test.ps1
@@ -104,6 +104,6 @@ b2914504387cf8d06ea41244d5ce50b58b008b322e9eaef59d4ff906ad6f48b7  ./tests/vm-wsl
 e17bfe6fb362a0e097bcdeca448896bf6f23d16e429be331ef44c1c6aa21a13f  ./tests/workspace-test.sh
 dc1c656043ef77ce896e9ee5902afdb2f4eb43cbbdd881fccc6c1d665a6df2c1  ./vm/guest/provision.sh
 48b2bb27319248006a38620036f2ad0f1e793d3f59bddc3f0c807132917804c1  ./vm/guest/start-daemon
-817d4ecef81e9bf45829f4f0df43f46aa38f743306ba08395b85add489e19823  ./vm/guest/verify.sh
+6225b6f3c4f29a49cb42bb4712e1ef06fc526cac6b844b4fed60cbad54be7de0  ./vm/guest/verify.sh
 48a372cffc2617a738e830c488b59760dc6307a34deed180591618194dda34f0  ./vm/lima.sh
 8101acb2191f04da8917043df2aae2e2499f43dd6a5e793b269dc6a5449ed5a2  ./vm/wsl.ps1

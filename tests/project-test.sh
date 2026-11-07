@@ -204,14 +204,17 @@ echo 'PASS project: プロジェクトの登録でスクワッドの器を作り
 echo 'PASS project: 新規プロジェクトでは選んだ全件をエージェント作成前の許可ファイルと紐付けに反映する'
 
 jq -es 'all(.[]|select(.name|startswith("demo-")); (.instructions|contains("`example/project`、`example/second`、`example/third`")))' "$TEST_DB"/agents/*.json >/dev/null
+# grep -q は一致で先に終わる。パイプにすると、jq が閉じたパイプへ書いて失敗することがあるため、先に変数へ読む。
+project_description=$(jq -er '.description' "$TEST_DB/projects/project-a.json")
+verify_skill=$(jq -er '.content' "$TEST_DB/skills/verify.json")
 for repo in example/project example/second example/third; do
- jq -er '.description' "$TEST_DB/projects/project-a.json" | grep -Fq "| \`$repo\` | [記入:"
- jq -er '.content' "$TEST_DB/skills/verify.json" | grep -Fqx "## \`$repo\`"
+ grep -Fq "| \`$repo\` | [記入:" <<<"$project_description"
+ grep -Fqx "## \`$repo\`" <<<"$verify_skill"
 done
 [[ $(jq -r '.content' "$TEST_DB/skills/verify.json" | grep -c '^## `') == 3 ]]
 ! jq -r '.description' "$TEST_DB/projects/project-a.json" | grep -q '{{'
 ! jq -r '.content' "$TEST_DB/skills/verify.json" | grep -q '{{'
-jq -r '.content' "$TEST_DB/skills/verify.json" | grep -qF '[記入: 実際に使うコマンドと実行順]'
+grep -qF '[記入: 実際に使うコマンドと実行順]' <<<"$verify_skill"
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
 # 環境の修復試験の準備には、ここで本体から作った全15役の状態を使う。
 mkdir -p "$test_dir/completed"

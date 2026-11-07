@@ -231,8 +231,11 @@ elif name == 'docker':
         print(json.dumps(state.get('security', ['name=seccomp,profile=builtin', 'name=rootless'])))
     else:
         assert args == ['run', '--rm', 'hello-world'], args
-        if state.get('post_mount'):
+        if state.get('post_mount_directory'):
             (root / 'mnt/c').mkdir(parents=True, exist_ok=True)
+        if state.get('post_mount'):
+            with open(root / 'proc/self/mountinfo', 'a') as mountinfo:
+                mountinfo.write('11 1 0:2 / /mnt/c rw - 9p C:\\ rw\n')
 elif name == 'sudo':
     assert args == ['-n', 'true'], args
     sys.exit(0 if state.get('sudo') else 1)
@@ -392,12 +395,24 @@ for state in '{"sudo":true}' '{"windows_exec":true}' '{"security":["name=seccomp
  guest_state "$state"
  verify_denied wsl
 done
-for path in mnt/c mnt/wsl/docker-desktop mnt/wsl/docker-desktop-bind-mounts proc/sys/fs/binfmt_misc/WSLInterop; do
+for path in mnt/c/Users mnt/wsl/docker-desktop mnt/wsl/docker-desktop-bind-mounts proc/sys/fs/binfmt_misc/WSLInterop; do
  reset_guest
  guest_state '{"uid":1000}'
  mkdir -p "$guest_root/$path"
  verify_denied wsl
 done
+# 初回起動が作った空のマウント先は、共有ではない。Docker の使用後にも残る。
+reset_guest
+guest_state '{"uid":1000}'
+mkdir -p "$guest_root/mnt/c"
+verify wsl
+guest_state '{"post_mount_directory":true}'
+verify wsl
+reset_guest
+guest_state '{"uid":1000}'
+mkdir -p "$guest_root/mnt"
+ln -s /elsewhere "$guest_root/mnt/c"
+verify_denied wsl
 reset_guest
 guest_state '{"uid":1000}'
 mkdir "$guest_root/Users"
@@ -409,7 +424,7 @@ for mount in '10 1 0:1 / /Users rw - virtiofs mount rw' '10 1 0:1 / /host rw - 9
  printf '%s\n' "$mount" >"$guest_root/proc/self/mountinfo"
  verify_denied lima
 done
-for mount in '10 1 0:1 / /mnt/d rw - drvfs D: rw' '10 1 0:1 / /mnt/d rw - 9p D: rw' '10 1 0:1 / /mnt/d rw - 9p none rw,aname=drvfs;path=D:'; do
+for mount in '10 1 0:1 / /mnt/c rw - ext4 /dev/sdb rw' '10 1 0:1 / /mnt/d rw - drvfs D: rw' '10 1 0:1 / /mnt/d rw - 9p D: rw' '10 1 0:1 / /mnt/d rw - 9p none rw,aname=drvfs;path=D:'; do
  printf '%s\n' "$mount" >"$guest_root/proc/self/mountinfo"
  verify_denied wsl
 done

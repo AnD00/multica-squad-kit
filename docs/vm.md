@@ -99,7 +99,7 @@ appendWindowsPath=false
 default=USER
 ```
 
-- `automount` を切り、Windows のドライブ（`/mnt/c` など）を見えなくする
+- `automount` を切り、Windows のドライブ（`/mnt/c` など）を見えなくする。初回起動で作られた空の `/mnt/c` は残ってよい。共有の有無は mount で判定する
 - `interop` を切り、中から Windows の実行ファイルを呼べなくする。Windows の PATH も足さない
 - `systemd` を入れ、デーモンと Docker を自動で起動する
 - 書いたあと `wsl --terminate NAME` で止め、次の起動から設定を効かせる
@@ -229,7 +229,7 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 
 | 確かめること | Lima | WSL |
 | --- | --- | --- |
-| ホストのファイルの共有がない | `virtiofs`、`9p`、`sshfs` の mount がなく、`/Users` がない | `drvfs` と Windows のドライブの `9p` の mount がなく、`/mnt/c` がない |
+| ホストのファイルの共有がない | `virtiofs`、`9p`、`sshfs` の mount がなく、`/Users` がない | `drvfs`、Windows のドライブの `9p`、`/mnt/<ドライブ>` の mount がなく、`/mnt/c` がないか空のディレクトリである |
 | ホストの鍵がない | `SSH_AUTH_SOCK` がない | `SSH_AUTH_SOCK` がない |
 | Windows の実行ファイルを呼べない | 対象外 | `WSLInterop` の binfmt がなく、`cmd.exe` を呼べない |
 | 使う人が root になれない | 対象外 | `sudo -n true` が失敗する |
