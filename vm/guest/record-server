@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# systemd の timer から、動いているデーモンの接続先を VM の中に記録する。
+# start-daemon が、次の起動でこの記録を使う。記録を変えないときは何も書かない。
+set -euo pipefail
+die() { printf 'record-server: %s\n' "$*" >&2; exit 1; }
+
+agent_home=$HOME/.multica-agent
+[[ -f $agent_home/bin/gh ]] || exit 0
+
+# start-daemon と同じく、使う人のログインの PATH から CLI を探す。デーモンを起動した PATH と
+# そろえるため、関所を先頭に付ける。
+login_path=$(bash -lc 'printf "%s\n" "$PATH"') || die 'ログインの PATH を読めませんでした。'
+[[ -n $login_path ]] || die 'ログインの PATH が空です。'
+export PATH=$agent_home/bin:$login_path
+
+if status=$(multica daemon status --output json); then :; else
+	jq -e '.status=="stopped" or .status=="not_running"' >/dev/null <<<"$status" || die 'デーモンの状態を取得できませんでした。'
+fi
+jq -e 'type=="object" and (.status=="running" or .status=="stopped" or .status=="not_running")' >/dev/null <<<"$status" || die 'デーモンの状態の応答が不正です。'
+[[ $(jq -r '.status' <<<"$status") == running ]] || exit 0
+pid=$(jq -er '.pid | select(type=="number" and .>0 and floor==.)' <<<"$status") || die 'デーモンの PID が不正です。'
+
+# lib/host.sh の daemon_has_agent_env と同じ確かめ。セットアップか start-daemon が起動した
+# デーモンだけを記録の元にし、手で別の設定で起動したデーモンの接続先を残さない。
+observed=$(ps eww -o command= -p "$pid") || exit 0
+[[ " $observed " == *" CODEX_HOME=$agent_home/codex "* && " $observed " == *" PATH=$agent_home/bin:"* ]] || exit 0
+
+server_url=$(jq -er '.server_url | select(type=="string")' <<<"$status") || die 'デーモンの状態に接続先がありません。'
+[[ $server_url =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]] || die "デーモンの接続先が https:// で始まる URL ではありません: $server_url"
+server_url=${server_url%/}
+
+directory=$HOME/.config/multica-squad-vm
+record=$directory/server-url
+if [[ -f $record && ! -L $record && $(<"$record") == "$server_url" ]]; then exit 0; fi
+mkdir -p "$directory"
+temporary=$(mktemp "$directory/server-url.XXXXXX")
+trap 'rm -f -- "$temporary"' EXIT
+printf '%s\n' "$server_url" >"$temporary"
+mv -f -- "$temporary" "$record"

@@ -1,0 +1,2 @@
+vm/*.sh text eol=lf
+vm/guest/* text eol=lf
