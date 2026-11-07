@@ -18,12 +18,23 @@ fi
 jq -e 'type=="object" and (.status=="running" or .status=="stopped" or .status=="not_running")' >/dev/null <<<"$status" || die 'デーモンの状態の応答が不正です。'
 [[ $(jq -r '.status' <<<"$status") != running ]] || exit 0
 
+# 接続先は、MULTICA_SERVER_URL、record-server の記録、CLI の設定の順に、最初にあるものを使う。
 # lib/questions.sh の choose_server と同じ形式を読む。ここでは質問しない。
-config=$(multica config show) || die 'CLI の設定を読めませんでした。'
-configured=$(printf '%s\n' "$config" | awk '$1=="server_url:" && $2!="(not" {print $2}')
-server_url=${MULTICA_SERVER_URL:-$configured}
-[[ -n $server_url ]] || die 'サーバーの URL がありません。MULTICA_SERVER_URL または CLI の設定を確認してください。'
-[[ $server_url =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]] || die 'CLI のサーバー設定を確認し、https:// で始まる URL に直してください。'
+# 最初にあるものが正しくなければ、次へ進まずに止まる。別のサーバーへ黙ってつながないため。
+record=$HOME/.config/multica-squad-vm/server-url
+if [[ -n ${MULTICA_SERVER_URL:-} ]]; then
+	origin='MULTICA_SERVER_URL'
+	server_url=$MULTICA_SERVER_URL
+elif [[ -e $record || -L $record ]]; then
+	origin="記録した接続先（$record。消すと CLI の設定を使います）"
+	server_url=$(<"$record") || die "$origin を読めませんでした。"
+else
+	origin='CLI のサーバー設定'
+	config=$(multica config show) || die 'CLI の設定を読めませんでした。'
+	server_url=$(printf '%s\n' "$config" | awk '$1=="server_url:" && $2!="(not" {print $2}')
+fi
+[[ -n $server_url ]] || die "サーバーの URL がありません。$origin を確認してください。"
+[[ $server_url =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]] || die "$origin を確認し、https:// で始まる URL に直してください。"
 server_url=${server_url%/}
 
 # lib/host.sh の prepare_daemon の変数名とそろえる（テストで照合する）。

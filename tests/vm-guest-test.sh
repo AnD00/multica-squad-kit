@@ -105,6 +105,43 @@ deny
 rm "$test_dir/config-fail"
 echo 'PASS vm guest: URL の未設定・不正と設定の取得失敗は理由を出して失敗する'
 
+# 記録した接続先は、環境変数より後、CLI の設定より先に読む。
+record_file="$test_dir/home's space/.config/multica-squad-vm/server-url"
+mkdir -p "$(dirname "$record_file")"
+printf 'https://recorded.test:8443/base\n' >"$record_file"
+printf 'server_url: https://configured.test/\n' >"$test_dir/config"
+: >"$test_dir/calls"
+run
+check_started https://recorded.test:8443/base
+! grep -qx 'config show' "$test_dir/calls"
+printf 'server_url: (not set)\n' >"$test_dir/config"
+: >"$test_dir/calls"
+run
+check_started https://recorded.test:8443/base
+: >"$test_dir/calls"
+MULTICA_SERVER_URL=https://override.test run
+check_started https://override.test
+! grep -qx 'config show' "$test_dir/calls"
+rm "$record_file"
+printf 'server_url: https://configured.test/\n' >"$test_dir/config"
+: >"$test_dir/calls"
+run
+check_started https://configured.test
+grep -qx 'config show' "$test_dir/calls"
+echo 'PASS vm guest: 接続先を環境変数、記録、CLI の設定の順に読み、記録は CLI の設定がなくても使う'
+
+# 最初にある値が正しくなければ、次の読み先へ進まず、別のサーバーへつながない。
+for recorded in 'http://recorded.test' 'https://user@recorded.test' '' $'https://recorded.test\nhttps://other.test'; do
+ printf '%s\n' "$recorded" >"$record_file"
+ deny
+ ! grep -qx 'config show' "$test_dir/calls"
+done
+ln -sfn "$test_dir/missing-record" "$record_file"
+deny
+! grep -qx 'config show' "$test_dir/calls"
+rm "$record_file"
+echo 'PASS vm guest: 記録した接続先が正しくなければ、CLI の設定へ進まず理由を出して失敗する'
+
 for status in '{}' 'not json' '{"status":"unknown"}' '{"status":"running"}'; do
  printf '%s\n' "$status" >"$test_dir/status"
  deny
@@ -139,7 +176,7 @@ assert env_names(host) == env_names(guest), (env_names(host), env_names(guest))
 PY
 echo 'PASS vm guest: prepare_daemon と start-daemon の env -i の変数名が一致する'
 
-for file in vm/lima.sh vm/guest/start-daemon vm/guest/provision.sh vm/guest/verify.sh; do
+for file in vm/lima.sh vm/guest/start-daemon vm/guest/record-server vm/guest/provision.sh vm/guest/verify.sh; do
  [[ $(git -C "$root" check-attr eol -- "$file") == "$file: eol: lf" ]]
 done
 echo 'PASS vm guest: ホストとゲストのシェルスクリプトを LF に固定する'
@@ -210,10 +247,12 @@ elif name == 'loginctl':
 elif name == 'systemctl':
     if args == ['is-enabled', '--quiet', 'multica-squad-daemon.service']:
         sys.exit(0 if state.get('enabled', True) else 1)
+    if args == ['is-enabled', '--quiet', 'multica-squad-record-server.timer']:
+        sys.exit(0 if state.get('timer_enabled', True) else 1)
     assert args in (
         ['disable', '--now', 'docker.service', 'docker.socket'],
         ['start', 'user@1000.service'], ['--user', 'enable', '--now', 'docker.service'],
-        ['daemon-reload'], ['enable', 'multica-squad-daemon.service'],
+        ['daemon-reload'], ['enable', 'multica-squad-daemon.service', 'multica-squad-record-server.timer'],
     ), args
 elif name == 'runuser':
     assert args[:3] == ['-u', 'vm-user', '--'], args
@@ -247,7 +286,7 @@ elif name == 'bash':
     print(os.environ['PATH'])
 elif name == 'multica':
     assert args == ['daemon', 'status', '--output', 'json'], args
-    print(json.dumps(state.get('daemon', dict(status='running', pid=4242))))
+    print(json.dumps(state.get('daemon', dict(status='running', pid=4242, server_url=state.get('server_url', 'https://example.test/')))))
 elif name == 'ps':
     assert args == ['eww', '-o', 'command=', '-p', '4242'], args
     print(state.get('daemon_env', f'multica CODEX_HOME={home}/.multica-agent/codex PATH={home}/.multica-agent/bin:/usr/bin'))
@@ -281,6 +320,14 @@ state = json.loads(path.read_text())
 state.update(json.loads(sys.argv[2]))
 path.write_text(json.dumps(state))
 PY
+}
+guest_state_replace() { printf '%s\n' "$1" >"$test_dir/guest-state.json"; }
+# セットアップ後の状態: gh と、provision.sh が置く record-server。
+finish_setup() {
+ mkdir -p "$guest_home/.multica-agent/bin" "$guest_root/usr/local/lib/multica-squad-vm"
+ touch "$guest_home/.multica-agent/bin/gh"
+ cp "${record_server:-$root/vm/guest/record-server}" "$guest_root/usr/local/lib/multica-squad-vm/record-server"
+ chmod +x "$guest_root/usr/local/lib/multica-squad-vm/record-server"
 }
 provision() {
  SQUAD_VM_ROOT="$guest_root" PATH="$test_dir/guest-bin:$PATH" \
@@ -317,7 +364,7 @@ default=vm-user
 unit = (root / 'etc/systemd/system/multica-squad-daemon.service').read_text()
 design = (source / 'docs/vm.md').read_text().split('```ini\n')[2].split('```')[0]
 assert unit == design.replace('User=USER', 'User=vm-user'), unit
-for name in ('provision.sh', 'start-daemon', 'verify.sh'):
+for name in ('provision.sh', 'start-daemon', 'record-server', 'verify.sh'):
     installed = root / 'usr/local/lib/multica-squad-vm' / name
     assert installed.read_bytes() == (source / 'vm/guest' / name).read_bytes()
     assert installed.stat().st_mode & 0o777 == 0o755
@@ -330,7 +377,27 @@ assert commands.index('systemctl disable --now docker.service docker.socket') < 
 assert commands.index('loginctl enable-linger vm-user') < commands.index('systemctl start user@1000.service') < commands.index('dockerd-rootless-setuptool.sh install')
 assert 'systemctl --user enable --now docker.service' in commands
 assert 'docker context use rootless' in commands
-assert 'systemctl enable multica-squad-daemon.service' in commands
+assert 'systemctl enable multica-squad-daemon.service multica-squad-record-server.timer' in commands
+record_service = (root / 'etc/systemd/system/multica-squad-record-server.service').read_text()
+assert record_service == '''[Unit]
+Description=Record the Multica daemon server URL for multica-squad-kit
+
+[Service]
+Type=oneshot
+User=vm-user
+ExecStart=/usr/local/lib/multica-squad-vm/record-server
+''', record_service
+record_timer = (root / 'etc/systemd/system/multica-squad-record-server.timer').read_text()
+assert record_timer == '''[Unit]
+Description=Record the Multica daemon server URL every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
+''', record_timer
 assert not any(item['command'] in ('multica', 'sudo') for item in calls)
 sources = (root / 'etc/apt/sources.list.d/docker.sources').read_text()
 assert 'URIs: https://download.docker.com/linux/ubuntu\n' in sources
@@ -338,11 +405,15 @@ assert 'Architectures: arm64\n' in sources and 'Suites: noble\n' in sources
 PY
 cp "$guest_root/etc/wsl.conf" "$test_dir/first-wsl.conf"
 cp "$guest_root/etc/systemd/system/multica-squad-daemon.service" "$test_dir/first-unit"
+cp "$guest_root/etc/systemd/system/multica-squad-record-server.service" "$test_dir/first-record-service"
+cp "$guest_root/etc/systemd/system/multica-squad-record-server.timer" "$test_dir/first-record-timer"
 provision_script=$guest_root/usr/local/lib/multica-squad-vm/provision.sh provision wsl vm-user
 cmp "$test_dir/first-wsl.conf" "$guest_root/etc/wsl.conf"
 cmp "$test_dir/first-unit" "$guest_root/etc/systemd/system/multica-squad-daemon.service"
+cmp "$test_dir/first-record-service" "$guest_root/etc/systemd/system/multica-squad-record-server.service"
+cmp "$test_dir/first-record-timer" "$guest_root/etc/systemd/system/multica-squad-record-server.timer"
 [[ $(grep -c '^vm-user:' "$guest_root/etc/subuid") == 1 ]]
-echo 'PASS vm guest: WSL の使う人・道具・rootless Docker・linger・unit・閉じ込め設定を作り、配置済みから再実行しても同じになる'
+echo 'PASS vm guest: WSL の使う人・道具・rootless Docker・linger・unit と記録の timer・閉じ込め設定を作り、配置済みから再実行しても同じになる'
 
 reset_guest
 guest_state '{"user_exists":true,"groups":"vm-user sudo"}'
@@ -379,17 +450,21 @@ verify lima
 grep -q '^SKIP verify: セットアップ前' "$test_dir/out"
 verify wsl
 grep -q '"command": "docker", "args": \["run", "--rm", "hello-world"\]' "$test_dir/guest-calls.jsonl"
-mkdir -p "$guest_home/.multica-agent/bin"
-touch "$guest_home/.multica-agent/bin/gh"
+grep -q '^PASS verify: 接続先を記録する timer が有効' "$test_dir/out"
+! grep -q '記録した接続先' "$test_dir/out"
+[[ ! -e $guest_home/.config/multica-squad-vm/server-url ]]
+finish_setup
 verify wsl
 grep -q '^PASS verify: 起動中のデーモンの環境' "$test_dir/out"
-echo 'PASS vm guest: 両 VM の閉じ込め・Docker・自動起動を確かめ、セットアップ後はデーモンの環境も確かめる'
+grep -q '^PASS verify: 記録した接続先が起動中のデーモンと同じ' "$test_dir/out"
+[[ $(cat "$guest_home/.config/multica-squad-vm/server-url") == https://example.test ]]
+echo 'PASS vm guest: 両 VM の閉じ込め・Docker・自動起動を確かめ、セットアップ後はデーモンの環境と記録した接続先も確かめる'
 
 verify_denied() {
  if verify "$1"; then echo 'verify が失敗すべきケースで成功しました' >&2; exit 1; fi
  grep -q 'FAIL verify:' "$test_dir/err"
 }
-for state in '{"sudo":true}' '{"windows_exec":true}' '{"security":["name=seccomp"]}' '{"security":"invalid"}' '{"post_mount":true}' '{"enabled":false}' '{"linger":"no"}' '{"fail":"docker run --rm hello-world"}' '{"fail":"docker info --format {{json .SecurityOptions}}"}'; do
+for state in '{"sudo":true}' '{"windows_exec":true}' '{"security":["name=seccomp"]}' '{"security":"invalid"}' '{"post_mount":true}' '{"enabled":false}' '{"timer_enabled":false}' '{"linger":"no"}' '{"fail":"docker run --rm hello-world"}' '{"fail":"docker info --format {{json .SecurityOptions}}"}'; do
  reset_guest
  guest_state '{"uid":1000}'
  guest_state "$state"
@@ -436,8 +511,98 @@ for state in '{"daemon":{"status":"stopped","pid":null}}' '{"daemon_env":"multic
  reset_guest
  guest_state '{"uid":1000}'
  guest_state "$state"
- mkdir -p "$guest_home/.multica-agent/bin"
- touch "$guest_home/.multica-agent/bin/gh"
+ finish_setup
  verify_denied wsl
+ [[ ! -e $guest_home/.config/multica-squad-vm/server-url ]]
 done
 echo 'PASS vm guest: セットアップ後の停止・違うデーモン環境・状態や環境の読み取り失敗を検出する'
+
+# 起動直後で記録がまだなくても、古い記録があっても、verify が今のデーモンの接続先にそろえる。
+reset_guest
+guest_state '{"uid":1000,"server_url":"https://after.test/base/"}'
+finish_setup
+mkdir -p "$guest_home/.config/multica-squad-vm"
+printf 'https://stale.test\n' >"$guest_home/.config/multica-squad-vm/server-url"
+verify wsl
+[[ $(cat "$guest_home/.config/multica-squad-vm/server-url") == https://after.test/base ]]
+# 記録を作れない、または記録が違うときは通さない。
+for state in '{"server_url":"http://bad.test"}' '{"server_url":5}' '{"daemon":{"status":"running","pid":4242}}'; do
+ reset_guest
+ guest_state '{"uid":1000}'
+ guest_state "$state"
+ finish_setup
+ verify_denied wsl
+ [[ ! -e $guest_home/.config/multica-squad-vm/server-url ]]
+done
+for fake in 'exit 0' 'mkdir -p "$HOME/.config/multica-squad-vm"; echo https://other.test >"$HOME/.config/multica-squad-vm/server-url"' 'exit 1'; do
+ reset_guest
+ guest_state '{"uid":1000}'
+ printf '#!/bin/bash\n%s\n' "$fake" >"$test_dir/fake-record-server"
+ record_server=$test_dir/fake-record-server finish_setup
+ verify_denied wsl
+ grep -q 'FAIL verify: 記録した接続先' "$test_dir/err"
+done
+echo 'PASS vm guest: verify は記録を今のデーモンの接続先にそろえ、記録できないときと記録が違うときは通さない'
+
+record() {
+ HOME="$guest_home" PATH="${record_path:-}$test_dir/guest-bin:$PATH" /bin/bash "$root/vm/guest/record-server" >"$test_dir/out" 2>"$test_dir/err"
+}
+record_dir=$guest_home/.config/multica-squad-vm
+record_calls() { grep -c '"command": "multica"' "$test_dir/guest-calls.jsonl" || true; }
+# 何もしないケース: セットアップ前、デーモンが止まっている、手で起動した別の環境のデーモン。
+reset_guest
+guest_state '{"uid":1000}'
+record
+[[ $(record_calls) == 0 && ! -e $record_dir ]]
+for state in '{"daemon":{"status":"stopped","pid":null}}' '{"daemon":{"status":"not_running","pid":null}}' '{"daemon_env":"multica CODEX_HOME=/wrong PATH=/usr/bin"}' '{"daemon_env":"multica CODEX_HOME=/home/other/.multica-agent/codex PATH=/usr/bin"}'; do
+ reset_guest
+ guest_state '{"uid":1000}'
+ guest_state "$state"
+ finish_setup
+ record
+ [[ ! -e $record_dir/server-url ]]
+done
+echo 'PASS vm guest: record-server はセットアップ前・停止中・環境の違うデーモンのときに記録を作らない'
+
+# 記録する・変わらなければ書き直さない・変わったら置き換える。
+reset_guest
+guest_state '{"uid":1000}'
+finish_setup
+record
+[[ $(cat "$record_dir/server-url") == https://example.test ]]
+[[ $(ls -A "$record_dir") == server-url ]]
+python3 - "$test_dir/guest-calls.jsonl" "$guest_home/.multica-agent/bin:" <<'CHECK'
+import json
+import sys
+calls = [json.loads(line) for line in open(sys.argv[1])]
+status = [call for call in calls if call['command'] == 'multica']
+assert status and all(call['env']['PATH'].startswith(sys.argv[2]) for call in status), status
+CHECK
+first_inode=$(ls -i "$record_dir/server-url")
+record
+[[ $(ls -i "$record_dir/server-url") == "$first_inode" ]]
+guest_state '{"server_url":"https://other.test:8443/base/"}'
+record
+[[ $(cat "$record_dir/server-url") == https://other.test:8443/base ]]
+[[ $(ls -A "$record_dir") == server-url ]]
+echo 'PASS vm guest: record-server は動いているデーモンの接続先を末尾のスラッシュなしで記録し、同じ間は書き直さない'
+
+# 正しくない接続先と取得の失敗は、理由を出して失敗し、今の記録を残す。
+for state in '{"server_url":"http://bad.test"}' '{"server_url":"https://user@bad.test"}' '{"server_url":"https://bad.test/?q"}' '{"server_url":""}' '{"server_url":5}' '{"daemon":{"status":"running","pid":4242}}' '{"daemon":{"status":"unknown"}}' '{"daemon":{"status":"running","pid":0,"server_url":"https://example.test"}}' '{"fail":"multica daemon status --output json"}'; do
+ guest_state_replace '{"uid":1000}'
+ guest_state "$state"
+ if record; then echo 'record-server が失敗すべきケースで成功しました' >&2; exit 1; fi
+ [[ -s $test_dir/err ]]
+ [[ $(cat "$record_dir/server-url") == https://other.test:8443/base ]]
+done
+echo 'PASS vm guest: record-server は不正な接続先と状態の取得失敗で失敗し、今の記録を残す'
+
+# 置き換えに失敗しても、今の記録を壊さず、一時のファイルを残さない。
+guest_state_replace '{"uid":1000,"server_url":"https://changed.test"}'
+mkdir -p "$test_dir/failing-mv"
+printf '#!/bin/sh\nexit 1\n' >"$test_dir/failing-mv/mv"
+chmod +x "$test_dir/failing-mv/mv"
+if record_path=$test_dir/failing-mv: record; then echo 'record-server が失敗すべきケースで成功しました' >&2; exit 1; fi
+[[ $(cat "$record_dir/server-url") == https://other.test:8443/base ]]
+[[ $(ls -A "$record_dir") == server-url ]]
+echo 'PASS vm guest: record-server は置き換えに失敗しても今の記録を壊さず、一時のファイルを残さない'

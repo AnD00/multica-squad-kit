@@ -55,7 +55,7 @@ elif action in ('start', 'stop', 'delete'):
     else:
         state['instance']['status'] = 'Running' if action == 'start' else 'Stopped'
 elif action == 'copy':
-    assert [Path(path).name for path in args[1:-1]] == ['provision.sh', 'start-daemon', 'verify.sh'], args
+    assert [Path(path).name for path in args[1:-1]] == ['provision.sh', 'start-daemon', 'record-server', 'verify.sh'], args
     assert all(Path(path).is_file() for path in args[1:-1])
     assert args[-1] == state['instance']['name'] + ':/tmp/multica-squad-vm.Test123/'
 elif action == 'shell':

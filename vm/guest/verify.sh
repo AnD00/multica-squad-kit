@@ -10,10 +10,11 @@ guest_root=${SQUAD_VM_ROOT:-}
 guest_root=${guest_root%/}
 [[ -z $guest_root || ( $guest_root == /* && $guest_root != *$'\n'* ) ]] || die '根は改行のない絶対パスにしてください。'
 failed=0
+passed=no
 check() {
 	local label=$1
 	shift
-	if "$@"; then printf 'PASS verify: %s\n' "$label"; else printf 'FAIL verify: %s\n' "$label" >&2; failed=1; fi
+	if "$@"; then passed=yes; printf 'PASS verify: %s\n' "$label"; else passed=no; printf 'FAIL verify: %s\n' "$label" >&2; failed=1; fi
 }
 absent() { [[ ! -e $1 && ! -L $1 ]]; }
 # WSL は初回起動で /mnt/c を作る。automount を切ったあとも、空のディレクトリは残る。
@@ -70,6 +71,16 @@ daemon_environment() {
 	observed=$(ps eww -o command= -p "$pid") || return 1
 	[[ " $observed " == *" CODEX_HOME=$HOME/.multica-agent/codex "* && " $observed " == *" PATH=$HOME/.multica-agent/bin:"* ]]
 }
+# record-server を 1 回流し、記録がデーモンの接続先と同じことを確かめる。
+# 最初の記録の前に VM を止めても、接続先が残るようにするため。
+server_recorded() {
+	local login_path status expected
+	"$BASH" "$guest_root/usr/local/lib/multica-squad-vm/record-server" || return 1
+	login_path=$(bash -lc 'printf "%s\n" "$PATH"') || return 1
+	status=$(PATH="$HOME/.multica-agent/bin:$login_path" multica daemon status --output json) || return 1
+	expected=$(jq -er 'select(.status=="running") | .server_url | select(type=="string")' <<<"$status") || return 1
+	[[ $(<"$HOME/.config/multica-squad-vm/server-url") == "${expected%/}" ]]
+}
 
 isolation
 if rootless_docker; then
@@ -82,9 +93,14 @@ fi
 # Docker を使ったあとにも閉じ込めが保たれていることを確かめる。
 isolation
 check 'デーモンの unit が有効' systemctl is-enabled --quiet multica-squad-daemon.service
+check '接続先を記録する timer が有効' systemctl is-enabled --quiet multica-squad-record-server.timer
 check '使う人の linger が有効' has_linger
 if [[ -f $HOME/.multica-agent/bin/gh ]]; then
 	check '起動中のデーモンの環境がセットアップと同じ' daemon_environment
+	# 環境が違うデーモンは記録の元にならないので、環境が合ったときだけ確かめる。
+	if [[ $passed == yes ]]; then
+		check '記録した接続先が起動中のデーモンと同じ' server_recorded
+	fi
 else
 	printf 'SKIP verify: セットアップ前のためデーモンの確認を飛ばします。\n'
 fi

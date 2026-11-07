@@ -116,7 +116,7 @@ trap 'exit 143' TERM
 case $action in
 create)
 	[[ $exists == no ]] || die '同じ名前の VM があります。作り直すときは先に delete してください。'
-	for file in provision.sh start-daemon verify.sh; do
+	for file in provision.sh start-daemon record-server verify.sh; do
 		[[ -r $script_dir/guest/$file ]] || die "ゲストのファイルを読めません: $file"
 	done
 	expression=".mounts = [] | .ssh.forwardAgent = false | .ssh.forwardX11 = false | .ssh.loadDotSSHPubKeys = false | .containerd.system = false | .containerd.user = false | .cpus = $cpus | .memory = \"${memory}GiB\" | .disk = \"${disk}GiB\""
@@ -130,7 +130,7 @@ create)
 	limactl start --tty=false "$name"
 	guest_temporary=$(limactl shell "$name" mktemp -d /tmp/multica-squad-vm.XXXXXX)
 	[[ $guest_temporary =~ ^/tmp/multica-squad-vm\.[A-Za-z0-9]+$ ]] || die 'ゲストの一時の置き場が不正です。'
-	limactl copy "$script_dir/guest/provision.sh" "$script_dir/guest/start-daemon" "$script_dir/guest/verify.sh" "$name:$guest_temporary/"
+	limactl copy "$script_dir/guest/provision.sh" "$script_dir/guest/start-daemon" "$script_dir/guest/record-server" "$script_dir/guest/verify.sh" "$name:$guest_temporary/"
 	limactl shell "$name" sudo bash "$guest_temporary/provision.sh" lima "$guest_user"
 	limactl shell "$name" rm -rf -- "$guest_temporary"
 	verify_guest

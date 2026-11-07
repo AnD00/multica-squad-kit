@@ -156,7 +156,7 @@ function Invoke-SquadWslVm {
     if ($Action -eq 'create') {
         if ($distributions -contains $Name -or (Test-Path -LiteralPath $location)) { throw '同じ名前のディストリか置き場所があります。先に delete してください。' }
         $guestSource = Join-Path $PSScriptRoot 'guest'
-        foreach ($file in @('provision.sh', 'start-daemon', 'verify.sh')) {
+        foreach ($file in @('provision.sh', 'start-daemon', 'record-server', 'verify.sh')) {
             if (-not (Test-Path -LiteralPath (Join-Path $guestSource $file) -PathType Leaf)) { throw "ゲストのファイルがありません: $file" }
         }
         $attempted = $false

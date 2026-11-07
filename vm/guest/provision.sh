@@ -72,7 +72,7 @@ as_user docker context use rootless
 
 destination=$guest_root/usr/local/lib/multica-squad-vm
 install -d -m 0755 "$destination" "$guest_root/etc/systemd/system"
-for file in provision.sh start-daemon verify.sh; do
+for file in provision.sh start-daemon record-server verify.sh; do
 	if ! cmp -s "$source_dir/$file" "$destination/$file"; then
 		install -m 0755 "$source_dir/$file" "$destination/$file"
 	fi
@@ -94,6 +94,26 @@ RestartSec=30
 [Install]
 WantedBy=multi-user.target
 EOF
+cat >"$guest_root/etc/systemd/system/multica-squad-record-server.service" <<EOF
+[Unit]
+Description=Record the Multica daemon server URL for multica-squad-kit
+
+[Service]
+Type=oneshot
+User=$guest_user
+ExecStart=/usr/local/lib/multica-squad-vm/record-server
+EOF
+cat >"$guest_root/etc/systemd/system/multica-squad-record-server.timer" <<EOF
+[Unit]
+Description=Record the Multica daemon server URL every minute
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target
+EOF
 if [[ $platform == wsl ]]; then
 	cat >"$guest_root/etc/wsl.conf" <<EOF
 [boot]
@@ -112,5 +132,5 @@ default=$guest_user
 EOF
 fi
 systemctl daemon-reload
-systemctl enable multica-squad-daemon.service
+systemctl enable multica-squad-daemon.service multica-squad-record-server.timer
 printf 'PASS provision: %s のゲストを準備しました（%s）。\n' "$platform" "$guest_user"
