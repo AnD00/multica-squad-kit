@@ -216,12 +216,13 @@ prepare_project() (
 
 # 実際に成功した create の件数だけを出す。再実行の既存利用は数えない。
 project_completion() {
-	printf '\nプロジェクトの設定が終わりました: %s（%s）\n' "$project_name" "${workspace_name:-$workspace_id}"
+	printf '\n'
+	ui_line out done "プロジェクトの設定が終わりました: ${project_name}（${workspace_name:-$workspace_id}）"
 	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
 	project_installation_completion
 	project_webhook_completion
 	project_issue_completion
-	printf '%s\n' '次にすること:'
+	ui_line out done '次にすること:'
 	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
 	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if [[ " $enabled " == *' dependabot-merger '* ]]; then
@@ -270,8 +271,13 @@ record_project_issue_failure() {
 }
 
 project_issue_completion() {
+	local identifier title action
 	printf '%s\n' '起票した issue:'
-	jq -r '.[] | "  \(.identifier) \(.title)（\(if .action=="created" then "新規" else "既存" end)）"' <<<"${setup_issue_rows:-[]}"
+	while IFS=$'\t' read -r identifier title action; do
+		printf '  %s %s（' "$identifier" "$title"
+		ui_result "$action"
+		printf '）\n'
+	done < <(jq -r '.[] | [.identifier,.title,(if .action=="created" then "新規" else "既存" end)] | @tsv' <<<"${setup_issue_rows:-[]}")
 	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
 		printf '%s\n' '起票できなかった issue:'
 		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"

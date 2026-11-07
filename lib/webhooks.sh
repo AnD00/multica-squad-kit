@@ -97,7 +97,17 @@ prepare_project_webhooks() {
 }
 
 project_webhook_completion() {
+	local repository trigger registration delivery reason
 	[[ $(jq length <<<"${setup_webhook_rows:-[]}") != 0 ]] || return 0
 	printf '%s\n' 'Webhook の登録:'
-	jq -r '.[] | "  \(.repository): トリガー \(.trigger)、登録 \(.registration)、配信 \(.delivery)" + (if .reason=="" then "" else "。\(.reason)" end)' <<<"$setup_webhook_rows"
+	while IFS=$'\t' read -r repository trigger registration delivery reason; do
+		printf '  %s: トリガー ' "$repository"
+		ui_result "$trigger"
+		printf '、登録 '
+		ui_result "$registration"
+		printf '、配信 '
+		ui_result "$delivery"
+		[[ -z $reason ]] || printf '。%s' "$reason"
+		printf '\n'
+	done < <(jq -r '.[] | [.repository,.trigger,.registration,.delivery,.reason] | @tsv' <<<"$setup_webhook_rows")
 }
