@@ -1,7 +1,9 @@
 """疑似端末を使って、標準出力と標準エラー出力ごとの色の判定を確かめる補助。
 
-使い方: ui-pty.py <out|err|both|none> <標準出力の保存先> <標準エラー出力の保存先> [--stdin <入力のファイル>] -- <コマンド...>
+使い方: ui-pty.py <out|err|both|none> <標準出力の保存先> <標準エラー出力の保存先> [--stdin <入力のファイル> | --stdin-tty <入力のファイル>] -- <コマンド...>
 最初の引数で、疑似端末につなぐ出力を選ぶ。選ばなかった出力はパイプにつなぐ。
+--stdin は入力のファイルを標準入力につなぐ（端末ではない）。--stdin-tty は標準入力を疑似端末につなぎ、
+ファイルの中身を送ったあとに入力の終わり（Ctrl-D）を送る。標準入力が端末かの判定を通したいときに使う。
 受け取った内容は、そのまま保存先のファイルに書く。環境変数は呼び出し元のものを渡す。
 """
 import errno
@@ -15,7 +17,9 @@ import time
 mode, out_path, err_path = sys.argv[1:4]
 rest = sys.argv[4:]
 stdin_path = None
-if rest[0] == "--stdin":
+stdin_tty = False
+if rest[0] in ("--stdin", "--stdin-tty"):
+    stdin_tty = rest[0] == "--stdin-tty"
     stdin_path = rest[1]
     rest = rest[2:]
 assert rest[0] == "--"
@@ -32,8 +36,17 @@ def attach(use_tty):
 
 out_master, out_target = attach(mode in ("out", "both"))
 err_master, err_target = attach(mode in ("err", "both"))
-stdin_file = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
+stdin_master = None
+if stdin_tty:
+    stdin_master, stdin_file = pty.openpty()
+else:
+    stdin_file = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
 proc = subprocess.Popen(command, stdin=stdin_file, stdout=out_target, stderr=err_target)
+if stdin_tty:
+    # 端末の入力の行の保持に任せ、コマンドが読み始める前に中身と入力の終わりを送る。
+    with open(stdin_path, "rb") as handle:
+        os.write(stdin_master, handle.read() + b"\x04")
+    os.close(stdin_file)
 for master, target in ((out_master, out_target), (err_master, err_target)):
     if master is not None:
         os.close(target)
@@ -64,6 +77,8 @@ while sources and time.time() < deadline:
         else:
             del sources[fd]
 proc.wait(timeout=30)
+if stdin_master is not None:
+    os.close(stdin_master)
 for path, data in captured.items():
     with open(path, "wb") as handle:
         handle.write(data)
