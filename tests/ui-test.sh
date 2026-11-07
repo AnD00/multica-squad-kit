@@ -71,6 +71,10 @@ done <<<"$kinds"
 [[ $(bash -c 'source "$1/lib/ui.sh"; ui_paint out error 文字' _ "$root") == 文字 ]]
 if bash -c 'source "$1/lib/ui.sh"; ui_paint out unknown 文字' _ "$root" >/dev/null 2>&1; then exit 1; fi
 if bash -c 'source "$1/lib/ui.sh"; ui_paint file error 文字' _ "$root" >/dev/null 2>&1; then exit 1; fi
+# ui_line は改行まで付け、err は標準エラー出力へだけ出す。
+bash -c 'source "$1/lib/ui.sh"; ui_line out error 一行目; ui_line err warning 二行目' _ "$root" >"$test_dir/line-out" 2>"$test_dir/line-err"
+[[ $(cat "$test_dir/line-out") == 一行目 && $(cat "$test_dir/line-err") == 二行目 ]]
+[[ $(wc -l <"$test_dir/line-out" | tr -d ' ') == 1 && $(wc -l <"$test_dir/line-err" | tr -d ' ') == 1 ]]
 echo 'PASS ui: 種類ごとの色と太字が表のとおりに付き、説明は色なし'
 
 # どの色も、黒と白の背景のどちらに対しても読める（コントラスト比 3.5 以上）。

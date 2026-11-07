@@ -11,8 +11,8 @@ no_state
 check_manual() {
  jq -nr --rawfile screen "$test_dir/err" --rawfile document "$1" '
   ($screen|split("\n")) as $lines |
-  [range(0;$lines|length) as $i | select($lines[$i]|test("^\\([0-9]+/[0-9]+\\) ")) |
-   {title:($lines[$i]|sub("^\\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
+  [range(0;$lines|length) as $i | select($lines[$i]|test("^質問 \\([0-9]+/[0-9]+\\) ")) |
+   {title:($lines[$i]|sub("^質問 \\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
   if ($questions|length)!=9 then error("9問の画面を取得できませんでした") else . end |
   ($document|gsub("`";"")) as $doc |
   [$questions[] | . as $q |

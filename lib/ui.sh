@@ -56,3 +56,9 @@ ui_paint() {
 		printf '\033[38;5;%sm%s\033[0m' "$color" "$text"
 	fi
 }
+
+# ui_line <out|err> <種類> <文字>: ui_paint の出力に改行を足し、出す先の画面に出す。
+ui_line() {
+	if [[ $1 == err ]]; then ui_paint "$@" >&2; printf '\n' >&2
+	else ui_paint "$@"; printf '\n'; fi
+}

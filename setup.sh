@@ -36,6 +36,7 @@ actual=$(find . \( -path ./.git -o -path ./tmp \) -prune -o -type f ! -path ./MA
 expected=$(printf '%s' "$listed" | LC_ALL=C sort)
 [[ $actual == "$expected" ]] || damaged 'MANIFEST とファイルの一覧が違います。'
 shasum -a 256 -c MANIFEST >/dev/null || damaged 'ファイルの内容が違います。'
+source "$root/lib/ui.sh"
 source "$root/lib/check.sh"
 source "$root/lib/questions.sh"
 source "$root/lib/answers.sh"
@@ -57,6 +58,7 @@ setup_cleanup() {
 	return "$result"
 }
 trap setup_cleanup EXIT
+ui_init
 check_tools
 choose_extension
 choose_server

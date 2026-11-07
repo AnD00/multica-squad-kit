@@ -1,7 +1,9 @@
 # 質問は stdin から読み、既定値でも Enter を待つ。質問中は登録・保存しない。
 ask() {
 	local label=$1 default=$2
-	printf '%s [%s]: ' "$label" "$default" >&2
+	printf '%s ' "$label" >&2
+	ui_paint err default "[$default]" >&2
+	printf ': ' >&2
 	IFS= read -r answer || die '入力が終わりました。答えは保存していません。'
 	[[ -n $answer ]] || answer=$default
 }
@@ -12,13 +14,34 @@ question_begin() {
 	question_items='[]'; question_zero=''; question_notice=''; question_fixed=''
 }
 
+# 画面の種類ごとの色と印は manual.md の「表示の色と印」に従い、lib/ui.sh で付ける。
+# 入力を受け付けずに同じ質問へ戻るときは、行頭に印の「エラー:」を付ける。続く行は同じ色にする。
+input_error() {
+	local line
+	ui_line err error "エラー: $1"
+	shift
+	for line; do ui_line err error "$line"; done
+}
+
+question_heading() {
+	printf '\n' >&2
+	ui_line err question "質問 ($question_number/$question_total) $question_title"
+	printf '%s\n例: %s\n' "$question_description" "$question_example" >&2
+}
+
+question_choice() {
+	ui_paint err choice "$1:" >&2
+	printf ' %s\n' "$2" >&2
+}
+
 question_prompt() {
-	printf '\n(%s/%s) %s\n%s\n例: %s\n' "$question_number" "$question_total" "$question_title" "$question_description" "$question_example" >&2
-	if [[ -n $1 ]]; then printf '既定値: %s（Enter で使います）\n' "$1" >&2
-	else printf '%s\n' '既定値: なし。例と説明を見て入力してください。' >&2; fi
+	question_heading
+	if [[ -n $1 ]]; then ui_line err default "既定値: $1（Enter で使います）"
+	else ui_line err default '既定値: なし。例と説明を見て入力してください。'; fi
 	if [[ -n $question_fixed ]]; then printf '常に入る役:\n%s\n外せる役:\n' "$question_fixed" >&2; fi
-	jq -r 'to_entries[] | "\(.key+1): \(.value)"' <<<"$question_items" >&2
-	[[ -z $question_zero ]] || printf '0: %s\n' "$question_zero" >&2
+	local number text
+	while IFS=$'\t' read -r number text; do question_choice "$number" "$text"; done < <(jq -r 'to_entries[] | "\(.key+1)\t\(.value)"' <<<"$question_items")
+	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
 	[[ -z $question_notice ]] || printf '%s\n' "$question_notice" >&2
 	ask '入力' "$1"
 }
@@ -40,7 +63,7 @@ ask_key() {
 	while :; do
 		question_prompt "$default"
 		if ! valid_key "$answer"; then
-			printf '%s\n' '英小文字で始まる英小文字と数字の2〜12文字にしてください。大文字・ハイフン・記号は使えません。' >&2
+			input_error '英小文字で始まる英小文字と数字の2〜12文字にしてください。大文字・ハイフン・記号は使えません。'
 			continue
 		fi
 		if [[ $kind == member ]]; then
@@ -50,7 +73,7 @@ ask_key() {
 				existing=$(mc squad get "$(jq -r '.[0].id' <<<"$matches")" --output json) || die 'スクワッドの所有者を取得できませんでした。'
 				jq -e '(.creator_id|type=="string" and length>0)' >/dev/null <<<"$existing" || die 'スクワッドの所有者の応答が不正です。'
 				if [[ $(jq -r '.creator_id' <<<"$existing") != "$question_actor_id" ]]; then
-					printf '「%s」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。\n' "$candidate" >&2
+					input_error "「$candidate」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。"
 					continue
 				fi
 			fi
@@ -76,11 +99,11 @@ choose_server() {
 	question_begin 'サーバーの URL' 'このホストのデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
 	while :; do
 		question_prompt ''
-		if ! valid_server "$answer"; then printf '%s\n' 'https:// で始まるサーバーの URL を入力してください。' >&2; continue; fi
+		if ! valid_server "$answer"; then input_error 'https:// で始まるサーバーの URL を入力してください。'; continue; fi
 		server_url=${answer%/}
 		if mc auth status >/dev/null 2>&1; then question_server_checked=yes; break; fi
-		printf '%s\n' 'サーバーに接続できないか、ログインしていません。URL と接続を確認してください。' >&2
-		printf '未ログインなら別のターミナルで multica --server-url %q login を済ませ、同じ質問へ入力してください。\n' "$server_url" >&2
+		input_error 'サーバーに接続できないか、ログインしていません。URL と接続を確認してください。' \
+			"$(printf '未ログインなら別のターミナルで multica --server-url %q login を済ませ、同じ質問へ入力してください。' "$server_url")"
 	done
 }
 check_login() {
@@ -114,8 +137,8 @@ pick_numbers() {
 			picked_numbers=$(jq -c --argjson i "$index" 'if index($i)==null then .+[$i] else . end' <<<"$picked_numbers")
 		done
 		[[ -z $picked_numbers ]] || break
-		if [[ $allow_zero == yes ]]; then printf '%s\n' '一覧の番号を半角数字で、空白かカンマで区切ってください。0 は単独で入力します。' >&2
-		else printf '%s\n' '1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。' >&2; fi
+		if [[ $allow_zero == yes ]]; then input_error '一覧の番号を半角数字で、空白かカンマで区切ってください。0 は単独で入力します。'
+		else input_error '1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。'; fi
 	done
 }
 
@@ -127,7 +150,7 @@ pick_project() {
 	if [[ $(jq length <<<"$projects") == 0 ]]; then question_notice='まだプロジェクトがありません。新しい名前を入れると作ります。'; question_example='Demo Project のような新しい名前'; fi
 	while :; do
 		question_prompt "$default"
-		if [[ -z ${answer//[[:space:]]/} || $answer == *$'\r'* ]]; then printf '%s\n' 'プロジェクトの名前が空です。名前か、一覧の番号を入力してください。' >&2; continue; fi
+		if [[ -z ${answer//[[:space:]]/} || $answer == *$'\r'* ]]; then input_error 'プロジェクトの名前が空です。名前か、一覧の番号を入力してください。'; continue; fi
 		if [[ $answer =~ ^[0-9]+$ ]]; then
 			if [[ ${#answer} -le 6 ]]; then
 				index=$((10#$answer))
@@ -136,11 +159,11 @@ pick_project() {
 					project_name=$(jq -r --argjson i "$index" '.[$i-1].title' <<<"$projects"); break
 				fi
 			fi
-			printf '%s\n' '一覧にない番号です。新しい名前は数字だけにせず、文字を含めて入力してください。' >&2; continue
+			input_error '一覧にない番号です。新しい名前は数字だけにせず、文字を含めて入力してください。'; continue
 		fi
 		project_name=$answer
 		matches=$(jq -c --arg name "$project_name" '[.[]|select(.title==$name)]' <<<"$projects")
-		if [[ $(jq length <<<"$matches") -gt 1 ]]; then printf '%s\n' '同名のプロジェクトが複数あります。一覧の番号で選んでください。' >&2; continue; fi
+		if [[ $(jq length <<<"$matches") -gt 1 ]]; then input_error '同名のプロジェクトが複数あります。一覧の番号で選んでください。'; continue; fi
 		project_id=$(jq -r '.[0].id // empty' <<<"$matches"); break
 	done
 }
@@ -175,13 +198,13 @@ pick_runtimes() {
 	while :; do
 		pick_numbers "$default" no
 		if [[ $(jq length <<<"$picked_numbers") != 1 ]]; then
-			printf '%s\n' '使うランタイムは一つの番号だけを選んでください。' >&2; continue
+			input_error '使うランタイムは一つの番号だけを選んでください。'; continue
 		fi
 		case $(jq -r '.[0]' <<<"$picked_numbers") in
 		1) runtimes='["claude","codex"]' ;; 2) runtimes='["claude"]' ;; 3) runtimes='["codex"]' ;;
 		esac
 		if check_runtime_tools; then break; fi
-		printf '%s\n' 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。' >&2
+		input_error 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。'
 	done
 }
 
@@ -199,7 +222,7 @@ ask_questions() {
 	while :; do
 		pick_numbers '' no
 		if [[ $(jq length <<<"$picked_numbers") == 1 ]]; then break; fi
-		printf '%s\n' 'ワークスペースは一つの番号だけを選んでください。' >&2
+		input_error 'ワークスペースは一つの番号だけを選んでください。'
 	done
 	index=$(jq -r '.[0]' <<<"$picked_numbers")
 	workspace_id=$(jq -r --argjson i "$index" '.[$i-1].id' <<<"$workspaces")
@@ -219,7 +242,7 @@ ask_questions() {
 			[[ ! -L $answers_file ]] && valid_answers "$answers_file" || die '保存済みの答えが不正です。内容を確認してください。'
 			saved=$(load_answers "$answers_file")
 			if ! jq -e --arg ws "$workspace_id" --arg url "$server_url" --arg name "$project_name" --arg key "$project_key" '.workspace_id==$ws and .server_url==$url and .project_name==$name and .project_key==$key' >/dev/null <<<"$saved"; then
-				printf '%s\n' 'そのプロジェクトの区別は別の答えに使われています。別の目印を入力してください。' >&2; continue
+				input_error 'そのプロジェクトの区別は別の答えに使われています。別の目印を入力してください。'; continue
 			fi
 		fi
 		break
@@ -263,7 +286,7 @@ ask_questions() {
 		pick_numbers "$default" yes
 		excluded_roles=$(jq -nc --argjson choices "$role_choices" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $choices[$i-1].roles[]]|unique')
 		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; (.+"-implementer") as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
-		printf '%s\n' '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。' >&2
+		input_error '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。'
 	done
 	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles}')
 	question_people=$members
@@ -271,7 +294,9 @@ ask_questions() {
 
 # 候補がない質問も、説明と理由を入力なしで表示してから止める。
 question_prompt_no_input() {
-	printf '\n(%s/%s) %s\n%s\n例: %s\n既定値: なし\n%s\n' "$question_number" "$question_total" "$question_title" "$question_description" "$question_example" "$question_notice" >&2
+	question_heading
+	ui_line err default '既定値: なし'
+	printf '%s\n' "$question_notice" >&2
 }
 
 plan_action() {
@@ -387,6 +412,6 @@ confirm_answers() {
 	while :; do
 		printf '\n答えの一覧（まだ変更していません）:\n%s\n' "$plan" >&2
 		ask 'この答えを保存して続けますか（yes/no）' 'no'
-		case $answer in yes) return 0 ;; no) die '中止しました。答えは保存していません。' ;; *) printf '%s\n' 'yes で続けるか、no で中止してください。答えはまだ保存していません。' >&2 ;; esac
+		case $answer in yes) return 0 ;; no) die '中止しました。答えは保存していません。' ;; *) input_error 'yes で続けるか、no で中止してください。答えはまだ保存していません。' ;; esac
 	done
 }

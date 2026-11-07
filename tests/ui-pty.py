@@ -1,6 +1,6 @@
 """疑似端末を使って、標準出力と標準エラー出力ごとの色の判定を確かめる補助。
 
-使い方: ui-pty.py <out|err|both|none> <標準出力の保存先> <標準エラー出力の保存先> -- <コマンド...>
+使い方: ui-pty.py <out|err|both|none> <標準出力の保存先> <標準エラー出力の保存先> [--stdin <入力のファイル>] -- <コマンド...>
 最初の引数で、疑似端末につなぐ出力を選ぶ。選ばなかった出力はパイプにつなぐ。
 受け取った内容は、そのまま保存先のファイルに書く。環境変数は呼び出し元のものを渡す。
 """
@@ -13,8 +13,13 @@ import sys
 import time
 
 mode, out_path, err_path = sys.argv[1:4]
-assert sys.argv[4] == "--"
-command = sys.argv[5:]
+rest = sys.argv[4:]
+stdin_path = None
+if rest[0] == "--stdin":
+    stdin_path = rest[1]
+    rest = rest[2:]
+assert rest[0] == "--"
+command = rest[1:]
 assert mode in ("out", "err", "both", "none")
 
 
@@ -27,7 +32,8 @@ def attach(use_tty):
 
 out_master, out_target = attach(mode in ("out", "both"))
 err_master, err_target = attach(mode in ("err", "both"))
-proc = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=out_target, stderr=err_target)
+stdin_file = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
+proc = subprocess.Popen(command, stdin=stdin_file, stdout=out_target, stderr=err_target)
 for master, target in ((out_master, out_target), (err_master, err_target)):
     if master is not None:
         os.close(target)
