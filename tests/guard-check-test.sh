@@ -29,6 +29,7 @@ set -euo pipefail
 source_root=$1
 root=$2
 die() { echo "$*" >&2; exit 1; }
+source "$source_root/lib/ui.sh"
 source "$source_root/lib/host.sh"
 prepare_project_host project-a example/one example/two example/third
 DRIVER

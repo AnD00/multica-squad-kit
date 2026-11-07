@@ -61,6 +61,7 @@ cat >"$test_dir/run.sh" <<'RUN'
 #!/bin/bash
 set -euo pipefail
 root=$1
+source "$root/lib/ui.sh"
 source "$root/lib/check.sh"
 source "$root/lib/host.sh"
 die() { printf '%s\n' "$*" >&2; exit 1; }
@@ -260,6 +261,7 @@ cat >"$test_dir/project.sh" <<'RUN'
 #!/bin/bash
 set -euo pipefail
 root=$1
+source "$root/lib/ui.sh"
 source "$root/lib/host.sh"
 die() { echo "$*" >&2; exit 1; }
 shift

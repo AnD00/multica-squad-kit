@@ -74,6 +74,7 @@ cat >"$test_dir/driver" <<'DRIVER'
 set -euo pipefail
 root=$TEST_PACKAGE
 die() { echo "$*" >&2; exit 1; }
+source "$root/lib/ui.sh"
 source "$root/lib/check.sh"
 source "$root/lib/answers.sh"
 source "$root/lib/render.sh"

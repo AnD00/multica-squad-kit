@@ -11,14 +11,24 @@ ask() {
 question_begin() {
 	question_number=$((${question_number:-0}+1))
 	question_title=$1; question_description=$2; question_example=$3
-	question_items='[]'; question_zero=''; question_notice=''; question_fixed=''
+	question_items='[]'; question_zero=''; question_notice=''; question_notice_kind=description; question_fixed=''
+}
+
+# 質問に添える注意の文は色なしで作り、画面に出すときに種類の色と印を付ける。
+# question_notice_kind は description（印も色もなし）か warning。行ごとに印を付ける。
+question_notice_show() {
+	local line
+	[[ -n $question_notice ]] || return 0
+	while IFS= read -r line; do
+		if [[ $question_notice_kind == warning ]]; then ui_warning "$line"; else printf '%s\n' "$line" >&2; fi
+	done <<<"$question_notice"
 }
 
 # 画面の種類ごとの色と印は manual.md の「表示の色と印」に従い、lib/ui.sh で付ける。
 # 入力を受け付けずに同じ質問へ戻るときは、行頭に印の「エラー:」を付ける。続く行は同じ色にする。
 input_error() {
 	local line
-	ui_line err error "エラー: $1"
+	ui_error "$1"
 	shift
 	for line; do ui_line err error "$line"; done
 }
@@ -42,7 +52,7 @@ question_prompt() {
 	local number text
 	while IFS=$'\t' read -r number text; do question_choice "$number" "$text"; done < <(jq -r 'to_entries[] | "\(.key+1)\t\(.value)"' <<<"$question_items")
 	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
-	[[ -z $question_notice ]] || printf '%s\n' "$question_notice" >&2
+	question_notice_show
 	ask '入力' "$1"
 }
 
@@ -58,7 +68,7 @@ ask_key() {
 	local default=$1 previous=$2 kind=$3 matches existing candidate
 	if [[ -n $previous ]] && valid_key "$previous"; then default=$previous
 	elif [[ -n $previous ]]; then
-		question_notice="前回の目印「$previous」は今の形に合いません。既存の一式は残し、今回の新しい名前を確認します。"
+		question_notice="前回の目印「$previous」は今の形に合いません。既存の一式は残し、今回の新しい名前を確認します。"; question_notice_kind=warning
 	fi
 	while :; do
 		question_prompt "$default"
@@ -109,7 +119,8 @@ choose_server() {
 check_login() {
 	[[ ${question_server_checked:-no} != yes ]] || return 0
 	if ! mc auth status >/dev/null 2>&1; then
-		printf 'Multica の接続とログインを確認してください。\nmultica --server-url %q login\n' "$server_url" >&2
+		ui_error 'Multica の接続とログインを確認してください。'
+		printf 'multica --server-url %q login\n' "$server_url" >&2
 		die 'ログイン後に流し直してください。ここではログインや設定の変更を行いません。'
 	fi
 }
@@ -252,7 +263,7 @@ ask_questions() {
 	question_begin 'リポジトリ' 'このプロジェクトのエージェントが作業し、書き込める場所です。選んだものだけに push と PR ができ、複数選べます。' '1 3、または 1,3（1つ以上）'
 	question_items=$(jq '[.[].repository]' <<<"$eligible_repos")
 	case $(jq length <<<"$eligible_repos") in 1) question_example='1（候補は一つです）' ;; 2) question_example='1 2、または 1,2（1つ以上）' ;; esac
-	question_notice=$(jq -r '.[]|"選べないリポジトリ: \(.repository)（別プロジェクト: \(.projects|join("、"))）"' <<<"$blocked_repos")
+	question_notice=$(jq -r '.[]|"選べないリポジトリ: \(.repository)（別プロジェクト: \(.projects|join("、"))）"' <<<"$blocked_repos"); question_notice_kind=warning
 	if [[ $(jq length <<<"$eligible_repos") == 0 ]]; then
 		question_prompt_no_input
 		printf '%s\n' 'ワークスペースのオーナーか管理者に、次の準備を依頼してください。' \
@@ -296,7 +307,7 @@ ask_questions() {
 question_prompt_no_input() {
 	question_heading
 	ui_line err default '既定値: なし'
-	printf '%s\n' "$question_notice" >&2
+	question_notice_show
 }
 
 plan_action() {

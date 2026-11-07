@@ -62,3 +62,8 @@ ui_line() {
 	if [[ $1 == err ]]; then ui_paint "$@" >&2; printf '\n' >&2
 	else ui_paint "$@"; printf '\n'; fi
 }
+
+# ui_error / ui_warning <文字>: 行頭に印の「エラー:」「警告:」を付けて、標準エラー出力へ行全体を
+# 種類の色で出す。印は色の有無によらず同じ文字を出す。
+ui_error() { ui_line err error "エラー: $*"; }
+ui_warning() { ui_line err warning "警告: $*"; }

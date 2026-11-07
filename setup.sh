@@ -2,7 +2,8 @@
 # 入口で配布物を確かめてから lib/ を読む。bash 3.2 で動かす。
 set -euo pipefail
 root=$(cd "$(dirname "$0")" && pwd)
-die() { printf '%s\n' "$*" >&2; exit 1; }
+# lib/ui.sh を読み込む前（MANIFEST の確認が終わるまで）の die は、色を付けず印だけを付ける。
+die() { printf 'エラー: %s\n' "$*" >&2; exit 1; }
 [[ $# == 0 ]] || die '使い方: bash setup.sh（値は質問に答えて入力する）'
 case $(uname -s) in
 Darwin) ;;
@@ -59,6 +60,7 @@ setup_cleanup() {
 }
 trap setup_cleanup EXIT
 ui_init
+die() { ui_error "$*"; exit 1; }
 check_tools
 choose_extension
 choose_server

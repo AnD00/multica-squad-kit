@@ -252,10 +252,12 @@ prepare_project_issues() {
 # 1 件の失敗では止めず、完了の表示のために結果と理由をためる。
 queue_project_issue() {
 	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result reason
-	if result=$(ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
+	# 失敗の理由は issue と完了の表示に入るので、色を付けずに受け取り、印の「エラー:」も外す。
+	if result=$(ui_color_err=no; ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
 		setup_issue_rows=$(jq -c --argjson rows "$result" '.+$rows' <<<"$setup_issue_rows")
 	else
 		reason=$(tail -n 1 "$project_work/issue-error")
+		reason=${reason#エラー: }
 		reason=${reason:-起票の処理に失敗しました。同じ答えで流し直してください。}
 		record_project_issue_failure "$kind" "$repo" "$reason"
 	fi
@@ -278,13 +280,13 @@ project_issue_completion() {
 
 # 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。
 project_repositories_recheck() {
-	local latest_projects eligible_repos blocked_repos
+	local latest_projects eligible_repos blocked_repos line
 	resolve_link_repositories
 	latest_projects=$(read_list プロジェクト project list) || die '許可先の再確認に必要なプロジェクトを取得できませんでした。'
 	jq -e --arg id "$project_id" 'any(.[]; .id==$id)' >/dev/null <<<"$latest_projects" || die '許可先の再確認で対象のプロジェクトを確認できませんでした。'
 	repository_choices "$selected_repositories" "$latest_projects" "$project_id"
 	if [[ $(jq length <<<"$blocked_repos") != 0 ]]; then
-		jq -r '.[] | "別プロジェクトに紐付いたため許可できません: \(.repository)（\(.projects|join("、"))）"' <<<"$blocked_repos" >&2
+		while IFS= read -r line; do ui_error "$line"; done < <(jq -r '.[] | "別プロジェクトに紐付いたため許可できません: \(.repository)（\(.projects|join("、"))）"' <<<"$blocked_repos")
 		die 'リポジトリの紐付けが選択時から変わりました。従来の許可を保って停止します。最初から選び直してください。'
 	fi
 }
