@@ -127,7 +127,7 @@ project_work=$saved_work
 fi
 records=$(cat "$fixture/records.json")
 enabled=$(cat "$fixture/enabled")
-dependabot_webhook=${TEST_WEBHOOK:-yes}
+dependabot_webhook=${TEST_WEBHOOK:-true}
 cp "$fixture/values.json" "$fixture/"*.rendered "$project_work/"
 created_agents=0; created_squads=0; created_autopilots=0
 project_name=Demo; workspace_name="Workspace A"; agent_home="$TEST_DB/agent home"
@@ -167,9 +167,9 @@ for message in '表示した issue を対象のプロジェクトで開き' 'ske
 ! grep -qF 'Multica の画面で、スクワッド' "$test_dir/out"
 ! grep -qF '選んだ各リポジトリに Dependabot の Webhook を登録してください' "$test_dir/out"
 echo 'PASS completion: 作成件数と起票された issue・ひな形・残る Webhook の手順・ログインを案内し、自動の作業を手で頼まない'
-TEST_WEBHOOK=no run
+TEST_WEBHOOK=false run
 grep -qF 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。' "$test_dir/out"
-! grep -qF '人間が行う Webhook の登録' "$test_dir/out"
+! grep -qF '人間が行う Webhook の登録' "$test_dir/out" || exit 1
 echo 'PASS completion: Webhook を使わない答えなら、週次だけで扱い登録は不要と案内する'
 echo 'PASS followup: 3つのオートパイロットを実 ID・指示・実行モード・プロジェクト・時刻とタイムゾーンで登録する'
 # 後続ケースの初期状態は、ここで実際に作って検証したものを複製する。

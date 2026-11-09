@@ -26,11 +26,11 @@ server_url=https://example.test; workspace_id=workspace-a
 project_id=project-a; project_key=demo; host_owner_id=actor
 records='{"dependabot-merger":{"id":"dep"}}'
 enabled=${TEST_ENABLED:-dependabot-merger}
-dependabot_webhook=${TEST_WEBHOOK:-yes}
+dependabot_webhook=${TEST_WEBHOOK:-true}
 selected_repositories='[{"repository":"example/one"},{"repository":"example/two"}]'
 project_work=$TEST_DB/work
 mkdir -p "$project_work"
-setup_webhook_rows='[]'; setup_issue_rows='[]'; setup_issue_failures='[]'
+setup_webhook_rows='[]'; setup_webhook_leftovers='[]'; setup_issue_rows='[]'; setup_issue_failures='[]'
 prepare_project_webhooks
 project_webhook_completion
 project_issue_completion
@@ -130,11 +130,27 @@ TEST_ENABLED=orchestrator run
 echo 'PASS webhooks: Dependabot の役を外したときは読み取りも登録も起票もしない'
 
 new_case unused
-TEST_WEBHOOK=no run
-[[ ! -e $TEST_DB/calls.jsonl && ! -e $TEST_DB/gh-calls.jsonl ]]
+TEST_WEBHOOK=false run
+[[ ! -e $TEST_DB/gh-calls.jsonl ]]
+! jq -es 'any(.[]; .[0]=="autopilot" and (.[1]|test("^trigger-")))' "$TEST_DB/calls.jsonl" >/dev/null || exit 1
 jq -e '.issues|length==0' "$TEST_DB/db.json" >/dev/null
-! grep -qF 'Webhook の登録:' "$test_dir/out"
-echo 'PASS webhooks: Webhook を使わない答えなら、Dependabot の役を残しても読み取りも登録も起票もしない'
+[[ $(grep -c 'Webhook の登録:\|警告:' "$test_dir/out") == 0 ]]
+echo 'PASS webhooks: Webhook を使わない答えなら、Dependabot の役を残しても GitHub を読まず、登録も起票もしない'
+
+# 前の実行のトリガーが残っていれば、消さずに警告して外す issue を起票する。読めないリポジトリは警告だけ。
+new_case leftover
+edit '.triggers.one+=[{id:"webhook-one",kind:"webhook",enabled:true}] | .autopilots|=map(select(.id!="two"))'
+cp "$TEST_DB/db.json" "$test_dir/leftover-before.json"
+TEST_WEBHOOK=false run
+[[ ! -e $TEST_DB/gh-calls.jsonl ]]
+jq -e '.triggers==input.triggers' "$TEST_DB/db.json" "$test_dir/leftover-before.json" >/dev/null
+jq -e '.issues | length==1 and (.[0] | .title=="example/one の Dependabot の Webhook を外す" and .assignee_id=="actor" and .metadata.squad_kit_task=="dependabot-webhook-removal" and .metadata.repository=="example/one")' "$TEST_DB/db.json" >/dev/null
+grep -qxF '警告: example/one: Webhook を使わない答えですが、前の実行で作った Webhook のトリガーが残っています。外すよう起票しました。' "$test_dir/out"
+grep -qxF '警告: example/two: 前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確かめてください。' "$test_dir/out"
+TEST_WEBHOOK=false run
+jq -e '.issues|length==1' "$TEST_DB/db.json" >/dev/null
+no_leak
+echo 'PASS webhooks: Webhook を使わない答えでも、残ったトリガーは消さずに警告して外す issue を一度だけ起票し、読めなければ警告する'
 
 for failure in can-write trigger secrets signed missing-url admin hooks create deliveries ping; do
  new_case "$failure"

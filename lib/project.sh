@@ -9,7 +9,7 @@ prepare_project() (
 	local project_host_recheck=yes
 	local setup_issue_rows='[]' setup_issue_failures='[]'
 	local setup_removed_targets='[]' project_previous_repositories=null
-	local setup_webhook_rows='[]'
+	local setup_webhook_rows='[]' setup_webhook_leftovers='[]'
 	local setup_installation_rows='[]'
 	local -a allowed_repo_names=()
 	selected_repositories=$(jq -ce "$repository_filter"'
@@ -225,7 +225,7 @@ project_completion() {
 	ui_line out done '次にすること:'
 	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
 	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
-	if [[ " $enabled " == *' dependabot-merger '* && ${dependabot_webhook:-no} == yes ]]; then
+	if dependabot_webhook_active; then
 		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
 	elif [[ " $enabled " == *' dependabot-merger '* ]]; then
 		printf '%s\n' 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。'
@@ -242,7 +242,7 @@ prepare_project_issues() {
 	local repo targets
 	while IFS= read -r repo; do
 		targets=$(jq -nc --arg repo "$repo" '[$repo]')
-		if [[ " $enabled " == *' dependabot-merger '* && ${dependabot_webhook:-no} == yes ]]; then
+		if dependabot_webhook_active; then
 			queue_project_issue dependabot-filter "$targets" "$host_owner_id" "$repo"
 		fi
 		queue_project_issue repository-rules "$targets" "$squad_id" "$repo"

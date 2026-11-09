@@ -120,7 +120,7 @@ seed() {
 assert_count() { [[ $(jq length "$TEST_DB/issues.json") == "$1" ]]; }
 
 new_case definitions
-[[ $(jq length common/setup-issues.json) == 9 ]]
+[[ $(jq length common/setup-issues.json) == 10 ]]
 while IFS= read -r kind; do
  assignee=actor
  case $kind in repository-rules) assignee=squad-a ;; handoff-skill-update) assignee=creator ;; esac

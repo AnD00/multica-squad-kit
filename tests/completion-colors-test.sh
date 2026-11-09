@@ -14,7 +14,7 @@ source "$root/lib/webhooks.sh"
 source "$root/lib/installation.sh"
 uses_runtime() { return 1; }
 ui_init
-project_name=デモ; workspace_name=ワークスペース; enabled='orchestrator dependabot-merger'; dependabot_webhook=yes
+project_name=デモ; workspace_name=ワークスペース; enabled='orchestrator dependabot-merger'; dependabot_webhook=true
 created_agents=1; created_squads=1; created_autopilots=2; agent_home=/tmp/agent-home
 setup_installation_rows='[{"name":"ラベル 開発","status":"一致","reason":""},{"name":"エージェント demo-verify","status":"要確認","reason":"定義と一致しません。"}]'
 setup_webhook_rows='[{"repository":"example/one","trigger":"作成","registration":"作成","delivery":"成功（HTTP 200）","reason":""},{"repository":"example/two","trigger":"既存","registration":"既存","delivery":"記録なし","reason":"Webhook の配信の記録がありません。"},{"repository":"example/three","trigger":"既存","registration":"飛ばした","delivery":"失敗（HTTP 500）","reason":"理由です。"}]'

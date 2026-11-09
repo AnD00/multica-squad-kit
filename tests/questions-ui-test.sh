@@ -41,7 +41,7 @@ grep -qxF '  オートパイロット: 週 1 回の依存ライブラリの脆�
 grep -qxF '10: PR の CI の見張り: CIの結果を知らせる。' "$test_dir/role-question"
 grep -qxF '  見張り: 進行役が PR ごとに置く CI の見張り' "$test_dir/role-question"
 grep -qxF '  オートパイロット: 使用上限の見張り shop-owner' "$test_dir/role-question"
-grep -qxF '  ほかに変わること: GitHub への Webhook の登録をしない' "$test_dir/role-question"
+grep -qxF '  ほかに変わること: Webhook を使うかを聞かず、GitHub への Webhook の登録をしない' "$test_dir/role-question"
 ! grep -qF '選べない役:' "$test_dir/role-question"
 ! grep -qE '^  shop-(orchestrator|codex-fixer)-owner（' "$test_dir/err"
 echo 'PASS display: リポジトリ候補を OWNER/REPO にそろえ、進行役を先に示し、外せる役と二つの実装・修正の組を分ける'
@@ -192,8 +192,9 @@ printf '1\nShop\nshop\n1\nowner\n0\n1\n1 2 3 5 6 7 8 9 10 11 12\nno\n' >"$test_d
 deny; no_state
 grep -qF 'エージェント: 3件（新規3件、既存0件）' "$test_dir/err"
 grep -qF 'オートパイロット: 0件（新規0件、既存0件）' "$test_dir/err"
-# Dependabot の役を外したら、Webhook は聞かず、確認にも出さない。
-! grep -qF 'Dependabot の PR の Webhook' "$test_dir/err"
+# Dependabot の役を外したら、Webhook は番号の見出しだけで聞かず、確認にも出さない。
+grep -qxF '質問 (9/9) Dependabot の PR の Webhook: Dependabot の役を外したので聞きません。' "$test_dir/err"
+[[ $(grep -c 'Dependabot の PR の Webhook' "$test_dir/err") == 1 ]]
 echo 'PASS display: 最小の3役とオートパイロット0件の構成も、外した分を予定に含めず表示する'
 
 happy
@@ -224,7 +225,7 @@ printf '\n' >"$test_dir/input"
 : >"$TEST_CALLS"
 MULTICA_WORKSPACE_ID=ws-a deny; no_state
 [[ $(grep -cF '質問 (1/9) ワークスペース' "$test_dir/err") == 2 ]]
-! grep -qF '(2/9)' "$test_dir/err"
+! grep -qF '(2/9)' "$test_dir/err" || exit 1
 ! grep -q 'project list' "$TEST_CALLS"
 grep -qF '既定値: なし' "$test_dir/err"
 unset TEST_WORKSPACES_FILE
