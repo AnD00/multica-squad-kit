@@ -24,6 +24,11 @@
 #     返していない役がいれば、少し待ってからもう 1 回だけ読み直す。
 #     回がなければ投稿せずエラーにする。呼び出した役は、従来の引き継ぎで結果を返す。
 #
+#   squad-review-wait leader-check <タスク>
+#     今の実行がリーダーの実行かを、読み取りだけで調べる。何も記録しない。
+#     リーダーの実行なら終了コード 0、そうでなければ 1、調べられなければ 2。
+#     `squad activity no_action` で確かめると、その実行がコメントを投稿できなくなるため、代わりに使う。
+#
 # 親のコメントは、その実行のきっかけのコメント（ふつうは回のコメント）。Multica は、コメントで起きた実行に、
 # きっかけのコメントへの返信しか書かせないため。
 set -euo pipefail
@@ -48,7 +53,7 @@ for cmd in jq multica; do
 done
 
 usage() {
-	echo '使い方: squad-review-wait watch <タスク> <きっかけのコメント> <役の ID>... | unwatch <タスク> | status <タスク> [--timeout] | proceed <タスク> <きっかけのコメント> | report <タスク> <親のコメント> <結果のファイル>' >&2
+	echo '使い方: squad-review-wait watch <タスク> <きっかけのコメント> <役の ID>... | unwatch <タスク> | status <タスク> [--timeout] | proceed <タスク> <きっかけのコメント> | leader-check <タスク> | report <タスク> <親のコメント> <結果のファイル>' >&2
 	exit 2
 }
 
@@ -333,6 +338,28 @@ proceed() {
 	fi
 }
 
+# 今の実行（MULTICA_TASK_ID）がリーダーの実行かを、実行の一覧から読み取る。書き込みはしない。
+leader_check() {
+	local runs flag
+	[[ -n ${MULTICA_TASK_ID:-} ]] || {
+		echo 'MULTICA_TASK_ID がない。' >&2
+		return 2
+	}
+	runs=$(multica issue runs "$1" --output json) || return 2
+	flag=$(jq -r --arg id "$MULTICA_TASK_ID" 'map(select(.id == $id)) | first | if . == null then "none" else (.is_leader_task | tostring) end' <<<"$runs") || return 2
+	case $flag in
+	true) echo 'リーダーの実行' ;;
+	false)
+		echo 'リーダーの実行ではない'
+		return 1
+		;;
+	*)
+		echo '今の実行が一覧にない' >&2
+		return 2
+		;;
+	esac
+}
+
 case ${1:-} in
 watch)
 	(($# >= 4)) || usage
@@ -349,6 +376,10 @@ status)
 proceed)
 	(($# == 3)) || usage
 	proceed "$2" "$3"
+	;;
+leader-check)
+	(($# == 2)) || usage
+	leader_check "$2"
 	;;
 report)
 	(($# == 4)) || usage
