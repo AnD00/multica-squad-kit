@@ -172,3 +172,36 @@ allow api repos/example/template/issues/367/comments -f body=test
 allow pr comment 367 --body '--admin --auto --match-head-commit'
 block 'への 書き込み' api -X POST repos/other/repo/issues -f title=test
 echo 'PASS 既存操作: マージ済みかの取得、コメント、許可先以外への書き込みの拒否'
+
+# ランタイムが本物の gh を先に置いた PATH を渡しても、通常のシェルから拒否する。
+# 関所を絶対パスで呼ぶテストだけでは、この抜け道を見つけられない。
+guard_bin="$test_dir/agent's home/bin"
+shell_dir="$test_dir/project shell"
+mkdir -p "$guard_bin" "$shell_dir"
+cp "$guard" "$guard_bin/gh"
+chmod +x "$guard_bin/gh"
+escaped_bin=${guard_bin//\'/\'\\\'\'}
+for file in .zshenv env.sh; do
+	content=$(cat "$root/common/shell/$file")
+	content=${content//\{\{ALLOWED_REPOS_FILE\}\}/$SQUAD_KIT_ALLOWED_REPOS}
+	content=${content//\{\{AGENT_BIN_DIR\}\}/$escaped_bin}
+	printf '%s\n' "$content" >"$shell_dir/$file"
+done
+for shell in /bin/bash /bin/zsh; do
+	reset_calls
+	PATH="$test_dir/bin:$guard_bin:$PATH" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c 'command -v gh' >"$test_dir/selected-gh"
+	[[ $(cat "$test_dir/selected-gh") == "$guard_bin/gh" ]]
+	PATH="$test_dir/bin:$guard_bin:$PATH" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c 'gh api -X POST repos/example/template/issues -f title=test' >"$test_dir/output" 2>"$test_dir/error"
+	jq -se 'length==1' "$test_dir/writes.jsonl" >/dev/null
+	reset_calls
+	if PATH="$test_dir/bin:$guard_bin:$PATH" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c 'gh api -X POST repos/other/repo/issues -f title=test' >"$test_dir/output" 2>"$test_dir/error"; then
+		echo "通常の $shell からの許可外の書き込みが拒否されなかった" >&2
+		exit 1
+	fi
+	[[ ! -s $test_dir/writes.jsonl && ! -s $test_dir/output ]]
+	grep -q '^gh の関所:.*other/repo.*への 書き込み' "$test_dir/error"
+done
+echo 'PASS PATH: 本物の gh が先でも bash・zsh の起動時に関所が先になり、許可先だけを本物へ渡す'

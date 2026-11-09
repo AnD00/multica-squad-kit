@@ -69,7 +69,7 @@ PY
 # プロジェクトを作るか見つけた直後、エージェント登録前に呼ぶ。
 prepare_project_host() {
 	[[ $# -ge 2 ]] || die 'prepare_project_host にはプロジェクト ID と、一つ以上の OWNER/REPO を渡してください。'
-	local id=$1 repo file content='' previous='' removed='' escaped needle='{{ALLOWED_REPOS_FILE}}'
+	local id=$1 repo file content='' previous='' removed='' escaped escaped_bin needle='{{ALLOWED_REPOS_FILE}}' bin_needle='{{AGENT_BIN_DIR}}'
 	shift
 	[[ $id =~ ^[A-Za-z0-9_-]+$ ]] || die 'プロジェクト ID が不正です。'
 	# 全件を確かめてから置き場を作る。ファイルは選択順で一行に一つとする。
@@ -105,9 +105,11 @@ prepare_project_host() {
 	fi
 	# 一重引用符のあるパスも、一重引用符を閉じてエスケープしてから再開する。
 	escaped=${allowed_repos_file//\'/\'\\\'\'}
+	escaped_bin=${agent_home//\'/\'\\\'\'}/bin
 	for file in .zshenv env.sh; do
 		content=$(cat "$root/common/shell/$file") || die 'シェルのひな形を読めませんでした。'
 		content=${content//"$needle"/"$escaped"}
+		content=${content//"$bin_needle"/"$escaped_bin"}
 		if [[ -e $project_shell_dir/$file || -L $project_shell_dir/$file ]] && ! grep -qx '# multica-squad-kit-managed' "$project_shell_dir/$file"; then
 			ui_warning "印のない既存のファイルをそのまま使います: $project_shell_dir/$file"
 			continue
@@ -118,13 +120,14 @@ prepare_project_host() {
 
 host_check_guards() (
 	umask 077
-	local content=$1 probe file escaped needle='{{ALLOWED_REPOS_FILE}}' repo shell mode allowed shell_content
+	local content=$1 probe file escaped escaped_bin needle='{{ALLOWED_REPOS_FILE}}' bin_needle='{{AGENT_BIN_DIR}}' repo shell mode allowed shell_content
 	[[ -x $agent_home/bin/gh && -x $agent_home/git-hooks/pre-push ]] || die '使う関所に実行権限がありません。表示した gh と pre-push の置き場と権限を管理者に確認してもらってください。'
 	mkdir -p "$root/tmp" || die '関所の確認の作業場所を作れませんでした。'
 	probe=$(mktemp -d "$root/tmp/guard-check.XXXXXX") || die '関所の確認の作業場所を作れませんでした。'
 	trap 'rm -rf -- "$probe"' EXIT
 	printf '%s\n' "$content" >"$probe/allowed" || die '確認用の許可ファイルを書けませんでした。'
 	: >"$probe/empty-allowed" || die '確認用の空の許可ファイルを書けませんでした。'
+	escaped_bin=${agent_home//\'/\'\\\'\'}/bin
 	for mode in allow deny; do
 		mkdir "$probe/$mode" || die '確認用の起動ファイルの置き場を作れませんでした。'
 		allowed="$probe/allowed"
@@ -133,6 +136,7 @@ host_check_guards() (
 		for file in .zshenv env.sh; do
 			shell_content=$(cat "$root/common/shell/$file") || die '起動ファイルのひな形を読めませんでした。'
 			shell_content=${shell_content//"$needle"/"$escaped"}
+			shell_content=${shell_content//"$bin_needle"/"$escaped_bin"}
 			printf '%s\n' "$shell_content" >"$probe/$mode/$file" || die '確認用の起動ファイルを書けませんでした。'
 		done
 	done
@@ -141,11 +145,15 @@ host_check_guards() (
 	cat >"$probe/check.sh" <<'CHECK' || die '関所の確認のコマンドを書けませんでした。'
 set -euo pipefail
 guard=$1; hook=$2; repo=$3; temporary=$4; mode=$5
+if [[ $(command -v gh) != "$guard" ]]; then
+ echo '通常の gh が関所を選びません。シェル起動ファイルの PATH を確認してください。' >&2
+ exit 1
+fi
 # 同じ選択先でも、空の許可なら両関所が拒否しなければならない。
 # GitHub の422などの失敗や、関所自体の実行失敗は「関所で拒否した」と扱わない。
 if [[ $mode == deny ]]; then
  blocked=yes
- if response=$("$guard" api --include --method POST "repos/$repo/git/refs" --raw-field ref=invalid 2>"$temporary/gh-deny-error"); then
+ if response=$(gh api --include --method POST "repos/$repo/git/refs" --raw-field ref=invalid 2>"$temporary/gh-deny-error"); then
   blocked=no
  elif [[ -n $response ]] || ! grep -q '^gh の関所:' "$temporary/gh-deny-error"; then
   blocked=no
@@ -171,7 +179,7 @@ fi
 # GitHub が必ず拒否する ref と、必須の sha を欠く要求で、書き込みの
 # 関所を通過して GitHub の入力検証まで届くことを確認する。何も作らない。
 # 正しい ref・sha に置き換えてはならない（manual.md の根拠を参照）。
-if response=$("$guard" api --include --method POST "repos/$repo/git/refs" --raw-field ref=invalid 2>"$temporary/gh-error"); then
+if response=$(gh api --include --method POST "repos/$repo/git/refs" --raw-field ref=invalid 2>"$temporary/gh-error"); then
  echo 'gh の確認が想定外に成功しました。関所と gh の設定を管理者に確認してもらってください。' >&2
  exit 1
 fi
@@ -192,7 +200,7 @@ CHECK
 	while IFS= read -r repo; do
 		for shell in /bin/bash /bin/zsh; do
 			for mode in allow deny; do
-				if ! (cd "$probe/repository" && ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" PATH="$agent_home/bin:$PATH" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 "$shell" -c '. "$4/check.sh"' -- "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" "$repo" "$probe" "$mode"); then
+				if ! (cd "$probe/repository" && ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 "$shell" -c '. "$4/check.sh"' -- "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" "$repo" "$probe" "$mode"); then
 					die "選択したリポジトリの許可と分離を確認できませんでした: ${repo}（${shell}、${mode}）"
 				fi
 			done
