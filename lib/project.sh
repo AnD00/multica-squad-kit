@@ -225,8 +225,10 @@ project_completion() {
 	ui_line out done '次にすること:'
 	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
 	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
-	if [[ " $enabled " == *' dependabot-merger '* ]]; then
+	if [[ " $enabled " == *' dependabot-merger '* && ${dependabot_webhook:-no} == yes ]]; then
 		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
+	elif [[ " $enabled " == *' dependabot-merger '* ]]; then
+		printf '%s\n' 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。'
 	else
 		printf '%s\n' 'Dependabot の役は外したため、この役の Webhook の登録は不要です。'
 	fi
@@ -240,7 +242,7 @@ prepare_project_issues() {
 	local repo targets
 	while IFS= read -r repo; do
 		targets=$(jq -nc --arg repo "$repo" '[$repo]')
-		if [[ " $enabled " == *' dependabot-merger '* ]]; then
+		if [[ " $enabled " == *' dependabot-merger '* && ${dependabot_webhook:-no} == yes ]]; then
 			queue_project_issue dependabot-filter "$targets" "$host_owner_id" "$repo"
 		fi
 		queue_project_issue repository-rules "$targets" "$squad_id" "$repo"

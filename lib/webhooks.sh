@@ -85,7 +85,8 @@ register_dependabot_webhook() (
 
 prepare_project_webhooks() {
 	local repo row reason
-	[[ " $enabled " == *' dependabot-merger '* ]] || return 0
+	# Webhook を使わない答えなら、登録を試みず、登録を頼む issue も起票しない。既存のトリガーと Webhook は消さない。
+	[[ " $enabled " == *' dependabot-merger '* && ${dependabot_webhook:-no} == yes ]] || return 0
 	while IFS= read -r repo; do
 		if ! row=$(register_dependabot_webhook "$repo"); then
 			row=$(jq -nc --arg repository "$repo" '{repository:$repository,trigger:"飛ばした",registration:"飛ばした",delivery:"失敗",reason:"Webhook の登録の処理に失敗しました。"}')

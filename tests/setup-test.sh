@@ -62,7 +62,7 @@ no_state
 base_input yes
 run
 saved="$test_dir/state/ws-a/demo.json"
-jq -e '.workspace_id=="ws-a" and .project_id=="project-a" and .repositories[0].repository=="example/two" and .repositories[0].url=="git@github.com:example/two.git" and .member_ids==["member-a","member-b"] and .excluded_roles==["claude-fixer","claude-implementer","planner"]' "$saved" >/dev/null
+jq -e '.workspace_id=="ws-a" and .project_id=="project-a" and .repositories[0].repository=="example/two" and .repositories[0].url=="git@github.com:example/two.git" and .member_ids==["member-a","member-b"] and .excluded_roles==["claude-fixer","claude-implementer","planner"] and .dependabot_webhook==false' "$saved" >/dev/null
 [[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$saved") == 600 ]]
 grep -q 'TEST-project-prepared' "$test_dir/out"
 grep -qF '答えを保存しました。' "$test_dir/err"
@@ -71,16 +71,34 @@ grep -qF '答えを保存しました。' "$test_dir/err"
 grep -q 'https://example.test|ws-a|project list' "$TEST_CALLS"
 echo 'PASS setup: 確認後だけ答えを保存し、選んだ ws・repo と人間の user_id、系統の役を使う'
 cp "$saved" "$test_dir/previous"
-printf '1\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
+printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 cmp "$saved" "$test_dir/previous"
 echo 'PASS setup: ワークスペースだけは番号で選び、残りは保存した既定と最後の確認で同じ答えに収まる'
-printf '2\nNew project\nother\n1\nmemberb\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\n\n\n\n\n\n\n\n2\nyes\n' >"$test_dir/input"
+run
+jq -e '.dependabot_webhook==true' "$saved" >/dev/null
+grep -qF 'Dependabot の PR の Webhook: 使う' "$test_dir/err"
+printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
+run
+jq -e '.dependabot_webhook==true' "$saved" >/dev/null
+grep -qF '既定値: 2（Enter で使います）' "$test_dir/err"
+jq 'del(.dependabot_webhook)' "$test_dir/previous" >"$saved"
+printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
+run
+cmp "$saved" "$test_dir/previous"
+printf '1\n\n\n\n\n\n\n12\nyes\n' >"$test_dir/input"
+run
+jq -e '.dependabot_webhook==false and (.excluded_roles|index("dependabot-merger")!=null)' "$saved" >/dev/null
+! grep -qF '質問 (9/9) Dependabot の PR の Webhook' "$test_dir/err"
+cp "$test_dir/previous" "$saved"
+echo 'PASS setup: Webhook は既定で使わず、使う答えを保存して次の既定にし、項目のない前の答えは使わないと読み、役を外せば聞かない'
+printf '2\nNew project\nother\n1\nmemberb\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.workspace_id=="ws-b" and .project_id=="" and .project_name=="New project" and .member_ids==[] and .excluded_roles==[]' "$test_dir/state/ws-b/other.json" >/dev/null
 cmp "$saved" "$test_dir/previous"
 echo 'PASS setup: 新しいプロジェクトは未作成のまま答えを分け、別のワークスペースの保存を変えない'
-printf '1\nOther project\nnext\n1\nmembera\n0\n1\n0\nno\n' >"$test_dir/input"
+printf '1\nOther project\nnext\n1\nmembera\n0\n1\n0\n\nno\n' >"$test_dir/input"
 deny
 [[ ! -e $test_dir/state/ws-a/next.json ]]
 cmp "$saved" "$test_dir/previous"
@@ -97,7 +115,7 @@ TEST_NO_REPO=yes deny
 grep -q 'GitHub 連携とリポジトリの紐付け' "$test_dir/err"
 cmp "$saved" "$test_dir/previous"
 echo 'PASS setup: CLI の失敗・不正 JSON・未連携では止め、前の答えを保つ'
-printf '1\n1\ndemo\n1\nmembera\n99\n1\n1\n99\n3 4\n4 9\nyes\n' >"$test_dir/input"
+printf '1\n1\ndemo\n1\nmembera\n99\n1\n1\n99\n3 4\n4 9\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.member_ids==["member-a"] and .excluded_roles==["codex-fixer","codex-implementer","qa"]' "$saved" >/dev/null
 grep -q '少なくとも一系統' "$test_dir/err"
@@ -109,23 +127,23 @@ grep -q '保存できませんでした' "$test_dir/err"
 cmp "$saved" "$test_dir/updated"
 [[ -z $(find "$test_dir/state" -name '.answers.*' -print) ]]
 echo 'PASS setup: 保存の失敗を返し、前の答えと一時ファイルの片付けを確かめる'
-printf '1\nSecond project\nsecond\n1\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\nSecond project\nsecond\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.project_name=="Second project"' "$test_dir/state/ws-a/second.json" >/dev/null
 cmp "$saved" "$test_dir/updated"
 echo 'PASS setup: 同じワークスペースでも別プロジェクトの答えを分ける'
-printf 'https://new.example.test\n1\n1\nfresh\n1\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf 'https://new.example.test\n1\n1\nfresh\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 TEST_SERVER='(not set)' run
 jq -e '.server_url=="https://new.example.test"' "$test_dir/state/ws-a/fresh.json" >/dev/null
 echo 'PASS setup: 未設定のサーバーだけ質問し、CLI の設定や既定の ws は変更しない'
-printf '2\n1\nenv\n1\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '2\n1\nenv\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 MULTICA_SERVER_URL=https://env.example.test MULTICA_WORKSPACE_ID=ws-b run
 jq -e '.workspace_id=="ws-b" and .server_url=="https://env.example.test"' "$test_dir/state/ws-b/env.json" >/dev/null
 echo 'PASS setup: CLI の環境のサーバーを使い、ws は環境に既定があっても番号で選ぶ'
-printf 'https://saved.example.test\n2\n1\ndemo\n1\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf 'https://saved.example.test\n2\n1\ndemo\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 TEMPLATE_STATE_ROOT="$test_dir/defaults" TEST_SERVER='(not set)' run
 cp "$test_dir/defaults/ws-b/demo.json" "$test_dir/default-previous"
-printf 'https://saved.example.test\n2\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
+printf 'https://saved.example.test\n2\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 TEMPLATE_STATE_ROOT="$test_dir/defaults" TEST_SERVER='(not set)' run
 cmp "$test_dir/defaults/ws-b/demo.json" "$test_dir/default-previous"
 echo 'PASS setup: 保存済みでも ws と未設定の URL は毎回入力し、ほかの答えの既定を使う'
@@ -137,14 +155,14 @@ echo 'PASS setup: 引数での値の指定は受け付けない'
 export TEMPLATE_STATE_ROOT="$test_dir/multiple"
 export TEST_REPOS_FILE="$test_dir/repos.json"
 echo '[{"url":"https://github.com/example/one.git"},{"url":"git@github.com:example/two.git"},{"url":"ssh://git@github.com/EXAMPLE/ONE.git"},{"url":"https://github.com/example/three"}]' >"$TEST_REPOS_FILE"
-printf '1\n1\nmulti\n2,1 2\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\n1\nmulti\n2,1 2\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 multiple="$TEMPLATE_STATE_ROOT/ws-a/multi.json"
 jq -e '.schema==1 and [.repositories[].repository]==["example/two","example/one"]' "$multiple" >/dev/null
 [[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$multiple") == 600 ]]
 echo 'PASS repositories: 空白とカンマで複数を選び、番号と URL 表記の重複を除き、選択順を保存する'
 cp "$multiple" "$test_dir/multi-before"
-printf '1\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
+printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 cmp "$multiple" "$test_dir/multi-before"
 echo 'PASS repositories: 複数の保存値を既定にして、ws を選んだあとは Enter で同じ順序と内容で再実行する'
@@ -153,7 +171,7 @@ mkdir -p "$TEST_RESOURCES_DIR"
 echo '[{"id":"project-a","title":"Existing project"},{"id":"project-b","title":"Neighbor"}]' >"$TEST_PROJECTS_FILE"
 echo '[{"resource_type":"github_repo","resource_ref":{"url":"https://github.com/example/one"}}]' >"$TEST_RESOURCES_DIR/project-a.json"
 echo '[{"resource_type":"github_repo","resource_ref":{"url":"ssh://git@github.com/EXAMPLE/TWO.git"}},{"resource_type":"local_directory","resource_ref":{"local_path":"not-a-repo"}}]' >"$TEST_RESOURCES_DIR/project-b.json"
-printf '1\n1\nfiltered\n1,2\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\n1\nfiltered\n1,2\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '[.repositories[].repository]==["example/one","example/three"]' "$TEMPLATE_STATE_ROOT/ws-a/filtered.json" >/dev/null
 grep -q '別プロジェクト: Neighbor' "$test_dir/err"
@@ -163,13 +181,13 @@ echo 'PASS repositories: 他プロジェクトの HTTPS/SSH・大小文字の表
 # 保存した選択がすべて他プロジェクトへ移ったときは既定へ戻さない。
 jq '.repositories |= map(select(.repository=="example/two"))' "$multiple" >"$test_dir/blocked-answer"
 mv "$test_dir/blocked-answer" "$multiple"
-printf '1\n1\nmulti\n\n1\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\n1\nmulti\n\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '[.repositories[].repository]==["example/one"]' "$multiple" >/dev/null
 grep -q '1つ以上の番号' "$test_dir/err"
 echo 'PASS repositories: 保存したリポジトリでも、今は選べなければ既定から外して再入力を待つ'
 
-printf '1\nFresh project\nfresh\n\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\nFresh project\nfresh\n\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.project_id=="" and [.repositories[].repository]==["example/three"]' "$TEMPLATE_STATE_ROOT/ws-a/fresh.json" >/dev/null
 echo 'PASS repositories: 新規プロジェクトでは全既存プロジェクトを照合し、候補が一つならそれを既定にする'
@@ -201,7 +219,7 @@ cp "$test_dir/resource-before" "$TEST_RESOURCES_DIR/project-b.json"
 echo 'PASS repositories: 他プロジェクトの取得失敗・不正な応答・未知の URL は未所有と見なさず、保存値を保つ'
 
 unset TEST_PROJECTS_FILE TEST_RESOURCES_DIR
-printf '1\n1\ninvalid\n0\n99\nx\n\n2 1\nmembera\n0\n1\n0\nyes\n' >"$test_dir/input"
+printf '1\n1\ninvalid\n0\n99\nx\n\n2 1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '[.repositories[].repository]==["example/two","example/one"]' "$TEMPLATE_STATE_ROOT/ws-a/invalid.json" >/dev/null
 [[ $(grep -c '1つ以上の番号' "$test_dir/err") == 4 ]]

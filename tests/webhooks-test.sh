@@ -26,6 +26,7 @@ server_url=https://example.test; workspace_id=workspace-a
 project_id=project-a; project_key=demo; host_owner_id=actor
 records='{"dependabot-merger":{"id":"dep"}}'
 enabled=${TEST_ENABLED:-dependabot-merger}
+dependabot_webhook=${TEST_WEBHOOK:-yes}
 selected_repositories='[{"repository":"example/one"},{"repository":"example/two"}]'
 project_work=$TEST_DB/work
 mkdir -p "$project_work"
@@ -127,6 +128,13 @@ new_case excluded
 TEST_ENABLED=orchestrator run
 [[ ! -e $TEST_DB/calls.jsonl && ! -e $TEST_DB/gh-calls.jsonl ]]
 echo 'PASS webhooks: Dependabot の役を外したときは読み取りも登録も起票もしない'
+
+new_case unused
+TEST_WEBHOOK=no run
+[[ ! -e $TEST_DB/calls.jsonl && ! -e $TEST_DB/gh-calls.jsonl ]]
+jq -e '.issues|length==0' "$TEST_DB/db.json" >/dev/null
+! grep -qF 'Webhook の登録:' "$test_dir/out"
+echo 'PASS webhooks: Webhook を使わない答えなら、Dependabot の役を残しても読み取りも登録も起票もしない'
 
 for failure in can-write trigger secrets signed missing-url admin hooks create deliveries ping; do
  new_case "$failure"

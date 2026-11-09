@@ -32,6 +32,7 @@ squad_id=squad-a
 project_work=$TEST_DB/work
 mkdir -p "$project_work"
 enabled=${TEST_ENABLED:-'orchestrator dependabot-merger'}
+dependabot_webhook=${TEST_WEBHOOK:-yes}
 selected_repositories='[{"repository":"example/one"},{"repository":"example/two"}]'
 project_name=Demo; workspace_name=Workspace
 created_agents=0; created_squads=0; created_autopilots=0
@@ -75,6 +76,13 @@ TEST_ENABLED=orchestrator run
 jq -e '.issues | length==4 and all(.[]; .metadata.squad_kit_task!="dependabot-filter")' "$TEST_DB/db.json" >/dev/null
 ! grep -q 'フィルターを設定する' "$test_dir/out"
 echo 'PASS project issues: Dependabot の役を外したときはフィルターの設定を起票しない'
+
+new_case unused
+TEST_WEBHOOK=no run
+jq -e '.issues | length==4 and all(.[]; .metadata.squad_kit_task!="dependabot-filter")' "$TEST_DB/db.json" >/dev/null
+! grep -q 'フィルターを設定する' "$test_dir/out"
+grep -qF 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。' "$test_dir/out"
+echo 'PASS project issues: Webhook を使わない答えなら、Dependabot の役を残してもフィルターの設定を起票しない'
 
 new_case failed
 printf '%s\n' 'example/one の Dependabot の Webhook のフィルターを設定する' >"$TEST_DB/fail-issue"
