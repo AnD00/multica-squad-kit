@@ -59,7 +59,7 @@ fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
 16a853f062651f4e81566b9da19cc45dbd3c7c612708fa49eba6a0cbe5b2f17b  ./lib/ui.sh
 7366146bdbbffec086bd5a05b0d4d1cac93585efea2e61a8c6c6aa56f747ac7a  ./lib/webhooks.sh
 6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
-bfb7971aac36393bae5f791ca180279fce0d5fb52d9aae0dc798606b9948015b  ./manual.md
+9626ba50aeab8e0faa6161759be0cc6b68ddea1faee07059e73723801d743aef  ./manual.md
 70234570a08252ccf4bc8054663c1e55439d6620121c31dbd701252d8bca2939  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 c1caad86c1e1e14c701ad45486d8cf371cfedc745441e3d85fcc144b9f6e2e1f  ./scripts/release.sh
@@ -87,7 +87,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 d80c7907ed16aa9e0e25268a25a29280ca1615ef0e7be6d7c28315ded0c59543  ./tests/installation-test.sh
 b07bac540574fc897e6967a373c67d30f4e50a80a21c110d9d4b2bb0ed001fac  ./tests/link-scope-questions-test.sh
 f052964acda01a12c23ab89da869afb3832a693396d9812f767551ae6bad074f  ./tests/manual-test.sh
-770ba7e4bde97301f5a012502338b9d2db5a0305256e1bc427224b047f7c745f  ./tests/pre-push-test.sh
+b3c517bcadfc4300777ee25be8dc2e4c6e5624774127054ad43da9d865113fc3  ./tests/pre-push-test.sh
 5a5733e1ea18ca3940cd250d730253824a998a58e747a3cbd84ff74d49ea74e8  ./tests/project-changes-test.sh
 b573e4e9977f83e4e2b5e09cf28502a99f5c5d8daf55df324d3cfdd14c15acc3  ./tests/project-followup-test.sh
 ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/project-issues-fixture.py

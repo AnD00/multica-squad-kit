@@ -113,3 +113,62 @@ rm "$GUARD_TEST_COMMON/input" "$GUARD_TEST_COMMON/args"
 [[ ! -e $GUARD_TEST_COMMON/input && ! -e $GUARD_TEST_COMMON/args ]]
 [[ -z $(find "$test_dir/temp" -type f -print) ]]
 echo 'PASS push: 複数行の一部が不正なら後続 hook を呼ばず、一時入力を片付ける'
+
+# 通常の git push からも確認する。HTTPS の送信先だけをローカルの空の受信先へ差し替え、
+# hook には実際と同じ GitHub URL を渡す。GitHub への通信や更新はしない。
+rm "$GUARD_TEST_COMMON/hooks/pre-push"
+mkdir -p "$test_dir/helpers" "$test_dir/hooks"
+export GUARD_TEST_REMOTE="$test_dir/remote.git" GUARD_TEST_GUARD="$guard"
+export GUARD_TEST_HOOK_ARGS="$test_dir/hook-args"
+git init -q --bare "$GUARD_TEST_REMOTE"
+cat >"$test_dir/helpers/git-remote-https" <<'HELPER'
+#!/usr/bin/env bash
+set -euo pipefail
+while IFS= read -r request; do
+	case $request in
+	capabilities) printf 'connect\n\n' ;;
+	'connect git-receive-pack')
+		if [[ ${GUARD_TEST_REMOTE_MISSING:-0} == 1 ]]; then
+			echo 'fixture: repository not found before pre-push' >&2
+			exit 128
+		fi
+		printf '\n'
+		exec git receive-pack "$GUARD_TEST_REMOTE"
+		;;
+	*) echo "Unexpected remote helper request: $request" >&2; exit 1 ;;
+	esac
+done
+HELPER
+cat >"$test_dir/hooks/pre-push" <<'HOOK'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$@" >"$GUARD_TEST_HOOK_ARGS"
+exec bash "$GUARD_TEST_GUARD" "$@"
+HOOK
+chmod +x "$test_dir/helpers/git-remote-https" "$test_dir/hooks/pre-push"
+push_dry_run() {
+	GIT_EXEC_PATH="$test_dir/helpers" git -c core.hooksPath="$test_dir/hooks" \
+		push --dry-run "$1" "$child:refs/heads/guard-probe" >"$test_dir/out" 2>"$test_dir/err"
+}
+status=0
+push_dry_run https://github.com/example/other.git || status=$?
+[[ $status == 1 ]]
+grep -q '^git push の関所: https://github.com/example/other.git への push は止めた' "$test_dir/err"
+[[ $(cat "$GUARD_TEST_HOOK_ARGS") == $'https://github.com/example/other.git\nhttps://github.com/example/other.git' ]]
+[[ -z $(git --git-dir="$GUARD_TEST_REMOTE" for-each-ref) ]]
+echo 'PASS push dry-run: 通常の Git が接続後に関所を呼び、許可外の GitHub URL を終了コード 1 で拒否する'
+
+# 同じ接続先でも許可した URL は成功し、dry-run なので参照を作らない。
+push_dry_run "$url"
+grep -q 'guard-probe' "$test_dir/err"
+[[ -z $(git --git-dir="$GUARD_TEST_REMOTE" for-each-ref) ]]
+echo 'PASS push dry-run: 許可先は成功し、空の送信先は空のまま'
+
+# 存在しない接続先では hook 自体が呼ばれない。接続失敗を関所の成功と取り違えない。
+rm "$GUARD_TEST_HOOK_ARGS"
+status=0
+GUARD_TEST_REMOTE_MISSING=1 push_dry_run https://github.com/example/missing.git || status=$?
+[[ $status != 0 && ! -e $GUARD_TEST_HOOK_ARGS ]]
+grep -q 'fixture: repository not found before pre-push' "$test_dir/err"
+! grep -q '^git push の関所:' "$test_dir/err"
+echo 'PASS push dry-run: 接続失敗では関所が呼ばれず、関所の拒否と区別できる'
