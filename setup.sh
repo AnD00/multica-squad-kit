@@ -4,7 +4,18 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")" && pwd)
 # lib/ui.sh を読み込む前（MANIFEST の確認が終わるまで）の die は、色を付けず印だけを付ける。
 die() { printf 'エラー: %s\n' "$*" >&2; exit 1; }
-[[ $# == 0 ]] || die '使い方: bash setup.sh（値は質問に答えて入力する）'
+# 拡張のディレクトリだけを引数で受ける。ほかの値は質問で聞き、保存済みの答えを既定にする。
+usage='使い方: bash setup.sh [--extension <拡張のディレクトリ>]（ほかの値は質問に答えて入力する）'
+extension_option=''
+while [[ $# -gt 0 ]]; do
+	case $1 in
+	--extension) [[ $# -ge 2 && -n $2 && -z $extension_option ]] || die "$usage"; extension_option=$2; shift 2 ;;
+	--extension=*) [[ -n ${1#--extension=} && -z $extension_option ]] || die "$usage"; extension_option=${1#--extension=}; shift ;;
+	*) die "$usage" ;;
+	esac
+done
+# 原本のルートへ移る前に、流した場所から見たパスにする。
+[[ -z $extension_option || $extension_option == /* ]] || extension_option=$PWD/$extension_option
 case $(uname -s) in
 Darwin) ;;
 Linux)

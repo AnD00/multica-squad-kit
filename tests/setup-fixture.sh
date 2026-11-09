@@ -8,6 +8,7 @@ mkdir -p "$test_dir/package/lib" "$test_dir/bin"
 cp "$root/VERSION" "$test_dir/package/VERSION"
 cp "$root/setup.sh" "$test_dir/package/setup.sh"
 cp "$root/lib/"*.sh "$test_dir/package/lib/"
+cp "$root/lib/extensions.py" "$test_dir/package/lib/"
 cp -R "$root/common" "$root/skeleton" "$test_dir/package/"
 # 質問の試験ではホストを触らない。ホストの実装は host-test.sh で検証する。
 printf 'prepare_host() { :; }\n' >"$test_dir/package/lib/host.sh"
