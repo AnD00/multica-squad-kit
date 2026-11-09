@@ -306,7 +306,7 @@ echo 'PASS status: CLI 失敗では誤った判定を出さずエラー'
 round_ts=$((now - 120))
 round_time=$(jq -nr --argjson ts "$round_ts" '$ts | todateiso8601')
 
-# 回に、返事（result: /note 付き、plain-result: ふつう）とそろった知らせ（ready）を足したコメントの一覧を出す。
+# 回に、返事（result: /note 付き、plain-result: ふつう）、そろった知らせ（ready）、次へ回す記録（claim）を足したコメントの一覧を出す。
 # 引数は「種類:役:ID:回からの秒」。役は a、b、orch。
 build_comments() {
 	local spec kind who id sec content out
@@ -319,6 +319,7 @@ build_comments() {
 		result) content=$'/note\nresult' ;;
 		plain-result) content='result' ;;
 		ready) content='返事がそろいました。' ;;
+		claim) content=$'/note\n返事の待ち: この回を次へ回します' ;;
 		esac
 		out=$(jq --arg who "$who" --arg id "$id" --arg content "$content" \
 			--arg time "$(jq -nr --argjson ts "$((round_ts + sec))" '$ts | todateiso8601')" \
@@ -327,6 +328,9 @@ build_comments() {
 	printf '%s\n' "$out"
 }
 
+posted_claim_count() {
+	jq -s '[.[] | select(.body == "/note\n返事の待ち: この回を次へ回します\n")] | length' "$test_dir/posted.jsonl"
+}
 posted_ready_count() {
 	jq -s '[.[] | select(.body | contains("返事がそろいました"))] | length' "$test_dir/posted.jsonl"
 }
@@ -346,13 +350,13 @@ check_status '返事の待ち: 知らせのないまま返事がそろってい�
 [[ ! -s $test_dir/posted.jsonl ]]
 echo 'PASS status: /note 付きとふつうのコメントで返した回も、知らせがなければ拾い直す'
 
-# 同じ状態で proceed を流すと、拾い直しの知らせを 1 つだけ書いて進む。
+# 同じ状態で proceed を流すと、拾い直しの知らせと次へ回す記録を 1 つずつ書いて進む。
 reset_calls
 build_comments result:a:r1:5 plain-result:b:r2:6 >"$test_dir/comments.1.json"
-build_comments result:a:r1:5 plain-result:b:r2:6 ready:orch:posted-1:90 >"$test_dir/comments.json"
+build_comments result:a:r1:5 plain-result:b:r2:6 ready:orch:posted-1:90 claim:orch:posted-2:91 >"$test_dir/comments.json"
 output=$(bash "$script" proceed test-issue r2)
-[[ $output == '返事の待ち: 次に進む' && $(posted_ready_count) == 1 ]]
-assert_jq -s 'length == 1 and (.[0].body | startswith("返事がそろいました（見張りで拾い直しました）。\n"))' "$test_dir/posted.jsonl"
+[[ $output == '返事の待ち: 次に進む' && $(posted_ready_count) == 1 && $(posted_claim_count) == 1 ]]
+assert_jq -s 'length == 2 and (.[0].body | startswith("返事がそろいました（見張りで拾い直しました）。\n"))' "$test_dir/posted.jsonl"
 echo 'PASS proceed: /note 付きとふつうのコメントの回を拾い直し、知らせを 1 つ書いて次に進む'
 
 # 同じ秒に始まる形: 2 役が回と同じ秒に始まり、返した役のほかに失敗した役がいる。
@@ -454,48 +458,58 @@ for read_at in 2 3; do
 	echo "PASS report: 読み直し ${read_at} 回目の知らせ投稿の失敗を返し、再投稿しない"
 done
 
-# proceed: 知らせがなければ、拾い直しの知らせを書き、いちばん早い知らせなので進む。
+# proceed: 知らせがなければ、拾い直しの知らせと記録を書き、いちばん早い記録なので進む。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.1.json"
-build_comments result:a:r1:5 result:b:r2:6 ready:orch:posted-1:90 >"$test_dir/comments.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:posted-1:90 claim:orch:posted-2:91 >"$test_dir/comments.json"
 output=$(bash "$script" proceed test-issue watch-trigger)
 [[ $output == '返事の待ち: 次に進む' && $(slept) == 20 && $(deleted_rules) == 2 ]]
-assert_jq -s 'length == 1 and (.[0].args | index("--parent") as $i | .[$i+1] == "watch-trigger")
+assert_jq -s 'length == 2 and all(.[]; .args | index("--parent") as $i | .[$i+1] == "watch-trigger")
 	and (.[0].body | startswith("返事がそろいました（見張りで拾い直しました）。\n\n待っていた役の結果が、すべてそろいました。\n\n返した役:\n"))
-	and (.[0].body | contains("mention://") | not)' "$test_dir/posted.jsonl"
-echo 'PASS proceed: 知らせがなければ拾い直しの知らせを書き、見張りを消して次に進む'
+	and (.[0].body | contains("mention://") | not)
+	and .[1].body == "/note\n返事の待ち: この回を次へ回します\n"' "$test_dir/posted.jsonl"
+echo 'PASS proceed: 知らせがなければ拾い直しの知らせと記録を書き、見張りを消して次に進む'
 
-# proceed: 知らせで起きた実行は、書かずに進む。
+# proceed: 知らせで起きた実行は、記録だけを書いて進む。
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 >"$test_dir/comments.json"
+output=$(bash "$script" proceed test-issue k1)
+[[ $output == '返事の待ち: 次に進む' && $(posted_ready_count) == 0 && $(posted_claim_count) == 1 && $(slept) == 20 && $(deleted_rules) == 2 ]]
+echo 'PASS proceed: 知らせで起きた実行は、記録だけを書いて次に進む'
+
+# proceed: 1 回目は次に進み、記録が残った 2 回目は書かず、待たずに回ごと済み。
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 >"$test_dir/comments.json"
+output=$(bash "$script" proceed test-issue k1)
+[[ $output == $'/note\n返事の待ち: 回ごと済み' && ! -s $test_dir/posted.jsonl && -z $(slept) && $(deleted_rules) == 0 ]]
+echo 'PASS proceed: 記録が残った回では、書かずに回ごと済み'
+
+# proceed: 2 つの実行がほぼ同時に記録を書いたら、進むのは早い記録の実行だけ。
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:c0:8 claim:orch:posted-1:9 >"$test_dir/comments.json"
+output=$(bash "$script" proceed test-issue k1)
+[[ $output == $'/note\n返事の待ち: 回ごと済み' && $(deleted_rules) == 0 ]]
+echo 'PASS proceed: 記録が重なったら、早い記録の実行だけが進む'
+
+# proceed: 同じ時刻の記録は ID の順で選ぶ。
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 claim:orch:zz:8 >"$test_dir/comments.json"
+[[ $(bash "$script" proceed test-issue k1) == '返事の待ち: 次に進む' ]]
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 claim:orch:a0:8 >"$test_dir/comments.json"
+[[ $(bash "$script" proceed test-issue k1) == $'/note\n返事の待ち: 回ごと済み' ]]
+echo 'PASS proceed: 同じ時刻の記録は ID の順'
+
+# proceed: 書いた記録が読み直しで見えなければ、リーダーを再度起こす。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.json"
 output=$(bash "$script" proceed test-issue k1)
-[[ $output == '返事の待ち: 次に進む' && ! -s $test_dir/posted.jsonl && $(slept) == 20 && $(deleted_rules) == 2 ]]
-echo 'PASS proceed: 知らせで起きた実行は、知らせを書かずに次に進む'
-
-# proceed: 知らせが 2 つあるとき、進むのは早い方の知らせの実行だけ。
-reset_calls
-build_comments result:a:r1:5 result:b:r2:6 ready:a:k1:7 ready:b:k2:8 >"$test_dir/comments.json"
-output=$(bash "$script" proceed test-issue k1)
-[[ $output == '返事の待ち: 次に進む' ]]
-reset_calls
-output=$(bash "$script" proceed test-issue k2)
-[[ $output == $'/note\n返事の待ち: 同じ回の知らせで、ほかの実行が次に進めるので何もしない' && $(deleted_rules) == 0 && ! -s $test_dir/posted.jsonl ]]
-echo 'PASS proceed: 知らせが 2 つでも、進むのは早い知らせの実行だけ'
-
-# proceed: 同じ時刻の知らせは ID の順で選ぶ。
-reset_calls
-build_comments result:a:r1:5 result:b:r2:6 ready:b:k2:7 ready:a:k1:7 >"$test_dir/comments.json"
-[[ $(bash "$script" proceed test-issue k1) == '返事の待ち: 次に進む' ]]
-[[ $(bash "$script" proceed test-issue k2) == *ほかの実行が次に進める* ]]
-echo 'PASS proceed: 同じ時刻の知らせは ID の順'
-
-# proceed: 拾い直しの知らせより早い知らせが、待つ間に見えたら進まない。
-reset_calls
-build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.1.json"
-build_comments result:a:r1:5 result:b:r2:6 ready:a:k0:80 ready:orch:posted-1:90 >"$test_dir/comments.json"
-output=$(bash "$script" proceed test-issue watch-trigger)
-[[ $output == $'/note\n返事の待ち: 同じ回の知らせで、ほかの実行が次に進めるので何もしない' && $(deleted_rules) == 0 ]]
-echo 'PASS proceed: 知らせと拾い直しが重なったら、早い方だけが進む'
+[[ $output == '返事の待ち: リーダーを再度起こす' && $(posted_claim_count) == 1 && $(deleted_rules) == 0 ]]
+echo 'PASS proceed: 記録が読み直しで見えなければ、リーダーを再度起こす'
 
 # proceed: 返していない役がいる回と、回がないときは何もしない。
 reset_calls
@@ -513,12 +527,13 @@ build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 | jq --arg a "$a" --arg time "$(jq -nr --argjson ts "$((round_ts + 30))" '$ts | todateiso8601')" \
 	'. + [{id: "round2", author_type: "agent", author_id: "orchestrator", created_at: $time, content: ("返事を待つ役: [@review](mention://agent/" + $a + ")")}]' >"$test_dir/comments.json"
 output=$(bash "$script" proceed test-issue k1)
-[[ $output == $'/note\n返事の待ち: 新しい回があるので何もしない' && $(deleted_rules) == 0 ]]
+[[ $output == $'/note\n返事の待ち: 新しい回があるので何もしない' && $(deleted_rules) == 0 && $(posted_claim_count) == 1 ]]
 echo 'PASS proceed: 待つ間に新しい回が書かれたら何もしない'
 
 # proceed: CLI の失敗では、進むと答えずにエラー。
 reset_calls
-build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 >"$test_dir/comments.json"
 printf 'issue wakeup list' >"$test_dir/fail"
 if bash "$script" proceed test-issue k1 >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 [[ ! -s $test_dir/output ]]

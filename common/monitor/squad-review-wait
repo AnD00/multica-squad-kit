@@ -15,8 +15,9 @@
 #     上限用の wakeup は --timeout を付け、コメントからの経過を待たずに未返答の役と状態を記録する。
 #     拾い直すは、全員が返していて、そろった知らせがない回。
 #   squad-review-wait proceed <タスク> <きっかけのコメント>
-#     orchestrator が次の工程に進む前に通す。同じ回の知らせのうち、いちばん早いものに当たる実行だけに `次に進む` を返し、
-#     回の見張りを消す。知らせがなければ、拾い直しの知らせを書いてから判定する。
+#     リーダーの実行の orchestrator が、次の工程に進む前に通す。回を次へ回す記録を書き、同じ回の記録のうち、
+#     いちばん早いものを書いた実行だけに `次に進む` を返し、回の見張りを消す。すでに記録があれば `回ごと済み`、
+#     書いた記録が読み直しで見えなければ `リーダーを再度起こす` を返す。知らせがなければ、拾い直しの知らせも書く。
 #   squad-review-wait report <タスク> <親のコメント> <結果のファイル>
 #     役が結果を書くときに使う。結果は `/note` で始めて書き、誰も起こさない。
 #     書いたあとにコメントを読み直し、待つ役の全員が返していれば、`返事がそろいました` で orchestrator を起こす。
@@ -36,6 +37,7 @@ REVIEW_WAIT_RECHECK_SECONDS=${REVIEW_WAIT_RECHECK_SECONDS:-20}
 
 ROUND_MARK='返事を待つ役:'
 READY_MARK='返事がそろいました'
+CLAIM_MARK='返事の待ち: この回を次へ回します'
 WATCH_MARK='レビューと E2E の返事の待ちの見張りで起きました。'
 
 for cmd in jq multica; do
@@ -60,11 +62,13 @@ comments_of() {
 		map(. + {ts: (.created_at | ts)}) | sort_by(.ts)'
 }
 
-# 最新の回を JSON で出す: {id, author_id, ts, waiting: [UUID...], returned: [UUID...], ready_ids: [ID...], ready}。回がなければ何も出さない。
+# 最新の回を JSON で出す: {id, author_id, ts, waiting: [UUID...], returned: [UUID...], ready_ids: [ID...], claim_ids: [ID...], ready}。
+# 回がなければ何も出さない。
 # ready_ids は、回より後の、そろった知らせのコメントの ID を、時刻の早い順（同じ時刻なら ID の順）に並べたもの。
+# claim_ids は、回より後の、次へ回す記録のコメントの ID を、同じ順に並べたもの。
 # ready は、ready_ids が空でないこと。
 latest_round() {
-	jq -c --arg round "$ROUND_MARK" --arg ready "$READY_MARK" '
+	jq -c --arg round "$ROUND_MARK" --arg ready "$READY_MARK" --arg claim "$CLAIM_MARK" '
 		def line_of($mark): (.content | split("\n") | map(select(startswith($mark))) | first // "");
 		def first_line: (.content | split("\n") | first // "");
 		def waiting_of: line_of($round) | [scan("mention://agent/([A-Za-z0-9-]+)") | .[0]] | unique;
@@ -76,7 +80,8 @@ latest_round() {
 			| {
 				id: $r.id, author_id: $r.author_id, ts: $r.ts, waiting: $waiting,
 				returned: ([$after[] | select(.author_type == "agent") | .author_id] | unique | map(select(IN($waiting[])))),
-				ready_ids: ([$after[] | select(.author_type == "agent" and (first_line | contains($ready)))] | sort_by([.ts, .id]) | map(.id))
+				ready_ids: ([$after[] | select(.author_type == "agent" and (first_line | contains($ready)))] | sort_by([.ts, .id]) | map(.id)),
+				claim_ids: ([$after[] | select(.author_type == "agent" and line_of($claim) != "")] | sort_by([.ts, .id]) | map(.id))
 			} | . + {ready: (.ready_ids | length > 0)} end'
 }
 
@@ -218,6 +223,17 @@ post_ready() {
 	return "$status"
 }
 
+# 回を次へ回す記録のコメントを書き、そのコメントの ID を出す。
+post_claim() {
+	local issue=$1 parent=$2 body status=0
+	mkdir -p tmp || return 1
+	body=$(mktemp tmp/squad-review-claim.XXXXXX) || return 1
+	printf '/note\n%s\n' "$CLAIM_MARK" >"$body" || { rm -f -- "$body"; return 1; }
+	multica issue comment add "$issue" --parent "$parent" --content-file "$body" --output json | jq -r .id || status=$?
+	rm -f -- "$body" || return 1
+	return "$status"
+}
+
 # コメントを読み直し、全員が返していて知らせがなければ、知らせを書く。
 # 返していない役がいれば 2、取得・JSON 処理・投稿に失敗したら 1 を返す。
 announce_if_ready() {
@@ -275,10 +291,11 @@ report() {
 	return 0
 }
 
-# 次の工程に進んでよいかを決める。進めるのは、同じ回の知らせのうち、いちばん早いものに当たる実行だけにする。
+# 次の工程に進んでよいかを決める。進めるのは、同じ回の次へ回す記録のうち、いちばん早いものを書いた実行だけにする。
 # コメントの並びは Multica が決めるので、ほぼ同時に動く実行どうしでも、進むのは必ず 1 つになる。
+# 記録を書くのはリーダーの実行だけなので、記録があれば、その回はリーダーの実行が次へ回している。
 proceed() {
-	local issue=$1 trigger=$2 round again own='' first
+	local issue=$1 trigger=$2 round again own first
 	round=$(comments_of "$issue" | latest_round)
 	if [[ -z $round ]]; then
 		printf '/note\n返事の待ち: 回がないので何もしない\n'
@@ -288,23 +305,31 @@ proceed() {
 		printf '/note\n返事の待ち: 返っていない役がいるので何もしない\n'
 		return 0
 	fi
+	if [[ $(jq -r '.claim_ids | length' <<<"$round") != 0 ]]; then
+		printf '/note\n返事の待ち: 回ごと済み\n'
+		return 0
+	fi
 	# 知らせがなければ、拾い直しの知らせを書く。メンションは付けない（自分のコメントでは自分は起きないため）。
 	if [[ $(jq -r .ready <<<"$round") != true ]]; then
-		own=$(post_ready "$issue" "$trigger" "$round" "${READY_MARK}（見張りで拾い直しました）。")
+		post_ready "$issue" "$trigger" "$round" "${READY_MARK}（見張りで拾い直しました）。" >/dev/null
 	fi
-	# ほかの実行の知らせが読めるようになるのを待ってから、全員が同じ並びを見て、同じ 1 つを選ぶ。
+	own=$(post_claim "$issue" "$trigger")
+	# ほかの実行の記録が読めるようになるのを待ってから、全員が同じ並びを見て、同じ 1 つを選ぶ。
 	sleep "$REVIEW_WAIT_RECHECK_SECONDS"
 	again=$(comments_of "$issue" | latest_round)
 	if [[ -z $again || $(jq -r .id <<<"$again") != "$(jq -r .id <<<"$round")" ]]; then
 		printf '/note\n返事の待ち: 新しい回があるので何もしない\n'
 		return 0
 	fi
-	first=$(jq -r '.ready_ids[0] // empty' <<<"$again")
-	if [[ -n $first && ( $first == "$trigger" || $first == "$own" ) ]]; then
+	first=$(jq -r '.claim_ids[0] // empty' <<<"$again")
+	if [[ -n $first && $first == "$own" ]]; then
 		unwatch "$issue"
 		printf '返事の待ち: 次に進む\n'
+	elif [[ -n $first ]] && jq -e --arg own "$own" '.claim_ids | index($own) != null' <<<"$again" >/dev/null; then
+		printf '/note\n返事の待ち: 回ごと済み\n'
 	else
-		printf '/note\n返事の待ち: 同じ回の知らせで、ほかの実行が次に進めるので何もしない\n'
+		# 自分の記録がまだ読めず、どの実行が次へ回すかを決められない。
+		printf '返事の待ち: リーダーを再度起こす\n'
 	fi
 }
 
