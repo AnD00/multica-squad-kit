@@ -524,8 +524,10 @@ echo 'PASS proceed: 返していない役がいる回と回なしでは何もし
 # proceed: 待つ間に新しい回が書かれたら、前の回の知らせでは進まない。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
-build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 | jq --arg a "$a" --arg time "$(jq -nr --argjson ts "$((round_ts + 30))" '$ts | todateiso8601')" \
-	'. + [{id: "round2", author_type: "agent", author_id: "orchestrator", created_at: $time, content: ("返事を待つ役: [@review](mention://agent/" + $a + ")")}]' >"$test_dir/comments.json"
+# build_comments は comments.json を書いて読むので、同じファイルへのリダイレクトとパイプでつながない。
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.base.json"
+jq --arg a "$a" --arg time "$(jq -nr --argjson ts "$((round_ts + 30))" '$ts | todateiso8601')" \
+	'. + [{id: "round2", author_type: "agent", author_id: "orchestrator", created_at: $time, content: ("返事を待つ役: [@review](mention://agent/" + $a + ")")}]' "$test_dir/comments.base.json" >"$test_dir/comments.json"
 output=$(bash "$script" proceed test-issue k1)
 [[ $output == $'/note\n返事の待ち: 新しい回があるので何もしない' && $(deleted_rules) == 0 && $(posted_claim_count) == 1 ]]
 echo 'PASS proceed: 待つ間に新しい回が書かれたら何もしない'
