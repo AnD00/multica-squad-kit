@@ -10,7 +10,7 @@ printf '%s\n' example/template >"$allowed"
 for file in .zshenv env.sh; do
 	grep -qx '# multica-squad-kit-managed' "$root/common/shell/$file"
 	[[ $(grep -c '^export SQUAD_KIT_ALLOWED_REPOS=' "$root/common/shell/$file") == 1 ]]
-	sed "s|{{ALLOWED_REPOS_FILE}}|$allowed|g" "$root/common/shell/$file" >"$test_dir/shell files/$file"
+	sed -e "s|{{ALLOWED_REPOS_FILE}}|$allowed|g" -e "s|{{AGENT_BIN_DIR}}|$test_dir/bin|g" "$root/common/shell/$file" >"$test_dir/shell files/$file"
 done
 cmp "$test_dir/shell files/.zshenv" "$test_dir/shell files/env.sh"
 # 親が別の値を持っていても、シェルの起動時にプロジェクトの値になる。

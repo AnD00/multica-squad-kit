@@ -273,7 +273,7 @@ RUN
 [[ $(cat "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-b") == example/two ]]
 for id in project-a project-b; do
  shell_dir="$TEMPLATE_AGENT_HOME/template/shell/$id"
- [[ $(wc -l <"$shell_dir/.zshenv" | tr -d ' ') == 2 ]]
+ ! grep -q '{{' "$shell_dir/.zshenv"
  cmp "$shell_dir/.zshenv" "$shell_dir/env.sh"
  BASH_ENV="$shell_dir/env.sh" /bin/bash -c 'test "$SQUAD_KIT_ALLOWED_REPOS" = "$1"' -- "$TEMPLATE_AGENT_HOME/allowed-repos.d/$id"
  ZDOTDIR="$shell_dir" /bin/zsh -c 'test "$SQUAD_KIT_ALLOWED_REPOS" = "$1"' -- "$TEMPLATE_AGENT_HOME/allowed-repos.d/$id"
