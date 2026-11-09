@@ -541,3 +541,20 @@ if bash "$script" proceed test-issue k1 >"$test_dir/output" 2>"$test_dir/error";
 [[ ! -s $test_dir/output ]]
 rm "$test_dir/fail"
 echo 'PASS proceed: CLI 失敗では次に進むと答えずエラー'
+
+# leader-check: 今の実行がリーダーの実行かを、読み取りだけで調べる。何も書き込まない。
+reset_calls
+printf '[{"id":"run-leader","is_leader_task":true},{"id":"run-member","is_leader_task":false}]' >"$test_dir/runs.json"
+output=$(MULTICA_TASK_ID=run-leader bash "$script" leader-check test-issue)
+[[ $output == 'リーダーの実行' ]]
+if MULTICA_TASK_ID=run-member bash "$script" leader-check test-issue >"$test_dir/output"; then exit 1; fi
+[[ $(<"$test_dir/output") == 'リーダーの実行ではない' ]]
+status=0
+MULTICA_TASK_ID=run-other bash "$script" leader-check test-issue >"$test_dir/output" 2>/dev/null || status=$?
+[[ $status == 2 && ! -s $test_dir/output ]]
+status=0
+env -u MULTICA_TASK_ID bash "$script" leader-check test-issue >/dev/null 2>&1 || status=$?
+[[ $status == 2 ]]
+# 書き込みの呼び出し（コメント・wakeup・squad activity）がない。
+[[ $(jq -s 'map(select(.[0] == "squad" or .[1] == "comment" and .[2] == "add" or .[1] == "wakeup")) | length' "$test_dir/calls.jsonl") == 0 ]]
+echo 'PASS leader-check: リーダーの実行かを読み取りだけで調べ、何も記録しない'
