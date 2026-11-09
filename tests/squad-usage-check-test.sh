@@ -313,7 +313,7 @@ for project in unset empty; do
 	else
 		if USAGE_CHECK_PROJECT='' USAGE_CHECK_ASSIGNEE="$USAGE_CHECK_ASSIGNEE" bash "$script" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 	fi
-	rg -q 'USAGE_CHECK_PROJECT に、作る issue を入れるプロジェクトの ID を渡す' "$test_dir/err"
+	grep -q 'USAGE_CHECK_PROJECT に、作る issue を入れるプロジェクトの ID を渡す' "$test_dir/err"
 	echo "PASS $project: プロジェクトがなければ実行前にエラー"
 done
 
@@ -323,6 +323,6 @@ for member in unset empty; do
 	else
 		if USAGE_CHECK_MEMBER='' USAGE_CHECK_ASSIGNEE="$USAGE_CHECK_ASSIGNEE" USAGE_CHECK_PROJECT=test-project bash "$script" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 	fi
-	rg -q 'USAGE_CHECK_MEMBER に、メンバーの区別を渡す' "$test_dir/err"
+	grep -q 'USAGE_CHECK_MEMBER に、メンバーの区別を渡す' "$test_dir/err"
 done
 echo 'PASS メンバー: 未指定・空では記録や CLI の呼び出し前に止まる'

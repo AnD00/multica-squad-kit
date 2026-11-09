@@ -1,6 +1,6 @@
 63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull_request_template.md
-ccd401b375432678dc5601177ad25c54af8d096274e0666a6c3b9056eccf4502  ./.github/workflows/check.yml
+4a9bc7c0ae67e04c1eddd73c9d0726633601ecfe87fccb8c6c04f85f26261fb6  ./.github/workflows/check.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 c1a31607fc0d239c04194a419847f3a8c2eeb19e1c9448d0a650824936992ad1  ./CHANGELOG.md
@@ -107,11 +107,11 @@ c8f28c411cb3c38b64125f1caa6876998257c84012e7b6302797d9f801720b89  ./tests/setup-
 de81ea4939ba932024cb298e43a5a559a6cd05bd8b939acd4948a7f22d45215b  ./tests/setup-test.sh
 82ea572de991a34f84f16d947c6d47daffb0ba89444ec8a4319f97bddb1a34a3  ./tests/shell-test.sh
 a7cb5c83d3f2176b1ef3f58f5868c6897b0dd07fb1397099e18a707ac813e256  ./tests/squad-dependabot-merge-test.sh
-eff8b05877239fcb85b764871302ee720ee7a05b6594b9e5b9a149728f63a3c0  ./tests/squad-dispatch-pick-test.sh
+3b773d92531635f2220d0c54f425120b16adcd07c6f848b1d4fd12326c69da97  ./tests/squad-dispatch-pick-test.sh
 20c3d306d23e56cc3e65427ca1e880b1fe13f9dcdf86d3ed646784b1ff711e17  ./tests/squad-pr-watch-test.sh
 4d6d579ba1e010152d2261efa9a6db49c63ecd5d3c4fbf68d157da49d27efdbc  ./tests/squad-review-wait-test.sh
-8b65974d91466ca46db3afe9c8e7f4c08e9b7c9539d1ecef057417fc08943633  ./tests/squad-usage-check-test.sh
-0b4aacf6c7d2161c9704bdd8262d7829b505cd127c792e7d67c51efdb38850b9  ./tests/squad-usage-read-test.sh
+12f71389832dc00c81c9fd4d4e5b73130175fa9c63e7b54cfb848450335f864b  ./tests/squad-usage-check-test.sh
+87e7d1312506a85f315482f436eff61eaddd3a964111815bf5c3e27ecf82ab7e  ./tests/squad-usage-read-test.sh
 d3339f14c9b250e76f2d65cd37a449ef4220e359f389e33a4d88088ad6dc03d6  ./tests/test-runner-test.sh
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py

@@ -17,11 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - if: runner.os == 'macOS'
-        run: brew install jq python ripgrep
+        run: brew install jq python
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps ripgrep
+          sudo apt-get install -y bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps
       - name: Tests
         run: /bin/bash tests/run.sh
       - name: Syntax and integrity

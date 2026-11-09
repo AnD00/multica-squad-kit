@@ -139,13 +139,13 @@ run_pick() {
 		cat "$test_dir/out" "$test_dir/err" >&2
 		exit 1
 	fi
-	rg -q '^振り分け: ' "$test_dir/out"
+	grep -q '^振り分け: ' "$test_dir/out"
 	if compgen -G "$test_dir/tmp/dispatch-pick.*" >/dev/null; then
 		echo 'FAIL: 一時ファイルが残った' >&2; exit 1
 	fi
 }
 assert_line() {
-	rg -Fq -- "$1" "$test_dir/out" || { cat "$test_dir/out" >&2; exit 1; }
+	grep -Fq -- "$1" "$test_dir/out" || { cat "$test_dir/out" >&2; exit 1; }
 }
 
 for kind in implement fix; do
@@ -275,14 +275,14 @@ for failure in exit claude_error codex_error both_error invalid_json multiple_js
 	run_pick 0 codex-fixer fix
 	assert_line '使用率を読めないため、修正の代わりの決まりで決めた'
 	assert_line "$reason"
-	if rg -q 'mock-private-diagnostic' "$test_dir/out" "$test_dir/err"; then exit 1; fi
+	if grep -q 'mock-private-diagnostic' "$test_dir/out" "$test_dir/err"; then exit 1; fi
 done
 echo 'PASS 読めない: 終了 1・片側/両側 error・不正 JSON・古い時刻・不正な形、代わりの決まりと理由'
 
 fixtures
 change '.read_at = "2026-10-26T23:30:00Z"'
 run_pick 0 claude-implementer implement 小さな
-if rg -q '読めない' "$test_dir/out"; then exit 1; fi
+if grep -q '読めない' "$test_dir/out"; then exit 1; fi
 fixtures
 change '.claude = {error: "claude が見つからない"} | .codex.allowed = false'
 echo 1 >"$test_dir/status"
@@ -323,5 +323,5 @@ mv "$test_dir/bin/jq" "$test_dir/bin/jq.off"
 status=0
 PATH="$test_dir/bin" /bin/bash "$script" fix >"$test_dir/out" 2>"$test_dir/err" || status=$?
 [[ "$status" == 1 && ! -s "$test_dir/out" ]]
-rg -qx 'jq が見つからない' "$test_dir/err"
+grep -qx 'jq が見つからない' "$test_dir/err"
 echo 'PASS 使い方: 不正な引数と jq 欠落は標準エラーと終了コード 1'

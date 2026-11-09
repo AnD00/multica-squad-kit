@@ -212,7 +212,7 @@ for failure in claude_exit claude_error claude_no_rows claude_reset claude_parse
 	esac
 	run_read 1
 	assert_error "$tool" "$reason"
-	if rg -Fq "$secret" "$test_dir/out.json" "$test_dir/err"; then
+	if grep -Fq "$secret" "$test_dir/out.json" "$test_dir/err"; then
 		echo "FAIL private diagnostics: $failure" >&2
 		exit 1
 	fi
@@ -224,5 +224,5 @@ echo 'PASS private diagnostics: CLI の出力・診断・応答・時刻表示�
 mv "$test_dir/bin/jq" "$test_dir/bin/jq.off"
 if PATH="$test_dir/bin" /bin/bash "$script" >"$test_dir/out.json" 2>"$test_dir/err"; then exit 1; fi
 test ! -s "$test_dir/out.json"
-rg -qx 'jq が見つからない' "$test_dir/err"
+grep -qx 'jq が見つからない' "$test_dir/err"
 echo 'PASS jq: JSON を作れないときだけ標準出力を空にして失敗する'
