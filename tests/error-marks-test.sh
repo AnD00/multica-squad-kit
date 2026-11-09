@@ -23,7 +23,7 @@ echo 'PASS marks: エラー: と警告: の印は色の有無によらず付き�
 # MANIFEST の確認より前の die は、端末でも色を付けず、印だけを付ける。
 env -u NO_COLOR TERM=xterm-256color python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- /bin/bash "$test_dir/package/setup.sh" x || true
 ! grep -qF "$esc" "$test_dir/err"
-tr -d '\r' <"$test_dir/err" | grep -qxF 'エラー: 使い方: bash setup.sh（値は質問に答えて入力する）'
+tr -d '\r' <"$test_dir/err" | grep -qxF 'エラー: 使い方: bash setup.sh [--extension <拡張のディレクトリ>]（ほかの値は質問に答えて入力する）'
 mv "$test_dir/package/MANIFEST" "$test_dir/MANIFEST.saved"
 env -u NO_COLOR TERM=xterm-256color python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- /bin/bash "$test_dir/package/setup.sh" </dev/null || true
 ! grep -qF "$esc" "$test_dir/err"
