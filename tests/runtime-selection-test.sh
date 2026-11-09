@@ -46,7 +46,7 @@ grep -qF 'codex: コマンドが見つかりません' "$test_dir/err"
 echo 'PASS runtimes: 保存値を既定にし、複数の番号と未導入のランタイムを同じ質問で直す'
 
 # 質問と保存の試験。登録とホストは setup-fixture で差し替える。
-printf '1\n1\ndemo\n1\nmembera\n0\n2\n3\n0\nyes\n' >"$test_dir/input"
+printf '1\n1\ndemo\n1\nmembera\n0\n2\n3\n0\n\nyes\n' >"$test_dir/input"
 run
 saved="$TEMPLATE_STATE_ROOT/ws-a/demo.json"
 jq -e '.schema==1 and .runtimes==["claude"] and .excluded_roles==[]' "$saved" >/dev/null
@@ -54,7 +54,7 @@ grep -qF '少なくとも一系統' "$test_dir/err"
 grep -qF 'Codex の実装・修正:' "$test_dir/err"
 grep -qF '使うランタイムにないため外れます' "$test_dir/err"
 grep -qF 'エージェント: 13件' "$test_dir/err"
-printf '1\n1\ndemo\n1\nmembera\n0\n3\n4\n0\nyes\n' >"$test_dir/input"
+printf '1\n1\ndemo\n1\nmembera\n0\n3\n4\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.runtimes==["codex"] and .excluded_roles==[]' "$saved" >/dev/null
 grep -qF '少なくとも一系統' "$test_dir/err"
@@ -65,7 +65,7 @@ jq 'del(.runtimes)' "$saved" >"$test_dir/legacy.json"
 load_answers "$test_dir/legacy.json" >"$test_dir/loaded.json"
 jq -e '.schema==1 and .runtimes==["claude","codex"]' "$test_dir/loaded.json" >/dev/null
 cp "$test_dir/legacy.json" "$saved"
-printf '1\n\n\n\n\n\n\n0\nyes\n' >"$test_dir/input"
+printf '1\n\n\n\n\n\n\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.runtimes==["claude","codex"] and .excluded_roles==[]' "$saved" >/dev/null
 for value in '[]' 'null' '"claude"' '["other"]' '["claude","claude"]'; do

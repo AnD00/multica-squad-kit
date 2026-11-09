@@ -77,4 +77,4 @@ manifest() {
 run() { { printf "\n"; cat "$test_dir/input"; } | /bin/bash "$test_dir/package/setup.sh" >"$test_dir/out" 2>"$test_dir/err"; }
 deny() { if run; then cat "$test_dir/out" "$test_dir/err"; exit 1; fi; [[ -s $test_dir/err ]]; }
 no_state() { [[ ! -e $test_dir/state ]]; }
-base_input() { printf '1\n1\ndemo\n2\nmembera\n1 2\n1\n3 1\n%s\n' "$1" >"$test_dir/input"; }
+base_input() { printf '1\n1\ndemo\n2\nmembera\n1 2\n1\n3 1\n\n%s\n' "$1" >"$test_dir/input"; }

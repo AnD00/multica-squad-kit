@@ -8,9 +8,25 @@ ask() {
 	[[ -n $answer ]] || answer=$default
 }
 
+# 質問の順。行ごとに一つの題で、サーバーの URL は未設定のときだけ先頭に足す。
+# 総数はこの行数から数える。答えによって出さない質問も数え、question_skip で聞かないことを示す。
+question_order='ワークスペース
+プロジェクト
+プロジェクトの区別
+リポジトリ
+メンバーの区別
+スクワッドに入れる人間
+使うランタイム
+外す役
+Dependabot の PR の Webhook'
+
+# 順の定義があるときは、題が順のとおりかを確かめる。質問を足したのに順へ足し忘れると止まる。
 question_begin() {
 	question_number=$((${question_number:-0}+1))
 	question_title=$1; question_description=$2; question_example=$3
+	if [[ -n ${question_titles:-} && $(sed -n "${question_number}p" <<<"$question_titles") != "$question_title" ]]; then
+		die "質問の順の定義と違います: $question_title"
+	fi
 	question_items='[]'; question_zero=''; question_notice=''; question_notice_kind=description; question_fixed=''
 }
 
@@ -31,6 +47,13 @@ input_error() {
 	ui_error "$1"
 	shift
 	for line; do ui_line err error "$line"; done
+}
+
+# 答えによって出さない質問は、番号を進めて見出しだけを出す。
+question_skip() {
+	question_begin "$1" '' ''
+	printf '\n' >&2
+	ui_line err question "質問 ($question_number/$question_total) $question_title: $2"
 }
 
 question_heading() {
@@ -95,7 +118,7 @@ ask_key() {
 valid_server() { [[ $1 =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]]; }
 choose_server() {
 	local config configured
-	question_number=0; question_total=8; question_server_checked=no
+	question_number=0; question_titles=$question_order; question_total=$(grep -c "" <<<"$question_titles"); question_server_checked=no
 	config=$(multica config show) || die 'CLI の設定を読めませんでした。'
 	configured=$(printf '%s\n' "$config" | awk '$1=="server_url:" && $2!="(not" {print $2}')
 	server_url=${MULTICA_SERVER_URL:-$configured}
@@ -105,7 +128,7 @@ choose_server() {
 		printf '設定済みのサーバーを使います: %s\n' "$server_url" >&2
 		return
 	fi
-	question_total=9
+	question_titles=$(printf 'サーバーの URL\n%s' "$question_order"); question_total=$(grep -c "" <<<"$question_titles")
 	question_begin 'サーバーの URL' 'このホストのデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
 	while :; do
 		question_prompt ''
@@ -203,7 +226,7 @@ role_choices='[
  {"key":"qa","roles":["qa"],"title":"QA","purpose":"動作とE2Eを確認する","changes":"返事を待つ役の一覧から外れる"},
  {"key":"ci-monitor","roles":["ci-monitor"],"title":"PR の CI の見張り","purpose":"CIの結果を知らせる","watch":"進行役が PR ごとに置く CI の見張り"},
  {"key":"usage-monitor","roles":["usage-monitor"],"title":"使用上限の見張り","purpose":"AIの残量を見張る","autopilots":["usage-monitor"]},
- {"key":"dependabot-merger","roles":["dependabot-merger"],"title":"Dependabot の PR","purpose":"更新を週次で扱う","autopilots":["dependabot-merger"],"changes":"GitHub への Webhook の登録をしない"}
+ {"key":"dependabot-merger","roles":["dependabot-merger"],"title":"Dependabot の PR","purpose":"更新を週次で扱う","autopilots":["dependabot-merger"],"changes":"Webhook を使うかを聞かず、GitHub への Webhook の登録をしない"}
 ]'
 
 # 外せる項目の文。1 行目は「役: 担当。」で、続けて一緒に外れるものを種類ごとの見出しに分ける。
@@ -258,6 +281,31 @@ pick_runtimes() {
 		if check_runtime_tools; then break; fi
 		input_error 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。'
 	done
+}
+
+# Dependabot の役を残したときだけ聞く。週次のスケジュールだけでも動くので、既定は使わない。
+# 答えは JSON の真偽値の文字で持つ。
+pick_dependabot_webhook() {
+	local default=1
+	dependabot_webhook=false
+	if ! jq -e 'index("dependabot-merger")==null' >/dev/null <<<"$excluded_roles"; then
+		question_skip 'Dependabot の PR の Webhook' 'Dependabot の役を外したので聞きません。'
+		return 0
+	fi
+	question_begin 'Dependabot の PR の Webhook' 'Dependabot の PR を、週次のスケジュールに加えて Webhook でも起動するかを選びます。使うときは、リポジトリごとに GitHub へ Webhook を登録し、登録やフィルターの設定を issue で頼みます。' '1（使わない）、2（使う）'
+	if jq -e '.dependabot_webhook==true' >/dev/null <<<"$1"; then default=2; fi
+	question_items='["使わない（週次のスケジュールだけで扱う。Webhook の登録と issue の起票をしない）","使う（リポジトリごとに Webhook を登録し、イベントフィルターの設定を起票する）"]'
+	# この項目のない前の答えは使わないと読むが、前の版は聞かずに登録していたことを知らせる。
+	if [[ -f $2 ]] && ! jq -e 'has("dependabot_webhook")' "$2" >/dev/null 2>&1; then
+		question_notice='前の答えにはこの項目がありません。前の版は聞かずに Webhook を登録していました。使わないを選ぶと、残っている Webhook のトリガーを外すよう起票します。'
+		question_notice_kind=warning
+	fi
+	while :; do
+		pick_numbers "$default" no
+		if [[ $(jq length <<<"$picked_numbers") == 1 ]]; then break; fi
+		input_error '使うかどうかは一つの番号だけを選んでください。'
+	done
+	if [[ $(jq -r '.[0]' <<<"$picked_numbers") == 2 ]]; then dependabot_webhook=true; fi
 }
 
 ask_questions() {
@@ -345,7 +393,8 @@ ask_questions() {
 		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; (.+"-implementer") as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
 		input_error '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。'
 	done
-	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles}')
+	pick_dependabot_webhook "$saved" "$answers_file"
+	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" --argjson dependabot_webhook "$dependabot_webhook" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles,dependabot_webhook:$dependabot_webhook}')
 	question_people=$members
 }
 
@@ -455,6 +504,10 @@ confirmation_plan() {
 	done
 	# 集計しても、別の担当等を保護する注意は隠さない。
 	jq -r '.[]|select(.action|startswith("今あるものを保持"))|"  保持する既存の設定: \(.title)（別の担当またはプロジェクト）"' <<<"$auto_plan"
+	if ! jq -e 'index("dependabot-merger")!=null' >/dev/null <<<"$excluded_roles"; then
+		if [[ ${dependabot_webhook:-false} == true ]]; then printf 'Dependabot の PR の Webhook: 使う（リポジトリごとに登録し、フィルターの設定を起票する）\n'
+		else printf 'Dependabot の PR の Webhook: 使わない（週次のスケジュールだけ。登録と起票をしない）\n'; fi
+	fi
 	humans=$(jq -r --argjson ids "$member_ids" '[.[]|select(.user_id as $id|$ids|index($id))|.name]|join("、")' <<<"$question_people")
 	printf 'スクワッドに入れる人間: %s（既存の人をスクワッドへ追加・維持）\n' "${humans:-なし}"
 	printf '外す役と、一緒に外れるもの:\n'

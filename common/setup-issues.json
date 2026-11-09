@@ -11,6 +11,12 @@
     "label": "運用",
     "body": "リポジトリの管理者に Dependabot の Webhook の登録を頼んでください。管理者の権限と gh の admin:repo_hook の範囲を持つ人が、同じ答えでセットアップを流し直せば、自動で登録と ping の確認が行われます。画面で登録する場合も、配信履歴を確かめてください。Webhook の URL は認証情報なので、issue やログに貼らないでください。\n\n手順: [人間が行う Webhook の登録]({{manual_url}}#人間が行う-webhook-の登録)"
   },
+  "dependabot-webhook-removal": {
+    "title": "{{repository}} の Dependabot の Webhook を外す",
+    "assignee": "actor",
+    "label": "運用",
+    "body": "セットアップで Dependabot の PR の Webhook を使わないと答えましたが、前の実行で作った Webhook のトリガーが残っています。セットアップはトリガーと GitHub の Webhook を消しません。週次のスケジュールだけで扱うなら、オートパイロットを編集できる人が Webhook のトリガーを外し、リポジトリの管理者が GitHub の Webhook を消してください。Webhook を続けて使うなら、使うと答えてセットアップを流し直してください。Webhook の URL は認証情報なので、issue やログに貼らないでください。\n\n手順: [Dependabot の Webhook を外す]({{manual_url}}#dependabot-の-webhook-を外す)"
+  },
   "repository-rules": {
     "title": "{{repository}} に AGENTS.md と作業別のルールを置く",
     "assignee": "squad",

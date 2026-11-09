@@ -70,7 +70,7 @@ STUB
  export PATH="$scenario_dir/bin:$test_dir/tools"
  export TEMPLATE_STATE_ROOT="$scenario_dir/answers" TEMPLATE_AGENT_HOME="$scenario_dir/host" TEMPLATE_DAEMON_ID_FILE="$scenario_dir/daemon.id"
  unset MULTICA_SERVER_URL MULTICA_WORKSPACE_ID USAGE_CHECK_RUNTIMES
- printf '\n1\nRuntime test\ndemo\n1\nowner\n1\n%s\n0\nyes\n' "$choice" >"$scenario_dir/input"
+ printf '\n1\nRuntime test\ndemo\n1\nowner\n1\n%s\n0\n2\nyes\n' "$choice" >"$scenario_dir/input"
  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
  grep -qF 'プロジェクトの設定が終わりました' "$scenario_dir/out"
  "$python" - "$scenario_dir" <<'PY'
@@ -156,7 +156,7 @@ PY
   mv "$scenario_dir/old-answer" "$TEMPLATE_STATE_ROOT/ws-a/demo.json"
  fi
  : >"$scenario_dir/calls.jsonl"
- printf '\n1\n1\ndemo\n1\nowner\n1\n\n0\nyes\n' >"$scenario_dir/input"
+ printf '\n1\n1\ndemo\n1\nowner\n1\n\n0\n\nyes\n' >"$scenario_dir/input"
  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
  grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件' "$scenario_dir/out"
  "$python" - "$scenario_dir" <<'PY'

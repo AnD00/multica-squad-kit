@@ -4,7 +4,7 @@ source "$(dirname "$0")/setup-fixture.sh"
 manifest
 export TEST_REPOS_FILE="$test_dir/repos.json"
 printf '%s\n' '[{"url":"https://github.com/example/one"},{"url":"https://github.com/example/two"},{"url":"https://github.com/example/three"}]' >"$TEST_REPOS_FILE"
-printf 'https://example.test\n1\n1\nshop\n1 3\nmember1\n1 2\n1\n5 7\nno\n' >"$test_dir/input"
+printf 'https://example.test\n1\n1\nshop\n1 3\nmember1\n1 2\n1\n5 7\n\nno\n' >"$test_dir/input"
 TEST_SERVER='(not set)' deny
 no_state
 # 実際の質問画面を取り、手で書いた各質問の節に説明と例があることを照合する。
@@ -13,20 +13,20 @@ check_manual() {
   ($screen|split("\n")) as $lines |
   [range(0;$lines|length) as $i | select($lines[$i]|test("^質問 \\([0-9]+/[0-9]+\\) ")) |
    {title:($lines[$i]|sub("^質問 \\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
-  if ($questions|length)!=9 then error("9問の画面を取得できませんでした") else . end |
+  if ($questions|length)!=10 then error("10問の画面を取得できませんでした") else . end |
   ($document|gsub("`";"")) as $doc |
   [$questions[] | . as $q |
    (($doc|split("#### "+$q.title+"\n"))[1] // "" | split("\n#### ")[0] | split("\n### ")[0]) as $section |
    (if ($q.description|length)==0 or ($section|contains($q.description)|not) then "説明がない: "+$q.title else empty end),
    (if ($q.example|length)==0 or ($section|contains($q.example)|not) then "例がない: "+$q.title else empty end)] as $missing |
   if ($missing|length)>0 then error($missing|join("、")) else . end |
-  (($screen|split(") 外す役\n"))[1] // "" | split("\n") |
+  (($screen|split(") 外す役\n"))[1] // "" | split("\n質問 (")[0] | split("\n") |
    map(select(test("^[1-9][0-9]*: [^:]+: [^。]+。")) | capture("^(?<number>[0-9]+): (?<role>[^:]+): (?<purpose>[^。]+)。"))) as $roles |
   if ($roles|length)!=12 then error("12役の画面を取得できませんでした") else . end |
   (($doc|split("#### 外す役\n"))[1] // "" | split("\n### ")[0] | split("\n")) as $role_lines |
   [$roles[] | . as $role | select(any($role_lines[]; startswith("| "+$role.number+" | "+$role.role+" | ") and contains($role.purpose))|not) | "担当の説明がない: "+.role] as $missing_roles |
   # 画面の役ごとの見出し（エージェント・オートパイロット・見張り・ほかに変わること）を、表の同じ行と照らす。
-  ([(($screen|split(") 外す役\n"))[1] // "" | split("外せる役:\n")[1] // "" | split("\n"))[] | select(test("^[1-9][0-9]*: ") or test("^  (エージェント|オートパイロット|見張り|ほかに変わること): "))] |
+  ([(($screen|split(") 外す役\n"))[1] // "" | split("\n質問 (")[0] | split("外せる役:\n")[1] // "" | split("\n"))[] | select(test("^[1-9][0-9]*: ") or test("^  (エージェント|オートパイロット|見張り|ほかに変わること): "))] |
    reduce .[] as $line ([]; if ($line|test("^[0-9]")) then .+[{number:($line|capture("^(?<n>[0-9]+):").n),details:{}}]
      else .[-1].details[$line|capture("^  (?<k>[^:]+): (?<v>.*)$").k] = ($line|capture("^  (?<k>[^:]+): (?<v>.*)$").v) end)) as $blocks |
   [$blocks[] | . as $block |
