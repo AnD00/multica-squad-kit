@@ -108,7 +108,7 @@ b51ec94963bfa87df11e57e73d1bb97f9acc73fc3286e629e076ecf1fddcad92  ./tests/run.sh
 9861852741214e7a23fb55a3754f983930aace3819c29007d9eff3837da8be72  ./tests/setup-issues-test.sh
 c8f28c411cb3c38b64125f1caa6876998257c84012e7b6302797d9f801720b89  ./tests/setup-runtime-cli.py
 3f9416b62cfc7978d3a522d0d53ccf9873bc79803096fedf8bfb929d0f9c7288  ./tests/setup-runtimes-test.sh
-fdc6097271165102d719cf7861bacab20fec2a3a8685289e69ebbccd98e75b64  ./tests/setup-tag-test.sh
+6737600aeeb752c91a20ff6249b8e62723553d57a01afb41861a7e595fc745c2  ./tests/setup-tag-test.sh
 de81ea4939ba932024cb298e43a5a559a6cd05bd8b939acd4948a7f22d45215b  ./tests/setup-test.sh
 5d7351588e3117cc0341c2bdb62db00df6c58fa1bf131d92dd8ce692a3545ecf  ./tests/shell-test.sh
 0c8572091facb63331e26b733b8036e6ab28b9d6a978103aeeeb526cdd3cf7c2  ./tests/squad-dependabot-merge-test.sh
