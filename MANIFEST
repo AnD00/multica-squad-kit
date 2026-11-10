@@ -24,12 +24,12 @@ f5e00ce60297971780c259e13394d0d8b6eb83e29d0fffde1c0b6f4b70c67287  ./common/agent
 4ada03d4bad08cbc46ae764789fb7f95ea68a649d9a7d8a182af24ecfc87965a  ./common/agents/security-reviewer.md
 8a002a99d8da9b03ce38cf888914e83bb609329e710e79fc36b3fef2b542ad58  ./common/agents/usage-monitor.md
 0b8e3f78446fe127385ad22d9644a7e18b5c390df7f304221c3ad0c0596289ac  ./common/agents/ux-reviewer.md
-76f1fc88daa5bb921ff119354928fcc8bf5fe1eb3314ae853efab5aeb44a283e  ./common/autopilots.md
+58b99cf6dee4d5bf36557d78aaf237efb313bfbbadee94bc8dd0b5bfd90ce4a1  ./common/autopilots.md
 23be73f1ce7f4622de6a2c0a316e73720e9e6a603fc97f73ab4daa62b84e17a4  ./common/codex/config.toml
 ad2c73ba8a20c8315e3a63c7b0ffeb8e6c6cfb1da63d6741c4b095c0014e8d6b  ./common/guard/gh
 082442a9b7ec2fbe14e219b1bbc1702800ff530395e15f3c3442479a7ba042cc  ./common/guard/pre-push
 ba93be75076361a32fe85feeb8770ccd1f49be56d78c2586a6bc7c3cb21167bf  ./common/labels
-60e71c364a9354d1a69d6b581283771c0324214e05efd4fed4209bb7ea930141  ./common/monitor/squad-dependabot-merge
+9f95c056f239406115e90fb00aec54f06a4c8878a204000647a304870c93911f  ./common/monitor/squad-dependabot-merge
 504441b286b43c123cc0467d04f30e971d991fd7ebe74813299e4340a1989975  ./common/monitor/squad-dispatch-pick
 a27531e54dcde3f46a86e6b214548979b27f23fb58f56c2674e5c17ffc3b9601  ./common/monitor/squad-pr-watch
 8137284fb5a821832b361c7a54ac3b981e022fb514eca3d1fb9ca612a128e5da  ./common/monitor/squad-review-wait
@@ -107,7 +107,7 @@ c8f28c411cb3c38b64125f1caa6876998257c84012e7b6302797d9f801720b89  ./tests/setup-
 3f9416b62cfc7978d3a522d0d53ccf9873bc79803096fedf8bfb929d0f9c7288  ./tests/setup-runtimes-test.sh
 de81ea4939ba932024cb298e43a5a559a6cd05bd8b939acd4948a7f22d45215b  ./tests/setup-test.sh
 5d7351588e3117cc0341c2bdb62db00df6c58fa1bf131d92dd8ce692a3545ecf  ./tests/shell-test.sh
-a7cb5c83d3f2176b1ef3f58f5868c6897b0dd07fb1397099e18a707ac813e256  ./tests/squad-dependabot-merge-test.sh
+0c8572091facb63331e26b733b8036e6ab28b9d6a978103aeeeb526cdd3cf7c2  ./tests/squad-dependabot-merge-test.sh
 3b773d92531635f2220d0c54f425120b16adcd07c6f848b1d4fd12326c69da97  ./tests/squad-dispatch-pick-test.sh
 20c3d306d23e56cc3e65427ca1e880b1fe13f9dcdf86d3ed646784b1ff711e17  ./tests/squad-pr-watch-test.sh
 4d6d579ba1e010152d2261efa9a6db49c63ecd5d3c4fbf68d157da49d27efdbc  ./tests/squad-review-wait-test.sh

@@ -339,6 +339,28 @@ escalation_label() {
 	fi
 }
 
+# Dependabot の PR は題・ブランチ・本文に識別子を入れられず、自動では紐付かないので API で紐付ける。
+# 紐付けたら metadata の pr_url に残し、人間が外した紐付けを次の回で戻さない。
+# CLI に紐付けのコマンドがないため、タスクに渡されたトークンを curl の設定として標準入力から渡す。
+# 失敗しても issue は人間に渡せるので止めず、次に同じ PR を回すときに補う。
+link_pull_request() {
+	local id=$1 identifier=$2 url=$3 metadata status headers
+	if metadata=$(multica issue metadata list "$id" --output json) && jq -e 'type == "object"' <<<"$metadata" >/dev/null; then
+		[[ $(jq -r 'has("pr_url")' <<<"$metadata") == true ]] && return
+		if [[ -n ${MULTICA_TOKEN:-} && -n ${MULTICA_SERVER_URL:-} ]] && command -v curl >/dev/null; then
+			headers=(-H 'Content-Type: application/json')
+			[[ -z ${MULTICA_WORKSPACE_ID:-} ]] || headers+=(-H "X-Workspace-ID: $MULTICA_WORKSPACE_ID")
+			status=$(printf 'header = "Authorization: Bearer %s"\n' "$MULTICA_TOKEN" | curl --config - -sS --max-time 30 -o /dev/null -w '%{http_code}' \
+				-X POST "${headers[@]}" --data "$(jq -cn --arg url "$url" '{url: $url}')" \
+				"${MULTICA_SERVER_URL%/}/api/issues/${id}/pull-requests") || status=
+			if [[ $status == 200 ]] && multica issue metadata set "$id" --key pr_url --value "$url" --type string >/dev/null; then
+				return
+			fi
+		fi
+	fi
+	echo "issue ${identifier} に PR を紐付けられませんでした。次に同じ PR を回すときに補います。急ぐときは issue の画面で ${url} を紐付けてください。" >&2
+}
+
 escalate() {
 	(($# == 4)) || usage
 	local number=$1 source=$2 assignee=$4 search matches issue label member member_id member_name pr title body id identifier
@@ -360,6 +382,7 @@ escalate() {
 		id=$(jq -er '.[0].id | select(type == "string" and length > 0)' <<<"$matches")
 		identifier=$(jq -er '.[0].identifier | select(type == "string" and length > 0)' <<<"$matches")
 		escalation_label "$id" "$label"
+		link_pull_request "$id" "$identifier" "https://github.com/${REPO}/pull/${number}"
 		printf '%s exists\n' "$identifier"
 		return
 	fi
@@ -389,6 +412,7 @@ escalate() {
 	escalation_label "$id" "$label"
 	rm -f "$body"
 	trap - EXIT
+	link_pull_request "$id" "$identifier" "https://github.com/${REPO}/pull/${number}"
 	printf '%s created\n' "$identifier"
 }
 

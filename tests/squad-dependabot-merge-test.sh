@@ -878,7 +878,19 @@ case "$1 $2" in
 		project_id:$project, assignee_id:$assignee, assignee_type:"member", status:$status
 	}' >"$dir/created.json"
 	jq -n --argjson issue "$(<"$dir/created.json")" '{issues:[$issue]}' >"$dir/search.json"
+	printf '{}\n' >"$dir/metadata.json"
 	cat "$dir/created.json"
+	;;
+'issue metadata')
+	case $3 in
+	list) [[ $(value --output) == json ]]; cat "$dir/metadata.json" ;;
+	set)
+		[[ $(value --type) == string ]]
+		jq --arg key "$(value --key)" --arg value "$(value --value)" '.[$key] = $value' "$dir/metadata.json" >"$dir/metadata.next"
+		mv "$dir/metadata.next" "$dir/metadata.json"
+		;;
+	*) exit 1 ;;
+	esac
 	;;
 'issue label')
 	case $3 in
@@ -891,6 +903,18 @@ case "$1 $2" in
 esac
 EOF
 chmod +x "$test_dir/bin/multica"
+
+# PR の紐付けの API も差し替え、引数と標準入力の設定を残す。
+cat >"$test_dir/bin/curl" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+dir=$DEPENDABOT_MERGE_TEST_DIR
+jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/curl-calls.jsonl"
+cat >"$dir/curl-config"
+printf '%s' "$(<"$dir/curl-status")"
+EOF
+chmod +x "$test_dir/bin/curl"
+export MULTICA_TOKEN=mat_test-token MULTICA_SERVER_URL=https://multica.example.test/ MULTICA_WORKSPACE_ID=workspace-a
 
 cat >"$test_dir/escalation.md" <<'EOF'
 理由: 必須 CI の失敗
@@ -909,6 +933,10 @@ escalate_fixture() {
 	printf '[{"id":"label-a","name":"運用","resource_type":"issue"}]\n' >"$test_dir/labels.json"
 	printf '[]\n' >"$test_dir/issue-labels.json"
 	printf '[{"name":"Owner Name","email":"owner@example.test","user_id":"member-a","id":"membership-a"}]\n' >"$test_dir/members.json"
+	printf '{}\n' >"$test_dir/metadata.json"
+	printf '200' >"$test_dir/curl-status"
+	: >"$test_dir/curl-calls.jsonl"
+	rm -f "$test_dir/curl-config"
 }
 
 run_escalate() {
@@ -934,6 +962,13 @@ jq -Rse 'startswith("[@Owner Name](mention://member/member-a)\n\nPR: https://git
 while IFS= read -r file; do [[ ! -e $file ]]; done <"$test_dir/description-files"
 echo 'PASS escalate: プロジェクト・メンバーの user_id・in_review・運用ラベル、メンションと本文を設定'
 
+jq -se 'length == 1 and (.[0] | index("https://multica.example.test/api/issues/issue-a/pull-requests") != null
+	and index("{\"url\":\"https://github.com/example/template/pull/1\"}") != null
+	and index("X-Workspace-ID: workspace-a") != null and all(.[]; contains("mat_test-token") | not))' "$test_dir/curl-calls.jsonl" >/dev/null
+[[ $(<"$test_dir/curl-config") == 'header = "Authorization: Bearer mat_test-token"' ]]
+jq -e '.pr_url == "https://github.com/example/template/pull/1"' "$test_dir/metadata.json" >/dev/null
+echo 'PASS escalate: 作った issue に PR を API で紐付け、トークンは引数に出さず、metadata の pr_url に残す'
+
 : >"$test_dir/multica-calls.jsonl"
 run_escalate 'TEST-9000 exists'
 no_issue_writes
@@ -942,7 +977,30 @@ jq '.issues[0].status = "done" | .issues[0].title = "以前の版（example/temp
 mv "$test_dir/edit.json" "$test_dir/search.json"
 run_escalate 'TEST-9000 exists'
 no_issue_writes
+[[ $(wc -l <"$test_dir/curl-calls.jsonl") -eq 1 ]]
 echo 'PASS escalate: 再実行・閉じた issue・タイトルが変わった issue も重複作成しない'
+echo 'PASS escalate: 紐付け済みの issue は、人間が外した紐付けも戻さない'
+
+for failure in status env metadata; do
+	escalate_fixture
+	case $failure in
+	status) printf '404' >"$test_dir/curl-status" ;;
+	env) unset MULTICA_TOKEN ;;
+	metadata) printf 'issue metadata list\n' >"$test_dir/multica-fail" ;;
+	esac
+	bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"
+	[[ $(<"$test_dir/output") == 'TEST-9000 created' ]]
+	grep -q 'TEST-9000 に PR を紐付けられませんでした' "$test_dir/error"
+	jq -e 'has("pr_url") | not' "$test_dir/metadata.json" >/dev/null
+	export MULTICA_TOKEN=mat_test-token
+	rm -f "$test_dir/multica-fail"
+	printf '200' >"$test_dir/curl-status"
+	: >"$test_dir/curl-calls.jsonl"
+	run_escalate 'TEST-9000 exists'
+	[[ $(wc -l <"$test_dir/curl-calls.jsonl") -eq 1 ]]
+	jq -e '.pr_url == "https://github.com/example/template/pull/1"' "$test_dir/metadata.json" >/dev/null
+done
+echo 'PASS escalate: 紐付けに失敗しても issue を返して警告し、次の回に同じ issue へ補う'
 
 escalate_fixture
 jq -n '{issues:[range(1;26) | {id:(tostring), identifier:("TEST-"+tostring),
