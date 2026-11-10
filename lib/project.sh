@@ -1,7 +1,7 @@
 # プロジェクトとエージェントの設定を終えてから、スクワッドを設定する。
 prepare_project() (
 	umask 077
-	local project_work enabled role file model thinking name id result current desired skills matches field value runtime max
+	local project_work enabled role file model thinking name id result current desired skills matches field value runtime max custom_args
 	local profile people member_name owner_mention squad_name squad_id records='{}' values
 	local selected_repositories selected_repo
 	local created_agents=0 created_squads=0 created_autopilots=0
@@ -126,7 +126,8 @@ prepare_project() (
 		id=$(jq -r --arg role "$role" '.[$role].id // empty' <<<"$records")
 		if [[ -z $id ]]; then
 			agent_action=新規作成
-			result=$(mc agent create --name "$name" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --permission-mode private --instructions '初期化中です。本作業、タスクの状態変更、コメント、他者の呼び出しを行わず、セットアップの完了を待って停止してください。' --custom-env-file "$project_work/$role.env" --output json) || die "初期化用のエージェントを作れませんでした: $name"
+			custom_args=$(project_desired_args "$model" <<< '[]') || die '追加の引数を作れませんでした。'
+			result=$(mc agent create --name "$name" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --permission-mode private --instructions '初期化中です。本作業、タスクの状態変更、コメント、他者の呼び出しを行わず、セットアップの完了を待って停止してください。' --custom-env-file "$project_work/$role.env" --custom-args "$custom_args" --output json) || die "初期化用のエージェントを作れませんでした: $name"
 			id=$(project_result_id "$result") || die 'エージェント作成の応答が不正です。'
 			created_agents=$((created_agents+1))
 			records=$(jq -c --arg role "$role" --arg id "$id" '.[$role].id=$id' <<<"$records")
@@ -184,9 +185,10 @@ prepare_project() (
 			mc agent env set "$id" --custom-env-file "$project_work/env.json" --output json >/dev/null || die '環境変数を反映できませんでした。'
 		fi
 		value=$(template_field "$project_work/$role.rendered" description)
-		desired=$(jq -c --arg role "$role" --arg description "$value" --argjson mcp "$(project_mcp "$role")" --rawfile instructions "$project_work/$role.body" '.[$role] | del(.id,.name) | .+{description:$description,instructions:($instructions|sub("\n+$";"")),mcp_config:$mcp}' <<<"$records")
-		if ! jq -e --argjson desired "$desired" '. as $current | all($desired|to_entries[]; $current[.key]==.value)' >/dev/null <<<"$current"; then
-			mc agent update "$id" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --description "$value" --instructions "$(cat "$project_work/$role.body")" --mcp-config "$(project_mcp "$role")" --output json >/dev/null || die "本指示を反映できませんでした: $name"
+		custom_args=$(project_desired_args "$model" <<<"$(jq -c '.custom_args // []' <<<"$current")") || die '追加の引数の応答が不正です。'
+		desired=$(jq -c --arg role "$role" --arg description "$value" --argjson mcp "$(project_mcp "$role")" --argjson args "$custom_args" --rawfile instructions "$project_work/$role.body" '.[$role] | del(.id,.name) | .+{description:$description,instructions:($instructions|sub("\n+$";"")),mcp_config:$mcp,custom_args:$args}' <<<"$records")
+		if ! jq -e --argjson desired "$desired" '.custom_args=(.custom_args // []) | . as $current | all($desired|to_entries[]; $current[.key]==.value)' >/dev/null <<<"$current"; then
+			mc agent update "$id" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --description "$value" --instructions "$(cat "$project_work/$role.body")" --mcp-config "$(project_mcp "$role")" --custom-args "$custom_args" --output json >/dev/null || die "本指示を反映できませんでした: $name"
 		fi
 		desired=$(cat "$project_work/$role.skills")
 		if [[ $(jq -r '[.skills[]?.id] | sort | join(",")' <<<"$current") != "$desired" ]]; then
@@ -347,6 +349,19 @@ project_role() {
 	runtime=$(jq -r --arg role "$1" '.[$role].runtime_id' <<<"$records")
 	max=$(jq -r --arg role "$1" '.[$role].max_concurrent_tasks' <<<"$records")
 }
+project_desired_args() {
+	jq -c --arg model "$1" '
+		def managed: test("^(allow_login_shell|features[.]shell_snapshot)[[:space:]]*=");
+		if type=="array" and all(.[]; type=="string") then . else error("引数は文字列の配列が必要です") end |
+		. as $args |
+		reduce range(0; length) as $i ({args:[],skip:false};
+			if .skip then .skip=false
+			elif (($args[$i]=="-c" or $args[$i]=="--config") and (($args[$i+1] // "") | managed)) then .skip=true
+			elif ($args[$i] | startswith("--config=") and (ltrimstr("--config=") | managed)) then .
+			else .args+=[$args[$i]] end) |
+		.args + (if ($model|startswith("gpt-")) then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end)'
+}
+
 project_desired_env() {
 	local use_claude=false
 	if uses_runtime claude; then use_claude=true; fi
