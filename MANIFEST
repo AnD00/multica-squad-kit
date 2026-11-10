@@ -78,7 +78,7 @@ d73e920a3651a121bf01ba68493c4da40ea1c45901dd0259e809e953f6c217aa  ./tests/agent-
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh
 5e8bcce72f3bafae48184086cffe9dcffead9472e7b59c7b6ee38e03fb6c2165  ./tests/completion-colors-test.sh
 0dc1ed5f1fea04eb14614dba2e98fd88d5ab76cafa79240f71d2633fb8742693  ./tests/content-test.sh
-96f27da6f9c112d44631730c2f7588ac81afd86570fc72962d1dfa76e713a4e9  ./tests/error-marks-test.sh
+1e6ca77d50cec1f871e75f0498e2739661848edfd118645d30badde931cf7152  ./tests/error-marks-test.sh
 cf8d5df4fd30bfb56020bd43a3ec48d14bbb8c0f2776948f55a74933722dc930  ./tests/extensions-test.sh
 7951baccc6819d17add4aea1283055cb49cef3232d82af8c99006515b0e09f19  ./tests/gh-test.sh
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
