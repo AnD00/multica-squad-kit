@@ -1,5 +1,11 @@
 # 変更の記録
 
+## v1.8.0
+
+clone した原本で `setup.sh` を流すと、origin からタグを取り、最新の `vX.Y.Z` のタグを取り出して、その版の `setup.sh` で流し直す。最新のタグと同じコミットなら取り出さない。未コミットの変更があるときと、タグを取れないときは何も変更せずに止まる。ZIP の原本（`.git` がない）と、起動時の引数 `--no-checkout` は今の版のまま流す。README と manual から手でのタグの取り出しを外し、v1.7.0 以前からの更新は一度だけ main を pull する案内を足す。
+
+`tests/run.sh` が、asdf・pyenv・mise などの版を管理する道具の `python3` でも動くようにする。空の HOME を渡す前に `python3` の実体を引き、PATH の先頭に置く。
+
 ## v1.7.0
 
 人間に回す Dependabot の PR を、escalate が作る・返す issue に API で紐付け、metadata の `pr_url` に残す。紐付け済みの issue は紐付け直さず、人間が外した紐付けを戻さない。紐付けに失敗しても issue は返して警告し、次に同じ PR を回すときに補う。
