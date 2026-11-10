@@ -99,7 +99,7 @@ c4bf3fdfe598e51577071a7bb8a208c34ae9f28f31beb6f9d53c2cfefa54d15b  ./tests/releas
 e30c1d1aeb6eda26229edec71d25388d40173888fd5fa6cac065ff2307224446  ./tests/role-choices-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
 95737260b4ead2219f5599907d5f5ad99231f3bc73d48fa8600dacd07e2d42a2  ./tests/run-one.sh
-0cdaf5bad319c57142ee86f719a640e9889c5c5acf1708983113278eabb93502  ./tests/run.sh
+b51ec94963bfa87df11e57e73d1bb97f9acc73fc3286e629e076ecf1fddcad92  ./tests/run.sh
 65f2d2493898925999557f13a559e7d94eedbf3cfd25ea92abc804b99d88bb47  ./tests/runtime-selection-test.sh
 69b9634924a06f08eefee158b3c374672a9997da1500cbe42f44aedbfdf5020f  ./tests/setup-fixture.sh
 9861852741214e7a23fb55a3754f983930aace3819c29007d9eff3837da8be72  ./tests/setup-issues-test.sh
@@ -113,7 +113,7 @@ de81ea4939ba932024cb298e43a5a559a6cd05bd8b939acd4948a7f22d45215b  ./tests/setup-
 4d6d579ba1e010152d2261efa9a6db49c63ecd5d3c4fbf68d157da49d27efdbc  ./tests/squad-review-wait-test.sh
 12f71389832dc00c81c9fd4d4e5b73130175fa9c63e7b54cfb848450335f864b  ./tests/squad-usage-check-test.sh
 87e7d1312506a85f315482f436eff61eaddd3a964111815bf5c3e27ecf82ab7e  ./tests/squad-usage-read-test.sh
-f4509324e3e4f08be313846dcd317e2fa61a192afdebcb97da4442825822f475  ./tests/test-runner-test.sh
+bf8a12133278e74eac342d1264be635925c934e6202475c3c78ed3ee675d3ea7  ./tests/test-runner-test.sh
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
