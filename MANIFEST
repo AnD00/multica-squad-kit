@@ -53,7 +53,7 @@ d5c1e862dd878501fc22869e252cbc15dc6a6f380d106655660b0d59c28fdde4  ./lib/extensio
 dc1ef305bf8b56fc1fcd27fb0f0af4929939aea6a91e82e986a0ac40cb5f305c  ./lib/host.sh
 e042f7692fd3b291d67de0297ba39e0e3bc4cb98245b480f6013f64c35988d3c  ./lib/installation.sh
 5347a2157370ff88cf75f0532603f715270a57c63fa749a3e95e32b57fa09825  ./lib/project-changes.sh
-3d9e7d3e1c8325aeb222059f5a9e594022da35c00b92b5a242ed231a92e5874b  ./lib/project.sh
+3c15f8bb82cdc96564b103ff0eb52f5fffc645248fdc16ac39f46a23cde89c8f  ./lib/project.sh
 0cbc3c17f2fbb0debb493f8747f12f658475830112a51607808c8baa5ed1310a  ./lib/questions.sh
 af59cb0214f207efade15807d56aa76ba39b451f769d814b54cc8c580a123f2d  ./lib/render.sh
 71d66b78ecc28c366f9cc3c540d01e98a65c0f682c1d6d910ccc909a53b80372  ./lib/setup-issues.sh
@@ -96,7 +96,7 @@ b3c517bcadfc4300777ee25be8dc2e4c6e5624774127054ad43da9d865113fc3  ./tests/pre-pu
 095427fcdb6679514b9c965e55d9e8be7209f8f663c1635709d1f5ae3be95e30  ./tests/project-followup-test.sh
 ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/project-issues-fixture.py
 325a50c964f254c14950f13dad53d091d8da9435c147413c78f148dca71aba79  ./tests/project-issues-test.sh
-0e98e25999501c610c843ce0e0ed32a6c6196947c28c385b62e31fdba3a4becb  ./tests/project-test.sh
+322951009d4892281caddf954d6bc6b7de74c514d3cdf78f94220ac56bc55228  ./tests/project-test.sh
 b27fd7360c006f339eb79d558f5d3a0307b1ba75080b858ebefc1d5f096de850  ./tests/questions-ui-test.sh
 c4bf3fdfe598e51577071a7bb8a208c34ae9f28f31beb6f9d53c2cfefa54d15b  ./tests/release-test.sh
 e30c1d1aeb6eda26229edec71d25388d40173888fd5fa6cac065ff2307224446  ./tests/role-choices-test.sh
@@ -107,7 +107,7 @@ b51ec94963bfa87df11e57e73d1bb97f9acc73fc3286e629e076ecf1fddcad92  ./tests/run.sh
 69b9634924a06f08eefee158b3c374672a9997da1500cbe42f44aedbfdf5020f  ./tests/setup-fixture.sh
 9861852741214e7a23fb55a3754f983930aace3819c29007d9eff3837da8be72  ./tests/setup-issues-test.sh
 c8f28c411cb3c38b64125f1caa6876998257c84012e7b6302797d9f801720b89  ./tests/setup-runtime-cli.py
-3f9416b62cfc7978d3a522d0d53ccf9873bc79803096fedf8bfb929d0f9c7288  ./tests/setup-runtimes-test.sh
+e2b45a5ba12e8ae5085ccb60f0b4cf449ed268da5af60f3be0589aee809d1a49  ./tests/setup-runtimes-test.sh
 fdc6097271165102d719cf7861bacab20fec2a3a8685289e69ebbccd98e75b64  ./tests/setup-tag-test.sh
 de81ea4939ba932024cb298e43a5a559a6cd05bd8b939acd4948a7f22d45215b  ./tests/setup-test.sh
 5d7351588e3117cc0341c2bdb62db00df6c58fa1bf131d92dd8ce692a3545ecf  ./tests/shell-test.sh

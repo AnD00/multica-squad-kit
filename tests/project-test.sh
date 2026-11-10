@@ -202,7 +202,14 @@ cmp "$test_dir/expected-repos" "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a"
 jq -e 'length==3 and .[1].resource_ref.url=="git@github.com:EXAMPLE/SECOND.git" and .[2].resource_ref.url=="https://github.com/example/third"' "$TEST_DB/resources.json" >/dev/null
 [[ $(jq -s '[.[]|select(.[0:3]==["project","resource","add"])]|length' "$TEST_DB/calls") == 2 ]]
 jq -e '.model=="gpt-6.1-sol" and .max_concurrent_tasks==1' "$TEST_DB/agents/agent-demo-usage-monitor-owner.json" >/dev/null
-jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL==null' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
+jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL==null and (has("CLAUDE_ENV_FILE")|not)' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
+for agent in "$TEST_DB"/agents/agent-demo-*.json; do
+ if [[ $(jq -r .model "$agent") == claude-* ]]; then
+  jq -e --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" '.CLAUDE_ENV_FILE==.BASH_ENV and .CLAUDE_ENV_FILE==$env' "$TEST_DB/env/$(jq -r .id "$agent").json" >/dev/null
+ else
+  jq -e 'has("CLAUDE_ENV_FILE")|not' "$TEST_DB/env/$(jq -r .id "$agent").json" >/dev/null
+ fi
+done
 jq -e '.CLAUDE_CODE_SHELL=="/bin/zsh" and .ENABLE_CLAUDEAI_MCP_SERVERS=="false"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
 jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE=="1"' "$TEST_DB/env/agent-demo-dependabot-merger-owner.json" >/dev/null
 jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE==null' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
@@ -248,10 +255,15 @@ echo 'PASS project: 再実行は実 ID・説明・プロジェクトのスキル
 echo 'PASS project: HTTPS・SSH・大小文字・末尾の違いは重ねて紐付けず、既存の ref と別種のリソースも保つ'
 
 jq '.model="old" | .instructions="old"' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-implementer-owner.json"
-jq '.ZDOTDIR="old"' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-codex-implementer-owner.json"
+jq '.ZDOTDIR="old" | .CLAUDE_ENV_FILE="old"' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-codex-implementer-owner.json"
+jq 'del(.CLAUDE_ENV_FILE)' "$TEST_DB/env/agent-demo-planner-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-planner-owner.json"
+jq '.CLAUDE_ENV_FILE="custom"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-orchestrator-owner.json"
 run
 jq -e '.model=="gpt-6.1-sol" and (.instructions|contains("このプロジェクトの値"))' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
-jq -e '.EXTRA=="keep" and (.ZDOTDIR|endswith("/project-a"))' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
+jq -e '.EXTRA=="keep" and (.ZDOTDIR|endswith("/project-a")) and (has("CLAUDE_ENV_FILE")|not)' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
+for role in planner orchestrator; do
+ jq -e '.CLAUDE_ENV_FILE==.BASH_ENV' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
+done
 echo 'PASS project: 既存のエージェントの本指示・モデル・環境を ID を変えずに合わせる'
 
 TEST_REPOSITORIES='[{"url":"https://github.com/example/project","repository":"example/project"}]' run
@@ -479,12 +491,12 @@ for selected in claude codex; do
  jq -e '.EXTRA=="keep"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
  if [[ $selected == codex ]]; then
   for role in orchestrator usage-monitor ci-monitor; do
-   jq -e '.CLAUDE_CONFIG_DIR==null and .CLAUDE_CODE_SHELL==null and .ENABLE_CLAUDEAI_MCP_SERVERS==null and .CLAUDE_CODE_AUTO_COMPACT_WINDOW==null' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
+   jq -e '.CLAUDE_CONFIG_DIR==null and .CLAUDE_CODE_SHELL==null and (has("CLAUDE_ENV_FILE")|not) and .ENABLE_CLAUDEAI_MCP_SERVERS==null and .CLAUDE_CODE_AUTO_COMPACT_WINDOW==null' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
   done
   ! grep -q 'CLAUDE_CONFIG_DIR=' "$test_dir/out"
   grep -q 'CODEX_HOME=' "$test_dir/out"
  else
-  jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL=="/bin/zsh"' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
+  jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL=="/bin/zsh" and .CLAUDE_ENV_FILE==.BASH_ENV' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
   ! grep -q 'CODEX_HOME=' "$test_dir/out"
   grep -q 'CLAUDE_CONFIG_DIR=' "$test_dir/out"
  fi
