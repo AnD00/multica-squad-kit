@@ -48,8 +48,22 @@ if [[ -f $dir/transport-fail ]]; then
 	exit 7
 fi
 calls=$(<"$dir/curl-count")
-jq -r --argjson i "$calls" '.[ $i ] // .[-1]' "$dir/statuses.json"
+args=("$@")
+max_time=0
+for ((i = 0; i < ${#args[@]}; i++)); do
+	if [[ ${args[i]} == --max-time ]]; then max_time=${args[i+1]}; fi
+done
+[[ $max_time -gt 0 && $max_time -le 30 ]]
+duration=$(jq -r --argjson i "$calls" '.[ $i ] // .[-1]' "$dir/durations.json")
+echo "$(<"$dir/now")" >>"$dir/curl-starts"
 echo "$((calls + 1))" >"$dir/curl-count"
+if (( duration >= max_time )) && [[ ! -f $dir/ignore-timeout ]]; then
+	echo "$(($(<"$dir/now") + max_time))" >"$dir/now"
+	printf '000'
+	exit 28
+fi
+echo "$(($(<"$dir/now") + duration))" >"$dir/now"
+jq -r --argjson i "$calls" '.[ $i ] // .[-1]' "$dir/statuses.json"
 MOCK
 cat >"$test_dir/bin/date" <<'MOCK'
 #!/bin/bash
@@ -60,7 +74,7 @@ MOCK
 cat >"$test_dir/bin/sleep" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
-[[ $* == 10 ]]
+[[ $# == 1 && $1 -gt 0 && $1 -le 10 ]]
 dir=$PR_LINK_TEST_DIR
 echo "$1" >>"$dir/sleeps"
 echo "$(($(<"$dir/now") + $1))" >"$dir/now"
@@ -75,12 +89,14 @@ url=https://github.com/Example/Template/pull/33
 fixture() {
 	printf '{"id":"task-id","identifier":"TASK-7","metadata":{"repository":"example/template"}}\n' >"$test_dir/issue.json"
 	printf '[200]\n' >"$test_dir/statuses.json"
+	printf '[0]\n' >"$test_dir/durations.json"
 	echo 1000 >"$test_dir/now"
 	echo 0 >"$test_dir/curl-count"
 	: >"$test_dir/multica.jsonl"
 	: >"$test_dir/curl.jsonl"
+	: >"$test_dir/curl-starts"
 	: >"$test_dir/sleeps"
-	rm -f "$test_dir/get-fail" "$test_dir/set-fail" "$test_dir/transport-fail" "$test_dir/config-verified"
+	rm -f "$test_dir/get-fail" "$test_dir/set-fail" "$test_dir/transport-fail" "$test_dir/config-verified" "$test_dir/ignore-timeout"
 }
 run_link() {
 	local expected=$1 status=0
@@ -154,11 +170,58 @@ jq -e --arg url "$url" '.metadata.pr_url == $url' "$test_dir/issue.json" >/dev/n
 echo 'PASS retry: 404 の間は 10 秒ごとに待ち、200 になってから metadata を書く'
 
 fixture
+printf '[404,404,404,200]\n' >"$test_dir/statuses.json"
+printf '[29,29,29,29]\n' >"$test_dir/durations.json"
+run_link 1 TASK-7 "$url"
+assert_warning
+assert_no_write
+[[ $(cat "$test_dir/curl-count") == 4 && $(cat "$test_dir/now") == 1120 ]]
+jq -se 'map(.[index("--max-time")+1]) == ["30","30","30","3"]' "$test_dir/curl.jsonl" >/dev/null
+[[ $(cat "$test_dir/curl-starts") == $'1000\n1039\n1078\n1117' ]]
+grep -F '120 秒待った' "$test_dir/err" >/dev/null
+echo 'PASS HTTP timeout: 通信の時間を含めて 120 秒で打ち切り、最後の通信は残り 3 秒に制限する'
+
+for duration in 3 4; do
+	for code in 200 404; do
+		fixture
+		printf '[404,404,404,%s]\n' "$code" >"$test_dir/statuses.json"
+		printf '[29,29,29,%s]\n' "$duration" >"$test_dir/durations.json"
+		# curl の制限を超えて応答が返っても、期限後は採用しない。
+		touch "$test_dir/ignore-timeout"
+		run_link 1 TASK-7 "$url"
+		assert_warning
+		assert_no_write
+		[[ $(cat "$test_dir/curl-count") == 4 && $(cat "$test_dir/now") == $((1117 + duration)) ]]
+		grep -F '120 秒待った' "$test_dir/err" >/dev/null
+	done
+done
+echo 'PASS late response: 期限ちょうど・期限後の 200 と 404 では、成功扱いも metadata の書き込みもしない'
+
+fixture
+printf '[404,404,404,200]\n' >"$test_dir/statuses.json"
+printf '[29,29,29,2]\n' >"$test_dir/durations.json"
+run_link 0 TASK-7 "$url"
+[[ $(cat "$test_dir/curl-count") == 4 && $(cat "$test_dir/now") == 1119 ]]
+jq -e --arg url "$url" '.metadata.pr_url == $url' "$test_dir/issue.json" >/dev/null
+echo 'PASS slow success: 通信に時間がかかっても期限内の 200 なら metadata を書く'
+
+fixture
+printf '[404]\n' >"$test_dir/statuses.json"
+printf '[29,29,29,2]\n' >"$test_dir/durations.json"
+run_link 1 TASK-7 "$url"
+assert_warning
+assert_no_write
+[[ $(cat "$test_dir/curl-count") == 4 && $(cat "$test_dir/now") == 1120 ]]
+[[ $(cat "$test_dir/sleeps") == $'10\n10\n10\n1' ]]
+grep -F '120 秒待った' "$test_dir/err" >/dev/null
+echo 'PASS short sleep: 残り 1 秒なら待ちも 1 秒に制限し、期限以降は通信しない'
+
+fixture
 printf '[404]\n' >"$test_dir/statuses.json"
 run_link 1 TASK-7 "$url"
 assert_warning
 assert_no_write
-[[ $(cat "$test_dir/curl-count") == 13 && $(cat "$test_dir/now") == 1120 ]]
+[[ $(cat "$test_dir/curl-count") == 12 && $(cat "$test_dir/now") == 1120 ]]
 [[ $(wc -l <"$test_dir/sleeps" | tr -d ' ') == 12 ]]
 grep -F '120 秒待った' "$test_dir/err" >/dev/null
 echo 'PASS timeout: 120 秒で打ち切り、警告と画面の手順を返し、metadata は書かない'
