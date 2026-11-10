@@ -3,7 +3,9 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/guard-check-test.XXXXXX")
-trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&2; fi; rm -rf -- "$test_dir"' EXIT
+# 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
+exec 8>&2
+trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&8; fi; rm -rf -- "$test_dir"' EXIT
 export TEMPLATE_AGENT_HOME="$test_dir/agent's home" TEST_GUARD_CALLS="$test_dir/calls"
 mkdir -p "$test_dir/bin" "$TEMPLATE_AGENT_HOME/bin" "$TEMPLATE_AGENT_HOME/git-hooks" "$TEMPLATE_AGENT_HOME/allowed-repos.d" "$TEMPLATE_AGENT_HOME/template/shell/project-a"
 mkdir -p "$test_dir/package/common"
