@@ -32,7 +32,7 @@ ba93be75076361a32fe85feeb8770ccd1f49be56d78c2586a6bc7c3cb21167bf  ./common/label
 9f95c056f239406115e90fb00aec54f06a4c8878a204000647a304870c93911f  ./common/monitor/squad-dependabot-merge
 504441b286b43c123cc0467d04f30e971d991fd7ebe74813299e4340a1989975  ./common/monitor/squad-dispatch-pick
 a27531e54dcde3f46a86e6b214548979b27f23fb58f56c2674e5c17ffc3b9601  ./common/monitor/squad-pr-watch
-76d6cbfb70382cc1cca4675c25fc07951a61fc5e0cc1d00164797d67f5011b5c  ./common/monitor/squad-preflight
+cfc186c9047d6942a0f32e9a137df6a5df4bd40b9aa6a328fc177bf4fac6e40a  ./common/monitor/squad-preflight
 8137284fb5a821832b361c7a54ac3b981e022fb514eca3d1fb9ca612a128e5da  ./common/monitor/squad-review-wait
 8314510a7b32b43f926ca3b69db2121834a1c969ea5a00c564d6ab2df0adf22e  ./common/monitor/squad-usage-check
 f87ce93cd7c9f6de487af338772b8fe7f027b5a9d83a76fe629ece721df14aca  ./common/monitor/squad-usage-lib
@@ -42,7 +42,7 @@ ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/env.sh
 a1c473ea049e44af0014ba800a2164da3d0823dd38352e38a48a4ff6cf0dd8b6  ./common/skills/squad-handoff/SKILL.md
 701c6c80154c174ee084905458c196687e4b1acd54f8b5586d4b9f80f9a0cb35  ./common/squad.md
-ed0d1d0e7c75da5ab7976ada227215153c4a72d17edb62f3b00dcd45811af5b7  ./docs/agent-path.md
+260f02351511b590ed6959389a06c130af619500519ffc0f454b544bbb3bb255  ./docs/agent-path.md
 afbf08f046a4be2de638fc9e798f7ca440f117b344f7cd88d694406d7d383dbe  ./docs/release.md
 46270e61377f6c12e410c778c15dcbe5e4760139358cde600f893b707c230019  ./docs/setup-completion.md
 4aeccca245ef52ee28c50f87a7dd3dc2cd13df695e2cfc6d1ea92eeb9158ebd7  ./docs/vm.md
@@ -54,7 +54,7 @@ d5c1e862dd878501fc22869e252cbc15dc6a6f380d106655660b0d59c28fdde4  ./lib/extensio
 dc1ef305bf8b56fc1fcd27fb0f0af4929939aea6a91e82e986a0ac40cb5f305c  ./lib/host.sh
 e042f7692fd3b291d67de0297ba39e0e3bc4cb98245b480f6013f64c35988d3c  ./lib/installation.sh
 5347a2157370ff88cf75f0532603f715270a57c63fa749a3e95e32b57fa09825  ./lib/project-changes.sh
-9a423829103a6f0b55e6537ccaae1690cec812612069cfef6495e131d521375b  ./lib/project.sh
+1d78fdbc5f9d1fee8a70245d1ad7557e3a203b83b5aead6d523c4e42f14d5f3a  ./lib/project.sh
 0cbc3c17f2fbb0debb493f8747f12f658475830112a51607808c8baa5ed1310a  ./lib/questions.sh
 af59cb0214f207efade15807d56aa76ba39b451f769d814b54cc8c580a123f2d  ./lib/render.sh
 71d66b78ecc28c366f9cc3c540d01e98a65c0f682c1d6d910ccc909a53b80372  ./lib/setup-issues.sh
@@ -97,7 +97,7 @@ b3c517bcadfc4300777ee25be8dc2e4c6e5624774127054ad43da9d865113fc3  ./tests/pre-pu
 095427fcdb6679514b9c965e55d9e8be7209f8f663c1635709d1f5ae3be95e30  ./tests/project-followup-test.sh
 ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/project-issues-fixture.py
 325a50c964f254c14950f13dad53d091d8da9435c147413c78f148dca71aba79  ./tests/project-issues-test.sh
-970fb29737aa091183fe3f06b7baa53cbcc1e374bb06dd7c4cbeb13c3e639138  ./tests/project-test.sh
+b142d99b210dd9623cbd0c865951193c5106c4c0752f6ec7fd5451fd7e8d662b  ./tests/project-test.sh
 b27fd7360c006f339eb79d558f5d3a0307b1ba75080b858ebefc1d5f096de850  ./tests/questions-ui-test.sh
 c4bf3fdfe598e51577071a7bb8a208c34ae9f28f31beb6f9d53c2cfefa54d15b  ./tests/release-test.sh
 e30c1d1aeb6eda26229edec71d25388d40173888fd5fa6cac065ff2307224446  ./tests/role-choices-test.sh
@@ -115,7 +115,7 @@ de81ea4939ba932024cb298e43a5a559a6cd05bd8b939acd4948a7f22d45215b  ./tests/setup-
 0c8572091facb63331e26b733b8036e6ab28b9d6a978103aeeeb526cdd3cf7c2  ./tests/squad-dependabot-merge-test.sh
 3b773d92531635f2220d0c54f425120b16adcd07c6f848b1d4fd12326c69da97  ./tests/squad-dispatch-pick-test.sh
 20c3d306d23e56cc3e65427ca1e880b1fe13f9dcdf86d3ed646784b1ff711e17  ./tests/squad-pr-watch-test.sh
-0d228de38602b0ad3629b5ba4ebe44141ddc61ba7ef3113ca2b9b5d51f30cf55  ./tests/squad-preflight-test.sh
+99698647cbd62406555c764b38c7f594ad4056d8526c020b14f384864337032d  ./tests/squad-preflight-test.sh
 4d6d579ba1e010152d2261efa9a6db49c63ecd5d3c4fbf68d157da49d27efdbc  ./tests/squad-review-wait-test.sh
 12f71389832dc00c81c9fd4d4e5b73130175fa9c63e7b54cfb848450335f864b  ./tests/squad-usage-check-test.sh
 87e7d1312506a85f315482f436eff61eaddd3a964111815bf5c3e27ecf82ab7e  ./tests/squad-usage-read-test.sh

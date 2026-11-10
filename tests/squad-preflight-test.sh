@@ -83,6 +83,27 @@ assert_failure gh "$test_dir/other/gh"
 [[ $(grep -c 'が使えません' "$test_dir/err") == 2 ]]
 echo 'PASS preflight: 別の見張りが先にある場合と、複数の不一致をまとめて報告する'
 
+# 親の起動後に PATH が崩れた場合も、確認用シェルだけが修復して成功してはいけない。
+sed -e "s|{{AGENT_BIN_DIR}}|$guard_bin|g" -e "s|{{ALLOWED_REPOS_FILE}}|$test_dir/allowed|g" \
+	"$root/common/shell/env.sh" >"$test_dir/env.sh"
+for shell in /bin/bash /bin/zsh; do
+	BASH_ENV="$test_dir/env.sh" "$shell" -c '
+		export PATH="$1"
+		command -v gh >"$2/before"
+		preflight_status=0
+		squad-preflight >"$2/out" 2>"$2/err" || preflight_status=$?
+		command -v gh >"$2/after"
+		test "$preflight_status" = 1
+	' preflight-test "$test_dir/other:$guard_bin:$test_dir/tools" "$test_dir"
+	grep -qxF "$test_dir/other/gh" "$test_dir/before"
+	cmp "$test_dir/before" "$test_dir/after"
+	assert_failure gh "$test_dir/other/gh"
+	assert_failure squad-pr-watch "$test_dir/other/squad-pr-watch"
+	[[ $(grep -c 'が使えません' "$test_dir/err") == 2 ]]
+	[[ ! -e $PREFLIGHT_TEST_CALLED ]]
+done
+echo 'PASS preflight: BASH_ENV が有効でも、bash と zsh の親が渡した PATH の不一致を検出する'
+
 # すべて外した結果と配布元を照合し、余分な確認対象も検出する。
 for cmd in gh "${monitors[@]}"; do mv "$guard_bin/$cmd" "$test_dir/$cmd.saved"; done
 run_preflight 1 "$guard_bin:$test_dir/tools"

@@ -358,6 +358,8 @@ project_desired_args() {
 			if .skip then .skip=false
 			elif (($args[$i]=="-c" or $args[$i]=="--config") and (($args[$i+1] // "") | managed)) then .skip=true
 			elif ($args[$i] | startswith("--config=") and (ltrimstr("--config=") | managed)) then .
+			elif ($args[$i]=="--enable" and $args[$i+1]=="shell_snapshot") then .skip=true
+			elif $args[$i]=="--enable=shell_snapshot" then .
 			else .args+=[$args[$i]] end) |
 		.args + (if ($model|startswith("gpt-")) then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end)'
 }

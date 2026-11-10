@@ -251,14 +251,15 @@ echo 'PASS project: 再実行は実 ID・説明・プロジェクトのスキル
 echo 'PASS custom args: 作成時に Codex にだけ 2 設定を渡し、同じ内容の再実行では設定を書かない'
 echo 'PASS project: HTTPS・SSH・大小文字・末尾の違いは重ねて紐付けず、既存の ref と別種のリソースも保つ'
 
-jq '.custom_args=["--keep","value","-c","other=true","-c","allow_login_shell=true","--config","features.shell_snapshot=true","--config=allow_login_shell=true","--config=features.shell_snapshot=true","-c","features.shell_snapshot_extra=true"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-implementer-owner.json"
-jq '.custom_args=["--claude-extra","-c","features.shell_snapshot=false","--config","allow_login_shell=false","--config=features.shell_snapshot=false","--config=allow_login_shell=false","--other","value","-c","allow_login_shell_other=true"]' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-orchestrator-owner.json"
+jq '.custom_args=["--keep","value","--enable","shell_snapshot","--enable=shell_snapshot","--enable","shell_tool","--enable=unified_exec","-c","other=true","-c","allow_login_shell=true","--config","features.shell_snapshot=true","--config=allow_login_shell=true","--config=features.shell_snapshot=true","-c","features.shell_snapshot_extra=true"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-implementer-owner.json"
+jq '.custom_args=["--claude-extra","--enable=shell_snapshot","--enable","shell_snapshot","-c","features.shell_snapshot=false","--config","allow_login_shell=false","--config=features.shell_snapshot=false","--config=allow_login_shell=false","--other","value","-c","allow_login_shell_other=true"]' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-orchestrator-owner.json"
 : >"$TEST_DB/calls"
 run
-jq -e '.custom_args==["--keep","value","-c","other=true","-c","features.shell_snapshot_extra=true","-c","allow_login_shell=false","-c","features.shell_snapshot=false"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
+jq -e '.custom_args==["--keep","value","--enable","shell_tool","--enable=unified_exec","-c","other=true","-c","features.shell_snapshot_extra=true","-c","allow_login_shell=false","-c","features.shell_snapshot=false"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
 jq -e '.custom_args==["--claude-extra","--other","value","-c","allow_login_shell_other=true"]' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >/dev/null
 [[ $(jq -s '[.[]|select(.[0:2]==["agent","update"])]|length' "$TEST_DB/calls") == 2 ]]
 echo 'PASS custom args: 引数だけの不一致でも更新し、両形式の上書きと重複を除き、ほかの引数の順を保つ'
+echo 'PASS custom args: shell_snapshot の両形式の --enable を除き、ほかの機能の有効化は順も保つ'
 
 jq '.model="old" | .instructions="old"' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-implementer-owner.json"
 jq '.ZDOTDIR="old" | .CLAUDE_ENV_FILE="old"' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-codex-implementer-owner.json"

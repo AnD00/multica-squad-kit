@@ -65,6 +65,7 @@ Codex のモデルの役の custom_args に、次の 2 組を足す。Multica �
 今のセットアップは custom_args を書かないので、custom_env と同じ考えで、セットアップが持つ値だけを合わせる。
 
 - 今の custom_args を読み、`allow_login_shell` と `features.shell_snapshot` を上書きする `-c` と `--config` の組を除く。`-c key=value` の 2 語と、`--config=key=value` の 1 語の形を、どちらも除く
+- スナップショットを有効にする `--enable shell_snapshot` と `--enable=shell_snapshot` も除く。ほかの機能の有効化は残す
 - Codex のモデルの役には、除いたあとに 2 組を足す。Claude のモデルの役には足さない
 - ほかの引数は、順も含めて残す。結果が今と同じなら書かない
 - エージェントを作るときも、同じ値を渡す
@@ -83,6 +84,8 @@ Codex のモデルの役の custom_args に、次の 2 組を足す。Multica �
 2. セットアップが置く見張り（`squad-` で始まる、`squad-preflight` を除くもの）のそれぞれで、`command -v` が関所のディレクトリのそのファイルを返す
 
 確かめる見張りの一覧は、`squad-preflight` の中に書く。テストで `common/monitor/` のファイルと照らし合わせ、見張りを足したときの書き忘れを防ぐ。
+
+確認の入口には POSIX sh を使う。Bash の起動時に `BASH_ENV` が PATH を直す影響を受けず、呼び出し元から渡された PATH をそのまま判定するため。
 
 すべて通れば、1 行の結果を出して 0 で終わる。どれかが通らなければ、通らなかったものごとに、使えないもの、実際に解決したパス（なければ「見つからない」）、直し方を出して、1 で終わる。
 
