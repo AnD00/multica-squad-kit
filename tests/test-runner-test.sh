@@ -3,7 +3,9 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/test-runner.XXXXXX")
-trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&2; fi; rm -rf -- "$test_dir"' EXIT
+# 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
+exec 8>&2
+trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&8; fi; rm -rf -- "$test_dir"' EXIT
 # 小さな原本のコピーを使い、本物のテストの再帰実行や一覧の書き換えを避ける。
 kit="$test_dir/kit"
 fixtures="$test_dir/fixtures with spaces"
@@ -169,3 +171,24 @@ run_suite 2 1 "$fixtures/pass.sh"
 grep -qxF '起こす順の一覧にあるファイルがありません: tests/project-test.sh' "$test_dir/err"
 [[ ! -s $test_dir/out ]]
 echo 'PASS runner: 起こす順の一覧が古ければテストを流さず 2 で終わる'
+
+# 標準エラーを err に向けた中で止まったときも、失敗の後始末が err へ書き足し続けず、元の標準エラーへ出して終わる。
+mkdir -p "$fixtures/trap/tests"
+{ sed -n "1,/^trap 'test_exit=/p" "$root/tests/webhooks-test.sh"; cat <<'FIXTURE'
+printf 'out of case\n' >"$test_dir/out"
+{ echo 'error of case' >&2; false; } 2>"$test_dir/err"
+FIXTURE
+} >"$fixtures/trap/tests/trap-test.sh"
+result=0
+perl -e 'alarm 20; exec @ARGV' bash "$fixtures/trap/tests/trap-test.sh" >"$test_dir/trap-out" 2>"$test_dir/trap-err" || result=$?
+[[ $result == 1 ]]
+grep -qxF 'out of case' "$test_dir/trap-err"
+grep -qxF 'error of case' "$test_dir/trap-err"
+[[ -z $(find "$fixtures/trap/tmp" -mindepth 1 -print) ]]
+# 失敗の後始末で out と err を出すテストは、どれも控えた標準エラーへ出す。
+for file in "$root"/tests/*.sh; do
+	grep -q "^trap 'test_exit=" "$file" || continue
+	[[ $(grep -B1 "^trap 'test_exit=" "$file" | head -n 1) == 'exec 8>&2' ]]
+	! grep "^trap 'test_exit=" "$file" | grep -qF '>&2'
+done
+echo 'PASS runner: 標準エラーを err に向けた中で止まっても、失敗の後始末は元の標準エラーへ出して終わる'

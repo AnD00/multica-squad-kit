@@ -3,7 +3,9 @@ set -euo pipefail
 code_root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$code_root/tmp"
 test_dir=$(mktemp -d "$code_root/tmp/workspace-test.XXXXXX")
-trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&2; fi; rm -rf -- "$test_dir"' EXIT
+# 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
+exec 8>&2
+trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&8; fi; rm -rf -- "$test_dir"' EXIT
 mkdir -p "$test_dir/package/common/skills/squad-check/scripts" "$test_dir/package/common/skills/squad-check/references" "$test_dir/bin"
 cp "$code_root/common/labels" "$test_dir/package/common/labels"
 cat >"$test_dir/package/common/skills/squad-check/SKILL.md" <<'SKILL'
