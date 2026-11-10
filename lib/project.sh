@@ -350,6 +350,8 @@ project_role() {
 project_desired_env() {
 	local use_claude=false
 	if uses_runtime claude; then use_claude=true; fi
+	# Claude Code のスナップショットによる PATH の書き戻し後も関所を先にするため、
+	# CLAUDE_ENV_FILE には BASH_ENV と同じ env.sh を渡す。
 	jq -n --arg a "$allowed_repos_file" --arg z "$project_shell_dir" --arg h "$agent_home/git-hooks" --arg c "$agent_home/claude" --arg role "$1" --arg model "$2" --argjson use_claude "$use_claude" '
 		{SQUAD_KIT_ALLOWED_REPOS:$a,ZDOTDIR:$z,BASH_ENV:($z+"/env.sh"),GIT_CONFIG_COUNT:"1",GIT_CONFIG_KEY_0:"core.hooksPath",GIT_CONFIG_VALUE_0:$h} |
 		if ($model|startswith("claude-")) then .+{CLAUDE_CONFIG_DIR:$c,ENABLE_CLAUDEAI_MCP_SERVERS:"false",CLAUDE_CODE_SHELL:"/bin/zsh",CLAUDE_ENV_FILE:($z+"/env.sh"),CLAUDE_CODE_AUTO_COMPACT_WINDOW:"150000"} else . end |
