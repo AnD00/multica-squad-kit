@@ -30,7 +30,7 @@
 
 中のファイルは、VM の `/usr/local/lib/multica-squad-vm/` に置く。`.gitattributes` で `vm/` の `*.sh` と `vm/guest/*` を `eol=lf` にする。Windows で clone しても、改行が CRLF になって中で動かなくなるのを防ぐため。
 
-ホストで使う原本は、VM を作るためだけのもので、秘密は含まない。タグの ZIP を展開するか clone して使い、VM を作ったあとは消してよい。VM の中では、`manual.md` の「原本を取る」のとおりに、改めて clone して流す。
+ホストで使う原本は、VM を作るためだけのもので、秘密は含まない。`docs/install.md` の[手動の手順](install.md#手動の手順)のとおりに、Release の配布物を確かめて展開したものを使い、VM を作ったあとは消してよい。Windows のホストでは、PowerShell で同じ手順（`gh release download`、`gh attestation verify`、`tar -xzf`）を流す。VM の中では、`docs/install.md` の[1 行のコマンド](install.md#1-行のコマンド)で、改めて取ってきて流す。ホストの原本を中へ渡さないのは、中の確かめをホストの状態に頼らないため。
 
 ## コマンドの形
 
@@ -131,7 +131,7 @@ Lima では、Lima の既定どおり、使う人に sudo を残す。共有の�
 
 中での呼び出しは `bash provision.sh lima|wsl USER` にする。確かめは使う人として `bash verify.sh lima|wsl` を流す。テストでは `SQUAD_VM_ROOT` で、設定の書き込み先と `/proc` などの読み取り先の根を一時の置き場へ変える。
 
-1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる
+1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる。`gh` は、Ubuntu の標準の版では証明を確かめられないので、GitHub の公式の apt のリポジトリ（`cli.github.com/packages`）の鍵と `sources` を置いて、そこから入れる（`docs/install.md` の[必要な `gh` の版](install.md#必要な-gh-の版)）
 2. WSL では、使う人を `useradd` で作る。sudo の群には入れない
 3. Docker を rootless で入れる（[Docker](#docker)）
 4. 使う人の linger を入れる（`loginctl enable-linger USER`）
@@ -284,7 +284,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 | テスト | 確かめること |
 | --- | --- |
 | `tests/vm-lima-test.sh` | スタブの `limactl` に渡す上書き、バージョンの不足と同じ名前での停止、起動前の設定の確かめで消して止まること、止める・消す前のタスク数の扱い、確かめの求め |
-| `tests/vm-guest-test.sh` | `provision.sh` が書く `wsl.conf` と unit、sudo の群に入れないこと、二度流しても同じこと。`start-daemon` の 5 つの手順と、接続先を環境変数、記録、CLI の設定の順に読むこと。CLI の既定が記録と違うときと、CLI の設定がないときに、記録した接続先で起動すること。`record-server` が、デーモンが動いていないときと、`daemon_has_agent_env` の変数を持たないときに記録を変えないこと。`verify.sh` の各項目の成否 |
+| `tests/vm-guest-test.sh` | `provision.sh` が書く `wsl.conf` と unit、sudo の群に入れないこと、二度流しても同じこと。`start-daemon` の 5 つの手順と、接続先を環境変数、記録、CLI の設定の順に読むこと。CLI の既定が記録と違うときと、CLI の設定がないときに、記録した接続先で起動すること。`record-server` が、デーモンが動いていないときと、`daemon_has_agent_env` の変数を持たないときに記録を変えないこと。`verify.sh` の各項目の成否。`gh` の apt のリポジトリの鍵と `sources` を、書き込み先の根の下に置くこと |
 | `tests/vm-wsl-test.sh` | スタブの `wsl.exe` を置いた `pwsh` で、`wsl.ps1` の各操作が渡す引数と、バージョン・名前・タスク数での停止 |
 
 - `provision.sh` と `verify.sh` は、書き込む先と読む先の根（`/etc` など）を環境変数で差し替えられるようにし、テストは一時の置き場で流す
@@ -307,6 +307,8 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 - 普段のユーザーで動かすと、エージェントがホームの SSH の鍵や普段の `gh` の認証を読めること
 - 確かめた範囲に、Mac の Lima と WSL の専用のディストリを足す。バージョンを出す前に人が確かめる範囲であることも書く
 
+`manual.md` の「閉じ込めて動かす」の章では、ホストの原本を手動の手順で取ること、中では 1 行のコマンドで導入することを書く（`docs/install.md` の[利用者向けの文書の変更](install.md#利用者向けの文書の変更)）。
+
 `manual.md` には、「閉じ込めて動かす」の章を足す。作る、中に入る、道具とログイン、セットアップ、止める・起動する、消すの順に、コマンドを書く。ネットワークを閉じ込めないことと、WSL の root の作業の仕方も書く。セットアップのあとに `verify` を流すことと、接続先を変えるときはセットアップを流し直すことも書く。
 
 `CONTRIBUTING.md` には、「タグと Release を出す」の前に「バージョンを出す前に VM で確かめる」の節を足す。Mac と WSL のそれぞれで、次を確かめて、結果をバージョンを上げる PR に書く。
@@ -324,6 +326,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 | Multica の `multica daemon autostart` で起動する | 引数を受けず、`CODEX_HOME` と関所の PATH を渡せない |
 | 使う人の systemd の unit で起動する | 起動の順が linger とログインに左右される。system の unit に `User=` を付ければ足りる |
 | Docker を root で動かし、docker の群に入れる | 群の人は中の root になれ、WSL ではドライブをつなぎ直せる |
+| `gh` を Ubuntu の標準の apt から入れる | 2.45.0 で、`gh attestation` を持たず、1 行のコマンドの確かめが流せない |
 | WSL を Ubuntu のイメージから `wsl --import` で作る | イメージの URL と照合値を原本で保つ手間が増える。公式の `wsl --install` で足りる |
 | Windows のタスク スケジューラや `limactl start-at-login` で自動で起動する | ホストに設定が残り、要件の「残るのは Lima（WSL）と VM のディスクだけ」に反する |
 | 接続先を `verify` のときだけ記録する | `verify` を流さずに VM を止めると、記録が残らない |
