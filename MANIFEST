@@ -39,11 +39,12 @@ f87ce93cd7c9f6de487af338772b8fe7f027b5a9d83a76fe629ece721df14aca  ./common/monit
 8dc5f3f07cac7148d1b64b406120ea39df9c9709fae494dcbffe9b0f962ecf5e  ./common/setup-issues.json
 61d4fe6033a7e30ce7de38d07c3876490f918385e6e053aa5ea53f3ea5fe0f9b  ./common/shell/.zshenv
 61d4fe6033a7e30ce7de38d07c3876490f918385e6e053aa5ea53f3ea5fe0f9b  ./common/shell/env.sh
-17b2059a500db5aa83cd93d74e6aacd6d0a40452df174c19652b5cfe88d76071  ./common/skills/squad-handoff/SKILL.md
+f620796a721fe1621e9f237d2604cf9fc0cbdd62305e4bcc1e3947b94900c051  ./common/skills/squad-handoff/SKILL.md
 701c6c80154c174ee084905458c196687e4b1acd54f8b5586d4b9f80f9a0cb35  ./common/squad.md
 099003efd6c54e661b4669672d5824dbe1b86c3f4e444e8074e784e7c8943132  ./docs/gh-gate-path.md
 afbf08f046a4be2de638fc9e798f7ca440f117b344f7cd88d694406d7d383dbe  ./docs/release.md
 46270e61377f6c12e410c778c15dcbe5e4760139358cde600f893b707c230019  ./docs/setup-completion.md
+df8cdd44258ebba0b372239921cb0fd9d7fd90a7a1553407b6c632430bd980b8  ./docs/unfilled-stop.md
 4aeccca245ef52ee28c50f87a7dd3dc2cd13df695e2cfc6d1ea92eeb9158ebd7  ./docs/vm.md
 8f59a1f732dd765cd35c3e83766f999ded05d53e101755b44948f072ac00ea5e  ./lib/answers.sh
 d5da15ab6568bd6b3cf2c635f9e8d3c50b63492177f2085a77a6d7f2dd61907d  ./lib/autopilots.sh
@@ -61,7 +62,7 @@ fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
 16a853f062651f4e81566b9da19cc45dbd3c7c612708fa49eba6a0cbe5b2f17b  ./lib/ui.sh
 7366146bdbbffec086bd5a05b0d4d1cac93585efea2e61a8c6c6aa56f747ac7a  ./lib/webhooks.sh
 6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
-7cb74710edd7722000721740470f1687aeab07799960733862cea42c811a62f4  ./manual.md
+667ba14ae82ac8c4b9fa45188ffe635275479b2b4ee96a6d9a748f39ff87cb1c  ./manual.md
 70234570a08252ccf4bc8054663c1e55439d6620121c31dbd701252d8bca2939  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 c1caad86c1e1e14c701ad45486d8cf371cfedc745441e3d85fcc144b9f6e2e1f  ./scripts/release.sh
@@ -69,12 +70,12 @@ f696539d33ac37d52d60bbb766f0417949fedc8850157aec8b9541054c5a0bb8  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
 813658fb296b853b8b45077b49a4d02defcec11a572638cd0b0246116a47a6a7  ./skeleton/.agents/rules/docs.md
 8ed1c017bd52bb79fe34cd2d9065f522259cc3743b3bf88d961aede7684f1c24  ./skeleton/.agents/rules/tests.md
-2f23303d481941e7634a75033739e2c2e6c32a079d5ed11a8db9e644bf9fe82c  ./skeleton/.agents/skills/verify/SKILL.md
+be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.agents/skills/verify/SKILL.md
 39207a2957165826bbf2b79e0973b523f1ffbdcedc1af58e0b40257415f8bf6d  ./skeleton/AGENTS.md
 2f501dc49e8e96fd567147831b581f38eaf03a2ca6857305fc43c0db7c82fe98  ./skeleton/README.md
 bbad056d147f7f1ff8783c13fcb87e64d5e0804b71ad1370a94ddbddbcf79f61  ./skeleton/project.md
 f13b9d6f1d3d251a28f825e23de024d5a81bd817a10ea7f2ccace772b91aea78  ./skeleton/verify-repository.md
-d73e920a3651a121bf01ba68493c4da40ea1c45901dd0259e809e953f6c217aa  ./tests/agent-templates-test.sh
+8aad0ada01cbe8b70e217466187b6aa84c1f1e409c51b7d96995cad665cf4e82  ./tests/agent-templates-test.sh
 652723d0d604daa3599abccdf863468790297df334e55ab242ae548fd0c741e4  ./tests/check-content.py
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh
 ca57b2d3fb51c612235c7615222adc93a7c35115988d57b8e63881d6ab0914e6  ./tests/check-doc-lines.py

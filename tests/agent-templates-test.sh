@@ -190,6 +190,20 @@ grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/de
 grep -qF '実装の一覧は、課題のコメントに' "$test_dir/all/designer"
 echo 'PASS templates: 役の指示と共通スキルが、本文の書き方・PR の本文の置き場所・引き継ぎの順序を同じ見出しで参照する'
 
+# 記入が足りないときの案内は、更新で届く共通スキルだけで読める。
+sed -n '/^## 記入が足りずに止まるとき$/,/^## 人間を呼んで止まるとき$/p' "$skill" >"$test_dir/unfilled-stop"
+grep -qx '## 記入が足りずに止まるとき' "$test_dir/unfilled-stop"
+for phrase in 'squad_kit_task=project-instructions' 'squad_kit_task=repository-change' 見つからなかった 'その実行で受け取った' 推測で検証しない '未記入や未実行は成功にしない'; do
+	grep -qF "$phrase" "$test_dir/unfilled-stop"
+done
+echo 'PASS templates: 共通スキルに未記入の再確認・記入の issue の印・見つからないときの報告・検証の制約がある'
+
+verify_skill="$root/skeleton/.agents/skills/verify/SKILL.md"
+for phrase in 推測して実行せず '未記入や未実行は成功にしません' 'squad-handoff の「記入が足りずに止まるとき」'; do
+	grep -qF "$phrase" "$verify_skill"
+done
+echo 'PASS templates: 検証スキルのひな形は推測と成功扱いを禁じ、共通スキルの返し方へ案内する'
+
 # 指示にはリポジトリの一覧が必要である。
 awk -F '\t' '$1!="repositories"' "$test_dir/values" >"$test_dir/without-list"
 if render 'orchestrator codex-implementer codex-fixer' "$test_dir/without-list" "$root/common/agents/orchestrator.md" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
