@@ -1,0 +1,12 @@
+[
+  {
+    "branch": "fix/review-wait-squad-mention",
+    "pr_url": "https://github.com/AnD00/multica-squad-kit/pull/34",
+    "repository": "and00/multica-squad-kit"
+  },
+  {
+    "repository": "and00/multica-squad-kit",
+    "squad_kit_targets": "[\"and00/multica-squad-kit\"]",
+    "squad_kit_task": "repository-rules"
+  }
+]

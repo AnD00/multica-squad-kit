@@ -1,0 +1,21 @@
+[
+  {
+    "attachments": [],
+    "author_id": "9c74ffd3-895c-4b92-a329-3e37a09627e8",
+    "author_type": "agent",
+    "content": "fixture",
+    "created_at": "2026-11-11T00:03:56Z",
+    "id": "01a1c7eb-1a3c-727a-94d4-b056b740a0ba",
+    "issue_id": "01a1c7d4-40a3-7ca6-b10c-f3956e07b1a4",
+    "issue_revision": 5,
+    "parent_id": null,
+    "reactions": [],
+    "resolved_at": null,
+    "resolved_by_id": null,
+    "resolved_by_type": null,
+    "revision": 1,
+    "source_task_id": "01a1c7d2-c97e-7289-ae29-ff8792215982",
+    "type": "comment",
+    "updated_at": "2026-11-11T00:03:56Z"
+  }
+]

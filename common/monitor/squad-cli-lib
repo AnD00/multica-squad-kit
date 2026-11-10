@@ -1,0 +1,756 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# CLI の欄の約束。検証・整形の関数は、このデータを読み込んで使う。
+# fields は応答全体、items.fields は items.path の配列の各要素に当たる。
+# when と samples.where は、その要素を入力とする jq の式。
+# samples.unavailable は、採取できない形の理由。通常の欠落と分けて知らせる。
+squad_cli_contracts() {
+	cat <<'SQUAD_CLI_CONTRACTS'
+{
+  "format_version": 1,
+  "entries": {
+    "issue-get": {
+      "command": [
+        "multica",
+        "issue",
+        "get",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "status",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "status_category",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "metadata",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "assignee_type",
+          "class": "required",
+          "nullable": true
+        },
+        {
+          "path": "assignee_id",
+          "class": "required",
+          "nullable": true
+        },
+        {
+          "path": "metadata.ci_watch_thread",
+          "class": "optional",
+          "nullable": true,
+          "default": null
+        },
+        {
+          "path": "metadata.pr_url",
+          "class": "optional",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "samples": [
+        {
+          "name": "assigned",
+          "where": ".assignee_type != null"
+        },
+        {
+          "name": "unassigned",
+          "where": ".assignee_type == null"
+        },
+        {
+          "name": "ci_watch_thread-present",
+          "where": ".metadata | has(\"ci_watch_thread\")"
+        },
+        {
+          "name": "ci_watch_thread-absent",
+          "where": ".metadata | has(\"ci_watch_thread\") | not"
+        },
+        {
+          "name": "pr_url-present",
+          "where": ".metadata | has(\"pr_url\")"
+        },
+        {
+          "name": "pr_url-absent",
+          "where": ".metadata | has(\"pr_url\") | not"
+        }
+      ]
+    },
+    "issue-comments": {
+      "command": [
+        "multica",
+        "issue",
+        "comment",
+        "list",
+        "{issue}",
+        "--full",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "author_type",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "author_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "content",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "parent_id",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "source_task_id",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".author_type == \"agent\" or .author_type == \"system\"",
+            "default": null
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "member",
+          "where": ".author_type == \"member\""
+        },
+        {
+          "name": "agent",
+          "where": ".author_type == \"agent\""
+        },
+        {
+          "name": "system",
+          "where": ".author_type == \"system\""
+        }
+      ]
+    },
+    "issue-runs": {
+      "command": [
+        "multica",
+        "issue",
+        "runs",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "agent_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "kind",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "status",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "delivered_comment_ids",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "error",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "trigger_comment_id",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".kind == \"comment\"",
+            "default": null
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "comment",
+          "where": ".kind == \"comment\""
+        },
+        {
+          "name": "direct",
+          "where": ".kind == \"direct\""
+        }
+      ]
+    },
+    "issue-wakeups": {
+      "command": [
+        "multica",
+        "issue",
+        "wakeup",
+        "list",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "agent_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "mode",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "enabled",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "instruction",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "condition",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "paused_reason",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "condition.type",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".condition != null",
+            "default": null
+          },
+          {
+            "path": "condition.event",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".condition.type == \"pull_request\"",
+            "default": null
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "no-condition",
+          "where": ".condition == null"
+        },
+        {
+          "name": "pull-request",
+          "where": ".condition.type == \"pull_request\""
+        }
+      ]
+    },
+    "issue-labels": {
+      "command": [
+        "multica",
+        "issue",
+        "label",
+        "list",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "issue-metadata": {
+      "command": [
+        "multica",
+        "issue",
+        "metadata",
+        "list",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "pr_url",
+          "class": "optional",
+          "nullable": true,
+          "default": null
+        }
+      ],
+      "samples": [
+        {
+          "name": "pr-present",
+          "where": "has(\"pr_url\")"
+        },
+        {
+          "name": "pr-absent",
+          "where": "has(\"pr_url\") | not"
+        }
+      ]
+    },
+    "issue-search": {
+      "command": [
+        "multica",
+        "issue",
+        "search",
+        "{query}",
+        "--include-closed",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "issues",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "items": {
+        "path": [
+          "issues"
+        ],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "identifier",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "title",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "project_id",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      }
+    },
+    "agent-get": {
+      "command": [
+        "multica",
+        "agent",
+        "get",
+        "{agent}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "name",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "archived_at",
+          "class": "required",
+          "nullable": true
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "squad-list": {
+      "command": [
+        "multica",
+        "squad",
+        "list",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "leader_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "archived_at",
+            "class": "required",
+            "nullable": true
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "label-list": {
+      "command": [
+        "multica",
+        "label",
+        "list",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "resource_type",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "member-list": {
+      "command": [
+        "multica",
+        "workspace",
+        "member",
+        "list",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "user_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "email",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "issue-comment-add": {
+      "command": [
+        "multica",
+        "issue",
+        "comment",
+        "add",
+        "{issue}",
+        "--parent",
+        "{parent}",
+        "--content-file",
+        "{file}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "response",
+          "where": "true"
+        }
+      ],
+      "capture": "response-file"
+    },
+    "issue-create": {
+      "command": [
+        "multica",
+        "issue",
+        "create",
+        "--title",
+        "{title}",
+        "--description-file",
+        "{file}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "identifier",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "capture": "response-file"
+    },
+    "issue-wakeup-create": {
+      "command": [
+        "multica",
+        "issue",
+        "wakeup",
+        "create",
+        "{issue}",
+        "--instruction-file",
+        "{file}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "capture": "response-file"
+    },
+    "gh-pr-checks": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{pr}",
+        "--json",
+        "state,headRefOid,statusCheckRollup"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "statusCheckRollup",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "CheckRun",
+          "where": ".__typename == \"CheckRun\""
+        },
+        {
+          "name": "StatusContext",
+          "where": ".__typename == \"StatusContext\"",
+          "unavailable": "このリポジトリの CI は commit status を使わない。欄は設計文書の GitHub GraphQL スキーマに基づく。"
+        }
+      ],
+      "items": {
+        "path": [
+          "statusCheckRollup"
+        ],
+        "fields": [
+          {
+            "path": "__typename",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"CheckRun\"",
+            "default": null
+          },
+          {
+            "path": "status",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"CheckRun\"",
+            "default": null
+          },
+          {
+            "path": "workflowName",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"CheckRun\"",
+            "default": null
+          },
+          {
+            "path": "conclusion",
+            "class": "conditional",
+            "nullable": true,
+            "when": ".__typename == \"CheckRun\"",
+            "default": null
+          },
+          {
+            "path": "context",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"StatusContext\"",
+            "default": null
+          },
+          {
+            "path": "state",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"StatusContext\"",
+            "default": null
+          }
+        ]
+      }
+    }
+  }
+}
+SQUAD_CLI_CONTRACTS
+}

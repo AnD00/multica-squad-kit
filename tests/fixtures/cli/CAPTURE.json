@@ -1,0 +1,137 @@
+{
+  "issue-get": [
+    {
+      "name": "assigned",
+      "count": 8
+    },
+    {
+      "name": "unassigned",
+      "count": 1
+    },
+    {
+      "name": "ci_watch_thread-present",
+      "count": 6
+    },
+    {
+      "name": "ci_watch_thread-absent",
+      "count": 3
+    },
+    {
+      "name": "pr_url-present",
+      "count": 7
+    },
+    {
+      "name": "pr_url-absent",
+      "count": 2
+    }
+  ],
+  "issue-comments": [
+    {
+      "name": "member",
+      "count": 63
+    },
+    {
+      "name": "agent",
+      "count": 209
+    },
+    {
+      "name": "system",
+      "count": 1
+    }
+  ],
+  "issue-runs": [
+    {
+      "name": "comment",
+      "count": 186
+    },
+    {
+      "name": "direct",
+      "count": 8
+    }
+  ],
+  "issue-wakeups": [
+    {
+      "name": "no-condition",
+      "count": 12
+    },
+    {
+      "name": "pull-request",
+      "count": 8
+    }
+  ],
+  "issue-labels": [
+    {
+      "name": "element",
+      "count": 7
+    }
+  ],
+  "issue-metadata": [
+    {
+      "name": "pr-present",
+      "count": 7
+    },
+    {
+      "name": "pr-absent",
+      "count": 2
+    }
+  ],
+  "issue-search": [
+    {
+      "name": "element",
+      "count": 20
+    }
+  ],
+  "agent-get": [
+    {
+      "name": "element",
+      "count": 8
+    }
+  ],
+  "squad-list": [
+    {
+      "name": "element",
+      "count": 1
+    }
+  ],
+  "label-list": [
+    {
+      "name": "element",
+      "count": 4
+    }
+  ],
+  "member-list": [
+    {
+      "name": "element",
+      "count": 1
+    }
+  ],
+  "issue-comment-add": [
+    {
+      "name": "response",
+      "count": 1
+    }
+  ],
+  "issue-create": [
+    {
+      "name": "element",
+      "count": 1
+    }
+  ],
+  "issue-wakeup-create": [
+    {
+      "name": "element",
+      "count": 1
+    }
+  ],
+  "gh-pr-checks": [
+    {
+      "name": "CheckRun",
+      "count": 15
+    },
+    {
+      "name": "StatusContext",
+      "count": 0,
+      "unavailable": "このリポジトリの CI は commit status を使わない。欄は設計文書の GitHub GraphQL スキーマに基づく。"
+    }
+  ]
+}
