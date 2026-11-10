@@ -29,7 +29,7 @@ f5e00ce60297971780c259e13394d0d8b6eb83e29d0fffde1c0b6f4b70c67287  ./common/agent
 ad2c73ba8a20c8315e3a63c7b0ffeb8e6c6cfb1da63d6741c4b095c0014e8d6b  ./common/guard/gh
 082442a9b7ec2fbe14e219b1bbc1702800ff530395e15f3c3442479a7ba042cc  ./common/guard/pre-push
 ba93be75076361a32fe85feeb8770ccd1f49be56d78c2586a6bc7c3cb21167bf  ./common/labels
-9f95c056f239406115e90fb00aec54f06a4c8878a204000647a304870c93911f  ./common/monitor/squad-dependabot-merge
+5be8cd02193aee1c0c145bc0813f4e2b819e9ad5a4b6d2a5f39d8117a7d8ab01  ./common/monitor/squad-dependabot-merge
 504441b286b43c123cc0467d04f30e971d991fd7ebe74813299e4340a1989975  ./common/monitor/squad-dispatch-pick
 94faa5278036864a03ed78f67e3a766e896a97f5273e4976b00e9135f5903136  ./common/monitor/squad-pr-link
 631774e230439d84d48d5232f878e8a286550358b34bac2d4cbf82987fdef9d1  ./common/monitor/squad-pr-link-lib
