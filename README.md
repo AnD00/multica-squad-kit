@@ -23,13 +23,11 @@ Multica のスクワッドを、プロジェクトごとに導入して更新す
    gh auth login
    ```
 
-2. 原本を clone し、[Releases](https://github.com/AnD00/multica-squad-kit/releases) の最新のタグを取り出して、セットアップを流します。`<tag>` は使うタグの名前に置き換えます。
+2. 原本を clone して、セットアップを流します。セットアップは [Releases](https://github.com/AnD00/multica-squad-kit/releases) の最新のタグを自分で取り出し、その版で流れます。
 
    ```bash
    git clone https://github.com/AnD00/multica-squad-kit.git
    cd multica-squad-kit
-   git fetch origin --tags
-   git checkout --detach <tag>
    bash setup.sh
    ```
 
@@ -41,15 +39,17 @@ Multica のスクワッドを、プロジェクトごとに導入して更新す
 
 ## 更新する
 
-新しいタグを取り出して、同じ答えでセットアップを流し直します。  
+同じ clone で、同じ答えでセットアップを流し直します。  
+セットアップが最新のタグを取ってきて取り出すので、タグを選ぶ必要はありません。  
 前回の答えが既定になるので、ワークスペースの番号のほかは Enter で進められます。  
 途中で止まったときも、直してから同じように流し直します。
 
 ```bash
-git fetch origin --tags
-git checkout --detach <tag>
 bash setup.sh
 ```
+
+v1.7.0 以前の版を取り出している clone では、そのセットアップはタグを取り出しません。  
+一度だけ `git checkout main && git pull` をしてから流してください。
 
 新しい版の通知を受けるには、GitHub でこのリポジトリの Watch を「Custom」の「Releases」にします。  
 詳しくは [更新と、途中で止まったあとの再実行](manual.md#更新と途中で止まったあとの再実行) を参照してください。

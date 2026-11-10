@@ -30,7 +30,7 @@
 
 中のファイルは、VM の `/usr/local/lib/multica-squad-vm/` に置く。`.gitattributes` で `vm/` の `*.sh` と `vm/guest/*` を `eol=lf` にする。Windows で clone しても、改行が CRLF になって中で動かなくなるのを防ぐため。
 
-ホストで使う原本は、VM を作るためだけのもので、秘密は含まない。タグの ZIP を展開するか clone して使い、VM を作ったあとは消してよい。VM の中では、`manual.md` の「原本を取る」のとおりに、改めて clone してタグを取り出す。
+ホストで使う原本は、VM を作るためだけのもので、秘密は含まない。タグの ZIP を展開するか clone して使い、VM を作ったあとは消してよい。VM の中では、`manual.md` の「原本を取る」のとおりに、改めて clone して流す。
 
 ## コマンドの形
 

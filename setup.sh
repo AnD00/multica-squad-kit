@@ -4,13 +4,15 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")" && pwd)
 # lib/ui.sh を読み込む前（MANIFEST の確認が終わるまで）の die は、色を付けず印だけを付ける。
 die() { printf 'エラー: %s\n' "$*" >&2; exit 1; }
-# 拡張のディレクトリだけを引数で受ける。ほかの値は質問で聞き、保存済みの答えを既定にする。
-usage='使い方: bash setup.sh [--extension <拡張のディレクトリ>]（ほかの値は質問に答えて入力する）'
+# 拡張のディレクトリと、タグを取り出さない指定だけを引数で受ける。ほかの値は質問で聞き、保存済みの答えを既定にする。
+usage='使い方: bash setup.sh [--extension <拡張のディレクトリ>] [--no-checkout]（ほかの値は質問に答えて入力する）'
 extension_option=''
+checkout_option=yes
 while [[ $# -gt 0 ]]; do
 	case $1 in
 	--extension) [[ $# -ge 2 && -n $2 && -z $extension_option ]] || die "$usage"; extension_option=$2; shift 2 ;;
 	--extension=*) [[ -n ${1#--extension=} && -z $extension_option ]] || die "$usage"; extension_option=${1#--extension=}; shift ;;
+	--no-checkout) [[ $checkout_option == yes ]] || die "$usage"; checkout_option=no; shift ;;
 	*) die "$usage" ;;
 	esac
 done
@@ -30,8 +32,33 @@ esac
 for tool in find sort shasum; do
 	command -v "$tool" >/dev/null || die "$tool がありません。manual.md の「受け取る人の準備」に従って導入してください。Ubuntu では sudo apt-get install coreutils findutils libdigest-sha-perl、macOS では標準の道具と PATH を確認してください。何も変更していません。"
 done
+# clone した原本は、最新のリリースのタグを取り出し、その版の setup.sh で流し直す。
+# VERSION からタグの URL を作るので、手元の中身がタグと違うと、版の混ざった導入になる。
+# ZIP を展開した原本は .git がなく、展開した版のまま流す。
+# 関数にするのは、checkout で setup.sh が書き換わる前に、exec までを読み終えておくため。
+# 流し直す先が古い版でも受けるよう、取り出し済みの印は引数でなく環境変数で渡す。
+use_latest_tag() {
+	local checked=${SQUAD_KIT_TAG_CHECKED_OUT:-} tag target
+	unset SQUAD_KIT_TAG_CHECKED_OUT
+	[[ $checkout_option == yes && -e $root/.git && -z $checked ]] || return 0
+	command -v git >/dev/null || die 'git がありません。manual.md の「受け取る人の準備」に従って導入してください。何も変更していません。'
+	git -C "$root" fetch --quiet --tags origin || die 'origin からタグを取れません。ネットワークと git remote -v の origin を確かめて、流し直してください。何も変更していません。'
+	tag=$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1) || true
+	[[ -n $tag ]] || die 'origin にリリースのタグがありません。何も変更していません。'
+	target=$(git -C "$root" rev-parse --verify --quiet "refs/tags/$tag^{commit}") || die "タグ $tag を読めません。何も変更していません。"
+	[[ $(git -C "$root" rev-parse HEAD) != "$target" ]] || return 0
+	[[ -z $(git -C "$root" status --porcelain --untracked-files=no) ]] || die "原本に未コミットの変更があるので、最新のタグ $tag を取り出せません。変更を退避するか捨てて流し直すか、今の版のまま流すなら --no-checkout を付けてください。何も変更していません。"
+	git -C "$root" -c advice.detachedHead=false checkout --quiet --detach "$target" || die "タグ $tag を取り出せません。git status で原本の状態を確かめてください。"
+	printf '最新のタグ %s を取り出しました。その版で流し直します。\n' "$tag" >&2
+	export SQUAD_KIT_TAG_CHECKED_OUT=$tag
+	if [[ -n $extension_option ]]; then
+		exec "$BASH" "$root/setup.sh" --extension "$extension_option"
+	fi
+	exec "$BASH" "$root/setup.sh"
+}
+use_latest_tag
 cd "$root"
-damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を clone し、タグを取り出し直してください。"; }
+damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を clone し直して、流してください。"; }
 [[ -f MANIFEST && ! -L MANIFEST ]] || damaged 'MANIFEST がありません。'
 listed=''
 while IFS= read -r line || [[ -n $line ]]; do
