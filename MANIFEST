@@ -88,7 +88,7 @@ cf8d5df4fd30bfb56020bd43a3ec48d14bbb8c0f2776948f55a74933722dc930  ./tests/extens
 7951baccc6819d17add4aea1283055cb49cef3232d82af8c99006515b0e09f19  ./tests/gh-test.sh
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
 41dccb97d9b032aca33eee4ce3580ec3908075e5484160e04d457112c54db833  ./tests/guard-check-test.sh
-b465b6e9a285b05e0ba9297e4443c947101e6468782e9253f79ae86ca12ba27a  ./tests/host-test.sh
+445531dcc814e29687faecda97141aece02bdeef59e76b44b0f5ebd3eeb27dff  ./tests/host-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 5c90057fd255d85ce0fc78be380055f79720c2b617cbd0110e824603ad326f6b  ./tests/installation-test.sh
 b07bac540574fc897e6967a373c67d30f4e50a80a21c110d9d4b2bb0ed001fac  ./tests/link-scope-questions-test.sh

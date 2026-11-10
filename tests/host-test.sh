@@ -93,6 +93,10 @@ cmp "$root/common/codex/config.toml" "$TEMPLATE_AGENT_HOME/codex/config.toml"
 grep -qx 'daemon start' "$test_dir/calls"
 grep -qx 'https://example.test' "$test_dir/started-server"
 echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し、専用環境で一つのデーモンを起動する'
+for file in squad-pr-link squad-pr-link-lib; do
+ [[ $(PATH="$TEMPLATE_AGENT_HOME/bin:$PATH" command -v "$file") == "$TEMPLATE_AGENT_HOME/bin/$file" ]]
+done
+echo 'PASS host: 新しい導入で PR の紐付けコマンドと共有関数を bin に置き、名前で解決できる'
 set_mode busy
 agent_env
 run
@@ -201,11 +205,20 @@ done
 set_mode running
 agent_env
 printf "# multica-squad-kit-managed\nchanged\n" >"$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
+for file in squad-pr-link squad-pr-link-lib; do
+ printf '# multica-squad-kit-managed\nold\n' >"$TEMPLATE_AGENT_HOME/bin/$file"
+ chmod 644 "$TEMPLATE_AGENT_HOME/bin/$file"
+done
 run
 for file in bin/gh git-hooks/pre-push codex/config.toml allowed-repos claude/credentials.json codex/auth.json; do cmp "$TEMPLATE_AGENT_HOME/$file" "$test_dir/original/$file"; done
 cmp "$root/common/monitor/squad-pr-watch" "$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
 grep -q '印のない既存' "$test_dir/err"
 echo 'PASS host: 印のない同居環境の関所・設定・資格情報・共有許可ファイルを変えず、専用の見張りだけ更新する'
+for file in squad-pr-link squad-pr-link-lib; do
+ cmp "$root/common/monitor/$file" "$TEMPLATE_AGENT_HOME/bin/$file"
+ [[ -x $TEMPLATE_AGENT_HOME/bin/$file ]]
+done
+echo 'PASS host: 流し直しで印のある PR の紐付けコマンドと共有関数を原本に更新し、実行権限を付ける'
 
 for display in "使用する gh の関所: $TEMPLATE_AGENT_HOME/bin/gh" "使用する git push の関所: $TEMPLATE_AGENT_HOME/git-hooks/pre-push" "使用する Codex の設定: $TEMPLATE_AGENT_HOME/codex/config.toml"; do grep -qxF "$display" "$test_dir/err"; done
 echo 'PASS host: 印のない既存を保持する場合も、使用する三つの実ファイルを明示する'
