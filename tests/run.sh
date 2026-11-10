@@ -12,7 +12,7 @@
 #
 # 分け方: 1 回の実行で tmp/test-run.XXXXXX/ を作り、ファイルごとに空の HOME と
 # TMPDIR を渡す。既定の置き場所に書くテストどうしが取り合わず、開発者の本物の
-# 設定も書き換えないため。置き場所を指定しない mktemp と mktemp -t は、macOS では
+# 設定も書き換えないため。python3 だけは、本物の HOME で実体を引いてから渡す。置き場所を指定しない mktemp と mktemp -t は、macOS では
 # TMPDIR を見ないことがあり、ここでは分けられない。テストの側で置き場所を明示する
 # （CONTRIBUTING.md の「テストを書く決まり」）。1 本ずつ流すときも同じに分ける。
 #
@@ -58,6 +58,14 @@ for test in "${selected[@]}"; do
 done
 mkdir -p "$root/tmp"
 run_dir=$(mktemp -d "$root/tmp/test-run.XXXXXX")
+# 版を管理する道具（asdf・pyenv・mise など）の python3 は、HOME の設定から版を決める shim のことがある。
+# 空の HOME ではその shim が版を決められないので、本物の HOME で実体を引き、PATH の先頭から呼ばせる。
+if real_python=$(python3 -c 'import sys; print(sys.executable)' 2>/dev/null) && [[ -n $real_python && -x $real_python ]]; then
+	mkdir -p "$run_dir/bin"
+	# スクリプトで包むと、#! に python3 のパスを書くテストのスタブが動かないので、実体へのリンクにする。
+	ln -s "$real_python" "$run_dir/bin/python3"
+	export PATH="$run_dir/bin:$PATH"
+fi
 worker_pid=
 cleanup() {
 	if [[ -n $worker_pid ]]; then
