@@ -83,7 +83,7 @@ ca57b2d3fb51c612235c7615222adc93a7c35115988d57b8e63881d6ab0914e6  ./tests/check-
 ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-lines-test.sh
 1e6ca77d50cec1f871e75f0498e2739661848edfd118645d30badde931cf7152  ./tests/error-marks-test.sh
 cf8d5df4fd30bfb56020bd43a3ec48d14bbb8c0f2776948f55a74933722dc930  ./tests/extensions-test.sh
-7951baccc6819d17add4aea1283055cb49cef3232d82af8c99006515b0e09f19  ./tests/gh-test.sh
+ea6e7dda6b1549434f4ba0da2574167b32702ceafd607d24c5a1fdb1cc0db195  ./tests/gh-test.sh
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
 41dccb97d9b032aca33eee4ce3580ec3908075e5484160e04d457112c54db833  ./tests/guard-check-test.sh
 b465b6e9a285b05e0ba9297e4443c947101e6468782e9253f79ae86ca12ba27a  ./tests/host-test.sh
