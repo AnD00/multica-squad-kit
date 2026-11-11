@@ -1,0 +1,17 @@
+[
+  {
+    "author": {
+      "is_bot": true,
+      "login": "app/dependabot"
+    },
+    "baseRefName": "main",
+    "headRefName": "dependabot/npm_and_yarn/brace-expansion-1.1.21",
+    "headRefOid": "d1a058a24c2d8d66aeaa738a1823ad6fb0871e6a",
+    "isDraft": false,
+    "mergeStateStatus": "BLOCKED",
+    "mergeable": "MERGEABLE",
+    "number": 2599,
+    "state": "OPEN",
+    "title": "fixture"
+  }
+]

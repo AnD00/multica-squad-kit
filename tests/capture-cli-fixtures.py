@@ -138,12 +138,18 @@ def redact(value, reading="", path=(), person=False, id_aliases=None):
     return UUID.sub(lambda match: id_aliases[match.group()], value)
 
 
-def capture(issue_ids, entries, write_samples):
+def capture(issue_ids, entries, write_samples, read_samples=None):
     responses = {name: [] for name in entries}
     issues = [command_json(["multica", "issue", "get", issue, "--output", "json"])
               for issue in issue_ids]
     agents = set()
     for name, entry in entries.items():
+        if entry.get("capture") == "external":
+            if read_samples is not None:
+                path = read_samples / f"{name}.json"
+                if path.exists():
+                    responses[name].extend(json.loads(path.read_text()))
+            continue
         if entry.get("capture") == "response-file":
             if write_samples is not None:
                 path = write_samples / f"{name}.json"
@@ -177,10 +183,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("issues", nargs="+")
     parser.add_argument("--write-samples", type=Path)
+    parser.add_argument("--read-samples", type=Path)
     parser.add_argument("--output-dir", type=Path, default=ROOT / "tests/fixtures/cli")
     args = parser.parse_args()
     entries = contracts()
-    responses = capture(args.issues, entries, args.write_samples)
+    responses = capture(args.issues, entries, args.write_samples, args.read_samples)
     fixtures = {}
     coverage = {}
     missing = []

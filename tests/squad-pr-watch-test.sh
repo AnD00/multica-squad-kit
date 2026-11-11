@@ -427,7 +427,9 @@ for defect in task-status task-category comment-source run-kind run-trigger wake
  status=0
  (cd "$test_dir" && bash "$script" "$action" "${args[@]}") >"$test_dir/output" 2>"$test_dir/error" || status=$?
  [[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/posted.jsonl && ! -s $test_dir/wakeups.jsonl ]]
- [[ $(<"$test_dir/error") == *"CLI の出力に欄がありません: $reading の $field"* ]]
+ expected_field=$field
+	[[ $reading != gh-pr-checks ]] || expected_field="statusCheckRollup[].$field"
+	[[ $(<"$test_dir/error") == *"CLI の出力に欄がありません: $reading の $expected_field"* ]]
  [[ $(<"$test_dir/error") == *'fixture-version'* ]]
  echo "PASS contract: $reading の $field がなければ欄名で失敗し、後続の書き込みをしない"
 done

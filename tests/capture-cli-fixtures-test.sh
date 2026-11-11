@@ -123,4 +123,17 @@ _, coverage, missing = capture['select_samples']([], entries['gh-pr-checks'])
 assert missing == ['CheckRun']
 assert coverage[1]['count'] == 0 and coverage[1]['unavailable']
 print('PASS select: 見本なしの形を、採取漏れと分ける')
+# GitHub の採取は読み取りのコマンドだけ。自由文・人の login・URL を残さない。
+gh = runpy.run_path('tests/capture-gh-fixtures.py')
+assert gh['read_only'](['gh','api','repos/example/public/pulls','--paginate'])
+assert gh['read_only'](['gh','pr','view','1','--repo','example/public','--json','title'])
+for flag in ('--method=POST','-XPOST','--field=x=y','-fbody=x','--input=-'):
+    assert not gh['read_only'](['gh','api','repos/example/public/issues',flag])
+assert not gh['read_only'](['gh','pr','merge','1'])
+original={'body':'PRIVATE_BODY','commit':{'message':'PRIVATE_MESSAGE'},'user':{'login':'PRIVATE_LOGIN'},
+          'avatar_url':'https://private.invalid/PRIVATE_AVATAR','patch':None,'text':'PRIVATE_TEXT','payload':'PRIVATE_PAYLOAD'}
+masked=gh['redact'](original,{})
+assert structure(masked)==structure(original) and 'PRIVATE_' not in json.dumps(masked)
+print('PASS GitHub capture: 書き込みのオプションを拒み、自由文・login・URL を匿名化する')
+
 PY

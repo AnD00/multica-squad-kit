@@ -43,13 +43,23 @@ def assert_case_keys(original, candidate, fields, allow_required_deletion=False,
 
 
 def assert_fixture_response(original, candidate, entry, allow_required_deletion=False):
-    def items(before, after, fields):
+    def object_case(before, after, schema):
+        child = schema.get("items")
+        path = tuple(child["path"]) if child else None
+        assert_case_keys(before, after, schema.get("fields", []), allow_required_deletion,
+                         (path,) if path else ())
+        if child:
+            for key in path:
+                if not isinstance(after, dict) or key not in after:
+                    return
+                before, after = before[key], after[key]
+            items(before, after, child)
+
+    def items(before, after, schema):
         for value in after:
-            if not before:
-                raise AssertionError("空の見本から要素を作れません")
             for original in before:
                 try:
-                    assert_case_keys(original, value, fields, allow_required_deletion)
+                    object_case(original, value, schema)
                     break
                 except AssertionError:
                     pass
@@ -57,15 +67,6 @@ def assert_fixture_response(original, candidate, entry, allow_required_deletion=
                 raise AssertionError("見本に合う要素の形がありません")
 
     if entry["shape"] == "array":
-        items(original, candidate, entry["items"]["fields"])
+        items(original, candidate, entry["items"])
     else:
-        item_path = tuple(entry.get("items", {}).get("path", []))
-        assert_case_keys(original, candidate, entry.get("fields", []), allow_required_deletion,
-                         (item_path,) if "items" in entry else ())
-        if "items" in entry:
-            before, after = original, candidate
-            for key in item_path:
-                if key not in after:
-                    return
-                before, after = before[key], after[key]
-            items(before, after, entry["items"]["fields"])
+        object_case(original, candidate, entry)

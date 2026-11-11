@@ -21,6 +21,7 @@ export DEPENDABOT_MERGE_TEST_ROOT="$root"
 source "$root/common/monitor/squad-cli-lib"
 squad_cli_contracts >"$test_dir/contracts.json"
 cli_fixture() { python3 "$root/tests/multica-fixture.py" "$test_dir" base "$@"; }
+gh_fixture() { python3 "$root/tests/gh-fixture.py" "$test_dir" base "$@"; }
 mkdir -p "$test_dir/bin"
 export PATH="$test_dir/bin:$PATH"
 cat >"$test_dir/bin/gh" <<'EOF'
@@ -28,6 +29,13 @@ cat >"$test_dir/bin/gh" <<'EOF'
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
 python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" gh "$@"
+if [[ ${1-} == --version ]]; then echo 'gh fixture-version'; exit 0; fi
+emit() {
+ local name=$1 file=$2
+ if [[ -f $dir/gh-defect.$name.json ]]; then
+  python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/gh-fixture.py" "$dir" raw "$name" "$dir/gh-defect.$name.json"
+ else python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/gh-fixture.py" "$dir" emit "$name" "$file"; fi
+}
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
 if [[ -f $dir/fail && $* == *"$(<"$dir/fail")"* ]]; then
 	echo 'CLI mock failure' >&2
@@ -39,15 +47,15 @@ fi
 if [[ $1 == api ]]; then
 	endpoint=$2
 	case $endpoint in
-	user) echo test-user ;;
-	*'/comments?per_page=100') [[ ${3:-} == --paginate ]]; cat "$dir/comments.json" ;;
-	*'pulls?state=open&per_page=100') [[ ${3:-} == --paginate ]]; cat "$dir/pulls.json" ;;
-	*/rules/branches/main) [[ ${3:-} == --paginate ]]; cat "$dir/rules.json" ;;
-	*'/check-runs?filter=latest&per_page=100') [[ ${3:-} == --paginate ]]; cat "$dir/checks.json" ;;
-	*'/statuses?per_page=100') [[ ${3:-} == --paginate ]]; cat "$dir/statuses.json" ;;
-	*'/files?per_page=100') [[ ${3:-} == --paginate ]]; cat "$dir/files.json" ;;
+	user) emit gh-viewer "$dir/viewer.json" ;;
+	*'/comments?per_page=100') [[ ${3:-} == --paginate ]]; emit gh-pr-comments "$dir/comments.json" ;;
+	*'pulls?state=open&per_page=100') [[ ${3:-} == --paginate ]]; emit gh-dependabot-pulls "$dir/pulls.json" ;;
+	*/rules/branches/main) [[ ${3:-} == --paginate ]]; emit gh-branch-rules "$dir/rules.json" ;;
+	*'/check-runs?filter=latest&per_page=100') [[ ${3:-} == --paginate ]]; emit gh-check-runs "$dir/checks.json" ;;
+	*'/statuses?per_page=100') [[ ${3:-} == --paginate ]]; emit gh-statuses "$dir/statuses.json" ;;
+	*'/files?per_page=100') [[ ${3:-} == --paginate ]]; emit gh-pr-files "$dir/files.json" ;;
 	*/pulls/[0-9]*) [[ $3 == -H && $4 == 'Accept: application/vnd.github.diff' ]]; cat "$dir/pr.diff" ;;
-	*/commits/*) cat "$dir/${endpoint##*/}.json" ;;
+	*/commits/*) emit gh-commit "$dir/${endpoint##*/}.json" ;;
 	*) echo "Unexpected endpoint: $*" >&2; exit 1 ;;
 	esac
 elif [[ $1 == pr && $2 == comment ]]; then
@@ -62,10 +70,11 @@ elif [[ $1 == pr && $2 == merge ]]; then
 	if [[ -f $dir/merge-fail ]]; then printf 'mock merge rejected\nhead mismatch\n' >&2; exit 1; fi
 	echo 'mock merged'
 elif [[ $1 == pr && $2 == view ]]; then
-	if [[ ${*: -1} == .headRefOid ]]; then
-		if [[ -f $dir/changed-head ]]; then echo changed; else jq -r .headRefOid "$dir/pr-$3.json"; fi
+	if [[ ${*: -1} == headRefOid ]]; then
+		if [[ -f $dir/changed-head ]]; then echo '{"headRefOid":"changed"}' >"$dir/head.json"; else jq '{headRefOid}' "$dir/pr-$3.json" >"$dir/head.json"; fi
+		emit gh-pr-head "$dir/head.json"
 	else
-		cat "$dir/pr-$3.json"
+		emit gh-dependabot-pr "$dir/pr-$3.json"
 	fi
 else
 	echo "Unexpected mock call (書き込みは禁止): $*" >&2
@@ -75,6 +84,8 @@ EOF
 chmod +x "$test_dir/bin/gh"
 
 reset_fixture() {
+	rm -f "$test_dir"/gh-defect.*.json
+	gh_fixture gh-viewer | jq '.login="test-user"' >"$test_dir/viewer.json"
 	printf '[]\n' >"$test_dir/pulls.json"
 	printf '[]\n' >"$test_dir/files.json"
 	printf '[{"type":"required_status_checks","parameters":{"required_status_checks":[{"context":"lint","integration_id":15368},{"context":"external","integration_id":null}]}}]\n' >"$test_dir/rules.json"
@@ -1168,10 +1179,108 @@ for defect in resource-type search-project member-email issue-label-id create-id
  status=0
  bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error" || status=$?
  [[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/curl-calls.jsonl ]]
- grep -F "$reading の $field" "$test_dir/error" >/dev/null
+ expected_field=$field
+ [[ $reading != issue-search ]] || expected_field="issues[].$field"
+ grep -F "$reading の $expected_field" "$test_dir/error" >/dev/null
  if [[ $reading == issue-create ]]; then
   jq -se '[.[] | select(.[0:2]==["issue","create"])] | length==1' "$test_dir/multica-calls.jsonl" >/dev/null
   jq -se 'all(.[]; .[0:3] != ["issue","label","add"])' "$test_dir/multica-calls.jsonl" >/dev/null
  else no_issue_writes; fi
  echo "PASS contract: $reading の $field の欠落を欄名で返し、後続を書かない"
 done
+
+# 任意の integration_id を補うと、別 App の成功で通ってしまうので、存在を両方確かめる。
+for app in absent specified; do
+ reset_fixture
+ add_pr 1 dependabot/go_modules/api/example "$(metadata patch)"
+ gh_fixture gh-branch-rules | jq --arg app "$app" '.parameters.required_status_checks[0] as $check |
+  .parameters.required_status_checks=[$check + {context:"lint",integration_id:15368}] |
+  if $app=="absent" then del(.parameters.required_status_checks[0].integration_id) else . end | [.]' >"$test_dir/gh-defect.gh-branch-rules.json"
+ printf '{"check_runs":[{"id":1,"name":"lint","app":{"id":999},"status":"completed","conclusion":"success"}]}' >"$test_dir/checks.json"
+ run_list
+ if [[ $app == absent ]]; then assert_output '.[0].ci=="success"'; else assert_output '.[0].ci=="pending"'; fi
+done
+echo 'PASS GH optional: integration_id の省略は任意の App、指定ありはその App だけを通す'
+
+reset_fixture
+add_pr 1 dependabot/docker/example "$(metadata '')"
+gh_fixture gh-pr-files | jq '[del(.patch) + {status:"modified",additions:1,deletions:1}]' >"$test_dir/gh-defect.gh-pr-files.json"
+run_list
+assert_output '.[0].update_type=="major"'
+echo 'PASS GH optional: patch がなければ digest の更新と決めつけない'
+
+for defect in pulls-number rule-context pr-author commit-message check-app status-context file-additions head comments-body viewer-login; do
+ advance_fixture
+ action=list
+ args=()
+ case $defect in
+ pulls-number) reading=gh-dependabot-pulls; field=number; filter='[del(.number)]' ;;
+ rule-context) reading=gh-branch-rules; field=context; filter='[del(.parameters.required_status_checks[0].context)]' ;;
+ pr-author) reading=gh-dependabot-pr; field=author.login; filter='del(.author.login)' ;;
+ commit-message) reading=gh-commit; field=commit.message; filter='del(.commit.message)' ;;
+ check-app) reading=gh-check-runs; field=app.id; filter='del(.check_runs[0].app.id)' ;;
+ status-context) reading=gh-statuses; field=context; filter='[del(.context)]' ;;
+ file-additions|head)
+  edit_pr '.headRefName="dependabot/docker/example"'
+  digest_files >"$test_dir/files.json"
+  if [[ $defect == head ]]; then reading=gh-pr-head; field=headRefOid; filter='del(.headRefOid)'
+  else reading=gh-pr-files; field=additions; filter='[del(.additions)]'; fi ;;
+ comments-body|viewer-login)
+  action=advance
+  args=(1 --reviewed-head "$reviewed" --run-deadline "$run_deadline")
+  edit_pr '.mergeStateStatus="BEHIND"'
+  if [[ $defect == comments-body ]]; then reading=gh-pr-comments; field=body; filter='[del(.body)]'
+  else reading=gh-viewer; field=login; filter='del(.login)'; fi ;;
+ esac
+ gh_fixture "$reading" | jq "$filter" >"$test_dir/gh-defect.$reading.json"
+ status=0
+ bash "$script" example/template project-a "$action" "${args[@]}" >"$test_dir/output" 2>"$test_dir/error" || status=$?
+ [[ $status != 0 && ! -s $test_dir/output ]]
+ grep -F "$reading の " "$test_dir/error" >/dev/null
+ grep -F "$field" "$test_dir/error" >/dev/null
+ no_writes
+ echo "PASS GH contract: $reading の $field の欠落を欄名で返す"
+done
+
+# 差分の取得を呼び出す分岐でも、JSON の欠落を changed の成功応答に変えない。
+advance_fixture
+edit_pr '.mergeStateStatus="BEHIND"'
+gh_fixture gh-pr-head | jq 'del(.headRefOid)' >"$test_dir/gh-defect.gh-pr-head.json"
+if bash "$script" example/template project-a advance 1 --reviewed-head "$reviewed" --run-deadline "$run_deadline" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
+[[ ! -s $test_dir/output ]]
+grep -F 'gh-pr-head の headRefOid' "$test_dir/error" >/dev/null
+no_writes
+echo 'PASS GH contract: 差分の確認中の head の欠落も、操作せず失敗する'
+
+# 公開元では見本がない nullable な親も、公式スキーマどおり受け入れる。
+reset_fixture
+add_pr 1 dependabot/go_modules/api/example "$(metadata patch)"
+gh_fixture gh-dependabot-pulls | jq '[.user=null]' >"$test_dir/gh-defect.gh-dependabot-pulls.json"
+run_list
+assert_output '.==[]'
+reset_fixture
+add_pr 1 dependabot/go_modules/api/example "$(metadata patch)"
+edit_pr '.author=null'
+run_list
+assert_output '.==[]'
+echo 'PASS GH nullable: 作者が null の PR は分類の対象にしない'
+
+for app in any specified; do
+ reset_fixture
+ add_pr 1 dependabot/go_modules/api/example "$(metadata patch)"
+ jq --arg app "$app" '.[0].parameters.required_status_checks[0].integration_id=(if $app=="any" then null else 15368 end)' \
+  "$test_dir/rules.json" >"$test_dir/edit.json"
+ mv "$test_dir/edit.json" "$test_dir/rules.json"
+ jq '.check_runs[0].app=null' "$test_dir/checks.json" >"$test_dir/edit.json"
+ mv "$test_dir/edit.json" "$test_dir/checks.json"
+ run_list
+ if [[ $app == any ]]; then assert_output '.[0].ci=="success"'; else assert_output '.[0].ci=="pending"'; fi
+done
+echo 'PASS GH nullable: app が null のチェックでも App の指定の有無を区別する'
+
+advance_fixture
+edit_pr '.mergeStateStatus="BEHIND"'
+gh_fixture gh-pr-comments | jq '[.user=null]' >"$test_dir/gh-defect.gh-pr-comments.json"
+run_advance waiting
+jq -se '[.[] | select(.[0:2]==["pr","comment"])] | length==1' "$test_dir/calls.jsonl" >/dev/null
+echo 'PASS GH nullable: 作者が null のコメントを今回の依頼と取り違えない'

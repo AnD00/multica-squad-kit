@@ -767,6 +767,520 @@ squad_cli_contracts() {
           }
         ]
       }
+    },
+    "gh-dependabot-pulls": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "dependabot",
+          "where": ".user.login == \"dependabot[bot]\""
+        },
+        {
+          "name": "other",
+          "where": ".user.login != \"dependabot[bot]\""
+        },
+        {
+          "name": "user-null",
+          "where": ".user == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "user",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "number",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "state",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "user.type",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".user != null"
+          },
+          {
+            "path": "user.login",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".user != null"
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-branch-rules": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "required",
+          "where": ".type == \"required_status_checks\""
+        },
+        {
+          "name": "other",
+          "where": ".type != \"required_status_checks\""
+        },
+        {
+          "name": "integration_id-present",
+          "where": "any(.parameters.required_status_checks[]?; has(\"integration_id\"))"
+        },
+        {
+          "name": "integration_id-absent",
+          "where": "any(.parameters.required_status_checks[]?; has(\"integration_id\") | not)",
+          "unavailable": "採取した公開リポジトリの規則は integration_id を出す。省略可能の分類は GitHub REST API の仕様と承認済み設計による。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "type",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "parameters.required_status_checks",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".type == \"required_status_checks\""
+          }
+        ],
+        "items": {
+          "path": [
+            "parameters",
+            "required_status_checks"
+          ],
+          "when": ".type == \"required_status_checks\"",
+          "fields": [
+            {
+              "path": "context",
+              "class": "required",
+              "nullable": false
+            },
+            {
+              "path": "integration_id",
+              "class": "optional",
+              "nullable": true
+            }
+          ]
+        }
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-dependabot-pr": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{number}",
+        "--repo",
+        "{repo}",
+        "--json",
+        "number,title,author,state,isDraft,baseRefName,headRefOid,headRefName,mergeable,mergeStateStatus"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "author",
+          "class": "required",
+          "nullable": true
+        },
+        {
+          "path": "number",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "title",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "author.is_bot",
+          "class": "conditional",
+          "nullable": false,
+          "when": ".author != null"
+        },
+        {
+          "path": "author.login",
+          "class": "conditional",
+          "nullable": false,
+          "when": ".author != null"
+        },
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "isDraft",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "baseRefName",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefName",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeable",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeStateStatus",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "dependabot",
+          "where": ".author.login == \"app/dependabot\""
+        },
+        {
+          "name": "author-null",
+          "where": ".author == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ]
+    },
+    "gh-pr-head": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{number}",
+        "--repo",
+        "{repo}",
+        "--json",
+        "headRefOid"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "gh-commit": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "fields": [
+        {
+          "path": "commit.message",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "commit.committer.date",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "pagination": {
+        "kind": "object"
+      }
+    },
+    "gh-pr-files": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "patch-present",
+          "where": "has(\"patch\")"
+        },
+        {
+          "name": "patch-absent",
+          "where": "has(\"patch\") | not",
+          "unavailable": "採取した Dependabot の PR はテキスト差分だけで patch を出す。バイナリ・大きな差分での省略は GitHub REST API の仕様による。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "status",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "additions",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "deletions",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "patch",
+            "class": "optional",
+            "nullable": true
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-check-runs": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        },
+        {
+          "name": "app-null",
+          "where": ".app == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ],
+      "fields": [
+        {
+          "path": "check_runs",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "items": {
+        "path": [
+          "check_runs"
+        ],
+        "fields": [
+          {
+            "path": "app",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "app.id",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".app != null"
+          },
+          {
+            "path": "status",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "conclusion",
+            "class": "required",
+            "nullable": true
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "object",
+        "path": [
+          "check_runs"
+        ]
+      }
+    },
+    "gh-statuses": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true",
+          "unavailable": "採取した公開元の commit status はいずれも空配列だった。欄は GitHub REST API の仕様による。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "context",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "state",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-pr-comments": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        },
+        {
+          "name": "user-null",
+          "where": ".user == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "user",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "user.login",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".user != null"
+          },
+          {
+            "path": "body",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-viewer": {
+      "command": [
+        "gh",
+        "api",
+        "user",
+        "--jq",
+        "with_entries(select(.key == \"login\"))"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "login",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
     }
   }
 }
@@ -824,7 +1338,8 @@ def project(value, tree):
         return copy.deepcopy(value)
     return {key: project(value[key], children) for key, children in tree.items() if key in value}
 
-def normalize(value, fields, index):
+def normalize(value, schema, index, prefix=""):
+    fields = schema.get("fields", [])
     if not isinstance(value, dict):
         report("の形が不正です", "object", value, index)
         return value
@@ -838,30 +1353,51 @@ def normalize(value, fields, index):
         required = field["class"] == "required" or (when is not None and matches(value, when))
         actual = get(value, path)
         if required and actual is missing:
-            report("に欄がありません", field["path"], value, index, when)
+            report("に欄がありません", prefix + field["path"], value, index, when)
         elif required and actual is None and not field["nullable"]:
-            report("の欄が null です", field["path"], value, index, when)
-    return project(value, tree)
+            report("の欄が null です", prefix + field["path"], value, index, when)
+    result = project(value, tree)
+    child = schema.get("items")
+    if child and (not child.get("when") or matches(value, child["when"])):
+        path = child["path"]
+        items = get(value, path)
+        if items is not missing:
+            if not isinstance(items, list):
+                report("の形が不正です", prefix + ".".join(path), value, index)
+            else:
+                parent = get(result, path[:-1])
+                if isinstance(parent, dict):
+                    parent[path[-1]] = [normalize(item, child, position, prefix + ".".join(path) + "[].")
+                                           for position, item in enumerate(items)]
+    return result
 
 try:
-    value = json.load(sys.stdin)
-    if entry["shape"] == "array":
-        if not isinstance(value, list):
-            raise ValueError("配列ではありません")
-        result = [normalize(item, entry["items"]["fields"], index)
-                  for index, item in enumerate(value)]
+    decoder = json.JSONDecoder()
+    text = sys.stdin.read().strip()
+    pages = []
+    while text:
+        page, end = decoder.raw_decode(text)
+        pages.append(page)
+        text = text[end:].lstrip()
+    if not pages or len(pages) > 1 and "pagination" not in entry:
+        raise ValueError("応答の個数が不正です")
+    normalized = []
+    for page in pages:
+        if entry["shape"] == "array":
+            if not isinstance(page, list):
+                raise ValueError("配列ではありません")
+            normalized.append([normalize(item, entry["items"], index) for index, item in enumerate(page)])
+        else:
+            normalized.append(normalize(page, entry, 0))
+    if entry.get("pagination", {}).get("kind") == "array":
+        result = [item for page in normalized for item in page]
+        value = [item for page in pages for item in page]
     else:
-        result = normalize(value, entry.get("fields", []), 0)
-        if "items" in entry:
-            path = entry["items"]["path"]
-            items = get(value, path)
-            if items is not missing:
-                if not isinstance(items, list):
-                    report("の形が不正です", ".".join(path), value, 0)
-                else:
-                    parent = get(result, path[:-1])
-                    parent[path[-1]] = [normalize(item, entry["items"]["fields"], index)
-                                           for index, item in enumerate(items)]
+        result, value = normalized[0], copy.deepcopy(pages[0])
+        path = entry.get("pagination", {}).get("path")
+        if path and not errors:
+            for target, source in [(result, normalized), (value, pages)]:
+                get(target, path[:-1])[path[-1]] = [item for page in source for item in get(page, path)]
     if errors:
         print("\n".join(errors), file=sys.stderr)
         sys.exit(1)

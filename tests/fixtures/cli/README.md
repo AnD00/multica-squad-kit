@@ -39,3 +39,23 @@ bash tests/capture-cli-fixtures.sh --write-samples tmp/採取した応答 <タ�
 段階的な追加採取として、2026-11-11 に同じ CLI の版から、`repository` のないタスクの `issue-get` と `issue-metadata` を追加した。この採取の 2 応答で共通の対応表を使い、ID は `fixture-supplement-id-` で始まる。同じ採取の中の同一性・比較順を保ち、先の採取の ID とは比較しない。`CAPTURE.json` の追加した `repository` の形の件数は、保存済み見本と追加応答で数え、その範囲を `scope` に残した。
 
 `SQUAD_CLI_TEST_KEEP_FIELDS=1` はテストだけの切り替えで、必須・条件付きの検証は行い、約束外の欄を除かずに返す。見張りのテストは整形の前後で動作を比べる。
+
+## GitHub の読み取り
+
+GitHub の見本は `GH-CAPTURE.json` に採取した CLI の版、読み取りのコマンド、形ごとの件数を記録する。公開の `actions/checkout` の Dependabot の PR、`vitejs/vite` の main の規則、公開の issue コメントから採取した。`gh-viewer` は認証した利用者の `login` だけを CLI で取り出し、公開前に置き換える。自由文・人名・login・URL・差分の本文は、鍵と型を保って匿名化する。
+
+保存済みのコマンドで取り直すには、次を流す。読み取りだけを許し、採取した全応答が約束と合うことと、必要な見本の形を確認してから保存する。
+
+```bash
+mkdir -p tmp
+jq .sources tests/fixtures/cli/GH-CAPTURE.json > tmp/gh-sources.json
+python3 tests/capture-gh-fixtures.py --sources tmp/gh-sources.json
+```
+
+Multica と合わせた取り込みでは、外部で採取した応答のディレクトリを `--read-samples` に渡す。書き込みの応答は従来どおり `--write-samples` に渡す。
+
+`integration_id` がない規則、`patch` がないファイル、commit status は今回の公開元で取れず、約束と採取記録に「見本なし」と理由を残した。commit status は `nodejs/node` の main と `facebook/react` の v16.8.0 でも空だった。テストのその形だけは、[GitHub REST API の status の仕様](https://docs.github.com/en/rest/commits/statuses#list-commit-statuses-for-a-reference)の欄を使う。規則は[ブランチの規則の仕様](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)、ファイルは[PR のファイルの仕様](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files)も参照する。
+
+`pagination` のある約束は JSON のページをすべて検証してから連結する。入れ子の `items` は、親の `when` に当たるときだけ中の配列の全要素を検証する。`gh-fixture.py` は見本へケースの値を重ね、見本にない鍵を拒否する。必須欄の欠落を試す `raw` のケースでは重ねずにそのまま返す。
+
+PR・コメントの `user`、チェックの `app` は、[GitHub の公開 OpenAPI](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.json)で null 可の必須欄である。PR の `author` も [GraphQL の仕様](https://docs.github.com/en/graphql/reference/pulls)では null 可である。公開元で null の形は取れなかったため「見本なし」と記録し、子の欄を条件付きとしてテストする。

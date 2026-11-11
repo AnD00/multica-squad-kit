@@ -43,14 +43,19 @@ def mutate(value, path, delete=False, replacement=None):
         parent[path[-1]] = replacement
 
 def scopes(response, entry):
+    def walk(value, schema, prefix):
+        yield prefix, value, schema.get('fields', [])
+        child = schema.get('items')
+        if child and (not child.get('when') or matches(value, child['when'])):
+            path = child['path']
+            values = get(value, path)
+            if values is not missing:
+                for index, item in enumerate(values):
+                    yield from walk(item, child, prefix + path + [index])
     if entry['shape'] == 'array':
-        return [( [i], item, entry['items']['fields']) for i, item in enumerate(response)]
-    result = [([], response, entry.get('fields', []))]
-    if 'items' in entry:
-        path = entry['items']['path']
-        result.extend((path + [i], item, entry['items']['fields'])
-                      for i, item in enumerate(get(response, path)))
-    return result
+        return [scope for index, item in enumerate(response)
+                for scope in walk(item, entry['items'], [index])]
+    return list(walk(response, entry, []))
 
 def active(value, field):
     return field['class'] == 'required' or (
@@ -85,20 +90,17 @@ for name, entry in entries.items():
         counts['shapes'] += 1
         if 'unavailable' in record:
             print(f"見本なし: {name} の {record['name']}（{record['count']} 件）: {record['unavailable']}")
-    groups = []
-    if entry['shape'] == 'array':
-        groups.append((entry['items']['fields'], [item for response in responses for item in response]))
-    else:
-        groups.append((entry.get('fields', []), responses))
-        if 'items' in entry:
-            groups.append((entry['items']['fields'],
-                           [item for response in responses for item in get(response, entry['items']['path'])]))
+    grouped = {}
+    for response in responses:
+        for _, item, fields in scopes(response, entry):
+            grouped.setdefault(id(fields), (fields, []))[1].append(item)
+    groups = list(grouped.values())
     unavailable = [sample for sample in entry['samples'] if 'unavailable' in sample]
     for fields, values in groups:
         for field in fields:
             if field['class'] == 'optional':
                 present = [get(value, field['path'].split('.')) is not missing for value in values]
-                assert any(present) and not all(present), (name, field, '省略の両方の形が必要です')
+                assert (any(present) or any(s['name'] == field['path'] + '-present' for s in unavailable)) and (not all(present) or any(s['name'] == field['path'] + '-absent' for s in unavailable)), (name, field, '省略の両方の形が必要です')
             elif field['class'] == 'conditional':
                 present = [matches(value, field['when']) for value in values]
                 assert any(present) or any(sample['where'] == field['when'] for sample in unavailable), (name, field)
@@ -110,14 +112,17 @@ for name, entry in entries.items():
         counts['responses'] += 1
         for prefix, item, fields in scopes(response, entry):
             normalized_item = get(normalized, prefix)
-            allowed = {field['path'].split('.')[0] for field in fields}
-            assert set(normalized_item) <= allowed
-            for parent_path in {tuple(field['path'].split('.')[:-1]) for field in fields if '.' in field['path']}:
-                parent = get(normalized_item, parent_path)
-                if parent is not None:
-                    allowed = {field['path'].split('.')[-1] for field in fields
-                               if tuple(field['path'].split('.')[:-1]) == parent_path}
-                    assert set(parent) <= allowed
+            tree = {}
+            for field in fields:
+                node = tree
+                for key in field['path'].split('.'):
+                    node = node.setdefault(key, {})
+            def projected(value, tree):
+                if isinstance(value, dict) and tree:
+                    assert set(value) <= set(tree)
+                    for key, child in value.items():
+                        projected(child, tree[key])
+            projected(normalized_item, tree)
             for field in fields:
                 path = field['path'].split('.')
                 actual = get(item, path)
@@ -149,7 +154,7 @@ for name, entry in entries.items():
                 path = field['path'].split('.')
                 if not active(item, field) and get(item, path) is missing:
                     parent = get(normalized_item, path[:-1])
-                    if parent is not None:
+                    if parent is not None and parent is not missing:
                         assert get(normalized_item, path) is missing, (name, field)
         counts['minimal'] += 1
     if entry['shape'] == 'array':
@@ -231,4 +236,35 @@ result = read('issue-get', 'task')
 assert result.returncode == 19 and result.stdout == ''
 assert read('unknown-reading').returncode == 1
 print('PASS CLI: 引数・版・正常な省略・JSON の出力指定・失敗の伝播')
+# 後のページも検証する。失敗したときは先頭ページの部分的な成功を出さない。
+def stream(name, pages):
+    return subprocess.run(['bash','-c','source "$1"; squad_cli_normalize "$2" fixture-version',
+                           'bash',str(library),name], input='\n'.join(json.dumps(p) for p in pages),
+                          capture_output=True,text=True)
+for name in ('gh-dependabot-pulls','gh-check-runs'):
+    response = json.loads((fixtures / f'{name}.json').read_text())[0]
+    result = stream(name,[response,response])
+    assert result.returncode == 0, result.stderr
+    merged = json.loads(result.stdout)
+    key = None if isinstance(response,list) else 'check_runs'
+    assert len(merged if key is None else merged[key]) == 2*len(response if key is None else response[key])
+    invalid = copy.deepcopy(response)
+    if key is None: del invalid[0]['number']; field='number'
+    else: del invalid[key][0]['app']['id']; field='app.id'
+    result = stream(name,[response,invalid])
+    assert result.returncode == 1 and result.stdout == '' and field in result.stderr
+print('PASS pagination: 全ページの配列と入れ子を検証し、後のページの欠落で部分的な成功を返さない')
+
+# 見本なしの Status も、公式スキーマから作った同じケースで全必須欄を消す。
+(work / 'contracts.json').write_text(json.dumps({'entries': entries}))
+status = json.loads(subprocess.check_output(['python3', str(root / 'tests/gh-fixture.py'),
+                                            str(work), 'base', 'gh-statuses'], text=True))
+success('gh-statuses', [status])
+for field in entries['gh-statuses']['items']['fields']:
+    if active(status, field):
+        changed = [copy.deepcopy(status)]
+        mutate(changed, [0] + field['path'].split('.'), delete=True)
+        failure('gh-statuses', changed, field)
+print('PASS unavailable Status: id・context・state を一つずつ消し、欄名・版と終了1を確認する')
+
 PY
