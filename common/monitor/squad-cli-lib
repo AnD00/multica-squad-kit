@@ -754,3 +754,147 @@ squad_cli_contracts() {
 }
 SQUAD_CLI_CONTRACTS
 }
+
+# JSON の応答を検証・整形する。第 2 引数は、テストなどで固定する CLI の版。
+# 入力の検証がすべて済むまで標準出力には何も返さない。
+squad_cli_normalize() {
+	local name=$1 entry version=${2-} program
+	entry=$(squad_cli_contracts | jq -ce --arg name "$name" '.entries[$name] | select(. != null)') || {
+		echo "CLI の読み取りが約束にありません: $name" >&2
+		return 1
+	}
+	if [[ $# == 1 ]]; then
+		case $(jq -r '.command[0]' <<<"$entry") in
+		gh) version=$(gh --version 2>/dev/null) || version= ;;
+		*) version=$(multica version 2>/dev/null) || version= ;;
+		esac
+		version=${version%%$'\n'*}
+	fi
+	program=$(cat <<'PY'
+import copy
+import json
+import subprocess
+import sys
+
+name, entry, version = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3]
+errors = []
+missing = object()
+
+def get(value, path):
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            return missing
+        value = value[key]
+    return value
+
+def matches(value, expression):
+    result = subprocess.run(["jq", "-e", expression], input=json.dumps(value),
+                            capture_output=True, text=True)
+    if result.returncode not in (0, 1, 4):
+        raise ValueError("約束の条件が不正です")
+    return result.returncode == 0
+
+def report(reason, field, value, index, when=None):
+    identity = value.get("id", index) if isinstance(value, dict) else index
+    context = (when + " のとき、" if when else "") + "要素 " + str(identity)
+    suffix = "（" + version + "）" if version else ""
+    errors.append(f"CLI の出力{reason}: {name} の {field}（{context}）{suffix}")
+
+def project(value, tree):
+    if not tree or not isinstance(value, dict):
+        return copy.deepcopy(value)
+    return {key: project(value[key], children) for key, children in tree.items() if key in value}
+
+def normalize(value, fields, index):
+    if not isinstance(value, dict):
+        report("の形が不正です", "object", value, index)
+        return value
+    defaults = []
+    tree = {}
+    for field in fields:
+        path = field["path"].split(".")
+        node = tree
+        for key in path:
+            node = node.setdefault(key, {})
+        when = field.get("when")
+        required = field["class"] == "required" or (when is not None and matches(value, when))
+        actual = get(value, path)
+        if required and actual is missing:
+            report("に欄がありません", field["path"], value, index, when)
+        elif required and actual is None and not field["nullable"]:
+            report("の欄が null です", field["path"], value, index, when)
+        elif actual is missing and not required:
+            defaults.append((path, field["default"]))
+    result = copy.deepcopy(value)
+    for path, default in defaults:
+        parent = get(result, path[:-1])
+        # null 可の親そのものが null の場合は維持する。子の読み取りも null になる。
+        if isinstance(parent, dict):
+            parent[path[-1]] = copy.deepcopy(default)
+    return project(result, tree)
+
+try:
+    value = json.load(sys.stdin)
+    if entry["shape"] == "array":
+        if not isinstance(value, list):
+            raise ValueError("配列ではありません")
+        result = [normalize(item, entry["items"]["fields"], index)
+                  for index, item in enumerate(value)]
+    else:
+        result = normalize(value, entry.get("fields", []), 0)
+        if "items" in entry:
+            path = entry["items"]["path"]
+            items = get(value, path)
+            if items is not missing:
+                if not isinstance(items, list):
+                    report("の形が不正です", ".".join(path), value, 0)
+                else:
+                    parent = get(result, path[:-1])
+                    parent[path[-1]] = [normalize(item, entry["items"]["fields"], index)
+                                           for index, item in enumerate(items)]
+    if errors:
+        print("\n".join(errors), file=sys.stderr)
+        sys.exit(1)
+    print(json.dumps(result, ensure_ascii=False))
+except (ValueError, TypeError, KeyError) as error:
+    print(f"CLI の出力を確かめられません: {name}（{error}）", file=sys.stderr)
+    sys.exit(1)
+PY
+	) || return 1
+	python3 -c "$program" "$name" "$entry" "$version"
+}
+
+# 約束のコマンドの {引数} を、記載順の位置引数で埋める。
+# その後の引数は --limit などの追加オプション。JSON の出力指定は変更させない。
+# 書き込みもここを通せるが、失敗した応答の検証を理由に投稿し直してはいけない。
+squad_cli_read() {
+	local name=$1 entry token raw status
+	local -a command=()
+	shift
+	entry=$(squad_cli_contracts | jq -ce --arg name "$name" '.entries[$name] | select(. != null)') || {
+		echo "CLI の読み取りが約束にありません: $name" >&2
+		return 1
+	}
+	while IFS= read -r token; do
+		if [[ $token == \{*\} ]]; then
+			(($# > 0)) || { echo "CLI の読み取りの引数が足りません: $name の $token" >&2; return 1; }
+			command+=("$1")
+			shift
+		else
+			command+=("$token")
+		fi
+	done < <(jq -r '.command[]' <<<"$entry")
+	for token in "$@"; do
+		case $token in
+		--compact|--compact=*|--output|--output=*|--json|--json=*)
+			echo "CLI の JSON の出力指定は変更できません: $name の $token" >&2
+			return 1 ;;
+		esac
+	done
+	if raw=$("${command[@]}" "$@"); then
+		printf '%s\n' "$raw" | squad_cli_normalize "$name"
+	else
+		status=$?
+		return "$status"
+	fi
+}
