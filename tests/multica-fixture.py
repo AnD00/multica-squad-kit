@@ -1,4 +1,7 @@
-"""Multica の実物の見本からケースを作り、返す前に鍵を確かめる。"""
+"""Multica の実物の見本からケースを作り、返す前に鍵を確かめる。
+
+補助（tests/cli-stub.py）から関数 run を読み込む。スクリプトとしても使える。
+"""
 
 import json
 import runpy
@@ -6,12 +9,10 @@ import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-work = Path(sys.argv[1])
 helper = runpy.run_path(str(root / "tests/cli-fixture-lib.py"))
-entries = json.loads((work / "contracts.json").read_text())["entries"]
 
 
-def prototypes(name):
+def prototypes(entries, name):
     values = json.loads((root / f"tests/fixtures/cli/{name}.json").read_text())
     if entries[name]["shape"] == "array":
         return [item for response in values for item in response]
@@ -29,18 +30,17 @@ def keys_exist(original, candidate):
     return True
 
 
-def validate(name, value):
+def validate(work, entries, name, value):
     entry = entries[name]
+    allow_missing = (work / "allow-missing-fields").exists()
     for item in value if entry["shape"] == "array" else [value]:
-        for original in prototypes(name):
+        for original in prototypes(entries, name):
             try:
                 assert keys_exist(original, item)
                 if entry["shape"] == "array":
-                    helper["assert_case_keys"](original, item, entry["items"]["fields"],
-                                               (work / "allow-missing-fields").exists())
+                    helper["assert_case_keys"](original, item, entry["items"]["fields"], allow_missing)
                 else:
-                    helper["assert_fixture_response"](original, item, entry,
-                                                       (work / "allow-missing-fields").exists())
+                    helper["assert_fixture_response"](original, item, entry, allow_missing)
                 break
             except AssertionError:
                 pass
@@ -48,17 +48,23 @@ def validate(name, value):
             raise AssertionError(f"見本とケースの鍵が違います: {name}")
 
 
-action, name = sys.argv[2:4]
-if action == "base":
-    values = prototypes(name)
-    value = (next(value for value in values if "repository" in value["metadata"] and "pr_url" in value["metadata"])
-             if name == "issue-get" else values[0])
-else:
-    text = Path(sys.argv[4]).read_text()
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError:
-        print(text)
-        sys.exit(0)
-    validate(name, value)
-print(json.dumps(value, ensure_ascii=False))
+def run(work, action, name, file=None):
+    work = Path(work)
+    entries = json.loads((work / "contracts.json").read_text())["entries"]
+    if action == "base":
+        values = prototypes(entries, name)
+        value = (next(value for value in values if "repository" in value["metadata"] and "pr_url" in value["metadata"])
+                 if name == "issue-get" else values[0])
+    else:
+        text = Path(file).read_text()
+        try:
+            value = json.loads(text)
+        except json.JSONDecodeError:
+            print(text)
+            return
+        validate(work, entries, name, value)
+    print(json.dumps(value, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    run(sys.argv[1], *sys.argv[2:])

@@ -1,4 +1,7 @@
-"""pr-watch のスタブ。実物から作ったケースの鍵を、返す前に確かめる。"""
+"""pr-watch のスタブ。実物から作ったケースの鍵を、返す前に確かめる。
+
+補助（tests/cli-stub.py）から関数 run を読み込む。スクリプトとしても使える。
+"""
 
 import json
 import os
@@ -7,17 +10,16 @@ import sys
 from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
-work = Path(os.environ["PR_WATCH_TEST_DIR"])
 helper = runpy.run_path(str(root / "tests/cli-fixture-lib.py"))
 
 
-def entry(name):
+def entry(work, name):
     return json.loads((work / "contracts.json").read_text())["entries"][name]
 
 
-def prototypes(name):
+def prototypes(work, name):
     values = json.loads((root / f"tests/fixtures/cli/{name}.json").read_text())
-    if entry(name)["shape"] == "array":
+    if entry(work, name)["shape"] == "array":
         return [item for response in values for item in response]
     return values
 
@@ -33,11 +35,11 @@ def keys_exist(original, candidate):
     return True
 
 
-def validate(name, value):
-    schema = entry(name)
+def validate(work, name, value):
+    schema = entry(work, name)
     allow_missing = (work / "allow-missing-fields").exists()
     for item in value if schema["shape"] == "array" else [value]:
-        for original in prototypes(name):
+        for original in prototypes(work, name):
             try:
                 candidate = item
                 if name == "gh-pr-checks":
@@ -66,18 +68,22 @@ def validate(name, value):
             raise AssertionError(f"見本とケースの鍵が違います: {name}")
 
 
-if __name__ == "__main__":
-    action, name = sys.argv[1:3]
+def run(work, action, name, rest=None):
+    work = Path(work)
     if action == "base":
-        selector = sys.argv[3] if len(sys.argv) > 3 else None
-        value = next(value for value in prototypes(name) if selector is None or
+        selector = rest
+        value = next(value for value in prototypes(work, name) if selector is None or
                      value.get("kind") == selector or value.get("author_type") == selector)
     else:
-        text = Path(sys.argv[3]).read_text()
+        text = Path(rest).read_text()
         try:
             value = json.loads(text)
         except json.JSONDecodeError:
             print(text)
-            sys.exit(0)
-        validate(name, value)
+            return
+        validate(work, name, value)
     print(json.dumps(value, ensure_ascii=False))
+
+
+if __name__ == "__main__":
+    run(os.environ["PR_WATCH_TEST_DIR"], *sys.argv[1:])
