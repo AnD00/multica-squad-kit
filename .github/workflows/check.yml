@@ -16,36 +16,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - name: Install missing tools (macOS)
-        if: runner.os == 'macOS'
+      - name: Cache key for tools
+        id: tools-key
+        run: echo "key=tools-${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-unknown}-${ImageVersion:-unknown}-${{ hashFiles('scripts/ci-install.sh') }}" >> "$GITHUB_OUTPUT"
+      - name: Restore tools cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/ci-install-cache
+          key: ${{ steps.tools-key.outputs.key }}
+      - name: Install missing tools
+        id: install
         env:
-          HOMEBREW_NO_AUTO_UPDATE: '1'
-          HOMEBREW_NO_INSTALL_CLEANUP: '1'
-        run: |
-          missing=()
-          command -v jq >/dev/null 2>&1 || missing+=(jq)
-          command -v python3 >/dev/null 2>&1 || missing+=(python)
-          [ "${#missing[@]}" -eq 0 ] && { echo "nothing to install"; exit 0; }
-          for i in 1 2 3; do
-            brew install "${missing[@]}" && exit 0
-            echo "brew install failed (attempt $i)"; sleep $((i * 10))
-          done
-          exit 1
-      - name: Install missing tools (Linux)
-        if: runner.os == 'Linux'
-        run: |
-          missing=()
-          for p in bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps; do
-            [ "$(dpkg-query -W -f='${db:Status-Status}' "$p" 2>/dev/null)" = installed ] || missing+=("$p")
-          done
-          [ "${#missing[@]}" -eq 0 ] && { echo "nothing to install"; exit 0; }
-          echo "missing: ${missing[*]}"
-          for i in 1 2 3 4; do
-            sudo apt-get -o Acquire::Retries=3 update \
-              && sudo apt-get -o Acquire::Retries=3 install -y "${missing[@]}" && exit 0
-            echo "apt-get failed (attempt $i)"; sleep $((i * 15))
-          done
-          exit 1
+          CI_INSTALL_CACHE_DIR: ${{ runner.temp }}/ci-install-cache
+        run: bash scripts/ci-install.sh "$RUNNER_OS"
+      - name: Save tools cache
+        if: steps.install.outputs.source == 'mirror'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/ci-install-cache
+          key: ${{ steps.tools-key.outputs.key }}
       - name: Tests
         run: /bin/bash tests/run.sh
       - name: Syntax and integrity
