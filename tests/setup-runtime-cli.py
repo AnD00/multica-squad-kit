@@ -123,6 +123,7 @@ elif event == ('agent', 'create'):
                     max_concurrent_tasks=int(option('--max-concurrent-tasks')),
                     instructions=option('--instructions'),
                     permission_mode=option('--permission-mode'),
+                    custom_args=json.loads(option('--custom-args')),
                     invocation_targets=[], skills=[])
     db['envs'][result['id']] = json.loads(content('--custom-env-file'))
 elif event == ('agent', 'update'):
@@ -135,6 +136,8 @@ elif event == ('agent', 'update'):
         result['max_concurrent_tasks'] = int(option('--max-concurrent-tasks'))
     if '--mcp-config' in args:
         result['mcp_config'] = json.loads(option('--mcp-config'))
+    if '--custom-args' in args:
+        result['custom_args'] = json.loads(option('--custom-args'))
     if '--public-to-workspace' in args:
         result['invocation_targets'] = [dict(target_type='workspace')]
 elif tuple(args[:3]) == ('agent', 'env', 'get'):

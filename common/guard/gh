@@ -3,7 +3,6 @@
 # エージェントはホストの人の gh の認証で動き、その人が書けるリポジトリのすべてに issue や PR を作れるため。
 # multica-squad-kit-managed
 # setup.sh が ~/.multica-agent/bin/gh に写し、デーモンの PATH の先頭に置く。
-# シェルの起動ファイルと CLAUDE_ENV_FILE でも、コマンドの前に関所を先頭に戻す。
 # 許すリポジトリは SQUAD_KIT_ALLOWED_REPOS のファイルから読む。未設定ならホストの既定のファイルを使う。
 # 読むだけの操作は止めない。本物の gh を絶対パスで呼べばすり抜けられるので、指示（スキル squad-handoff）と合わせて使う。
 # macOS の bash 3.2 でも動くよう、連想配列は使わない。

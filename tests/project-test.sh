@@ -72,8 +72,11 @@ case "$event" in
  envfile=$(option --custom-env-file "$@")
  [[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$envfile") == 600 ]]
  jq -e --arg z "$TEMPLATE_AGENT_HOME/template/shell/project-a" '.ZDOTDIR==$z and .BASH_ENV==($z+"/env.sh") and (.SQUAD_KIT_ALLOWED_REPOS|endswith("/allowed-repos.d/project-a"))' "$envfile" >/dev/null
+ jq -e --arg model "$(option --model "$@")" --arg z "$TEMPLATE_AGENT_HOME/template/shell/project-a" 'if ($model|startswith("claude-")) then .CLAUDE_ENV_FILE==($z+"/env.sh") else .CLAUDE_ENV_FILE==null end' "$envfile" >/dev/null
+ custom_args=$(option --custom-args "$@")
+ jq -ne --arg model "$(option --model "$@")" --argjson args "$custom_args" '$args == (if ($model|startswith("gpt-")) then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end)' >/dev/null
  cp "$envfile" "$TEST_DB/env/$id.json"
- jq -n --arg id "$id" --arg name "$name" --arg model "$(option --model "$@")" --arg runtime "$(option --runtime-id "$@")" --arg thinking "$(option --thinking-level "$@")" --arg instructions "$(option --instructions "$@")" --argjson max "$(option --max-concurrent-tasks "$@")" '{id:$id,name:$name,owner_id:"actor",model:$model,runtime_id:$runtime,thinking_level:$thinking,instructions:$instructions,max_concurrent_tasks:$max,permission_mode:"private",invocation_targets:[],skills:[]}' >"$TEST_DB/agents/$id.json"
+ jq -n --arg id "$id" --arg name "$name" --arg model "$(option --model "$@")" --arg runtime "$(option --runtime-id "$@")" --arg thinking "$(option --thinking-level "$@")" --arg instructions "$(option --instructions "$@")" --argjson max "$(option --max-concurrent-tasks "$@")" --argjson args "$custom_args" '{id:$id,name:$name,owner_id:"actor",model:$model,runtime_id:$runtime,thinking_level:$thinking,instructions:$instructions,max_concurrent_tasks:$max,permission_mode:"private",invocation_targets:[],skills:[],custom_args:$args}' >"$TEST_DB/agents/$id.json"
  cat "$TEST_DB/agents/$id.json" ;;
 'agent env get') jq '{custom_env:.}' "$TEST_DB/env/$4.json" ;;
 'agent env set') cp "$(option --custom-env-file "$@")" "$TEST_DB/env/$4.json"; echo '{}' ;;
@@ -83,7 +86,7 @@ case "$event" in
   # 全有効役とスクワッドの実 ID が、この時点ですでに存在する。
   [[ $(find "$TEST_DB/agents" -name 'agent-demo-*.json' | wc -l | tr -d ' ') == "$TEST_ROLE_COUNT" ]]
   [[ -f $TEST_DB/squad.json ]]
-  jq --arg instructions "$(option --instructions "$@")" --arg description "$(option --description "$@")" --arg model "$(option --model "$@")" --arg runtime "$(option --runtime-id "$@")" --arg thinking "$(option --thinking-level "$@")" --argjson max "$(option --max-concurrent-tasks "$@")" --argjson mcp "$(option --mcp-config "$@")" '.+{instructions:$instructions,description:$description,model:$model,runtime_id:$runtime,thinking_level:$thinking,max_concurrent_tasks:$max,mcp_config:$mcp}' "$TEST_DB/agents/$id.json" >"$TEST_DB/new"
+  jq --arg instructions "$(option --instructions "$@")" --arg description "$(option --description "$@")" --arg model "$(option --model "$@")" --arg runtime "$(option --runtime-id "$@")" --arg thinking "$(option --thinking-level "$@")" --argjson max "$(option --max-concurrent-tasks "$@")" --argjson mcp "$(option --mcp-config "$@")" --argjson args "$(option --custom-args "$@")" '.+{instructions:$instructions,description:$description,model:$model,runtime_id:$runtime,thinking_level:$thinking,max_concurrent_tasks:$max,mcp_config:$mcp,custom_args:$args}' "$TEST_DB/agents/$id.json" >"$TEST_DB/new"
  else
   # 最初の公開の前に、全役の本指示とスキルの反映が終わっている。
   jq -es 'all(.[] | select(.name|startswith("demo-")); (.instructions|contains("このプロジェクトの値")))' "$TEST_DB"/agents/*.json >/dev/null
@@ -202,15 +205,8 @@ cmp "$test_dir/expected-repos" "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a"
 jq -e 'length==3 and .[1].resource_ref.url=="git@github.com:EXAMPLE/SECOND.git" and .[2].resource_ref.url=="https://github.com/example/third"' "$TEST_DB/resources.json" >/dev/null
 [[ $(jq -s '[.[]|select(.[0:3]==["project","resource","add"])]|length' "$TEST_DB/calls") == 2 ]]
 jq -e '.model=="gpt-6.1-sol" and .max_concurrent_tasks==1' "$TEST_DB/agents/agent-demo-usage-monitor-owner.json" >/dev/null
-jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL==null and (has("CLAUDE_ENV_FILE")|not)' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
-for agent in "$TEST_DB"/agents/agent-demo-*.json; do
- if [[ $(jq -r .model "$agent") == claude-* ]]; then
-  jq -e --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" '.CLAUDE_ENV_FILE==.BASH_ENV and .CLAUDE_ENV_FILE==$env' "$TEST_DB/env/$(jq -r .id "$agent").json" >/dev/null
- else
-  jq -e 'has("CLAUDE_ENV_FILE")|not' "$TEST_DB/env/$(jq -r .id "$agent").json" >/dev/null
- fi
-done
-jq -e '.CLAUDE_CODE_SHELL=="/bin/zsh" and .ENABLE_CLAUDEAI_MCP_SERVERS=="false"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
+jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL==null and .CLAUDE_ENV_FILE==null' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
+jq -e --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" '.CLAUDE_CODE_SHELL=="/bin/zsh" and .ENABLE_CLAUDEAI_MCP_SERVERS=="false" and .CLAUDE_ENV_FILE==$env' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
 jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE=="1"' "$TEST_DB/env/agent-demo-dependabot-merger-owner.json" >/dev/null
 jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE==null' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
 jq -e '[.skills[].id]|sort==["handoff-a","verify-a"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
@@ -252,19 +248,28 @@ jq -e '.instructions=="keep"' "$TEST_DB/agents/other.json" >/dev/null
 cmp "$test_dir/resources-before" "$TEST_DB/resources.json"
 grep -qF "今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件" "$test_dir/out"
 echo 'PASS project: 再実行は実 ID・説明・プロジェクトのスキル・追加の環境と別人の設定を保ち、同じ内容は書かない'
+echo 'PASS custom args: 作成時に Codex にだけ 2 設定を渡し、同じ内容の再実行では設定を書かない'
 echo 'PASS project: HTTPS・SSH・大小文字・末尾の違いは重ねて紐付けず、既存の ref と別種のリソースも保つ'
+
+jq '.custom_args=["--keep","value","--enable","shell_snapshot","--enable=shell_snapshot","--enable","shell_tool","--enable=unified_exec","-c","other=true","-c","allow_login_shell=true","--config","features.shell_snapshot=true","--config=allow_login_shell=true","--config=features.shell_snapshot=true","-c","features.shell_snapshot_extra=true"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-implementer-owner.json"
+jq '.custom_args=["--claude-extra","--enable=shell_snapshot","--enable","shell_snapshot","-c","features.shell_snapshot=false","--config","allow_login_shell=false","--config=features.shell_snapshot=false","--config=allow_login_shell=false","--other","value","-c","allow_login_shell_other=true"]' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-orchestrator-owner.json"
+: >"$TEST_DB/calls"
+run
+jq -e '.custom_args==["--keep","value","--enable","shell_tool","--enable=unified_exec","-c","other=true","-c","features.shell_snapshot_extra=true","-c","allow_login_shell=false","-c","features.shell_snapshot=false"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
+jq -e '.custom_args==["--claude-extra","--other","value","-c","allow_login_shell_other=true"]' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >/dev/null
+[[ $(jq -s '[.[]|select(.[0:2]==["agent","update"])]|length' "$TEST_DB/calls") == 2 ]]
+echo 'PASS custom args: 引数だけの不一致でも更新し、両形式の上書きと重複を除き、ほかの引数の順を保つ'
+echo 'PASS custom args: shell_snapshot の両形式の --enable を除き、ほかの機能の有効化は順も保つ'
 
 jq '.model="old" | .instructions="old"' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-implementer-owner.json"
 jq '.ZDOTDIR="old" | .CLAUDE_ENV_FILE="old"' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-codex-implementer-owner.json"
-jq 'del(.CLAUDE_ENV_FILE)' "$TEST_DB/env/agent-demo-planner-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-planner-owner.json"
-jq '.CLAUDE_ENV_FILE="custom"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-orchestrator-owner.json"
+jq '.CLAUDE_ENV_FILE="old" | .EXTRA="keep"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-orchestrator-owner.json"
 run
 jq -e '.model=="gpt-6.1-sol" and (.instructions|contains("このプロジェクトの値"))' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
-jq -e '.EXTRA=="keep" and (.ZDOTDIR|endswith("/project-a")) and (has("CLAUDE_ENV_FILE")|not)' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
-for role in planner orchestrator; do
- jq -e '.CLAUDE_ENV_FILE==.BASH_ENV' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
-done
+jq -e '.EXTRA=="keep" and (.ZDOTDIR|endswith("/project-a")) and .CLAUDE_ENV_FILE==null' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
+jq -e --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" '.EXTRA=="keep" and .CLAUDE_ENV_FILE==$env' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
 echo 'PASS project: 既存のエージェントの本指示・モデル・環境を ID を変えずに合わせる'
+echo 'PASS Claude env: 古い CLAUDE_ENV_FILE を Claude では修復し、Codex では除き、追加の環境を保つ'
 
 TEST_REPOSITORIES='[{"url":"https://github.com/example/project","repository":"example/project"}]' run
 [[ $(cat "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a") == example/project ]]
@@ -473,6 +478,8 @@ export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
 rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
 cp -R "$test_dir/completed/db" "$TEST_DB"
 cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"
+jq '.custom_args=["--keep","value"]' "$TEST_DB/agents/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"
+mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-orchestrator-owner.json"
 jq '.+{EXTRA:"keep"}' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >"$TEST_DB/new"
 mv "$TEST_DB/new" "$TEST_DB/env/agent-demo-orchestrator-owner.json"
 for selected in claude codex; do
@@ -487,16 +494,20 @@ for selected in claude codex; do
   role_model=$expected
   if [[ $selected == claude && ( $role == planner || $role == designer ) ]]; then role_model=claude-opus-5-5; fi
   jq -e --arg role "$role" --arg model "$role_model" --arg runtime "runtime-$selected" '.id==("agent-demo-"+$role+"-owner") and .model==$model and .runtime_id==$runtime' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
+  jq -e --arg selected "$selected" --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" 'if $selected=="claude" then .CLAUDE_ENV_FILE==$env else .CLAUDE_ENV_FILE==null end' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
+  role_args='[]'
+  if [[ $role == orchestrator ]]; then role_args='["--keep","value"]'; fi
+  jq -e --arg selected "$selected" --argjson prefix "$role_args" '.custom_args==($prefix+(if $selected=="codex" then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end))' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
  done
  jq -e '.EXTRA=="keep"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
  if [[ $selected == codex ]]; then
   for role in orchestrator usage-monitor ci-monitor; do
-   jq -e '.CLAUDE_CONFIG_DIR==null and .CLAUDE_CODE_SHELL==null and (has("CLAUDE_ENV_FILE")|not) and .ENABLE_CLAUDEAI_MCP_SERVERS==null and .CLAUDE_CODE_AUTO_COMPACT_WINDOW==null' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
+   jq -e '.CLAUDE_CONFIG_DIR==null and .CLAUDE_CODE_SHELL==null and .ENABLE_CLAUDEAI_MCP_SERVERS==null and .CLAUDE_CODE_AUTO_COMPACT_WINDOW==null' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
   done
   ! grep -q 'CLAUDE_CONFIG_DIR=' "$test_dir/out"
   grep -q 'CODEX_HOME=' "$test_dir/out"
  else
-  jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL=="/bin/zsh" and .CLAUDE_ENV_FILE==.BASH_ENV' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
+  jq -e '.CLAUDE_CONFIG_DIR!=null and .CLAUDE_CODE_SHELL=="/bin/zsh"' "$TEST_DB/env/agent-demo-usage-monitor-owner.json" >/dev/null
   ! grep -q 'CODEX_HOME=' "$test_dir/out"
   grep -q 'CLAUDE_CONFIG_DIR=' "$test_dir/out"
  fi
