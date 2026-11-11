@@ -41,9 +41,8 @@ cat >"$test_dir/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
-python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$USAGE_TEST_DIR" claude "$@"
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" usage "$USAGE_TEST_DIR" claude - emit claude-usage "$USAGE_TEST_DIR/claude.json" -- "$@"
 printf 'claude\n' >>"$USAGE_TEST_DIR/runtime-calls"
-python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" claude-usage "$USAGE_TEST_DIR/claude.json"
 cat "$USAGE_TEST_DIR/claude.err" >&2
 exit "$(cat "$USAGE_TEST_DIR/claude.status")"
 MOCK
@@ -55,7 +54,10 @@ if [[ "$*" == --version ]]; then
 	exit 0
 fi
 [[ "$*" == app-server ]]
-python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex "$@"
+stub_args=("$@")
+stub() { recorded=1; python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" usage "$USAGE_TEST_DIR" codex - "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 printf 'codex\n' >>"$USAGE_TEST_DIR/runtime-calls"
 for _ in 1 2 3; do
 	IFS= read -r request
@@ -64,7 +66,7 @@ done
 if [[ -f "$USAGE_TEST_DIR/codex-defect.json" ]]; then
 	jq -cn --slurpfile result "$USAGE_TEST_DIR/codex-defect.json" '{id:2,result:$result[0]}'
 else
-	python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" codex-rate-limits "$USAGE_TEST_DIR/codex.jsonl"
+	stub emit codex-rate-limits "$USAGE_TEST_DIR/codex.jsonl"
 fi
 cat >/dev/null
 MOCK
@@ -156,10 +158,12 @@ assert_fetch_error codex
 )
 echo 'PASS Codex: エラー応答・応答なしの理由と終了コード'
 
+create_default=$(python3 "$root/tests/multica-fixture.py" "$test_dir" base issue-create | jq '.id = "test-issue"')
+label_default=$(python3 "$root/tests/multica-fixture.py" "$test_dir" base label-list | jq '[.id = "operations-label" | .name = "運用"]')
+export create_default label_default
 multica() {
 	if [[ "$*" == version ]]; then echo 'multica fixture-version'; return; fi
-	python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$test_dir" multica "$@"
-	jq -cn --args '$ARGS.positional' -- "$@" >>"$test_dir/calls.jsonl"
+	python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" none "$test_dir" multica calls.jsonl record -- "$@"
 	case "$1 $2" in
 	'issue create')
 		local file
@@ -171,7 +175,7 @@ multica() {
 		if [[ -f $test_dir/create-response.json ]]; then
 			cat "$test_dir/create-response.json"
 		else
-			python3 "$USAGE_FIXTURE_ROOT/tests/multica-fixture.py" "$test_dir" base issue-create | jq '.id = "test-issue"'
+			echo "$create_default"
 		fi
 		;;
 	'issue comment')
@@ -186,7 +190,7 @@ multica() {
 	'issue status') test "$4" == done ;;
 	'label list')
 		if [[ -f $test_dir/label-response.json ]]; then cat "$test_dir/label-response.json"; else
-			python3 "$USAGE_FIXTURE_ROOT/tests/multica-fixture.py" "$test_dir" base label-list | jq '[.id = "operations-label" | .name = "運用"]'
+			echo "$label_default"
 		fi ;;
 	'issue label') test "$3 $4 $5" = 'add test-issue operations-label' ;;
 	*) echo "Unexpected mock call: $*" >&2; return 1 ;;

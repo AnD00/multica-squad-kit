@@ -10,12 +10,34 @@
 PR を出す前に、原本のルートで次を流す。
 
 ```bash
-bash tests/run.sh
 bash scripts/check.sh
 bash scripts/manifest.sh
+bash tests/run.sh tests/webhooks-test.sh     # 関連テスト。選び方は下に書く
+npx markdownlint-cli2 '**/*.md' '#tmp/**'    # Markdown を変えたとき
 SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh
-npx markdownlint-cli2 '**/*.md' '#tmp/**'
 ```
+
+手元では、変更の大きさによらず、構文の確認、MANIFEST の作り直し、関連テスト、Markdown を変えたときの markdownlint を流す。  
+テストの全件は、PR の CI が macOS と Ubuntu で流す。
+
+関連テストは、変えたテストのファイルと、変えたファイルの名前（パスの最後の部分）を含むテストのファイルである。  
+`MANIFEST` は、作り直すと毎回変わるので、変えたファイルに数えない。  
+`README.md`、`manual.md`、`CONTRIBUTING.md` を変えたときは、`tests/doc-lines-test.sh` も流す。  
+関連テストが 1 本も選べないときは、選べなかったことを PR の確認に書き、CI で確かめる。
+
+次のどれかに当たるときは、関連テストの代わりに、手元で `bash tests/run.sh` の全件を流す。
+
+| 条件 | 当たるファイル |
+| --- | --- |
+| テストの仕組み | `tests/run.sh`、`tests/run-one.sh`、`tests/run-hook.sh` |
+| 多くのテストが共有するスタブと補助 | `tests/` の直下で、名前に `fixture` か `lib` を含み、`-test.sh` で終わらないファイル。`tests/fixtures/` の下のすべて |
+| 多くのテストが読む共通の部品 | `setup.sh`、`lib/ui.sh`、`lib/check.sh`、`lib/project.sh`、`lib/render.sh`、`common/monitor/squad-cli-lib` |
+| CI の定義 | `.github/workflows/` の下のすべて |
+| 数と自信 | 関連テストが 10 本を超えるとき。または、選び方に自信が持てないとき（名前を含まずに読み込まれるファイルを変えたときなど） |
+
+手元で流さなかった全件は、PR の確認に「CI で確かめる」と書く。  
+エージェントは、検証スキルの同じ条件に従う。  
+条件を変えるときは、検証スキルとそろえる。
 
 ## 原本と正本
 
@@ -30,21 +52,25 @@ npx markdownlint-cli2 '**/*.md' '#tmp/**'
 
 `bash tests/run.sh` は、`tests/*-test.sh` を並べて流す。  
 すべて通れば 0、1 本でも失敗すれば 1 で終わる。  
-CI も同じコマンドを流す。
+手元では、[変更の進め方](#変更の進め方)に従って関連テストを選んで流す。  
+全件は CI が流す。
 
 ```bash
 bash tests/run.sh                            # 並べて流す
 SQUAD_KIT_TEST_JOBS=4 bash tests/run.sh      # 並列数を 4 にする
 SQUAD_KIT_TEST_JOBS=1 bash tests/run.sh      # 1 本ずつ流す
-bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
+bash tests/run.sh tests/project-create-test.sh   # 選んだファイルだけ流す
+SQUAD_KIT_TEST_SHARD=2/4 bash tests/run.sh   # 4 つに分けた 2 つ目だけ流す
 ```
 
 並列数は、指定しなければ論理 CPU の数になる。  
 1 本ずつ流しても、起こす順と出力は並べたときと同じで、途中で失敗しても最後まで流す。  
 並べたときだけ失敗するかを確かめるときに使う。
 
+CI は、テストをシャードごとのジョブに分けて流す。
+
 失敗したファイルのログは最後にまとめて出て、失敗した場所と直前に通ったケースが添えられる。  
-流している間の出力を見たいときは、`bash tests/project-test.sh` のようにファイルを直接流す。
+流している間の出力を見たいときは、`bash tests/project-create-test.sh` のようにファイルを直接流す。
 
 仕組みは、`tests/run.sh` の冒頭のコメントを参照する。
 
@@ -60,6 +86,8 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
   - Git の名前とメールが要るときは、`git -c user.name=… -c user.email=…` で渡す
 - 原本の `tmp/` 以外のファイルを書き換えない。
   - 決まった名前のファイルを共有の場所に作らず、プロセスを名前で止めない
+- テストのファイルを足したら、`tests/test-weights` に重み（macOS の CI での秒数の目安）を書く。
+  - 重みのないファイルがあると `tests/test-runner-test.sh` が失敗する。分けたファイルを足したときと、CI の秒数が目安から 2 倍以上ずれたときは、`tests/run.sh` の `==== PASS` の行の秒数を写して直す
 - CLI の出力のデータは実物から取る。取り方とバージョンの記録は [CLI の実物の見本](tests/fixtures/cli/README.md)に従い、CLI のバージョンを上げたら取り直す
 - 見張りが読む欄は、先に `common/monitor/squad-cli-lib` の約束に必須・条件付き・省略可能の分類を書く。`// 既定値` や `--compact` で欄の欠けを隠さない
 - 見張りのテストは、整形の前と後で同じ動作になることを確かめる。終了コード・標準出力・CLI のコマンドと引数を比べる
@@ -68,10 +96,12 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
 
 自動テストで確かめる範囲は、macOS と Ubuntu 24.04 のセットアップ・再実行、導入の確認、Webhook の登録・配信確認、起票、関所の許可と拒否、見張り、シェル設定と時刻の読み取り、VM を作るスクリプトの引数と閉じ込めの設定である。  
 実行の始めの確認と、ランタイムのコマンドの組み立てをまねた PATH の復元も確かめる。  
+入口のスクリプト（`install.sh`）の確かめと展開、README の 1 行のコマンドの擬似端末での実行、配布物を作るスクリプト、発行のコマンド（`scripts/release.sh`）、発行のワークフローの定義の決まりも確かめる。  
 CI が apt・brew で足りないツールだけを取得する `scripts/ci-install.sh` は、署名の確認を含むキャッシュの検証と破棄、再試行、取得後の確認を、スタブで確かめる。  
 署名つきのパッケージ情報は `tests/fixtures/ci-install/` に置き、作り直すときは同じ場所の `generate.sh` を実行する。  
 CI でも両 OS に同じテストを流す。  
-外部 CLI とサーバー、`limactl` と `wsl.exe` はスタブを使う。
+外部 CLI とサーバー、`limactl` と `wsl.exe` はスタブを使う。  
+発行のワークフローの実行と、本物の GitHub での証明の確かめは、最初のバージョンを出すときに人が確かめる。
 
 認証済みのデーモン・ランタイムの実行と、WSL 実機の動作は、VM を使わない普段のユーザーでは未確認である。  
 WSL 2 は Linux との互換性と各ツールの公式対応に基づく対応である。
@@ -140,8 +170,9 @@ Mac は Lima、Windows は WSL の専用のディストリで、それぞれ確�
 
 ## タグと Release を出す
 
-人間が、レビューと CI を通した変更のマージ後に、原本のリポジトリのルートで次を流す。  
-タグの名前は `VERSION` から読む。
+人間が、バージョンを上げる PR のマージのあとに、原本のリポジトリのルートで次を流す。  
+タグの名前は `VERSION` から読む。  
+`gh` は 2.102.0 以上が要る。
 
 ```bash
 git switch main
@@ -150,16 +181,51 @@ bash scripts/release.sh
 ```
 
 コマンドは、公開の前に、バージョン、タグを付けるコミット、Release の本文（`CHANGELOG.md` のそのバージョンの節）を出して、確認を求める。  
-`y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、Release を作る。
-
 確認は端末で答えるので、端末から流す。  
 パイプや自動の実行では、公開されない。
+
+`y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、下書きの Release を作る。  
+そのあと、配布物を作るワークフローの終わりを待ち、配布物と証明を確かめて、確かめが通ったときだけ公開する。
 
 止まったときは、出た理由に従って直してから、流し直す。  
 未公開のコミットがあるときや、`VERSION` と `CHANGELOG.md` の先頭のバージョンが違うときは、変更を PR でレビュー・マージしてからやり直す。
 
-Release の作成だけが失敗したときも、同じコマンドを流し直す。  
-タグは作り直さず、Release だけを作る。
+下書きの作成、ワークフロー、公開のどこで失敗したときも、同じコマンドを流し直す。  
+タグは作り直さず、続きから進む。
+
+配布物の確かめで止まったときは、流し直さない。  
+下書きの配布物を GitHub の画面で見て、差し替えられていないかを調べる。
 
 発行済みのタグは動かさない。  
 修正は新しいタグで配る。
+
+### リポジトリの設定
+
+README の 1 行のコマンドは、入口のスクリプト（`install.sh`）を確かめずに流す。  
+入口は公開した Release にあるので、公開したあとに差し替えられると、そのまま流れてしまう。  
+これを防ぐため、リポジトリの管理者が、公開したあとの Release の配布物とタグを差し替えられない次の 2 つを設定する。  
+この変更を入れた最初のバージョンを出す前に行う。  
+不変の Release は、有効にしたあとに公開した Release にだけ効くため。
+
+| 設定 | 値 |
+| --- | --- |
+| Settings → Releases の「Enable release immutability」 | 有効にする |
+| タグの ruleset（Target tags は `v*`） | 「Restrict updates」と「Restrict deletions」を有効にし、「Restrict creations」は付けない。bypass の一覧は空にする |
+
+ruleset は、タグを作ることを止めない。  
+`scripts/release.sh` が、タグを push できるようにするため。
+
+設定のあと、最初のバージョンを出したら、公開済みの Release とそのタグが、差し替えられないことを確かめる。  
+`V` には、公開したバージョンのタグを入れる。
+
+```bash
+V=v1.8.0
+D=$(mktemp -d)
+gh release download "$V" --repo AnD00/multica-squad-kit --pattern SHA256SUMS --dir "$D"
+gh release upload "$V" "$D/SHA256SUMS" --repo AnD00/multica-squad-kit --clobber
+git push --force origin "refs/tags/$V^{commit}:refs/tags/$V"
+```
+
+どちらも、拒まれれば設定が効いている。  
+通ってしまったら、設定が効いていないので、直す。  
+`git push` が通ったときは、`git push --force origin "refs/tags/$V:refs/tags/$V"` で、注釈付きのタグに戻す。
