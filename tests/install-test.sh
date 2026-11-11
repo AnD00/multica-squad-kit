@@ -599,12 +599,12 @@ cmp "$case_dir/gh.log" "$case_dir/expected.log"
 [[ $(cat "$case_dir/setup.log") == "args:
 pwd:$case_dir" ]]
 [[ -z $(ls -A "$case_dir/tmp") ]]
-# 版を渡したときは、最新を読まない。
+# バージョンを渡したときは、最新を読まない。
 run_install "$version"
 [[ $rc == 0 ]]
 ! grep -q '^release view ' "$case_dir/gh.log"
 ! grep -q '使うバージョン' "$case_dir/out"
-# 版を省いても、--extension は setup.sh へ渡る。
+# バージョンを省いても、--extension は setup.sh へ渡る。
 run_install --extension ext
 [[ $rc == 0 ]]
 [[ $(cat "$case_dir/setup.log") == "args:--extension ext
@@ -638,7 +638,7 @@ grep -qxF 'stdin:yes' "$case_dir/setup.log"
 [[ $(grep -c '^release view ' "$case_dir/gh.log") == 1 ]]
 [[ $(sed -n 's/^args://p' "$case_dir/setup.log") == '' && $(grep -c '^release download ' "$case_dir/gh.log") == 1 ]]
 [[ -z $(ls -A "$case_dir/tmp") ]]
-# bash -s -- のあとの引数（版と拡張）が届く。
+# bash -s -- のあとの引数（バージョンと拡張）が届く。
 TTY_ANSWERS="$case_dir/answers" SETUP_READ=1 run_stdin tty "$version" --extension ext
 [[ $rc == 0 ]]
 ! grep -q '^release view ' "$case_dir/gh.log"
