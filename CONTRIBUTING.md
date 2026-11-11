@@ -128,7 +128,7 @@ VM を作るスクリプト（`vm/lima.sh` と `vm/wsl.ps1`）と、中で流す
 まだタグがないバージョンを確かめるので、中では確かめるコミットを取り出して `bash setup.sh --no-checkout` で流す。
 
 1. スクリプトで VM を作り、中でセットアップを最後まで流す
-2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる。関所のディレクトリを含まない PATH でセットアップの外からデーモンを起動し直した状態でも、Claude と Codex のエージェントの実行で `command -v gh` が関所の `gh` を返し、`squad-dispatch-pick`・`squad-pr-watch`・`squad-review-wait` が名前で解決する
+2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる。関所のディレクトリを含まない PATH でセットアップの外からデーモンを起動し直した状態でも、Claude と Codex のエージェントの実行で `command -v gh` が関所の `gh` を返し、`squad-dispatch-pick`・`squad-pr-watch`・`squad-review-wait` が名前で解決する。最上位の役（Claude の `claude-principal` と Codex の `codex-principal`）のエージェントの実行でも、同じく名前で解決する
 3. `verify` が通る。中で MySQL のコンテナを立てたあとも通る
 4. VM を止めて起動し直し、中に入らずに、デーモンがオンラインになってタスクが動く。WSL では、窓をすべて閉じたあとも動く
 5. VM を消したあと、ホストのホームに、セットアップが書いたファイル（`~/.multica-agent`、`~/.multica`、`~/multica_workspaces`）がない
