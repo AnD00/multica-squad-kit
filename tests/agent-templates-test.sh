@@ -107,7 +107,7 @@ for dir in "$test_dir/"*/; do
 		fi
 	done
 done
-echo 'PASS preflight templates: 共通スキルと全構成の進行・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
+echo 'PASS preflight templates: 共通スキルと全構成のリーダー・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
 
 for runtime in claude codex; do
 	if [[ $runtime == claude ]]; then expected=claude-sonnet-5-5; else expected=gpt-6.1-sol; fi
@@ -246,7 +246,7 @@ for role in code-reviewer performance-reviewer security-reviewer ux-reviewer qa;
 	grep -qF '3 行以内' "$test_dir/all/$role"
 done
 grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/designer"
-grep -qF '実装の一覧は、課題のコメントに' "$test_dir/all/designer"
+grep -qF '実装の一覧は、タスクのコメントに' "$test_dir/all/designer"
 echo 'PASS templates: 役の指示と共通スキルが、本文の書き方・PR の本文の置き場所・引き継ぎの順序を同じ見出しで参照する'
 
 # 記入が足りないときの案内は、更新で届く共通スキルだけで読める。

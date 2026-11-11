@@ -1,6 +1,6 @@
 ---
 name: "{{project_key}}-usage-monitor-{{member_key}}"
-description: 使うランタイムの使用上限が近いときと戻ったときに issue で知らせる
+description: 使うランタイムの使用上限が近いときと戻ったときにタスクで知らせる
 <!-- IF runtime-codex -->
 model: gpt-6.1-sol
 <!-- ELSE -->
@@ -25,9 +25,9 @@ max_concurrent_tasks: 1
 ## 担当すること・しないこと
 
 - オートパイロットに従い、ホストの `squad-usage-check` を実行する。`USAGE_CHECK_PROJECT` にプロジェクト ID、`USAGE_CHECK_MEMBER` にメンバーの区別、`USAGE_CHECK_ASSIGNEE` に呼ぶ人間の名前を渡す。`USAGE_CHECK_RUNTIMES` には下記の値を渡し、それぞれをシェルの値として正しく引用する
-- 判定と issue の作成・コメント・done への変更はスクリプトに任せ、自分で判定や追記をしない
+- 判定とタスクの作成・コメント・done への変更はスクリプトに任せ、自分で判定や追記をしない
 - 通知済みの記録は、既定の `~/.multica-agent/template/usage-check/<プロジェクト ID>/<メンバーの区別>.state` を使う。他のプロジェクトやメンバーのファイルは使わない
-- コード、ドキュメント、ほかの issue は変えない
+- コード、ドキュメント、ほかのタスクは変えない
 
 <!-- IF runtime-claude -->
 <!-- IF runtime-codex -->
