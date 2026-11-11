@@ -219,10 +219,10 @@ grep -qF '呼ぶ前に metadata の `pr_url` を書かない' "$test_dir/pr-link
 grep -qF '終了コードが 0 なら、metadata の `pr_url` はスクリプトが書いたので、`branch` だけを置く' "$test_dir/pr-link-procedure"
 grep -qF '0 以外なら、止まらずに `branch` と `pr_url` を自分で置く' "$test_dir/pr-link-procedure"
 grep -qF 'コマンドが見つからないとき（終了コード 127）も同じに扱う' "$test_dir/pr-link-procedure"
-grep -qF '失敗したときは、引き継ぎのコメントに「PR をタスクに紐付けられなかったので、課題の画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
+grep -qF '失敗したときは、引き継ぎのコメントに「PR をタスクに紐付けられなかったので、タスクの画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
 grep -qF 'スクリプトを呼ぶのは PR を作った直後の 1 回だけにする' "$test_dir/pr-link-procedure"
 grep -qF 'タスクの識別子・作業番号・進行の記録は Multica 側に置き、PR の本文やコミットメッセージへ持ち出さない' "$test_dir/pr-link-procedure"
-! grep -qF 'PR とタスクは、課題の画面で URL を指定して紐付ける' "$test_dir/pr-link-procedure"
+! grep -qF 'PR とタスクは、タスクの画面で URL を指定して紐付ける' "$test_dir/pr-link-procedure"
 echo 'PASS templates: 全構成で PR 作成直後に紐付けを呼び、成功と失敗の metadata・引き継ぎ・識別子の扱いを保つ'
 
 for heading in 本文の書き方 'PR を作る・実装を積む' 'PR の本文の置き場所と順序' 引き継ぐとき 'レビューと E2E の返事を返す' 'PR にレビューやテストの結果を書く'; do
@@ -255,7 +255,7 @@ grep -qx '## 記入が足りずに止まるとき' "$test_dir/unfilled-stop"
 for phrase in 'squad_kit_task=project-instructions' 'squad_kit_task=repository-change' 見つからなかった 'その実行で受け取った' 推測で検証しない '未記入や未実行は成功にしない'; do
 	grep -qF "$phrase" "$test_dir/unfilled-stop"
 done
-echo 'PASS templates: 共通スキルに未記入の再確認・記入の issue の印・見つからないときの報告・検証の制約がある'
+echo 'PASS templates: 共通スキルに未記入の再確認・記入のタスクの印・見つからないときの報告・検証の制約がある'
 
 verify_skill="$root/skeleton/.agents/skills/verify/SKILL.md"
 for phrase in 推測して実行せず '未記入や未実行は成功にしません' 'squad-handoff の「記入が足りずに止まるとき」'; do

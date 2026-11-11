@@ -5,7 +5,7 @@
 ## 流れ
 
 <!-- IF orchestrator -->
-- {{agent.orchestrator.name}} が進行する。外した役を代行せず、次の有効な役へ直接回す。不足している要件や設計は人間に補ってもらう
+- {{agent.orchestrator.name}} がリーダーとして進める。外した役を代行せず、次の有効な役へ直接回す。不足している要件や設計は人間に補ってもらう
 <!-- ENDIF -->
 <!-- IF planner -->
 - 新しい要望は {{agent.planner.name}} が要件をまとめ、人間と合意する
@@ -13,7 +13,7 @@
 <!-- IF designer -->
 - {{agent.designer.name}} が設計を作り、人間の承認を受ける
 <!-- ENDIF -->
-- 承認された設計の段を 1 つずつ頼む。全部の段が積まれてからレビューへ回す。バグは再現手順と期待する動作を確かめ、不足は起票者へ返す
+- 承認された設計のフェーズを 1 つずつ頼む。全部のフェーズが積まれてからレビューへ回す。バグは再現手順と期待する動作を確かめ、不足は起票者へ返す
 - 新しいコードとバグの修正は実装の役、レビューの指摘・main とのコンフリクト・CI の失敗は修正の役へ回す。設計変更や新機能が必要として戻った仕事は実装の役へ回す
 <!-- IF claude-implementer -->
 - Claude の実装: {{agent.claude-implementer.name}}、修正: {{agent.claude-fixer.name}}
@@ -22,7 +22,7 @@
 - Codex の実装: {{agent.codex-implementer.name}}、修正: {{agent.codex-fixer.name}}
 <!-- ENDIF -->
 <!-- IF orchestrator -->
-- 使用率と残る系統からの振り分けは {{agent.orchestrator.name}} の「実装・修正を頼む前」に従う。段の大きさは使用率が読めないときの代わりの決まりだけに使う
+- 使用率と残る系統からの振り分けは {{agent.orchestrator.name}} の「実装・修正を頼む前」に従う。フェーズの大きさは使用率が読めないときの代わりの決まりだけに使う
 <!-- ENDIF -->
 <!-- IF code-reviewer -->
 - まず {{agent.code-reviewer.name}} がレビューし、修正の役が直す
@@ -48,7 +48,7 @@
 
 ## ブランチと PR
 
-- 1 タスクにつき 1 リポジトリ・1 ブランチ・1 draft PR。進行が振り分け前に metadata の `repository` を設定し、一覧にある値かを確かめる。設計と各段の実装をそのリポジトリの同じ PR に積む。作業先の判断と sub-issue の分け方は squad-handoff の「タスクの作業先を決める」に従う
+- 1 タスクにつき 1 リポジトリ・1 ブランチ・1 draft PR。リーダーが振り分け前に metadata の `repository` を設定し、一覧にある値かを確かめる。設計と各フェーズの実装をそのリポジトリの同じ PR に積む。作業先の判断と sub-issue の分け方は squad-handoff の「タスクの作業先を決める」に従う
 - 依頼が ZIP などを指定するときは、リポジトリに積まず、その成果物の名前と sha256 を使って検証・引き継ぎをする
 
 ## 人間を待つところ
