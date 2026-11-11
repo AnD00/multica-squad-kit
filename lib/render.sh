@@ -1,5 +1,5 @@
 # 条件を先に取り除き、差し込みは元の文字列に一度だけ行う。
-template_roles='orchestrator planner designer claude-implementer codex-implementer claude-fixer codex-fixer code-reviewer ux-reviewer security-reviewer performance-reviewer qa ci-monitor usage-monitor dependabot-merger'
+template_roles='orchestrator planner designer claude-implementer codex-implementer claude-fixer codex-fixer claude-principal codex-principal code-reviewer ux-reviewer security-reviewer performance-reviewer qa ci-monitor usage-monitor dependabot-merger'
 
 template_filter() {
 	local runtime_flags

@@ -49,7 +49,7 @@ new_case matches
 cp "$TEST_DB/db.json" "$test_dir/before"
 run
 cmp "$test_dir/before" "$TEST_DB/db.json"
-[[ $(grep -c ': 一致$' "$test_dir/out") == 13 ]]
+[[ $(grep -c ': 一致$' "$test_dir/out") == 14 ]]
 ! grep -q '要確認' "$test_dir/out"
 ! jq -es 'any(.[]; .[1]=="create" or .[1]=="update" or index("--show-secrets")!=null)' "$TEST_DB/calls.jsonl" >/dev/null
 echo 'PASS installation: 定義と一致する 5 群を読み直して一致を表示し、変更も起票もしない'
@@ -127,7 +127,7 @@ echo 'PASS installation: 読み取り失敗と不正な応答も要確認とし�
 new_case label-read
 printf '%s\n' 'label list' >"$TEST_DB/fail-read"
 if run; then exit 1; fi
-[[ $(grep -c 'ラベル .*: 要確認' "$test_dir/out") == 4 ]]
+[[ $(grep -c 'ラベル .*: 要確認' "$test_dir/out") == 5 ]]
 grep -q 'ランタイム codex: 一致' "$test_dir/out"
 grep -qF '起票できなかったタスク:' "$test_dir/out"
 

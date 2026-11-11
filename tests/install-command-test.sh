@@ -292,7 +292,7 @@ for shell in "${shells[@]}"; do
 	CURL_MODE=cut CURL_CUT_LINES=$((main_line + 3)) run_script "$shell" c "$oneline"
 	[[ $rc != 0 ]] || fail "$shell: 関数の途中で切れた入口が通りました"
 	nothing_ran
-	# 最後の呼び出しの行の途中で切れても、指定したバージョンや拡張が失われて最新版へ進まない。
+	# 最後の呼び出しの行の途中で切れても、指定したバージョンや拡張が失われて最新のバージョンへ進まない。
 	CURL_MODE=mid run_script "$shell" c "$(one_line_args "$version --extension /ext/dir")"
 	[[ $rc != 0 ]] || fail "$shell: 最後の行の途中で切れた入口が通りました"
 	nothing_ran

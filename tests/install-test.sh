@@ -673,7 +673,7 @@ sed '$d' "$root/install.sh" >"$case_dir/cut-brace.sh"
 { sed '$d' "$root/install.sh" | sed '$d' | sed '$d'; printf '{'; } >"$case_dir/cut-open.sh"
 [[ $(tail -c 5 "$case_dir/cut-main.sh") == $'\tmain' && $(tail -c 1 "$case_dir/cut-open.sh") == '{' ]]
 for cut in cut-brace cut-main cut-open; do
-	# 引数なし、バージョン、拡張つき、--verify のどれでも、何も取らず、何も流さない（バージョンや --verify が失われて最新版の導入へ進まない）。
+	# 引数なし、バージョン、拡張つき、--verify のどれでも、何も取らず、何も流さない（バージョンや --verify が失われて最新のバージョンの導入へ進まない）。
 	for args in "" "$version" "$version --extension /ext" "--verify $version $assets"; do
 		# shellcheck disable=SC2086 # 引数は空白で分ける
 		TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/$cut.sh" run_stdin tty $args
