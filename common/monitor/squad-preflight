@@ -4,10 +4,11 @@
 # BASH_ENV による PATH の修復を受けず、呼び出し元の PATH を確かめる。
 set -eu
 
-if [ "$#" -ne 0 ]; then
-	echo '使い方: squad-preflight' >&2
+if [ "$#" -gt 1 ]; then
+	echo '使い方: squad-preflight [<タスク>]' >&2
 	exit 2
 fi
+issue=${1-}
 
 bin_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 set -- \
@@ -33,7 +34,40 @@ for cmd in gh "$@"; do
 	fi
 	status=1
 done
-if [ "$status" -eq 0 ]; then
-	echo 'squad-preflight: 関所の gh と、すべての見張りが使えます。'
+[ "$status" -eq 0 ] || exit "$status"
+echo 'squad-preflight: 関所の gh と、すべての見張りが使えます。'
+
+# 解決先が全部合うまで Bash を起動しない。確認用の子も PATH を修復しない。
+BASH_ENV= bash --noprofile --norc -s -- "$bin_dir" "$issue" <<'PREFLIGHT_CLI'
+set -euo pipefail
+source "$1/squad-cli-lib"
+issue=$2
+if [[ -z ${MULTICA_AGENT_ID:-} ]]; then
+	echo 'squad-preflight: MULTICA_AGENT_ID がないため agent-get を確かめられません。' >&2
+	exit 1
 fi
-exit "$status"
+version=$(multica version 2>/dev/null) || version=
+version=${version%%$'\n'*}
+if [[ -n $version && $version != "$SQUAD_CLI_VERIFIED_VERSION" ]]; then
+	printf 'squad-preflight: CLI の版が見本と違います（ホスト: %s、見本: %s）。\n' \
+		"$version" "$SQUAD_CLI_VERIFIED_VERSION"
+fi
+check_reading() {
+	local name=$1 response
+	shift
+	response=$(squad_cli_read "$name" "$@") || return 1
+	if jq -e 'type == "array" and length == 0' >/dev/null <<<"$response"; then
+		printf 'squad-preflight: %s は確かめられない（空）\n' "$name"
+	else
+		printf 'squad-preflight: %s の欄を確かめました。\n' "$name"
+	fi
+}
+check_reading squad-list
+check_reading agent-get "$MULTICA_AGENT_ID"
+if [[ -n $issue ]]; then
+	check_reading issue-get "$issue"
+	check_reading issue-comments "$issue"
+	check_reading issue-runs "$issue"
+	check_reading issue-wakeups "$issue"
+fi
+PREFLIGHT_CLI

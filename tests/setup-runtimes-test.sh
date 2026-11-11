@@ -11,6 +11,8 @@ trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$scenario_dir/out" "$sce
 mkdir -p "$test_dir/package" "$test_dir/tools"
 cp "$root/setup.sh" "$root/VERSION" "$test_dir/package/"
 cp -R "$root/lib" "$root/common" "$root/skeleton" "$test_dir/package/"
+mkdir -p "$test_dir/package/tests/fixtures/cli"
+cp "$root/tests/fixtures/cli/VERSION" "$test_dir/package/tests/fixtures/cli/"
 python=$(command -v python3)
 for tool in awk basename bash cat chmod cmp cp cut date dirname env find git grep head jq mkdir mktemp mv python3 rm sed seq shasum sleep sort stat tail tr unzip zip; do
  ln -s "$(command -v "$tool")" "$test_dir/tools/$tool"

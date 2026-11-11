@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
+cd "$root"
 mkdir -p "$root/tmp"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 test_dir=$(mktemp -d "$root/tmp/preflight.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 mkdir -p "$test_dir/guard bin" "$test_dir/tools" "$test_dir/other"
@@ -9,7 +15,7 @@ guard_bin="$test_dir/guard bin"
 cp "$root/common/monitor/squad-preflight" "$guard_bin/squad-preflight"
 chmod +x "$guard_bin/squad-preflight"
 # PATH を閉じ、ホストの gh や見張りへ抜けないようにする。
-for cmd in bash dirname; do
+for cmd in bash dirname cat jq python3; do
 	ln -s "$(command -v "$cmd")" "$test_dir/tools/$cmd"
 done
 cat >"$test_dir/stub" <<'STUB'
@@ -18,6 +24,41 @@ echo called >>"$PREFLIGHT_TEST_CALLED"
 exit 99
 STUB
 export PREFLIGHT_TEST_CALLED="$test_dir/called"
+export PREFLIGHT_TEST_DIR=$test_dir PREFLIGHT_TEST_ROOT=$root MULTICA_AGENT_ID=fixture-agent
+source "$root/common/monitor/squad-cli-lib"
+squad_cli_contracts >"$test_dir/contracts.json"
+mkdir -p "$test_dir/responses"
+reset_responses() {
+	local name
+	for name in squad-list agent-get issue-get issue-comments issue-runs issue-wakeups; do
+		jq '.[0]' "$root/tests/fixtures/cli/$name.json" >"$test_dir/responses/$name.json"
+	done
+	rm -f "$test_dir/allow-missing-fields" "$test_dir/cli-fail"
+}
+reset_responses
+head -n 1 "$root/tests/fixtures/cli/VERSION" >"$test_dir/version"
+cat >"$test_dir/tools/multica" <<'STUB'
+#!/bin/bash
+set -euo pipefail
+work=$PREFLIGHT_TEST_DIR
+python3 "$PREFLIGHT_TEST_ROOT/tests/cli-test-trace.py" "$work" multica "$@"
+jq -cn --args '$ARGS.positional' -- "$@" >>"$work/calls.jsonl"
+if [[ "$*" == version ]]; then cat "$work/version"; exit 0; fi
+case "${1-} ${2-} ${3-}" in
+'squad list --output') name=squad-list ;;
+'agent get fixture-agent') name=agent-get ;;
+'issue get fixture-issue') name=issue-get ;;
+'issue comment list') name=issue-comments ;;
+'issue runs fixture-issue') name=issue-runs ;;
+'issue wakeup list') name=issue-wakeups ;;
+*) echo "Unexpected mock call: $*" >&2; exit 99 ;;
+esac
+if [[ -f $work/cli-fail && $(cat "$work/cli-fail") == "$name" ]]; then
+	echo 'mock CLI failure' >&2; exit 19
+fi
+python3 "$PREFLIGHT_TEST_ROOT/tests/multica-fixture.py" "$work" emit "$name" "$work/responses/$name.json"
+STUB
+chmod +x "$test_dir/tools/multica"
 monitors=()
 for file in "$root/common/monitor/"squad-*; do
 	cmd=${file##*/}
@@ -29,10 +70,20 @@ for cmd in gh "${monitors[@]}"; do
 	chmod +x "$guard_bin/$cmd"
 done
 
+# 本物のセットアップの関数で、採取版を埋めたライブラリを作る。
+source "$root/lib/host.sh"
+agent_home="$test_dir/installed"
+mkdir -p "$agent_home/bin"
+host_cli_library
+cp "$agent_home/bin/squad-cli-lib" "$guard_bin/squad-cli-lib"
+
 run_preflight() {
 	local expected=$1 test_path=$2 status=0
-	BASH_ENV= PATH="$test_path" /bin/bash -c 'squad-preflight' \
+	shift 2
+	: >"$test_dir/calls.jsonl"
+	BASH_ENV= PATH="$test_path" /bin/bash -c 'squad-preflight "$@"' -- "$@" \
 		>"$test_dir/out" 2>"$test_dir/err" || status=$?
+	python3 "$root/tests/cli-test-trace.py" "$test_dir" result "$guard_bin/squad-preflight" "$status" "$test_dir/out" "$@"
 	if [[ $status != "$expected" ]]; then
 		cat "$test_dir/out" "$test_dir/err" >&2
 		echo "FAIL preflight: status=$status (expected $expected)" >&2
@@ -43,14 +94,88 @@ run_preflight() {
 assert_failure() {
 	local cmd=$1 actual=$2
 	[[ ! -s $test_dir/out ]]
+	[[ ! -s $test_dir/calls.jsonl ]]
 	grep -Fq "squad-preflight: $cmd が使えません。実際の解決先: ${actual}（期待: $guard_bin/${cmd}）" "$test_dir/err"
 	grep -q '動いているタスクがないときに、同じプロジェクトでセットアップを流し直' "$test_dir/err"
 }
 
 run_preflight 0 "$guard_bin:$test_dir/tools"
-[[ $(wc -l <"$test_dir/out") -eq 1 && ! -s $test_dir/err ]]
+[[ $(wc -l <"$test_dir/out") -eq 3 && ! -s $test_dir/err ]]
 grep -q 'すべての見張りが使えます' "$test_dir/out"
-echo 'PASS preflight: 正常時は 1 行を出して 0、コマンド自体は実行しない'
+jq -se 'map(select(.[0]!="version")) == [["squad","list","--output","json"],["agent","get","fixture-agent","--output","json"]]' "$test_dir/calls.jsonl" >/dev/null
+echo 'PASS preflight: 正常時は関所を確認してから2種類を読み、gh と見張り本体は実行しない'
+
+run_preflight 0 "$guard_bin:$test_dir/tools" fixture-issue
+[[ $(wc -l <"$test_dir/out") -eq 7 && ! -s $test_dir/err ]]
+jq -se 'map(select(.[0]!="version")) == [
+ ["squad","list","--output","json"], ["agent","get","fixture-agent","--output","json"],
+ ["issue","get","fixture-issue","--output","json"],
+ ["issue","comment","list","fixture-issue","--full","--output","json"],
+ ["issue","runs","fixture-issue","--output","json"],
+ ["issue","wakeup","list","fixture-issue","--output","json"]]' "$test_dir/calls.jsonl" >/dev/null
+echo 'PASS preflight: タスクありでは6種類を読み、正常な省略と null を受け入れる'
+
+cat >"$test_dir/child-env.sh" <<'STUB'
+echo repaired >"$PREFLIGHT_TEST_DIR/repaired"
+export PATH="$PREFLIGHT_TEST_DIR/other:$PATH"
+STUB
+status=0
+BASH_ENV="$test_dir/child-env.sh" PATH="$guard_bin:$test_dir/tools" /bin/sh "$guard_bin/squad-preflight" fixture-issue \
+	>"$test_dir/out" 2>"$test_dir/err" || status=$?
+python3 "$root/tests/cli-test-trace.py" "$test_dir" result "$guard_bin/squad-preflight" "$status" "$test_dir/out" fixture-issue
+[[ $status == 0 && ! -e $test_dir/repaired && ! -s $test_dir/err ]]
+echo 'PASS preflight: 欄を読む子のBashも、BASH_ENVを読み直してPATHを変えない'
+
+for name in squad-list issue-comments issue-runs issue-wakeups; do echo '[]' >"$test_dir/responses/$name.json"; done
+run_preflight 0 "$guard_bin:$test_dir/tools" fixture-issue
+[[ $(grep -c '確かめられない（空）' "$test_dir/out") == 4 ]]
+reset_responses
+echo 'PASS preflight: 空の一覧は確かめられないことを知らせ、失敗にしない'
+
+for pair in squad-list:id agent-get:name issue-get:metadata issue-comments:source_task_id issue-runs:trigger_comment_id issue-wakeups:condition.type; do
+	reset_responses
+	name=${pair%%:*}; field=${pair#*:}
+	case $name in
+	 squad-list) expression='map(del(.id))' ;;
+	 agent-get) expression='del(.name)' ;;
+	 issue-get) expression='del(.metadata)' ;;
+	 issue-comments) expression='map(if .author_type=="agent" then del(.source_task_id) else . end)' ;;
+	 issue-runs) expression='map(if .kind=="comment" then del(.trigger_comment_id) else . end)' ;;
+	 issue-wakeups) expression='map(if .condition!=null then del(.condition.type) else . end)' ;;
+	esac
+	jq "$expression" "$test_dir/responses/$name.json" >"$test_dir/changed.json"
+	mv "$test_dir/changed.json" "$test_dir/responses/$name.json"
+	: >"$test_dir/allow-missing-fields"
+	run_preflight 1 "$guard_bin:$test_dir/tools" fixture-issue
+	grep -qF "$name の $field" "$test_dir/err"
+	grep -qF "$(head -n 1 "$test_dir/version")" "$test_dir/err"
+done
+reset_responses
+echo 'PASS preflight: 6種類の必須・条件付きの欠落で、欄名・CLIの版を出して終了1'
+
+echo 'multica fixture-upgrade' >"$test_dir/version"
+run_preflight 0 "$guard_bin:$test_dir/tools" fixture-issue
+grep -qF 'CLI の版が見本と違います' "$test_dir/out"
+grep -qF "$(head -n 1 "$root/tests/fixtures/cli/VERSION")" "$test_dir/out"
+head -n 1 "$root/tests/fixtures/cli/VERSION" >"$test_dir/version"
+echo 'PASS preflight: 採取時と違う版は知らせるだけで、欄が正しければ成功する'
+
+echo squad-list >"$test_dir/cli-fail"
+run_preflight 1 "$guard_bin:$test_dir/tools"
+grep -qF 'mock CLI failure' "$test_dir/err"
+reset_responses
+echo 'PASS preflight: CLI自体の失敗では、検証成功に進めない'
+
+unset MULTICA_AGENT_ID
+run_preflight 1 "$guard_bin:$test_dir/tools"
+grep -qF MULTICA_AGENT_ID "$test_dir/err"
+[[ ! -s "$test_dir/calls.jsonl" ]]
+export MULTICA_AGENT_ID=fixture-agent
+run_preflight 2 "$guard_bin:$test_dir/tools" first second
+grep -qF '使い方: squad-preflight [<タスク>]' "$test_dir/err"
+[[ ! -s "$test_dir/calls.jsonl" ]]
+echo 'PASS preflight: エージェントID不足と余分な引数を明示して失敗する'
+
 
 cp "$test_dir/stub" "$test_dir/other/gh"
 chmod +x "$test_dir/other/gh"

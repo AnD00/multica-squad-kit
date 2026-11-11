@@ -82,11 +82,13 @@ assert_preflight() {
 	grep -Eq '引数なし|引数を付けず' "$test_dir/preflight"
 }
 assert_preflight "$root/common/skills/squad-handoff/SKILL.md"
+grep -qF 'squad-preflight <タスク>' "$test_dir/preflight"
 grep -qF 'どちらもしない実行では、この確認は流さない' "$test_dir/preflight"
 for dir in "$test_dir/"*/; do
 	[[ -f $dir/orchestrator ]] || continue
 	first_check=$(awk '/^## 受け取ったら確かめること$/ {inside=1; next} inside && /^- / {print; exit}' "$dir/orchestrator")
 	[[ $first_check == *'squad-handoff の「実行の始めの確認」'* && $first_check == *'分かれ道より先'* ]]
+	[[ $first_check == *'squad-preflight <タスク>'* ]]
 	if grep -qF 'squad-review-wait status' "$dir/orchestrator"; then
 		grep -F 'squad-review-wait status' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
 		grep -F 'squad-review-wait proceed' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'

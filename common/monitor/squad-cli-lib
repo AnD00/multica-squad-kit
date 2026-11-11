@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
+# セットアップが、実物の見本の VERSION の先頭行を埋める。
+SQUAD_CLI_VERIFIED_VERSION={{SQUAD_CLI_VERIFIED_VERSION}}
 # CLI の欄の約束。検証・整形の関数は、このデータを読み込んで使う。
 # fields は応答全体、items.fields は items.path の配列の各要素に当たる。
 # when と samples.where は、その要素を入力とする jq の式。
