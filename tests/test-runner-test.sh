@@ -268,6 +268,44 @@ pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
 [[ -z $(find "$kit/tmp" -name 'test-run.*' -type d -print 2>/dev/null) ]]
 echo 'PASS runner: 割り込まれたら、動いているテストとその子もセッションごと止めて終わる'
 
+# 起動の直後、セッションの ID を登録する前に割り込まれても、テストを残さない。
+# run-one.sh の test_pid=$! の直前に止める補助を BASH_ENV で入れ、止まっている間に run.sh へ TERM を送る。
+cat >"$fixtures/startup.sh" <<'FIXTURE'
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "$$" >"$TEST_RUNNER_STATE/startup.pid"
+sleep 60
+FIXTURE
+cat >"$fixtures/stall-hook.sh" <<'HOOK'
+_stall() {
+	if [[ $BASH_COMMAND == 'test_pid=$!' && -n ${TEST_RUNNER_STATE-} ]]; then
+		touch "$TEST_RUNNER_STATE/stalled"
+		sleep 5
+	fi
+}
+trap _stall DEBUG
+HOOK
+rm -rf -- "$TEST_RUNNER_STATE"
+mkdir -p "$TEST_RUNNER_STATE"
+BASH_ENV="$fixtures/stall-hook.sh" SQUAD_KIT_TEST_JOBS=1 bash "$kit/tests/run.sh" "$fixtures/startup.sh" >"$test_dir/out" 2>"$test_dir/err" &
+suite_pid=$!
+for ((attempt=0; attempt<200; attempt++)); do
+	[[ -e $TEST_RUNNER_STATE/stalled ]] && break
+	sleep 0.1
+done
+[[ -e $TEST_RUNNER_STATE/stalled ]]
+# 子が起きて、登録を待たずに新しいセッションへ移る作りなら、テストが動き出す時間を置く。
+sleep 1.5
+kill -TERM "$suite_pid"
+result=0
+wait "$suite_pid" || result=$?
+[[ $result == 143 ]]
+# 登録の前に割り込まれたので、テストは起きない。起きていたら、割り込みのあとに残る。
+sleep 1
+[[ ! -e $TEST_RUNNER_STATE/startup.pid ]]
+[[ -z $(find "$kit/tmp" -name 'test-run.*' -type d -print 2>/dev/null) ]]
+echo 'PASS runner: セッションの ID を登録する前に割り込まれても、テストを起こさず、何も残さない'
+
 rm "$kit/tests/project-test.sh"
 run_suite 2 1 "$fixtures/pass.sh"
 grep -qxF '重みの一覧にあるファイルがありません: tests/project-test.sh' "$test_dir/err"

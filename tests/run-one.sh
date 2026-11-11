@@ -8,6 +8,9 @@
 # （pkill -s は macOS にないため、python3 の os.getsid() を使う）。
 # 新しいセッションは python3 の os.setsid() で作り、そのまま os.execvp で env に置き換える。
 # テストのプロセスの ID が、そのままセッションの ID になる。
+# 子は、session に ID が書かれるまで元のグループにとどまって待ち、書かれてから新しいセッションへ移る。
+# 移ったあとに割り込まれても、run.sh が session の ID でテストを止められるようにするため。
+# 待っている間に run-one.sh が割り込みで終わったら（親の ID が変わったら）、テストを起こさずに終わる。
 # テスト用の環境変数は env に渡し、python3 自身には渡さない。HOME の設定から
 # バージョンを決める python3 の shim が、空の HOME で動かなくなるのを避けるため。
 #
@@ -28,11 +31,22 @@ stop_session() {
 }
 # 割り込まれたら、セッションのテストを残さず、結果を残さずに終わる。
 trap 'if [[ -n $test_pid ]]; then stop_session KILL || :; fi; exit 143' HUP INT TERM
-python3 -c 'import os, sys; os.setsid(); os.execvp(sys.argv[1], sys.argv[1:])' \
+python3 -c '
+import os, sys, time
+registered, parent = sys.argv[1], int(sys.argv[2])
+while not os.path.exists(registered):
+    if os.getppid() != parent:
+        sys.exit(143)
+    time.sleep(0.01)
+os.setsid()
+os.execvp(sys.argv[3], sys.argv[3:])' \
+	"$work/session" "$$" \
 	env HOME="$work/home" TMPDIR="$work/tmp/" BASH_ENV="$root/tests/run-hook.sh" SQUAD_KIT_TEST_ERROR_FILE="$work/error" \
 	bash "$test" >"$work/log" 2>&1 &
 test_pid=$!
-printf '%s\n' "$test_pid" >"$work/session"
+# 読む側が書きかけを見ないよう、書いてから名前を付ける。
+printf '%s\n' "$test_pid" >"$work/session.tmp"
+mv "$work/session.tmp" "$work/session"
 while kill -0 "$test_pid" 2>/dev/null; do
 	if (($(date +%s) - started >= limit)); then
 		timed_out=yes
