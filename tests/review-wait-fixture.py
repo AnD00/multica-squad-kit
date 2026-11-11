@@ -1,4 +1,7 @@
-"""review-wait の CLI stub。実物の見本を元にし、出力前に鍵を検査する。"""
+"""review-wait の CLI stub。実物の見本を元にし、出力前に鍵を検査する。
+
+補助（tests/cli-stub.py）から関数 run を読み込む。スクリプトとしても使える。
+"""
 
 import json
 import os
@@ -8,19 +11,18 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 fixtures = root / "tests/fixtures/cli"
-work = Path(os.environ["REVIEW_WAIT_TEST_DIR"])
 helper = runpy.run_path(str(root / "tests/cli-fixture-lib.py"))
 
 
-def prototypes(name):
+def entry(work, name):
+    return json.loads((work / "contracts.json").read_text())["entries"][name]
+
+
+def prototypes(work, name):
     values = json.loads((fixtures / f"{name}.json").read_text())
-    if entry(name)["shape"] == "array":
+    if entry(work, name)["shape"] == "array":
         return [item for response in values for item in response]
     return values
-
-
-def entry(name):
-    return json.loads((work / "contracts.json").read_text())["entries"][name]
 
 
 def keys_exist(original, candidate):
@@ -34,12 +36,12 @@ def keys_exist(original, candidate):
     return True
 
 
-def emit(name, value):
-    schema = entry(name)
+def emit(work, name, value):
+    schema = entry(work, name)
     allow_missing = (work / "allow-missing-fields").exists()
     fields = schema["items"]["fields"] if schema["shape"] == "array" else schema["fields"]
     for item in value if schema["shape"] == "array" else [value]:
-        for original in prototypes(name):
+        for original in prototypes(work, name):
             if not keys_exist(original, item):
                 continue
             try:
@@ -52,27 +54,31 @@ def emit(name, value):
     print(json.dumps(value, ensure_ascii=False))
 
 
-if __name__ == "__main__":
-    action, name = sys.argv[1:3]
+def run(work, action, name, rest=None):
+    work = Path(work)
     if action == "base":
-        values = prototypes(name)
-        selector = sys.argv[3] if len(sys.argv) > 3 else None
+        values = prototypes(work, name)
+        selector = rest
         value = next(value for value in values if selector is None or
                      value.get("kind") == selector or value.get("author_type") == selector)
         print(json.dumps(value, ensure_ascii=False))
     elif action == "emit":
-        text = Path(sys.argv[3]).read_text()
+        text = Path(rest).read_text()
         try:
             value = json.loads(text)
         except json.JSONDecodeError:
             # 故障ケースの壊れた JSON は、そのまま本体へ渡す。
             print(text)
         else:
-            emit(name, value)
+            emit(work, name, value)
     elif action == "posted":
-        value = prototypes(name)[0]
-        value["id"] = sys.argv[3]
+        value = prototypes(work, name)[0]
+        value["id"] = rest
         override = work / f"{name}-response.json"
         if override.exists():
             value = json.loads(override.read_text())
-        emit(name, value)
+        emit(work, name, value)
+
+
+if __name__ == "__main__":
+    run(os.environ["REVIEW_WAIT_TEST_DIR"], *sys.argv[1:])

@@ -28,15 +28,20 @@ cat >"$test_dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
-python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" gh "$@"
-if [[ ${1-} == --version ]]; then echo 'gh fixture-version'; exit 0; fi
+stub_args=("$@")
+# 記録と見本の返却は、補助の 1 回の呼び出しで済ませる。見本を返さずに終わる呼び出しは、終了時に記録だけする。
+stub() { recorded=1; python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-stub.py" gh "$dir" gh calls.jsonl "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+if [[ ${1-} == --version ]]; then
+	python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-stub.py" gh "$dir" gh - record -- "$@"
+	echo 'gh fixture-version'; exit 0
+fi
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 emit() {
  local name=$1 file=$2
- if [[ -f $dir/gh-defect.$name.json ]]; then
-  python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/gh-fixture.py" "$dir" raw "$name" "$dir/gh-defect.$name.json"
- else python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/gh-fixture.py" "$dir" emit "$name" "$file"; fi
+ if [[ -f $dir/gh-defect.$name.json ]]; then stub raw "$name" "$dir/gh-defect.$name.json"
+ else stub emit "$name" "$file"; fi
 }
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
 if [[ -f $dir/fail && $* == *"$(<"$dir/fail")"* ]]; then
 	echo 'CLI mock failure' >&2
 	exit 1
@@ -870,11 +875,16 @@ cat >"$test_dir/bin/multica" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
-python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
-if [[ ${1-} == version ]]; then echo 'multica fixture-version'; exit 0; fi
-emit() { python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/multica-fixture.py" "$dir" emit "$@"; }
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/multica-calls.jsonl"
+stub_args=("$@")
 args=("$@")
+stub() { recorded=1; python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-stub.py" multica "$dir" multica multica-calls.jsonl "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+if [[ ${1-} == version ]]; then
+	python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-stub.py" multica "$dir" multica - record -- "$@"
+	echo 'multica fixture-version'; exit 0
+fi
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
+emit() { stub emit "$@"; }
 value() {
 	local i
 	for ((i=0; i<${#args[@]}; i++)); do
@@ -904,7 +914,7 @@ case "$1 $2" in
 		project_id:$project, assignee_id:$assignee, assignee_type:"member", status:$status
 	}' >"$dir/created.json"
 	jq --slurpfile base "$dir/search-prototype.json" --argjson issue "$(<"$dir/created.json")" -n '$base[0].issues[0] as $item | $base[0] + {issues:[$item + {id:$issue.id,identifier:$issue.identifier,title:$issue.title,project_id:$issue.project_id,assignee_id:$issue.assignee_id,assignee_type:$issue.assignee_type,status:$issue.status}]}'  >"$dir/search.json"
-	python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/multica-fixture.py" "$dir" base issue-metadata | jq 'del(.repository,.pr_url)' >"$dir/metadata.json"
+	cp "$dir/metadata-prototype.json" "$dir/metadata.json"
 	if [[ -f $dir/create-response.json ]]; then emit issue-create "$dir/create-response.json"; else emit issue-create "$dir/created.json"; fi
 	;;
 'issue metadata')
@@ -935,8 +945,7 @@ cat >"$test_dir/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
-python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" curl "$@"
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/curl-calls.jsonl"
+python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-stub.py" none "$dir" curl curl-calls.jsonl record -- "$@"
 cat >"$dir/curl-config"
 printf '%s' "$(<"$dir/curl-status")"
 EOF
@@ -964,7 +973,8 @@ escalate_fixture() {
 	cli_fixture label-list | jq '[. + {id:"label-a",name:"運用",resource_type:"issue"}]' >"$test_dir/labels.json"
 	printf '[]\n' >"$test_dir/issue-labels.json"
 	cli_fixture member-list | jq '[. + {name:"Owner Name",email:"owner@example.test",user_id:"member-a",id:"membership-a"}]' >"$test_dir/members.json"
-	cli_fixture issue-metadata | jq 'del(.repository,.pr_url)' >"$test_dir/metadata.json"
+	cli_fixture issue-metadata | jq 'del(.repository,.pr_url)' >"$test_dir/metadata-prototype.json"
+	cp "$test_dir/metadata-prototype.json" "$test_dir/metadata.json"
 	printf '200' >"$test_dir/curl-status"
 	: >"$test_dir/curl-calls.jsonl"
 	rm -f "$test_dir/curl-config"

@@ -31,13 +31,16 @@ cat >"$test_dir/bin/multica" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$PR_WATCH_TEST_DIR
-python3 "$PR_WATCH_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
+stub_args=("$@")
+# 記録と見本の返却は、補助の 1 回の呼び出しで済ませる。見本を返さずに終わる呼び出しは、終了時に記録だけする。
+stub() { recorded=1; python3 "$PR_WATCH_TEST_ROOT/tests/cli-stub.py" pr-watch "$dir" multica calls.jsonl "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 if [[ -f $dir/fail && "${1-} ${2-} ${3-}" == "$(<"$dir/fail")" ]]; then
 	echo 'CLI mock failure' >&2
 	exit 1
 fi
-emit() { python3 "$PR_WATCH_TEST_ROOT/tests/pr-watch-fixture.py" emit "$@"; }
+emit() { stub emit "$@"; }
 case "${1-} ${2-} ${3-}" in
 'version  ') echo 'multica fixture-version' ;;
 'squad list --output') emit squad-list "$dir/squads.json" ;;
@@ -99,11 +102,17 @@ EOF
 cat >"$test_dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
-python3 "$PR_WATCH_TEST_ROOT/tests/cli-test-trace.py" "$PR_WATCH_TEST_DIR" gh "$@"
-if [[ ${1-} == --version ]]; then echo 'gh fixture-version'; exit 0; fi
-[[ "${1-} ${2-} ${3-}" == 'pr view test-pr' ]] || exit 1
-if [[ -f $PR_WATCH_TEST_DIR/fail-gh ]]; then echo 'gh mock failure' >&2; exit 1; fi
-python3 "$PR_WATCH_TEST_ROOT/tests/pr-watch-fixture.py" emit gh-pr-checks "$PR_WATCH_TEST_DIR/pr.json"
+stub="$PR_WATCH_TEST_ROOT/tests/cli-stub.py"
+if [[ ${1-} == --version ]]; then
+	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh - record -- "$@"
+	echo 'gh fixture-version'; exit 0
+fi
+if [[ "${1-} ${2-} ${3-}" != 'pr view test-pr' || -f $PR_WATCH_TEST_DIR/fail-gh ]]; then
+	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh - record -- "$@"
+	[[ "${1-} ${2-} ${3-}" == 'pr view test-pr' ]] || exit 1
+	echo 'gh mock failure' >&2; exit 1
+fi
+python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh - emit gh-pr-checks "$PR_WATCH_TEST_DIR/pr.json" -- "$@"
 EOF
 chmod +x "$test_dir/bin/multica" "$test_dir/bin/gh"
 

@@ -1,13 +1,20 @@
-"""比較用の呼び出し記録。ランダムな作業先と本文ファイル名だけを正規化する。"""
+"""比較用の呼び出し記録。ランダムな作業先と本文ファイル名だけを正規化する。
+
+補助（tests/cli-stub.py）から関数 trace を読み込む。スクリプトとしても使える。
+"""
 
 import json
 import os
 import sys
 from pathlib import Path
 
-target = os.environ.get("SQUAD_CLI_TEST_TRACE_FILE")
-if target:
-    work, command, *args = sys.argv[1:]
+
+def trace(work, command, args):
+    target = os.environ.get("SQUAD_CLI_TEST_TRACE_FILE")
+    if not target:
+        return
+    work = str(work)
+    args = list(args)
     if command == "result":
         args[2] = "stdout:" + Path(args[2]).read_text().replace(work, "<work>")
     for index, arg in enumerate(args):
@@ -19,3 +26,7 @@ if target:
                 args[index] = "<output>"
     with Path(target).open("a") as stream:
         stream.write(json.dumps([command, *args], ensure_ascii=False) + "\n")
+
+
+if __name__ == "__main__":
+    trace(*sys.argv[1:3], sys.argv[3:])

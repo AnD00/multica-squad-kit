@@ -30,13 +30,16 @@ cat >"$test_dir/bin/multica" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$REVIEW_WAIT_TEST_DIR
-python3 "$REVIEW_WAIT_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
+stub_args=("$@")
+# 記録と見本の返却は、補助の 1 回の呼び出しで済ませる。見本を返さずに終わる呼び出しは、終了時に記録だけする。
+stub() { recorded=1; python3 "$REVIEW_WAIT_TEST_ROOT/tests/cli-stub.py" review-wait "$dir" multica calls.jsonl "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 if [[ -f $dir/fail && "${1-} ${2-} ${3-}" == "$(<"$dir/fail")" ]]; then
 	echo 'CLI mock failure' >&2
 	exit 1
 fi
-emit() { python3 "$REVIEW_WAIT_TEST_ROOT/tests/review-wait-fixture.py" "$@"; }
+emit() { stub "$@"; }
 case "${1-} ${2-} ${3-}" in
 'version  ') echo 'multica fixture-version' ;;
 'squad list --output') emit emit squad-list "$dir/squads.json" ;;
