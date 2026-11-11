@@ -898,3 +898,17 @@ squad_cli_read() {
 		return "$status"
 	fi
 }
+
+# 回を書いた進行役をリーダーとする、有効なスクワッドを 1 つだけ返す。
+# review-wait と PR の見張りで、同じ選び方を使う。
+squad_cli_squad_for_leader() {
+	local leader=$1 squads matches count
+	squads=$(squad_cli_read squad-list) || return 1
+	matches=$(jq --arg leader "$leader" '[.[] | select(.leader_id == $leader and .archived_at == null)]' <<<"$squads") || return 1
+	count=$(jq length <<<"$matches") || return 1
+	if [[ $count != 1 ]]; then
+		printf '知らせるスクワッドを決められません: %s 件（回を書いたエージェント %s）\n' "$count" "$leader" >&2
+		return 1
+	fi
+	jq '.[0]' <<<"$matches"
+}

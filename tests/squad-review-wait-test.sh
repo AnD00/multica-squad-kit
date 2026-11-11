@@ -31,7 +31,7 @@ fi
 emit() { python3 "$REVIEW_WAIT_TEST_ROOT/tests/review-wait-fixture.py" "$@"; }
 case "${1-} ${2-} ${3-}" in
 'version  ') echo 'multica fixture-version' ;;
-'agent list --output') cat "$dir/agents.json" ;;
+'squad list --output') emit emit squad-list "$dir/squads.json" ;;
 "agent get $3")
  jq --arg id "$3" '.[] | select(.id == $id)' "$dir/agents.json" >"$dir/agent-response.json"
  emit emit agent-get "$dir/agent-response.json" ;;
@@ -108,7 +108,11 @@ fixture issue-wakeups | jq --arg mark "$mark" '. as $base | [
 	$base + {id: "other", instruction: ""}
 ]' >"$test_dir/rules.json"
 
+fixture squad-list | jq '[. + {id:"squad-test", name:"demo-squad", leader_id:"orchestrator", archived_at:null}]' >"$test_dir/squads.base.json"
+cp "$test_dir/squads.base.json" "$test_dir/squads.json"
+
 reset_calls() {
+	cp "$test_dir/squads.base.json" "$test_dir/squads.json"
 	: >"$test_dir/calls.jsonl"
 	: >"$test_dir/instructions.jsonl"
 	: >"$test_dir/posted.jsonl"
@@ -256,14 +260,13 @@ jq --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg b "
 	$comment[0] + {author_type: "agent", author_id: $b, created_at: $time, content: "/note\nqa result"}
 ]' "$test_dir/comments.json" >"$test_dir/returned.json"
 cp "$test_dir/returned.json" "$test_dir/comments.json"
-check_status $'返事の待ち: 知らせのないまま返事がそろっている'
-check_status $'返事の待ち: 知らせのないまま返事がそろっている' --timeout
-round_comments
+check_status $'返事の待ち: 返事がそろっていて、まだ次へ回していない'
+check_status $'返事の待ち: 返事がそろっていて、まだ次へ回していない' --timeout
 jq --slurpfile comment "$test_dir/comment-prototype.json" --arg time "$after" '. + [$comment[0] + {author_type: "agent", author_id: "orchestrator", created_at: $time, content: "返事がそろいました。"}]' \
 	"$test_dir/comments.json" >"$test_dir/ready.json"
 cp "$test_dir/ready.json" "$test_dir/comments.json"
-check_status $'/note\n返事の待ち: 返事がそろっているので何もしない'
-echo 'PASS status: 全員が返して知らせがなければ拾い直す。知らせがあれば何もしない'
+check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 全員が返して記録がなければ、知らせの有無を問わず proceed へ進む'
 
 # CLI が秒までの時刻を返しても、当該コメントで始まった実行は拾う。
 round_ts=$((now - 120))
@@ -298,13 +301,16 @@ run_fixture "$b" cancelled "$((round_ts + 1))" | jq -s '.' >"$test_dir/runs.json
 check_status $'返事の待ち: 人間を呼ぶ\n- demo-code-reviewer-test: 実行なし\n- demo-qa-test: cancelled' --timeout
 echo 'PASS status: 上限用の起床でも失敗・取り消しは人間へ'
 
-jq --slurpfile comment "$test_dir/comment-prototype.json" --arg time "$(jq -nr --argjson ts "$((round_ts + 2))" '$ts | todateiso8601')" '. + [$comment[0] + {author_type: "agent", author_id: "orchestrator", created_at: $time, content: "返事がそろいました。"}]' \
+jq --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg b "$b" --arg time "$(jq -nr --argjson ts "$((round_ts + 2))" '$ts | todateiso8601')" '. + [
+ $comment[0] + {author_type:"agent", author_id:$a, created_at:$time, content:"result"},
+ $comment[0] + {author_type:"agent", author_id:$b, created_at:$time, content:"result"},
+ $comment[0] + {author_type:"agent", author_id:"orchestrator", created_at:$time, content:"返事がそろいました。"}]' \
 	"$test_dir/comments.json" >"$test_dir/ready.json"
 cp "$test_dir/ready.json" "$test_dir/comments.json"
-check_status $'/note\n返事の待ち: 返事がそろっているので何もしない' --timeout
+check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない' --timeout
 printf '[]' >"$test_dir/comments.json"
 check_status $'/note\n返事の待ち: 回がないので何もしない' --timeout
-echo 'PASS status: 上限用の起床でもそろった回・回なしでは何もしない'
+echo 'PASS status: 上限用の起床でも未処理のそろった回は進み、回なしでは何もしない'
 
 round_comments
 printf 'issue runs test-issue' >"$test_dir/fail"
@@ -357,7 +363,7 @@ printf '/note\nqa result\n' >"$test_dir/result.md"
 reset_calls
 build_comments result:a:r1:5 plain-result:b:r2:6 >"$test_dir/comments.json"
 printf '[]' >"$test_dir/runs.json"
-check_status '返事の待ち: 知らせのないまま返事がそろっている'
+check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
 [[ ! -s $test_dir/posted.jsonl ]]
 echo 'PASS status: /note 付きとふつうのコメントで返した回も、知らせがなければ拾い直す'
 
@@ -396,7 +402,7 @@ build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
 bash "$script" report test-issue trigger "$test_dir/result.md"
 [[ $(posted_ready_count) == 1 && -z $(slept) ]]
 assert_jq -s 'length == 2 and .[0].body == "/note\nqa result\n"' "$test_dir/posted.jsonl"
-assert_jq -s '.[1].body | startswith("[@orchestrator](mention://agent/orchestrator) 返事がそろいました。\n\n")' "$test_dir/posted.jsonl"
+assert_jq -s '.[1].body | startswith("[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n\n") and (contains("mention://agent/") | not)' "$test_dir/posted.jsonl"
 assert_jq -s 'all(.[]; .args | index("--parent") as $i | .[$i+1] == "trigger")' "$test_dir/posted.jsonl"
 echo 'PASS report: すぐの読み直しでそろえば、待たずに知らせを書く'
 
@@ -515,12 +521,13 @@ build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8
 [[ $(bash "$script" proceed test-issue k1) == $'/note\n返事の待ち: 回ごと済み' ]]
 echo 'PASS proceed: 同じ時刻の記録は ID の順'
 
-# proceed: 書いた記録が読み直しで見えなければ、リーダーを再度起こす。
+# proceed: 書いた記録が 2 回とも見えなければ、ID を添えて失敗する。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.json"
-output=$(bash "$script" proceed test-issue k1)
-[[ $output == '返事の待ち: リーダーを再度起こす' && $(posted_claim_count) == 1 && $(deleted_rules) == 0 ]]
-echo 'PASS proceed: 記録が読み直しで見えなければ、リーダーを再度起こす'
+if bash "$script" proceed test-issue k1 >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
+[[ ! -s $test_dir/output && $(<"$test_dir/error") == *'posted-1'* && $(slept) == '20,20' && $(list_count) == 3 ]]
+[[ $(posted_claim_count) == 1 && $(deleted_rules) == 0 ]]
+echo 'PASS proceed: 記録が 2 回とも見えなければ、ID を添えて失敗する'
 
 # proceed: 返していない役がいる回と、回がないときは何もしない。
 reset_calls
@@ -609,16 +616,16 @@ done
 cp "$test_dir/agents.base.json" "$test_dir/agents.json"
 cp "$test_dir/rules.base.json" "$test_dir/rules.json"
 
-# 結果のあとに名前が読めなくても、ID に置き換えて知らせを投稿しない。
+# 結果のあとに返した役の名前が読めなくても、ID に置き換えて知らせを投稿しない。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
-jq 'map(if .id == "orchestrator" then del(.name) else . end)' "$test_dir/agents.json" >"$test_dir/defect.json"
+jq --arg a "$a" 'map(if .id == $a then del(.name) else . end)' "$test_dir/agents.json" >"$test_dir/defect.json"
 cp "$test_dir/defect.json" "$test_dir/agents.json"
 touch "$test_dir/allow-missing-fields"
 if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 [[ ! -s $test_dir/output && $(posted_ready_count) == 0 && $(jq -s length "$test_dir/posted.jsonl") == 1 ]]
 [[ $(<"$test_dir/error") == *'agent-get の name'* ]]
-echo 'PASS contract: 進行役の名前の欠落を隠さず、結果を再投稿しない'
+echo 'PASS contract: 返した役の名前の欠落を隠さず、結果を再投稿しない'
 
 # null だった親をオブジェクトに変えても、見本にない鍵を足せない。
 jq '.[0].condition = {type:"pull_request", event:"checks_finished", invented_field:true}' \
@@ -626,3 +633,97 @@ jq '.[0].condition = {type:"pull_request", event:"checks_finished", invented_fie
 if python3 "$root/tests/review-wait-fixture.py" emit issue-wakeups "$test_dir/invented.json" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 [[ ! -s $test_dir/output && $(<"$test_dir/error") == *'見本とケースの鍵が違います'* ]]
 echo 'PASS fixture: 入れ子に手書きの鍵を足したケースを拒否する'
+
+# 回の進行役をリーダーとするスクワッドを選び、報告する役の実行の種類は問わない。
+cp "$test_dir/agents.base.json" "$test_dir/agents.json"
+reset_calls
+jq '. + [.[0] + {id:"archived-squad",archived_at:"2026-01-01T00:00:00Z"}, .[0] + {id:"other-squad",leader_id:"other-leader"}]' \
+	"$test_dir/squads.base.json" >"$test_dir/squads.json"
+build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
+MULTICA_AGENT_ID="$a" MULTICA_TASK_ID=member-run bash "$script" report test-issue trigger "$test_dir/result.md"
+assert_jq -s 'length == 2 and (.[1].body | startswith("[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n"))
+ and (.[1].body | contains("mention://agent/") | not)' "$test_dir/posted.jsonl"
+echo 'PASS report: 回を書いた進行役の有効なスクワッドだけをメンションし、エージェントのメンションを含まない'
+
+# スクワッドを決められなければ、結果を /note で投稿する前に止める。
+for selection in none archived other-leader duplicate missing-name cli; do
+	reset_calls
+	build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
+	case $selection in
+	none) printf '[]' >"$test_dir/squads.json" ;;
+	archived) jq 'map(.archived_at = "2026-01-01T00:00:00Z")' "$test_dir/squads.base.json" >"$test_dir/squads.json" ;;
+	other-leader) jq 'map(.leader_id = "other-leader")' "$test_dir/squads.base.json" >"$test_dir/squads.json" ;;
+	duplicate) jq '. + [.[0] + {id:"second-squad"}]' "$test_dir/squads.base.json" >"$test_dir/squads.json" ;;
+	missing-name)
+		touch "$test_dir/allow-missing-fields"
+		jq 'map(del(.name))' "$test_dir/squads.base.json" >"$test_dir/squads.json" ;;
+	cli) printf 'squad list --output' >"$test_dir/fail" ;;
+	esac
+	if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
+	[[ ! -s $test_dir/output && ! -s $test_dir/posted.jsonl && -z $(slept) ]]
+	case $selection in
+	none|archived|other-leader) [[ $(<"$test_dir/error") == *'0 件'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
+	duplicate) [[ $(<"$test_dir/error") == *'2 件'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
+	missing-name) [[ $(<"$test_dir/error") == *'squad-list の name'* ]] ;;
+	cli) [[ $(<"$test_dir/error") == 'CLI mock failure' ]] ;;
+	esac
+	rm -f "$test_dir/fail"
+	echo "PASS report: スクワッドの $selection では結果を投稿せずに失敗する"
+done
+
+# 記録があれば、返事の有無にかかわらず status は次へ回し済みを返す。
+reset_calls
+build_comments claim:orch:claimed:10 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:claimed:10 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない' --timeout
+echo 'PASS status: 記録がある回は、返事・知らせ・上限の有無を問わず次へ回し済み'
+
+# 同じ issue に別の実行として 2 回呼ぶ。最初の記録の実行だけが進む。
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 >"$test_dir/comments.json"
+first_output=$(MULTICA_TASK_ID=first-run bash "$script" proceed test-issue k1)
+second_output=$(MULTICA_TASK_ID=second-run bash "$script" proceed test-issue k1)
+[[ $first_output == '返事の待ち: 次に進む' && $second_output == $'/note\n返事の待ち: 回ごと済み' ]]
+[[ $(posted_claim_count) == 1 && $(slept) == 20 && $(deleted_rules) == 2 ]]
+echo 'PASS proceed: 異なる実行で 2 回呼んでも、進むのは最初の記録の実行だけ'
+
+# 自分の記録が初回に見えなければ、他の記録が見えてももう 1 回待つ。
+for winner in own other; do
+	reset_calls
+	build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+	if [[ $winner == own ]]; then
+		build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:later:9 >"$test_dir/comments.2.json"
+		build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 claim:orch:later:9 >"$test_dir/comments.json"
+		expected='返事の待ち: 次に進む'; deletes=2
+	else
+		build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:earlier:8 >"$test_dir/comments.2.json"
+		build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:earlier:8 claim:orch:posted-1:9 >"$test_dir/comments.json"
+		expected=$'/note\n返事の待ち: 回ごと済み'; deletes=0
+	fi
+	[[ $(bash "$script" proceed test-issue k1) == "$expected" ]]
+	[[ $(posted_claim_count) == 1 && $(slept) == '20,20' && $(list_count) == 3 && $(deleted_rules) == "$deletes" ]]
+	echo "PASS proceed: 自分の記録を 2 回目で読めたら、最も早い $winner の記録だけが進む"
+done
+
+# 2 回目の読み直しでも、新しい回の確認と取得失敗の伝播を行う。
+for change in round cli; do
+	reset_calls
+	build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+	build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.2.json"
+	build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.base.json"
+	if [[ $change == round ]]; then
+		jq --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg time "$(jq -nr --argjson ts "$((round_ts + 30))" '$ts | todateiso8601')" \
+			'. + [$comment[0] + {id:"round2", author_type:"agent", author_id:"orchestrator", created_at:$time, content:("返事を待つ役: [@review](mention://agent/" + $a + ")")}]' \
+			"$test_dir/comments.base.json" >"$test_dir/comments.json"
+		[[ $(bash "$script" proceed test-issue k1) == $'/note\n返事の待ち: 新しい回があるので何もしない' ]]
+	else
+		cp "$test_dir/comments.base.json" "$test_dir/comments.json"
+		echo 3 >"$test_dir/fail-list-at"
+		if bash "$script" proceed test-issue k1 >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
+		[[ ! -s $test_dir/output && $(<"$test_dir/error") == 'CLI mock comment list failure' ]]
+	fi
+	[[ $(posted_claim_count) == 1 && $(slept) == '20,20' && $(deleted_rules) == 0 ]]
+	echo "PASS proceed: 2 回目の読み直しの $change でも次へ進まない"
+done

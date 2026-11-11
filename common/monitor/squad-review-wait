@@ -13,16 +13,16 @@
 #   squad-review-wait status <タスク> [--timeout]
 #     最新の回を調べ、何もしない・拾い直す・記録する・人間を呼ぶの判定と、返っていない役の実行の状態を出す。
 #     上限用の wakeup は --timeout を付け、コメントからの経過を待たずに未返答の役と状態を記録する。
-#     拾い直すは、全員が返していて、そろった知らせがない回。
+#     全員が返していて記録のない回は、知らせの有無を問わず proceed へ進む。
 #   squad-review-wait proceed <タスク> <きっかけのコメント>
-#     リーダーの実行の orchestrator が、次の工程に進む前に通す。回を次へ回す記録を書き、同じ回の記録のうち、
+#     どの実行も、次の工程に進む前に通す。回を次へ回す記録を書き、同じ回の記録のうち、
 #     いちばん早いものを書いた実行だけに `次に進む` を返し、回の見張りを消す。すでに記録があれば `回ごと済み`、
-#     書いた記録が読み直しで見えなければ `リーダーを再度起こす` を返す。知らせがなければ、拾い直しの知らせも書く。
+#     自分の記録は最大 2 回読み直し、見えなければ ID を添えて失敗する。知らせがなければ、拾い直しの知らせも書く。
 #   squad-review-wait report <タスク> <親のコメント> <結果のファイル>
 #     役が結果を書くときに使う。結果は `/note` で始めて書き、誰も起こさない。
 #     書いたあとにコメントを読み直し、待つ役の全員が返していれば、`返事がそろいました` で orchestrator を起こす。
 #     返していない役がいれば、少し待ってからもう 1 回だけ読み直す。
-#     回がなければ投稿せずエラーにする。呼び出した役は、従来の引き継ぎで結果を返す。
+#     回がない、知らせるスクワッドが 1 つに決まらないときは、投稿せずエラーにする。呼び出した役は、従来の引き継ぎで返す。
 #
 # 親のコメントは、その実行のきっかけのコメント（ふつうは回のコメント）。Multica は、コメントで起きた実行に、
 # きっかけのコメントへの返信しか書かせないため。
@@ -32,7 +32,7 @@ set -euo pipefail
 REVIEW_WAIT_LIMIT_MINUTES=${REVIEW_WAIT_LIMIT_MINUTES:-60}
 
 # report と proceed が、同じ回の返事を読み直す前に待つ秒数。ほぼ同時に返した役の結果は、書いた直後の読み直しには
-# 見えないことがある。待ちによる役の実行ののびを 30 秒以内に収めるため、待ちは 20 秒と読み直し 1 回にする。
+# 見えないことがある。report は 1 回、proceed は最大 2 回、20 秒待って読み直す。
 REVIEW_WAIT_RECHECK_SECONDS=${REVIEW_WAIT_RECHECK_SECONDS:-20}
 
 ROUND_MARK='返事を待つ役:'
@@ -96,13 +96,6 @@ agent_name() {
 	squad_cli_read agent-get "$1" | jq -r '.name'
 }
 
-# 役の名前を、メンションのリンクで出す。
-mention_of() {
-	local name
-	name=$(agent_name "$1") || return 1
-	printf '[@%s](mention://agent/%s)' "$name" "$1"
-}
-
 # 引数の ID が有効なエージェントかを、前の見張りを消す前に確かめる。
 check_agent() {
 	squad_cli_read agent-get "$1" | jq -e --arg id "$1" '
@@ -163,12 +156,12 @@ wait_status() {
 		return 0
 	fi
 	missing=$(missing_of "$round")
-	if [[ $(jq -r .ready <<<"$round") == true ]]; then
-		printf '/note\n返事の待ち: 返事がそろっているので何もしない\n'
+	if [[ $(jq '.claim_ids | length' <<<"$round") != 0 ]]; then
+		printf '/note\n返事の待ち: 次へ回し済みなので何もしない\n'
 		return 0
 	fi
 	if [[ -z $missing ]]; then
-		printf '返事の待ち: 知らせのないまま返事がそろっている\n'
+		printf '返事の待ち: 返事がそろっていて、まだ次へ回していない\n'
 		return 0
 	fi
 	runs=$(squad_cli_read issue-runs "$issue") || return 1
@@ -239,7 +232,7 @@ post_claim() {
 # コメントを読み直し、全員が返していて知らせがなければ、知らせを書く。
 # 返していない役がいれば 2、取得・JSON 処理・投稿に失敗したら 1 を返す。
 announce_if_ready() {
-	local issue=$1 parent=$2 round missing ready orchestrator headline
+	local issue=$1 parent=$2 round missing ready orchestrator headline squad
 	# 条件として呼ばれる関数内では set -e が効かないため、失敗を明示的に返す。
 	round=$(comments_of "$issue" | latest_round) || return 1
 	[[ -n $round ]] || return 0
@@ -248,7 +241,8 @@ announce_if_ready() {
 	ready=$(jq -r .ready <<<"$round") || return 1
 	if [[ $ready != true ]]; then
 		orchestrator=$(jq -r .author_id <<<"$round") || return 1
-		headline=$(mention_of "$orchestrator") || return 1
+		squad=$(squad_cli_squad_for_leader "$orchestrator") || return 1
+		headline=$(jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$squad") || return 1
 		post_ready "$issue" "$parent" "$round" "${headline} ${READY_MARK}。" >/dev/null || return 1
 	fi
 }
@@ -265,6 +259,8 @@ report() {
 		echo '返事を待つ役の登録がありません。結果は投稿していません。スキル squad-handoff の「引き継ぐとき」に従い、orchestrator をメンションして返してください。' >&2
 		return 1
 	fi
+	# 知らせる先が決まらないまま結果だけを /note で残さない。
+	squad_cli_squad_for_leader "$(jq -r .author_id <<<"$round")" >/dev/null || return 1
 	# 先頭が /note でなければ足す。ファイルで渡して改行を保つ。
 	mkdir -p tmp
 	body=$(mktemp tmp/squad-review-report.XXXXXX)
@@ -296,9 +292,9 @@ report() {
 
 # 次の工程に進んでよいかを決める。進めるのは、同じ回の次へ回す記録のうち、いちばん早いものを書いた実行だけにする。
 # コメントの並びは Multica が決めるので、ほぼ同時に動く実行どうしでも、進むのは必ず 1 つになる。
-# 記録を書くのはリーダーの実行だけなので、記録があれば、その回はリーダーの実行が次へ回している。
+# 実行の種類を問わず、最も早い記録の実行だけが次へ進む。
 proceed() {
-	local issue=$1 trigger=$2 round again own first
+	local issue=$1 trigger=$2 round again own first attempt
 	round=$(comments_of "$issue" | latest_round)
 	if [[ -z $round ]]; then
 		printf '/note\n返事の待ち: 回がないので何もしない\n'
@@ -317,23 +313,27 @@ proceed() {
 		post_ready "$issue" "$trigger" "$round" "${READY_MARK}（見張りで拾い直しました）。" >/dev/null
 	fi
 	own=$(post_claim "$issue" "$trigger")
-	# ほかの実行の記録が読めるようになるのを待ってから、全員が同じ並びを見て、同じ 1 つを選ぶ。
-	sleep "$REVIEW_WAIT_RECHECK_SECONDS"
-	again=$(comments_of "$issue" | latest_round)
-	if [[ -z $again || $(jq -r .id <<<"$again") != "$(jq -r .id <<<"$round")" ]]; then
-		printf '/note\n返事の待ち: 新しい回があるので何もしない\n'
-		return 0
-	fi
-	first=$(jq -r '.claim_ids[0] // empty' <<<"$again")
-	if [[ -n $first && $first == "$own" ]]; then
-		unwatch "$issue"
-		printf '返事の待ち: 次に進む\n'
-	elif [[ -n $first ]] && jq -e --arg own "$own" '.claim_ids | index($own) != null' <<<"$again" >/dev/null; then
-		printf '/note\n返事の待ち: 回ごと済み\n'
-	else
-		# 自分の記録がまだ読めず、どの実行が次へ回すかを決められない。
-		printf '返事の待ち: リーダーを再度起こす\n'
-	fi
+	# どの実行も同じ並びを見て、最も早い記録を選ぶ。自分の記録は最大 2 回読み直す。
+	for attempt in 1 2; do
+		sleep "$REVIEW_WAIT_RECHECK_SECONDS"
+		again=$(comments_of "$issue" | latest_round) || return 1
+		if [[ -z $again || $(jq -r .id <<<"$again") != "$(jq -r .id <<<"$round")" ]]; then
+			printf '/note\n返事の待ち: 新しい回があるので何もしない\n'
+			return 0
+		fi
+		if jq -e --arg own "$own" '.claim_ids | index($own) != null' <<<"$again" >/dev/null; then
+			first=$(jq -r '.claim_ids[0]' <<<"$again") || return 1
+			if [[ $first == "$own" ]]; then
+				unwatch "$issue"
+				printf '返事の待ち: 次に進む\n'
+			else
+				printf '/note\n返事の待ち: 回ごと済み\n'
+			fi
+			return 0
+		fi
+	done
+	printf '次へ回す記録が読み直しで見えません: コメント %s\n' "$own" >&2
+	return 1
 }
 
 case ${1:-} in
