@@ -8,7 +8,7 @@ da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 d53ad43ea0db729b90fc1f55850b98e00a7d5065a954591d9b21f0eb6d2f183b  ./AGENTS.md
-adb18f07801152bf58b10e2263e1aa962f407f8288101319912943d61297d479  ./CHANGELOG.md
+119483a8e012c066464a69202685d6f7bd9e67ddb445622531f28fa34b378404  ./CHANGELOG.md
 039bfa80f80920d1a3be9cdd6d6f51a7f8382a55e8d98d374d667b24949d5c03  ./CONTRIBUTING.md
 4f5b6b431b5f53fa8c7e10090c36b068bca233e1a55da10bb376cd230da453c7  ./EXTENSIONS.md
 3b53978bc3c69f34aa3b6aa2a3e80852e5b45a34b8c7ae29baf71814743d8fa2  ./README.md
@@ -22,7 +22,7 @@ deafe76efbfd3f3b2616898ded2831e669eb246edac2aa6c98730f64992d3cbc  ./common/agent
 57e340c7ecba879a601bd9fbe563dae1357f9c9a97a60a99c6c1b23111338be4  ./common/agents/codex-implementer.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 1c6a3dccad12d5dca97d96794d75887a6c585a158595d8981ed373a2b31e3aa0  ./common/agents/designer.md
-711fc068d5916e6b87f6532bad71f64ead859a41ed7f4669670ae37ae930482a  ./common/agents/orchestrator.md
+925380174d8be089be31ee0ed177987b939f38f5ca8567a6d3e7b419f1365f87  ./common/agents/orchestrator.md
 775341f7a54fed2c0ec77b03b8047b88aa557ffe627f6a7b6d0983f759237270  ./common/agents/performance-reviewer.md
 792447cdc0b16290d0a7af7e10f63836a652dbd3fc8837b51304d6b903316ad8  ./common/agents/planner.md
 c390705b43bda9ecee8aed75ea1a406b16ae6b753c3161f37040c5e9da97ea96  ./common/agents/qa.md
@@ -34,12 +34,12 @@ a26ee9bcd6bc2983fe8d8a45b7f33bea27a1b25421ab1da2689b768a384f8e67  ./common/agent
 321e610f0acc09f6bccc75526d19a4c1ca4590e98280ae7533d84a334e34ed5a  ./common/guard/gh
 082442a9b7ec2fbe14e219b1bbc1702800ff530395e15f3c3442479a7ba042cc  ./common/guard/pre-push
 3607cc0a6b5f7d6797c2e57b2e4d7e87f30a3104240d6f947e0b1a7d3586a704  ./common/labels
-9b57d0aa23af925912a8b8c4963f2347ddc6368bfdeb4259ae38c796a0a7a4b8  ./common/monitor/squad-cli-lib
+26148cdd6af56ca15f03c7960bf7a9a323ed9836a1531ccf8d294727c1e3f59d  ./common/monitor/squad-cli-lib
 d1c48f6b2b3a4e8cbe99170631d9ff55a82cd75e8199f571f5c37793b75f19db  ./common/monitor/squad-dependabot-merge
 479cf63d78266ceb17647a9d7af85afe30562401944ffc19d8e71840ec4dad40  ./common/monitor/squad-dispatch-pick
 8d052954ad9e8da0e1a76f3faec439a7ff00676d66aaf2edb6bc143dcda13288  ./common/monitor/squad-pr-link
 e383e041f6e0d6878950fef2fe0b348b269647d0f8ae7e6038ba9de4526584cd  ./common/monitor/squad-pr-link-lib
-8678b7eac57fffd3fc979c11d029dbc02bd34e76cd4ccb48e02f9d17f6bb4229  ./common/monitor/squad-pr-watch
+6766fa81f81854791c250662a6ba15bd50dbb958590061d8b5d3a0be3d5ceb8b  ./common/monitor/squad-pr-watch
 803cc5fb086135d7041d71adb3ccee3196f2866e0dfc486d55435c9ff202af6c  ./common/monitor/squad-preflight
 8bec15c91868e2e8a41319137f8827c33e20338169c7e0f94b53922d9676d507  ./common/monitor/squad-review-wait
 ee4f489cacca5c83c730ba8cee9268402b42a7868b91e46e8ae10977d54cd148  ./common/monitor/squad-usage-check
@@ -48,11 +48,12 @@ a390c8c21494d51e5d715cffa1488558b8cefc8a6e1693e86270f47d3f063cbc  ./common/monit
 4819ffffbc38ddef5f88a9aeb8719cce15a297af8df821fdc0dee025db5e79d1  ./common/setup-issues.json
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/.zshenv
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/env.sh
-1989099674dc0f694a2bb621348238b9671e4d8e02bf4decda7960ea669e3958  ./common/skills/squad-handoff/SKILL.md
+8ee2652094a7efe0706f74534f2a2f47d77dd011322cb75e836af0fb56d0fe3f  ./common/skills/squad-handoff/SKILL.md
 7efa073dee1f55412d6e5cb69f65c614d86c1fc03845f5ab2a99aedbe7c5b45a  ./common/squad.md
 ef391575b8e2115cd31f61778434c72429d17b6cf4501a0a6445bee8ac3b52da  ./docs/agent-path.md
 48f5f97d2bf4dea95e811f71836f695a79160278268c7f029d335f47faf53b06  ./docs/gh-gate-path.md
 bd2c8891709e85f89a87a55efdd43d2cbadb607a9800f8c1d26862eca603a5fe  ./docs/install.md
+398f9781a936e6f85d83c8ed7f255ca9e00139accf69d5646c4ec690abf878ad  ./docs/pr-conflict-check.md
 77d78d3a968a480eadde6819358cd95945eeda24e4c5e455c9c299e2b22da835  ./docs/pr-link.md
 d77dd4d62b749b7ffd88b172b1a0a501583d662f29e5cb6046ec19e41050b653  ./docs/release.md
 fa0bb4eb1f0c8b371f7533ff560f3d984c758468cdc4a5f5629486a4e8ec9868  ./docs/review-wait.md
@@ -92,7 +93,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 8c491e62719b72b6c895199808c2320d960e946d8e883c4fd48d8a9a25f5ef4d  ./skeleton/README.md
 395267dc18d95577d740c73aad72de169617d898019f451caf33e4cf9b28adbe  ./skeleton/project.md
 a5c1768652ad26d58317815edb0bd31f888306c2e08685862a187f105d2f949a  ./skeleton/verify-repository.md
-99538c0377023f34c1bd769dedad47fee083753d3de628f34fbc39bd7aa43832  ./tests/agent-templates-test.sh
+7b23631f6d4bf8d419ae4ac1c74fa518c3bcf81040a2faf78b6a4c3a709f6b61  ./tests/agent-templates-test.sh
 c0a4918cf140c51fec5a0a619a09714411551361dd8acf0f749237f79d8f4e46  ./tests/build-assets-test.sh
 33716690201522a64b8217a9175469202605860a45c7ae3c1f89fc50320ebb89  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
@@ -112,7 +113,7 @@ ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-li
 125fb78955f74eadf4de21203121e8ac58a174e1d881bb90e9a868a8a8c4aa3e  ./tests/error-marks-test.sh
 b836f45493e602eb5b11471ab6b0f9e3edec93e8ef6cf9dfff96c3eb469b2dba  ./tests/extensions-test.sh
 7f28a53512ccfb38f34ea5446afbc0d886fe284915c69835aaeb66e7e798ab7e  ./tests/fixtures/cli/CAPTURE.json
-6cab0003d84ae7d9389f74e495dbcd4f18a9575d442108b20b3c9cb842408610  ./tests/fixtures/cli/GH-CAPTURE.json
+146111fed58714fcf54a11b28d86e2ee940a37caff1991401a2767995325b2af  ./tests/fixtures/cli/GH-CAPTURE.json
 566a51cbf6ff8249b20032c2960dd6fecf5e4b6dc03cf3fe9820a64a08b41483  ./tests/fixtures/cli/README.md
 6674e31069b1c0fbc8a0a9e90212ffc741e6320f44724f63d288d871380fc3ce  ./tests/fixtures/cli/USAGE-CAPTURE.json
 415d7bb4650fc8444b2031c4a51711b7cd08f7c84043df01c7de54603c519113  ./tests/fixtures/cli/VERSION
@@ -128,6 +129,7 @@ b0fb6bc4aff17353ef2967fc96dd3b440944aae3b3961ecacbec0743f84a502c  ./tests/fixtur
 768e29be9d39696af15a68fb7ce196cd7aa4b2aa77b6a9789d6e8bc56b96c641  ./tests/fixtures/cli/gh-pr-comments.json
 08990e16c0b846daffe1406f8a97aea8213bac3c955825108fbbe98901793371  ./tests/fixtures/cli/gh-pr-files.json
 7ee5fde3aedf3458daa62292f0e5a6d80829f06a57ff0c95591b8323d1bb5314  ./tests/fixtures/cli/gh-pr-head.json
+14f73d0ae73c5cbc96355c6e35eefcf0b6549b27c0d64d51611e4024e26eba33  ./tests/fixtures/cli/gh-pr-mergeable.json
 37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570  ./tests/fixtures/cli/gh-statuses.json
 7e47b20a78ca09ce8b960feece91d2827e9f7a2036d793b61d1f124bdd195417  ./tests/fixtures/cli/gh-viewer.json
 5971b97c110c4f1800234f5f4b8c2f071a15511d78a8d84251b59ed318495d7c  ./tests/fixtures/cli/issue-comment-add.json
@@ -183,7 +185,7 @@ a71f08ee51416c89e6dc1d7a9a5628ca28086b064d2ba595bd3099e654cf1521  ./tests/squad-
 912ccc3347086a38da55839134a102a7848481fcf472757eca27253eb4b9f343  ./tests/squad-dependabot-merge-test.sh
 5655a075aaa7e1292a887f6da18de6143074dbcddb590ec5167cd8ef78baa373  ./tests/squad-dispatch-pick-test.sh
 aabdf5811147158fb48ba7993576fde10c067c50d818c3d9b2785c3fe0c0e031  ./tests/squad-pr-link-test.sh
-0b5dd0392f1aa015baedb9e757611b42d1c3d0f940cc62d7e40b2bacdeb52aab  ./tests/squad-pr-watch-test.sh
+d7c6b686aff9f54e1642e44a5bfcd141da184807acd348ca3093f4c58cdf3549  ./tests/squad-pr-watch-test.sh
 ce99351b7b1b24a9973ed25fe1f933b63cd34d9ae9714d2792db6a301fcb4c96  ./tests/squad-preflight-test.sh
 f27ab5c52115768a1b8393fcd01c7fcc7c5ced49c17aeb7971ef5214f42cfcc4  ./tests/squad-review-wait-test.sh
 99a28241cae0a5cf566889805bbf2726a25a69a056e8a9422596182cc5210f6f  ./tests/squad-usage-check-test.sh
