@@ -8,7 +8,7 @@ ef2d36f6f6508460b902478194a42d9d07a9605a70b3fc0b194e776fb31ad910  ./.github/work
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 d53ad43ea0db729b90fc1f55850b98e00a7d5065a954591d9b21f0eb6d2f183b  ./AGENTS.md
 119483a8e012c066464a69202685d6f7bd9e67ddb445622531f28fa34b378404  ./CHANGELOG.md
-18341e0b06b49622cc8429eede29dfdff4d1b1e9e1c66dcba6403cb87a9ca6da  ./CONTRIBUTING.md
+744f016438d52f1d661458ea323dba5763d474f53bc9b8f76c90ed4169cfa9a7  ./CONTRIBUTING.md
 4f5b6b431b5f53fa8c7e10090c36b068bca233e1a55da10bb376cd230da453c7  ./EXTENSIONS.md
 e74b8a56bbacc6a5450dc182bc63f446b919c73b163a641ee94c82a21480107d  ./README.md
 7eeea52d4b80909b004dc28b062d38f525d18ce5cf74c152674a1ad2c72d3c05  ./VERSION
@@ -77,7 +77,7 @@ fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
 6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
 c560dae4529c83b97c2ce7b616d2a9e56c275a279834667fef464100302dc046  ./manual.md
 dbb03a4690bde51448496a1de6a8371776a20d30a26a2579fbadfcd0089bab9b  ./scripts/check.sh
-ee5b824e92de142a6105cb0f2a16691aed16eff4b8489d0366dc05042f786503  ./scripts/ci-install.sh
+e2e5e18af3a764c4b217b548a0977a9bc0e6e9a452ca1463cc1762b88919b5ec  ./scripts/ci-install.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 80f95ac15a3d31e9f71614287267b6d8004c2aed96e8e25ce690bd09057bfb20  ./scripts/release.sh
 43eb8c33607d0af1419a78fe4a0247aeb72dfa6420a3717ce26236be92bbe31a  ./setup.sh
@@ -99,7 +99,7 @@ c8a083d46d9d7358cb8f9195d27c3f41b3977192cd40c7229b1fb60e3e23a264  ./tests/captur
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh
 ca57b2d3fb51c612235c7615222adc93a7c35115988d57b8e63881d6ab0914e6  ./tests/check-doc-lines.py
 c3c4576acb93ec8eb36b5144ddaab70e24c7bddd0f337c46ed4d46b24a9715a1  ./tests/check-terms.py
-62572554d2a7b6751a71a3892dae028549abf02c194f7ed405da2b4cf9fc84ed  ./tests/ci-install-test.sh
+710ac1d8ae9f94dedc66cb1018c20c4ffa22278f8833814e6fef35ca7ddae728  ./tests/ci-install-test.sh
 09b4c4f6c3fe1615dc4da9f8c6778e08cb2a329738a6d37c975d68e888b9c4e6  ./tests/cli-fixture-lib.py
 3df3efe8f7eb18b6306610e69cdd66cce7047e2b1365e1fb69a7d2040648e479  ./tests/cli-mode-test-lib.sh
 aed31c09c7a0005d2f49d4bf0f5ce7287f39963d3d0770fd4598c8b07f0af784  ./tests/cli-test-trace.py
@@ -108,6 +108,13 @@ aed31c09c7a0005d2f49d4bf0f5ce7287f39963d3d0770fd4598c8b07f0af784  ./tests/cli-te
 ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-lines-test.sh
 ff9b71d33eb9dc89ede91c06427abd204c85a27be05a64b7fcfbebdca04f83c1  ./tests/error-marks-test.sh
 b836f45493e602eb5b11471ab6b0f9e3edec93e8ef6cf9dfff96c3eb469b2dba  ./tests/extensions-test.sh
+333fba8ad0f42259107c62d14440ce8e1784581bc291f222909cae649a462320  ./tests/fixtures/ci-install/InRelease
+03b807b7748d2433b369352536c4843fdc2133f0e4b2cf4284b344a1e1202076  ./tests/fixtures/ci-install/InRelease.attacker
+4ef140cdd2eb1e71769d2cdabd0a6d35704712a51099c64a1d34ccfaaacbba44  ./tests/fixtures/ci-install/InRelease.expired
+cb8dcdf4eaf3decc765cf3c9094d23c8fed4a248f704b503d77702926663b8b4  ./tests/fixtures/ci-install/Packages
+26f9197fd1298b995bc31acd29925f954cae2258cee06aa62ca00f45ecee9742  ./tests/fixtures/ci-install/Packages.tampered
+0b44b6dfafa846735206ff1f87d167c8228c1b2fca26a4b7a690d4ef88206c24  ./tests/fixtures/ci-install/generate.sh
+ffe76e11e0f06c22021f64d9276f380da492126b7eb23f2bc2644f8dc359e4e5  ./tests/fixtures/ci-install/keyring.gpg
 7f28a53512ccfb38f34ea5446afbc0d886fe284915c69835aaeb66e7e798ab7e  ./tests/fixtures/cli/CAPTURE.json
 146111fed58714fcf54a11b28d86e2ee940a37caff1991401a2767995325b2af  ./tests/fixtures/cli/GH-CAPTURE.json
 566a51cbf6ff8249b20032c2960dd6fecf5e4b6dc03cf3fe9820a64a08b41483  ./tests/fixtures/cli/README.md

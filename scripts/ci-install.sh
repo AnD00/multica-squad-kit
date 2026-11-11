@@ -7,20 +7,27 @@
 # 取り方は GITHUB_OUTPUT の source に書く。none（取得なし）、cache（キャッシュから）、
 # mirror（ミラーから。ワークフローが保存する）、mirror-uncached（ミラーから。保存するものがない）。
 #
-# 壊れたキャッシュで誤って通らないための決め:
-# - Linux は、取得した .deb と SHA256SUMS、足りなかった一覧（PACKAGES）を保存する。復元後は、
-#   一覧が今の足りないものと同じか、ファイルが記録と過不足なく一致しハッシュが合うかを
-#   確かめてから dpkg -i する。1 つでも違えば捨ててミラーから取る。
+# 壊れた・差し替えられたキャッシュで誤って通らないための決め:
+# - Linux は、取得した .deb と、足りなかった一覧（PACKAGES）、.deb を含む APT のパッケージ情報
+#   （InRelease と Packages。apt-meta に保存）を保存する。キャッシュの中身は信用しない。復元後は、
+#   ランナーにある Ubuntu アーカイブの公開鍵で InRelease の署名を gpgv で確かめ、その InRelease が
+#   記すハッシュと Packages が合い、Packages が記す SHA-256 と .deb が合うことを確かめてから
+#   apt-get install でローカルの .deb として入れる。署名・期限・ハッシュのどれかが違う、情報が足りない、署名できる鍵が違う場合は、
+#   キャッシュを捨ててミラーから取る。.deb と一覧を一緒に書き換えても、署名は偽造できない。
 # - macOS は、brew がバイナリの SHA-256 を公式の値と照らすので、その確認に任せる。
-#   失敗したらキャッシュを捨てて、ミラーから取り直す。
+#   失敗したり、入れたあとに動作の確認が通らなかったりしたら、キャッシュを捨てて、ミラーから取り直す。
 # - どちらも入れたあとに、パッケージの状態とコマンドの動作を確かめる。
 set -euo pipefail
 
-linux_packages=(bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps)
+linux_packages=(bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps gpgv)
 apt_attempts=4
 apt_step=15
 brew_attempts=3
 brew_step=10
+# 署名の確認に使う公開鍵と、apt がパッケージ情報を置く場所（テストでは差し替える）。
+apt_keyring=${CI_INSTALL_APT_KEYRING:-/usr/share/keyrings/ubuntu-archive-keyring.gpg}
+apt_lists_dir=${CI_INSTALL_APT_LISTS_DIR:-/var/lib/apt/lists}
+apt_helper=${CI_INSTALL_APT_HELPER:-/usr/lib/apt/apt-helper}
 
 log() { printf 'ci-install: %s\n' "$*"; }
 fail() { printf 'ci-install: %s\n' "$*" >&2; exit 1; }
@@ -54,14 +61,97 @@ linux_missing() {
 	done
 }
 
+# 標準入力か引数のファイルの SHA-256（16 進の値だけ）を出す。
+sha256_of() { sha256 "$@" | awk '{print $1}'; }
+
+# list_cat <ファイル>: apt が置いたパッケージ情報を、圧縮の種類に合わせて展開して出す。
+# Ubuntu 24.04 の apt は lz4 で置くが、ランナーに lz4 のコマンドがあるとは限らないので、apt 自身の apt-helper で展開する。
+list_cat() {
+	case $1 in
+	*.gz) gzip -dc "$1" ;;
+	*.xz | *.lz4 | *.zst | *.bz2) "$apt_helper" cat-file "$1" ;;
+	*) cat "$1" ;;
+	esac
+}
+
+# linux_release_fresh <Release>: Valid-Until があれば、まだ期限内かを確かめる。
+linux_release_fresh() {
+	local until exp
+	until=$(sed -n 's/^Valid-Until: *//p' "$1" | head -n 1)
+	if [[ -z $until ]]; then return 0; fi
+	exp=$(date -u -d "$until" +%s 2>/dev/null || date -u -j -f '%a, %d %b %Y %H:%M:%S %Z' "$until" +%s 2>/dev/null) || return 1
+	[[ $exp -gt $(date -u +%s) ]]
+}
+
+# linux_trusted_hashes <作業ディレクトリ>: キャッシュの InRelease の署名を公開鍵で確かめ、
+# 署名された Release が記すハッシュに合う Packages だけから、「SHA-256  ファイル名」の一覧を作る。
+linux_trusted_hashes() {
+	local tmp=$1 meta=$cache_dir/apt-meta inrel prefix release f rel want have n=0
+	: >"$tmp/trusted"
+	for inrel in "$meta"/*_InRelease; do
+		[[ -f $inrel ]] || continue
+		prefix=${inrel##*/}
+		prefix=${prefix%_InRelease}
+		n=$((n + 1))
+		release="$tmp/Release.$n"
+		gpgv --homedir "$tmp" --keyring "$apt_keyring" --output "$release" "$inrel" >/dev/null 2>&1 || return 1
+		linux_release_fresh "$release" || return 1
+		for f in "$meta/$prefix"_*_Packages.gz; do
+			[[ -f $f ]] || continue
+			rel=${f##*/}
+			rel=${rel#"${prefix}"_}
+			rel=${rel%.gz}
+			rel=${rel//_//}
+			want=$(awk -v p="$rel" '/^SHA256:/{s=1;next} /^[^ ]/{s=0} s&&$3==p{print $1}' "$release")
+			have=$(gzip -dc "$f" | sha256_of) || return 1
+			[[ -n $want && $want == "$have" ]] || return 1
+			gzip -dc "$f" | awk '/^Filename:/{n=$2; sub(".*/","",n)} /^SHA256:/{h=$2} /^$/{if(n!=""&&h!="")print h"  "n; n=""; h=""} END{if(n!=""&&h!="")print h"  "n}' >>"$tmp/trusted" || return 1
+		done
+	done
+	[[ -s $tmp/trusted ]]
+}
+
+# linux_cache_valid <足りないものの一覧>: キャッシュを入れてよいかを、署名の確認まで含めて判定する。
 linux_cache_valid() {
-	local wanted=$1 listed present
-	[[ -f $cache_dir/SHA256SUMS && -f $cache_dir/PACKAGES ]] || return 1
+	local wanted=$1 tmp f name rc=0
+	[[ -f $cache_dir/PACKAGES && -d $cache_dir/apt-meta ]] || return 1
 	[[ $(cat "$cache_dir/PACKAGES") == "$wanted" ]] || return 1
-	listed=$(awk '{print $2}' "$cache_dir/SHA256SUMS" | LC_ALL=C sort)
-	present=$(cd "$cache_dir" && ls -1 ./*.deb 2>/dev/null | sed 's|^\./||' | LC_ALL=C sort) || present=
-	[[ -n $listed && $listed == "$present" ]] || return 1
-	(cd "$cache_dir" && sha256 -c SHA256SUMS >/dev/null 2>&1)
+	ls "$cache_dir"/*.deb >/dev/null 2>&1 || return 1
+	command -v gpgv >/dev/null 2>&1 && [[ -f $apt_keyring ]] || return 1
+	tmp=$(mktemp -d "${TMPDIR:-/tmp}/ci-install.XXXXXX") || return 1
+	if linux_trusted_hashes "$tmp"; then
+		for f in "$cache_dir"/*.deb; do
+			# apt はバージョンの epoch の ":" を %3a にして保存する。Packages の Filename は epoch を含まない。
+			name=$(printf '%s' "${f##*/}" | sed 's/_[0-9][0-9]*%3a/_/')
+			grep -qxF "$(sha256_of "$f")  $name" "$tmp/trusted" || { rc=1; break; }
+		done
+	else
+		rc=1
+	fi
+	rm -rf -- "$tmp"
+	return $rc
+}
+
+# linux_save_meta: 保存する .deb を含むパッケージ情報と、その InRelease だけを apt の置き場所から写す。
+linux_save_meta() {
+	local meta=$cache_dir/apt-meta tmp f base prefix
+	tmp=$(mktemp -d "${TMPDIR:-/tmp}/ci-install.XXXXXX") || return 1
+	mkdir -p "$meta"
+	sha256_of "$cache_dir"/*.deb >"$tmp/hashes"
+	for f in "$apt_lists_dir"/*_Packages "$apt_lists_dir"/*_Packages.gz "$apt_lists_dir"/*_Packages.xz "$apt_lists_dir"/*_Packages.lz4; do
+		[[ -f $f ]] || continue
+		list_cat "$f" >"$tmp/plain" 2>/dev/null || continue
+		grep -qFf "$tmp/hashes" "$tmp/plain" || continue
+		base=${f##*/}
+		base=${base%.gz}
+		base=${base%.xz}
+		base=${base%.lz4}
+		prefix=${base%_*_binary-*_Packages}
+		[[ -f $apt_lists_dir/${prefix}_InRelease ]] || continue
+		cp "$apt_lists_dir/${prefix}_InRelease" "$meta/"
+		gzip -n -c "$tmp/plain" >"$meta/$base.gz"
+	done
+	rm -rf -- "$tmp"
 }
 
 linux_apt_from_mirror() {
@@ -87,8 +177,9 @@ linux() {
 	mkdir -p "$cache_dir"
 
 	if linux_cache_valid "$wanted"; then
-		log 'キャッシュの .deb を検証し、入れます'
-		if sudo dpkg -i "$cache_dir"/*.deb && [[ -z $(linux_missing) ]]; then
+		log 'キャッシュの .deb を署名済みのパッケージ情報と照らし、入れます'
+		# dpkg -i を並べると、Pre-Depends の順で失敗する。順序と依存は apt に任せる（ダウンロードはしない）。
+		if sudo apt-get -o "Dir::Cache::archives=$cache_dir" -o APT::Sandbox::User=root install -y --no-download "$cache_dir"/*.deb && [[ -z $(linux_missing) ]]; then
 			emit_source cache
 			return 0
 		fi
@@ -106,9 +197,16 @@ linux() {
 	sudo rm -rf -- "$cache_dir/partial" "$cache_dir/lock"
 	sudo chown -R "$(id -u):$(id -g)" "$cache_dir"
 	if ls "$cache_dir"/*.deb >/dev/null 2>&1; then
-		(cd "$cache_dir" && sha256 ./*.deb | sed 's|  \./|  |' >SHA256SUMS)
 		printf '%s' "$wanted" >"$cache_dir/PACKAGES"
-		emit_source mirror
+		linux_save_meta
+		if linux_cache_valid "$wanted"; then
+			emit_source mirror
+		else
+			# 署名で確かめられない形のキャッシュは、次の実行で使えないので保存しない。
+			log '保存するキャッシュを署名で確かめられませんでした。保存しません'
+			linux_clear_cache
+			emit_source mirror-uncached
+		fi
 	else
 		emit_source mirror-uncached
 	fi
@@ -123,16 +221,30 @@ macos_missing() {
 	fi
 }
 
+# macos_brew_install <ツール...>: 1 回分の取得。brew が失敗したときと、入れたあとに動作の確認が通らない
+# ときは、キャッシュを捨てて失敗で返し、続く再試行でミラーから取り直す（動作の確認が通らなかった
+# ときは、入れ済みのものを入れ直す）。ミラーから取ったあとの確認の失敗は、呼び出し側が失敗にする。
 macos_brew_install() {
-	if brew install "$@"; then return 0; fi
+	if ! brew "$brew_cmd" "$@"; then
+		macos_discard_cache
+		return 1
+	fi
+	if [[ $cache_used == 1 && -n $(macos_missing) ]]; then
+		log 'キャッシュから入れたあとの確認に失敗しました。キャッシュを捨ててミラーから取り直します'
+		macos_discard_cache
+		brew_cmd=reinstall
+		return 1
+	fi
+}
+
+macos_discard_cache() {
 	rm -rf "$HOMEBREW_CACHE"
 	mkdir -p "$HOMEBREW_CACHE"
 	cache_used=0
-	return 1
 }
 
 macos() {
-	local missing=() p cache_used=0
+	local missing=() p cache_used=0 brew_cmd=install
 	while IFS= read -r p; do missing+=("$p"); done < <(macos_missing)
 	if [[ ${#missing[@]} -eq 0 ]]; then
 		log '必要なツールはランナーに入っています'

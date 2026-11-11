@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# scripts/ci-install.sh の動きを、スタブの apt-get・dpkg・brew などで確かめる。
-# 取得を省く判定、キャッシュの検証と使い分け、壊れたキャッシュを捨てること、再試行、
+# scripts/ci-install.sh の動きを、スタブの apt-get・brew などで確かめる。
+# 取得を省く判定、キャッシュの検証と使い分け、壊れた・差し替えられたキャッシュを捨てること、再試行、
 # 取得後の確認を、Linux と macOS の両方の流れで見る。本物のパッケージは入れない。
+# Linux のキャッシュは、テスト用の鍵で署名した InRelease・Packages と照らして確かめる（本物の gpgv を使う）。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -9,7 +10,25 @@ test_dir=$(mktemp -d "$root/tmp/ci-install.XXXXXX")
 exec 8>&2
 trap 'test_exit=$?; if [[ $test_exit != 0 && -n ${case_dir:-} ]]; then for f in out err log state; do [[ -f $case_dir/$f ]] && { echo "--- $case_dir/$f" >&8; cat "$case_dir/$f" >&8; }; done; fi; rm -rf -- "$test_dir"' EXIT
 
-packages=(bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps)
+packages=(bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps gpgv)
+command -v gpgv >/dev/null 2>&1 || { echo 'FAIL: gpgv が要ります（署名の確認のテスト用）' >&8; exit 1; }
+
+sha256_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$@"; else shasum -a 256 "$@"; fi | awk '{print $1}'; }
+
+# ---- 署名したパッケージ情報（tests/fixtures/ci-install。generate.sh で作る） ----
+# keyring.gpg がランナーの公開鍵（ubuntu-archive-keyring の代わり）。InRelease.attacker はこの鍵にない鍵の署名。
+fx="$root/tests/fixtures/ci-install"
+lists_prefix=mirror.test_ubuntu_dists_noble
+# make_lists <ディレクトリ> <InRelease の元>: stub の apt-get update が置くパッケージ情報。
+make_lists() {
+	mkdir -p "$1"
+	cp "$fx/Packages" "$1/${lists_prefix}_main_binary-amd64_Packages"
+	cp "$fx/$2" "$1/${lists_prefix}_InRelease"
+}
+make_lists "$test_dir/lists-ok" InRelease
+make_lists "$test_dir/lists-expired" InRelease.expired
+lists_src="$test_dir/lists-ok"
+
 
 # スタブは、状態のファイル（入っているものを 1 行ずつ）と記録のファイル（呼ばれた順）を使う。
 # 失敗させる回数や挙動は、case_dir の中のファイルで切り替える。
@@ -46,26 +65,33 @@ done
 if [[ ${args[0]} == update ]]; then
 	fails=$(cat "$CASE_DIR/update-fails" 2>/dev/null || echo 0)
 	if [[ $fails -gt 0 ]]; then echo $((fails - 1)) >"$CASE_DIR/update-fails"; echo 'Temporary failure resolving' >&2; exit 100; fi
+	mkdir -p "$CI_INSTALL_APT_LISTS_DIR"
+	cp "$LISTS_SRC"/* "$CI_INSTALL_APT_LISTS_DIR/"
 	exit 0
 fi
 [[ ${args[0]} == install ]]
 mkdir -p "$archives/partial"
 : >"$archives/lock"
-for pkg in "${args[@]:2}"; do
-	printf 'deb-%s\n' "$pkg" >"$archives/${pkg}_1.0_amd64.deb"
+for pkg in "${args[@]:1}"; do
+	[[ $pkg != -* ]] || continue
+	# ローカルの .deb を指す install（キャッシュから入れる）。失敗や、成功なのに入らない状態を作れる。
+	if [[ $pkg == /*.deb ]]; then
+		[[ ! -f $CASE_DIR/local-install-fails ]] || exit 1
+		name=${pkg##*/}
+		[[ -f $CASE_DIR/local-install-noop ]] || echo "${name%%_*}" >>"$CASE_DIR/state"
+		continue
+	fi
+	ver=1.0
+	[[ $pkg != libdigest-sha-perl ]] || ver='1%3a1.0'
+	printf 'deb-%s\n' "$pkg" >"$archives/${pkg}_${ver}_amd64.deb"
 	[[ -f $CASE_DIR/apt-noop ]] || echo "$pkg" >>"$CASE_DIR/state"
 done
 STUB
-cat >"$stubs/dpkg" <<'STUB'
+# apt-helper cat-file: 本物は lz4 などを展開する。ここでは、.lz4 の名前で置いた gzip を展開する。
+cat >"$stubs/apt-helper" <<'STUB'
 #!/bin/bash
-echo "dpkg $*" >>"$CASE_DIR/log"
-[[ ! -f $CASE_DIR/dpkg-fails ]] || exit 1
-[[ $1 == -i ]]
-shift
-for f in "$@"; do
-	name=${f##*/}
-	[[ -f $CASE_DIR/dpkg-noop ]] || echo "${name%%_*}" >>"$CASE_DIR/state"
-done
+[[ $1 == cat-file ]]
+gzip -dc "$2"
 STUB
 cat >"$stubs/brew" <<'STUB'
 #!/bin/bash
@@ -73,8 +99,11 @@ echo "brew $*" >>"$CASE_DIR/log"
 fails=$(cat "$CASE_DIR/brew-fails" 2>/dev/null || echo 0)
 if [[ $fails -gt 0 ]]; then echo $((fails - 1)) >"$CASE_DIR/brew-fails"; echo 'Error: download failed' >&2; exit 1; fi
 if [[ -f $HOMEBREW_CACHE/corrupt ]]; then echo 'Error: SHA-256 mismatch' >&2; exit 1; fi
-[[ $1 == install ]]
+[[ $1 == install || $1 == reinstall ]]
+cmd=$1
 shift
+# キャッシュから入れる install は成功を返すが入らない、という状態を作る（brew-noop-cached）。
+if [[ $cmd == install && -f $CASE_DIR/brew-noop-cached ]] && ls "$HOMEBREW_CACHE" | grep -q bottle; then exit 0; fi
 mkdir -p "$HOMEBREW_CACHE/api"
 echo "HOMEBREW_NO_AUTO_UPDATE=${HOMEBREW_NO_AUTO_UPDATE:-}" >>"$CASE_DIR/log"
 for pkg in "$@"; do
@@ -102,6 +131,8 @@ new_case() {
 	: >"$case_dir/state"
 	: >"$case_dir/log"
 	: >"$case_dir/out"
+	lists_src="$test_dir/lists-ok"
+	keyring=
 	local p
 	for p in "$@"; do echo "$p" >>"$case_dir/state"; done
 }
@@ -110,6 +141,7 @@ new_case() {
 run_install() {
 	rc=0
 	PATH="$stubs:$PATH" CASE_DIR="$case_dir" CI_INSTALL_CACHE_DIR="$cache" GITHUB_OUTPUT="$case_dir/out" \
+		CI_INSTALL_APT_KEYRING="${keyring:-$fx/keyring.gpg}" CI_INSTALL_APT_HELPER="$stubs/apt-helper" CI_INSTALL_APT_LISTS_DIR="$case_dir/lists" LISTS_SRC="$lists_src" \
 		bash "$root/scripts/ci-install.sh" "$1" >"$case_dir/stdout" 2>"$case_dir/err" || rc=$?
 	source=$(sed -n 's/^source=//p' "$case_dir/out" | tail -1)
 }
@@ -120,20 +152,21 @@ count() { grep -c -- "$1" "$case_dir/log" || true; }
 new_case linux-all "${packages[@]}"
 run_install Linux
 [[ $rc == 0 && $source == none ]]
-[[ $(count '^apt-get') == 0 && $(count '^dpkg') == 0 ]]
+[[ $(count '^apt-get') == 0 ]]
 [[ ! -e $cache ]]
 
 # 2. Linux: 足りないものだけをミラーから取り、保存するキャッシュを作る。
-new_case linux-mirror bash git jq gh zip unzip tzdata procps python3
+new_case linux-mirror bash git jq gh zip unzip tzdata procps python3 gpgv
 run_install Linux
 [[ $rc == 0 && $source == mirror ]]
 [[ $(count '^apt-get .*update') == 1 && $(count '^apt-get .*install -y zsh libdigest-sha-perl') == 1 ]]
-[[ $(count '^dpkg') == 0 ]]
+[[ $(count '^apt-get .*no-download') == 0 ]]
 grep -qF 'Dir::Cache::archives=' "$case_dir/log"
 [[ $(cat "$cache/PACKAGES") == 'zsh libdigest-sha-perl' ]]
-[[ $(wc -l <"$cache/SHA256SUMS" | tr -d ' ') == 2 ]]
-[[ ! -e $cache/partial && ! -e $cache/lock ]]
-(cd "$cache" && { sha256sum -c SHA256SUMS || shasum -a 256 -c SHA256SUMS; }) >/dev/null
+[[ ! -e $cache/SHA256SUMS && ! -e $cache/partial && ! -e $cache/lock ]]
+[[ -f $cache/libdigest-sha-perl_1%3a1.0_amd64.deb && -f $cache/zsh_1.0_amd64.deb ]]
+# 保存するのは、.deb を含むパッケージ情報と、その InRelease だけ。
+[[ $(ls "$cache/apt-meta" | wc -l | tr -d ' ') == 2 && -f $cache/apt-meta/${lists_prefix}_InRelease && -f $cache/apt-meta/${lists_prefix}_main_binary-amd64_Packages.gz ]]
 linux_cache_snapshot="$test_dir/linux-cache"
 cp -R "$cache" "$linux_cache_snapshot"
 
@@ -144,54 +177,119 @@ restore_linux_cache() {
 	new_case "$name" "$@"
 	cp -R "$linux_cache_snapshot" "$cache"
 }
-linux_installed=(bash git jq gh zip unzip tzdata procps python3)
+linux_installed=(bash git jq gh zip unzip tzdata procps python3 gpgv)
 
-# 3. Linux: 有効なキャッシュは、ミラーに行かず dpkg で入れる。
+# 3. Linux: 有効なキャッシュは、ミラーに行かず、ローカルの .deb として apt-get で入れる（依存の順は apt に任せる）。
 restore_linux_cache linux-cache "${linux_installed[@]}"
 run_install Linux
 [[ $rc == 0 && $source == cache ]]
-[[ $(count '^apt-get') == 0 && $(count '^dpkg -i') == 1 ]]
+[[ $(count '^apt-get .*update') == 0 && $(count '^apt-get .*install -y [a-z]') == 0 && $(count '^apt-get .*install -y --no-download /') == 1 ]]
 
-# 4. Linux: .deb の中身が壊れたキャッシュは使わず、ミラーから取り直して作り直す。
+# 3b. Linux: Ubuntu 24.04 の apt は、パッケージ情報を .lz4 で置く。lz4 のコマンドが無くても、apt-helper で展開して保存し、あとで検証できる。
+new_case linux-lz4 "${linux_installed[@]}"
+mkdir "$test_dir/lists-lz4"
+gzip -n -c "$fx/Packages" >"$test_dir/lists-lz4/${lists_prefix}_main_binary-amd64_Packages.lz4"
+cp "$fx/InRelease" "$test_dir/lists-lz4/${lists_prefix}_InRelease"
+lists_src="$test_dir/lists-lz4"
+run_install Linux
+[[ $rc == 0 && $source == mirror && -f $cache/apt-meta/${lists_prefix}_main_binary-amd64_Packages.gz ]]
+
+# 4. Linux: .deb の中身が署名済みの情報と合わないキャッシュは使わず、ミラーから取り直して作り直す。
 restore_linux_cache linux-corrupt "${linux_installed[@]}"
 printf 'tampered\n' >"$cache/zsh_1.0_amd64.deb"
 run_install Linux
 [[ $rc == 0 && $source == mirror ]]
-[[ $(count '^dpkg') == 0 && $(count '^apt-get .*install') == 1 ]]
+[[ $(count '^apt-get .*no-download') == 0 && $(count '^apt-get .*install -y [a-z]') == 1 ]]
 grep -qx 'deb-zsh' "$cache/zsh_1.0_amd64.deb"
-(cd "$cache" && { sha256sum -c SHA256SUMS || shasum -a 256 -c SHA256SUMS; }) >/dev/null
 
 # 5. Linux: 足りないものの一覧が違うキャッシュは使わない。
 restore_linux_cache linux-other-set "${linux_installed[@]}" zsh
 run_install Linux
-[[ $rc == 0 && $source == mirror && $(count '^dpkg') == 0 ]]
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
 [[ $(cat "$cache/PACKAGES") == libdigest-sha-perl ]]
 
 # 6. Linux: 記録にないファイルが混ざったキャッシュは使わない。
 restore_linux_cache linux-extra "${linux_installed[@]}"
 printf 'extra\n' >"$cache/extra_1.0_amd64.deb"
 run_install Linux
-[[ $rc == 0 && $source == mirror && $(count '^dpkg') == 0 ]]
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
 [[ ! -e $cache/extra_1.0_amd64.deb ]]
 
-# 7. Linux: 記録がそろわないキャッシュ（ハッシュの一覧なし）は使わない。
-restore_linux_cache linux-no-sums "${linux_installed[@]}"
-rm "$cache/SHA256SUMS"
+# 7. Linux: パッケージ情報（apt-meta）がないキャッシュは、確かめられないので使わない。
+restore_linux_cache linux-no-meta "${linux_installed[@]}"
+rm -r "$cache/apt-meta"
 run_install Linux
-[[ $rc == 0 && $source == mirror && $(count '^dpkg') == 0 ]]
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
 
-# 8. Linux: 検証を通っても dpkg が失敗したら、キャッシュを捨ててミラーから取る。
-restore_linux_cache linux-dpkg-fails "${linux_installed[@]}"
-: >"$case_dir/dpkg-fails"
+# tamper_deb: キャッシュの zsh の .deb を差し替える。
+tamper_deb() { printf 'evil\n' >"$cache/zsh_1.0_amd64.deb"; }
+# tamper_packages: Packages を、zsh の SHA-256 を差し替えた .deb のものに書き換えたもの（Packages.tampered）にする。
+tamper_packages() { gzip -n -c "$fx/Packages.tampered" >"$cache/apt-meta/${lists_prefix}_main_binary-amd64_Packages.gz"; }
+# tamper_inrelease: InRelease の Packages のハッシュを、差し替えた Packages のものに書き換える。署名はそのまま。
+tamper_inrelease() {
+	local f=$cache/apt-meta/${lists_prefix}_InRelease
+	sed -i.bak "s/^ [0-9a-f]\\{64\\} / $(sha256_of "$fx/Packages.tampered") /" "$f"
+	rm "$f.bak"
+}
+# expect_rejected: 差し替えたキャッシュは使わず、ミラーから取り直して、本物に戻る。
+expect_rejected() {
+	run_install Linux
+	[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 && $(count '^apt-get .*install -y [a-z]') == 1 ]]
+	grep -qx 'deb-zsh' "$cache/zsh_1.0_amd64.deb"
+}
+
+# 7a. Linux: .deb と Packages を一緒に差し替えても、InRelease が記すハッシュと合わなければ使わない。
+restore_linux_cache linux-tamper-packages "${linux_installed[@]}"
+tamper_deb
+tamper_packages
+expect_rejected
+
+# 7b. Linux: .deb・Packages・InRelease を一緒に書き換えても、署名が合わなければ使わない。
+restore_linux_cache linux-tamper-inrelease "${linux_installed[@]}"
+tamper_deb
+tamper_packages
+tamper_inrelease
+expect_rejected
+
+# 7c. Linux: 別の鍵（ランナーの公開鍵にない鍵）で署名し直しても使わない。
+restore_linux_cache linux-tamper-attacker "${linux_installed[@]}"
+tamper_deb
+tamper_packages
+cp "$fx/InRelease.attacker" "$cache/apt-meta/${lists_prefix}_InRelease"
+expect_rejected
+
+# 7d. Linux: 署名が正しくても、Valid-Until を過ぎた情報では使わない。
+restore_linux_cache linux-expired "${linux_installed[@]}"
+cp "$fx/InRelease.expired" "$cache/apt-meta/${lists_prefix}_InRelease"
+run_install Linux
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
+
+# 7e. Linux: 公開鍵が見つからないときは、キャッシュを確かめられないので使わず、保存もしない。
+restore_linux_cache linux-no-keyring "${linux_installed[@]}"
+keyring="$test_dir/missing.gpg"
+run_install Linux
+[[ $rc == 0 && $source == mirror-uncached && $(count '^apt-get .*no-download') == 0 && $(count '^apt-get .*install -y [a-z]') == 1 ]]
+[[ ! -e $cache/PACKAGES ]]
+
+# 7f. Linux: 期限切れの情報しか手に入らないときも、取得はできるが、保存はしない。
+new_case linux-expired-mirror "${linux_installed[@]}"
+lists_src="$test_dir/lists-expired"
+run_install Linux
+[[ $rc == 0 && $source == mirror-uncached && ! -e $cache/PACKAGES ]]
+grep -qF '署名で確かめられませんでした' "$case_dir/stdout"
+
+# 8. Linux: 検証を通ってもローカルの install が失敗したら、キャッシュを捨ててミラーから取る。
+restore_linux_cache linux-local-install-fails "${linux_installed[@]}"
+: >"$case_dir/local-install-fails"
 run_install Linux
 [[ $rc == 0 && $source == mirror ]]
-[[ $(count '^dpkg -i') == 1 && $(count '^apt-get .*install') == 1 ]]
+[[ $(count '^apt-get .*install -y --no-download /') == 1 && $(count '^apt-get .*install -y [a-z]') == 1 ]]
 
-# 9. Linux: dpkg が成功を返しても状態が入っていなければ、ミラーから取り直す。
-restore_linux_cache linux-dpkg-noop "${linux_installed[@]}"
-: >"$case_dir/dpkg-noop"
+# 9. Linux: install が成功を返しても状態が入っていなければ、ミラーから取り直す。
+restore_linux_cache linux-local-install-noop "${linux_installed[@]}"
+: >"$case_dir/local-install-noop"
 run_install Linux
-[[ $rc == 0 && $source == mirror && $(count '^apt-get .*install') == 1 ]]
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*install -y [a-z]') == 1 ]]
 
 # 10. Linux: update が 2 回失敗しても、3 回目で通り、間隔を伸ばして待つ。
 new_case linux-retry "${linux_installed[@]}"
@@ -265,6 +363,23 @@ new_case macos-noop jq
 : >"$case_dir/brew-noop"
 run_install macOS
 [[ $rc == 1 && -z $source ]]
+grep -qF '取得のあとも足りない' "$case_dir/err"
+
+# 16b. macOS: キャッシュから入れたあと動作の確認が通らなければ、キャッシュを捨て、ミラーから入れ直す。
+new_case macos-cache-postcheck jq
+cp -R "$macos_cache_snapshot" "$cache"
+: >"$case_dir/brew-noop-cached"
+run_install macOS
+[[ $rc == 0 && $source == mirror ]]
+[[ $(count '^brew install python$') == 1 && $(count '^brew reinstall python$') == 1 ]]
+grep -qx 'sleep 10' "$case_dir/log"
+grep -qF '確認に失敗しました' "$case_dir/stdout"
+# 入れ直してもまだ確認が通らなければ、失敗で終わる。
+new_case macos-cache-postcheck-fails jq
+cp -R "$macos_cache_snapshot" "$cache"
+: >"$case_dir/brew-noop"
+run_install macOS
+[[ $rc == 1 && -z $source && $(count '^brew reinstall python$') == 1 ]]
 grep -qF '取得のあとも足りない' "$case_dir/err"
 
 # 19. 引数と保存先の指定がなければ使い方で終わる。
