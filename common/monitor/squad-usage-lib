@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
 # 使用量を読む関数。呼び出し元が source して使う。
+source "$(dirname "${BASH_SOURCE[0]}")/squad-cli-lib"
 
 # BSD/GNU date のオプションに依存せず、ホストの TZ で表示する。
 usage_epoch_format() {
@@ -47,33 +48,7 @@ read_claude_usage() {
 	printf '%s\n' "$rows"
 }
 
-# Codex: app-server の account/rateLimits/read を呼び、応答の .result を 1 行の JSON で出す。
-# モデルを呼ばないので、使用量を消費しない。
-# app-server は stdin が閉じると終わるので、応答が来るか 30 秒たつまで、stdin を開けたまま待つ。
+# Codex の JSON-RPC も、同じ読み取りの入口で検証してから返す。
 read_codex_usage() {
-	local out_file
-	out_file=$(usage_tmpfile)
-	{
-		printf '%s\n' \
-			'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"squad-usage-check","version":"1.0.0"}}}' \
-			'{"jsonrpc":"2.0","method":"initialized"}' \
-			'{"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read"}'
-		for _ in $(seq 30); do
-			grep -q '"id":2' "$out_file" && break
-			sleep 1
-		done
-	} | codex app-server >"$out_file" 2>/dev/null || true
-
-	local res
-	res=$(jq -c 'select(.id == 2)' "$out_file" 2>/dev/null || true)
-	rm -f "$out_file"
-	if [[ -z "$res" ]]; then
-		echo "codex app-server から使用量の応答がなかった" >&2
-		return 1
-	fi
-	if ! jq -e '.result' <<<"$res" >/dev/null; then
-		echo "codex app-server がエラーを返した: $(jq -r '.error.message // .' <<<"$res")" >&2
-		return 1
-	fi
-	jq -c '.result' <<<"$res"
+	squad_cli_read codex-rate-limits
 }

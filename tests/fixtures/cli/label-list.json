@@ -1,0 +1,15 @@
+[
+  [
+    {
+      "color": "#7c3aed",
+      "created_at": "2026-11-10T07:08:29Z",
+      "description": "fixture",
+      "id": "fixture-id-000038",
+      "name": "指示の改善",
+      "resource_type": "issue",
+      "updated_at": "2026-11-10T07:08:29Z",
+      "usage_count": 4,
+      "workspace_id": "fixture-id-000041"
+    }
+  ]
+]

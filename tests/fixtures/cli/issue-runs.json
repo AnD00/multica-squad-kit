@@ -1,0 +1,124 @@
+[
+  [
+    {
+      "agent_id": "fixture-id-000040",
+      "attempt": 1,
+      "attribution": {
+        "evidence": {
+          "kind": "comment",
+          "ref_id": "fixture-id-000013"
+        },
+        "initiator": {
+          "avatar_url": "https://example.invalid/avatar",
+          "email": "fixture@example.invalid",
+          "id": "fixture-id-000034",
+          "name": "Fixture Person"
+        },
+        "originator": {
+          "avatar_url": "https://example.invalid/avatar",
+          "email": "fixture@example.invalid",
+          "id": "fixture-id-000034",
+          "name": "Fixture Person"
+        },
+        "precise": true,
+        "source": "direct_human"
+      },
+      "completed_at": "2026-11-10T13:55:41Z",
+      "created_at": "2026-11-10T13:55:19Z",
+      "delivered_comment_ids": [
+        "fixture-id-000013"
+      ],
+      "dispatched_at": "2026-11-10T13:55:19Z",
+      "error": null,
+      "id": "fixture-id-000014",
+      "is_leader_task": true,
+      "issue_id": "fixture-id-000003",
+      "kind": "comment",
+      "max_attempts": 2,
+      "priority": 0,
+      "relative_work_dir": "fixture/workdir",
+      "result": {
+        "output": "fixture",
+        "pr_url": "",
+        "session_id": "fixture-id-000043",
+        "work_dir": "fixture/workdir"
+      },
+      "runtime_id": "fixture-id-000026",
+      "started_at": "2026-11-10T13:55:19Z",
+      "status": "completed",
+      "supplement_capability": "task-supplement-v1",
+      "trigger_comment_id": "fixture-id-000013",
+      "trigger_summary": "fixture",
+      "usage": [
+        {
+          "cache_read_tokens": 418036,
+          "cache_write_tokens": 3436,
+          "input_tokens": 10,
+          "model": "claude-sonnet-5-5",
+          "output_tokens": 1918,
+          "provider": "claude"
+        }
+      ],
+      "work_dir": "fixture/workdir",
+      "workspace_id": "fixture-id-000041"
+    },
+    {
+      "agent_id": "fixture-id-000040",
+      "attempt": 1,
+      "attribution": {
+        "evidence": {
+          "kind": "issue_assignment",
+          "ref_id": "fixture-id-000002"
+        },
+        "initiator": {
+          "avatar_url": "https://example.invalid/avatar",
+          "email": "fixture@example.invalid",
+          "id": "fixture-id-000034",
+          "name": "Fixture Person"
+        },
+        "originator": {
+          "avatar_url": "https://example.invalid/avatar",
+          "email": "fixture@example.invalid",
+          "id": "fixture-id-000034",
+          "name": "Fixture Person"
+        },
+        "precise": true,
+        "source": "direct_human"
+      },
+      "completed_at": "2026-11-10T14:00:03Z",
+      "created_at": "2026-11-10T13:59:49Z",
+      "delivered_comment_ids": [],
+      "dispatched_at": "2026-11-10T13:59:49Z",
+      "error": null,
+      "id": "fixture-id-000015",
+      "is_leader_task": true,
+      "issue_id": "fixture-id-000002",
+      "kind": "direct",
+      "max_attempts": 2,
+      "priority": 0,
+      "relative_work_dir": "fixture/workdir",
+      "result": {
+        "output": "fixture",
+        "pr_url": "",
+        "session_id": "fixture-id-000025",
+        "work_dir": "fixture/workdir"
+      },
+      "runtime_id": "fixture-id-000026",
+      "started_at": "2026-11-10T13:59:49Z",
+      "status": "completed",
+      "supplement_capability": "task-supplement-v1",
+      "usage": [
+        {
+          "cache_read_tokens": 134762,
+          "cache_write_tokens": 31040,
+          "input_tokens": 8,
+          "model": "claude-sonnet-5-5",
+          "output_tokens": 1034,
+          "provider": "claude"
+        }
+      ],
+      "work_dir": "fixture/workdir",
+      "workspace_id": "fixture-id-000041"
+    }
+  ]
+]

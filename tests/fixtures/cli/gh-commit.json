@@ -1,0 +1,103 @@
+[
+  {
+    "sha": "d1a058a24c2d8d66aeaa738a1823ad6fb0871e6a",
+    "node_id": "C_kwDOC8ppZdoAKGQxYTA1OGEyNGMyZDhkNjZhZWFhNzM4YTE4MjNhZDZmYjA4NzFlNmE",
+    "commit": {
+      "author": {
+        "name": "fixture",
+        "email": "fixture",
+        "date": "2026-10-17T10:13:47Z"
+      },
+      "committer": {
+        "name": "fixture",
+        "email": "fixture",
+        "date": "2026-10-17T10:13:47Z"
+      },
+      "message": "fixture",
+      "tree": {
+        "sha": "22d0b18ff32e0f3edbd5e57af6c65edeb3a5fa1f",
+        "url": "https://example.invalid/fixture"
+      },
+      "url": "https://example.invalid/fixture",
+      "comment_count": 0,
+      "verification": {
+        "verified": true,
+        "reason": "valid",
+        "signature": "fixture",
+        "payload": "fixture",
+        "verified_at": "2026-10-17T10:13:49Z"
+      }
+    },
+    "url": "https://example.invalid/fixture",
+    "html_url": "https://example.invalid/fixture",
+    "comments_url": "https://example.invalid/fixture",
+    "author": {
+      "login": "dependabot[bot]",
+      "id": 49699333,
+      "node_id": "MDM6Qm90NDk2OTkzMzM=",
+      "avatar_url": "https://example.invalid/fixture",
+      "gravatar_id": "",
+      "url": "https://example.invalid/fixture",
+      "html_url": "https://example.invalid/fixture",
+      "followers_url": "https://example.invalid/fixture",
+      "following_url": "https://example.invalid/fixture",
+      "gists_url": "https://example.invalid/fixture",
+      "starred_url": "https://example.invalid/fixture",
+      "subscriptions_url": "https://example.invalid/fixture",
+      "organizations_url": "https://example.invalid/fixture",
+      "repos_url": "https://example.invalid/fixture",
+      "events_url": "https://example.invalid/fixture",
+      "received_events_url": "https://example.invalid/fixture",
+      "type": "Bot",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "committer": {
+      "login": "fixture-user",
+      "id": 19864447,
+      "node_id": "MDQ6VXNlcjE5ODY0NDQ3",
+      "avatar_url": "https://example.invalid/fixture",
+      "gravatar_id": "",
+      "url": "https://example.invalid/fixture",
+      "html_url": "https://example.invalid/fixture",
+      "followers_url": "https://example.invalid/fixture",
+      "following_url": "https://example.invalid/fixture",
+      "gists_url": "https://example.invalid/fixture",
+      "starred_url": "https://example.invalid/fixture",
+      "subscriptions_url": "https://example.invalid/fixture",
+      "organizations_url": "https://example.invalid/fixture",
+      "repos_url": "https://example.invalid/fixture",
+      "events_url": "https://example.invalid/fixture",
+      "received_events_url": "https://example.invalid/fixture",
+      "type": "User",
+      "user_view_type": "public",
+      "site_admin": false
+    },
+    "parents": [
+      {
+        "sha": "f548e57e544e1ff5a4c46bf1e1b8685f8e4a348a",
+        "url": "https://example.invalid/fixture",
+        "html_url": "https://example.invalid/fixture"
+      }
+    ],
+    "stats": {
+      "total": 50,
+      "additions": 25,
+      "deletions": 25
+    },
+    "files": [
+      {
+        "sha": "dced4ad473737fead0d7d8f87e335161765bd92f",
+        "filename": "fixture",
+        "status": "modified",
+        "additions": 25,
+        "deletions": 25,
+        "changes": 50,
+        "blob_url": "https://example.invalid/fixture",
+        "raw_url": "https://example.invalid/fixture",
+        "contents_url": "https://example.invalid/fixture",
+        "patch": "fixture"
+      }
+    ]
+  }
+]

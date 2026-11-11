@@ -83,7 +83,14 @@ agent_env() { printf 'CODEX_HOME=%s/codex PATH=%s/bin:/usr/bin\n' "$TEMPLATE_AGE
 set_mode stopped
 run
 for file in "$root/common/monitor/"squad-*; do
- cmp "$file" "$TEMPLATE_AGENT_HOME/bin/$(basename "$file")"
+ if [[ ${file##*/} == squad-cli-lib ]]; then
+  cmp <(sed '/^SQUAD_CLI_VERIFIED_VERSION=/d' "$file") <(sed '/^SQUAD_CLI_VERIFIED_VERSION=/d' "$TEMPLATE_AGENT_HOME/bin/squad-cli-lib")
+  expected_version=$(head -n 1 "$root/tests/fixtures/cli/VERSION")
+  actual_version=$(bash -c 'source "$1"; printf "%s\n" "$SQUAD_CLI_VERIFIED_VERSION"' -- "$TEMPLATE_AGENT_HOME/bin/squad-cli-lib")
+  [[ $actual_version == "$expected_version" ]]
+ else
+  cmp "$file" "$TEMPLATE_AGENT_HOME/bin/$(basename "$file")"
+ fi
  [[ -x $TEMPLATE_AGENT_HOME/bin/$(basename "$file") ]]
 done
 cmp "$root/common/guard/gh" "$TEMPLATE_AGENT_HOME/bin/gh"
@@ -93,6 +100,30 @@ cmp "$root/common/codex/config.toml" "$TEMPLATE_AGENT_HOME/codex/config.toml"
 grep -qx 'daemon start' "$test_dir/calls"
 grep -qx 'https://example.test' "$test_dir/started-server"
 echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し、専用環境で一つのデーモンを起動する'
+(
+ # 原本の VERSION を変えずに、バージョンを取り直したセットアップを再現する。
+ source "$root/lib/host.sh"
+ mkdir -p "$test_dir/version-kit/common/monitor" "$test_dir/version-kit/tests/fixtures/cli"
+ cp "$root/common/monitor/squad-cli-lib" "$test_dir/version-kit/common/monitor/"
+ printf "multica fixture-next (captured 'version')\ngh ignored\n" >"$test_dir/version-kit/tests/fixtures/cli/VERSION"
+ root="$test_dir/version-kit"
+ agent_home=$TEMPLATE_AGENT_HOME
+ die() { echo "$*" >&2; exit 1; }
+ host_cli_library
+ actual_version=$(bash -c 'source "$1"; printf "%s\n" "$SQUAD_CLI_VERIFIED_VERSION"' -- "$agent_home/bin/squad-cli-lib")
+ [[ $actual_version == "multica fixture-next (captured 'version')" ]]
+ [[ -z $(find "$root/tmp" -type f -print) ]]
+ # 拡張を足した作業用コピーには tests がない。採取バージョンは原本から読む。
+ kit_root=$root
+ mkdir -p "$test_dir/combined/common/monitor"
+ cp "$root/common/monitor/squad-cli-lib" "$test_dir/combined/common/monitor/"
+ root="$test_dir/combined"
+ host_cli_library
+ [[ $(bash -c 'source "$1"; printf "%s\n" "$SQUAD_CLI_VERIFIED_VERSION"' -- "$agent_home/bin/squad-cli-lib") == "$actual_version" ]]
+)
+run
+[[ $(bash -c 'source "$1"; printf "%s\n" "$SQUAD_CLI_VERIFIED_VERSION"' -- "$TEMPLATE_AGENT_HOME/bin/squad-cli-lib") == "$expected_version" ]]
+echo 'PASS host: 見本のバージョンを取り直すとライブラリの採取バージョンも更新し、先頭行の値をそのまま保持する'
 for file in squad-pr-link squad-pr-link-lib; do
  [[ $(PATH="$TEMPLATE_AGENT_HOME/bin:$PATH" command -v "$file") == "$TEMPLATE_AGENT_HOME/bin/$file" ]]
 done

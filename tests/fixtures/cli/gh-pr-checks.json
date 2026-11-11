@@ -1,0 +1,38 @@
+[
+  {
+    "headRefOid": "ac555caeb2ca1716704ca8a7d7ca9324cac9918e",
+    "state": "OPEN",
+    "statusCheckRollup": [
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-10T13:25:53Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/AnD00/multica-squad-kit/actions/runs/42822933192/job/129852746539",
+        "name": "scripts (macos-latest)",
+        "startedAt": "2026-11-10T13:15:57Z",
+        "status": "COMPLETED",
+        "workflowName": "Checks"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-10T13:22:07Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/AnD00/multica-squad-kit/actions/runs/42822933192/job/129852746366",
+        "name": "scripts (ubuntu-24.04)",
+        "startedAt": "2026-11-10T13:15:57Z",
+        "status": "COMPLETED",
+        "workflowName": "Checks"
+      },
+      {
+        "__typename": "CheckRun",
+        "completedAt": "2026-11-10T13:16:02Z",
+        "conclusion": "SUCCESS",
+        "detailsUrl": "https://github.com/AnD00/multica-squad-kit/actions/runs/42822933192/job/129852745966",
+        "name": "content",
+        "startedAt": "2026-11-10T13:15:57Z",
+        "status": "COMPLETED",
+        "workflowName": "Checks"
+      }
+    ]
+  }
+]

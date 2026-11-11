@@ -1,0 +1,36 @@
+[
+  [
+    {
+      "archived_at": null,
+      "archived_by": null,
+      "avatar_url": null,
+      "created_at": "2026-11-10T07:08:39Z",
+      "creator_id": "fixture-id-000034",
+      "description": "",
+      "id": "fixture-id-000035",
+      "instructions": "fixture",
+      "leader_id": "fixture-id-000040",
+      "member_count": 13,
+      "member_preview": [
+        {
+          "member_id": "fixture-id-000040",
+          "member_type": "agent",
+          "role": "leader"
+        },
+        {
+          "member_id": "fixture-id-000030",
+          "member_type": "agent",
+          "role": "要件定義とタスク分割。新しい要望は最初にここへ回す"
+        },
+        {
+          "member_id": "fixture-id-000039",
+          "member_type": "agent",
+          "role": "設計。要件が合意されたタスクを受け、docs/ の変更を draft PR にする"
+        }
+      ],
+      "name": "SQUADKIT-AND00",
+      "updated_at": "2026-11-10T07:08:57Z",
+      "workspace_id": "fixture-id-000041"
+    }
+  ]
+]

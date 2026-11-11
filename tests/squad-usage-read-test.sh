@@ -4,11 +4,20 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	export USAGE_FIXTURE_NOW=$(date '+%s')
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/usage-read-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+export USAGE_FIXTURE_ROOT=$root
 script=$root/common/monitor/squad-usage-read
 source "$script"
+source "$root/tests/cli-mode-test-lib.sh"
+cli_test_wrap_monitor "$script" "$test_dir"
 export TZ=UTC
 
 now=1793059200
@@ -39,25 +48,41 @@ echo 'PASS time zone: ホストの UTC と Asia/Tokyo の表示は同じ秒数�
 
 # PATH を閉じ、コマンド欠落のテストでも実物へ抜けないようにする。
 mkdir -p "$test_dir/bin"
-for cmd in python3 jq date sed mktemp cat rm grep seq head dirname mkdir; do
+for cmd in python3 bash jq sed mktemp cat rm grep seq head dirname mkdir; do
 	ln -s "$(command -v "$cmd")" "$test_dir/bin/$cmd"
 done
+cat >"$test_dir/bin/date" <<'MOCK'
+#!/bin/bash
+[[ "$*" == '+%s' ]] || exit 99
+echo "$USAGE_FIXTURE_NOW"
+MOCK
+chmod +x "$test_dir/bin/date"
 cat >"$test_dir/bin/claude" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$USAGE_TEST_DIR" claude "$@"
 cat "$USAGE_TEST_DIR/claude.stderr" >&2
-cat "$USAGE_TEST_DIR/claude.json"
+python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" claude-usage "$USAGE_TEST_DIR/claude.json"
 exit "$(cat "$USAGE_TEST_DIR/claude.status")"
 MOCK
 cat >"$test_dir/bin/codex" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
+if [[ "$*" == --version ]]; then
+	jq -r '.versions.codex' "$USAGE_FIXTURE_ROOT/tests/fixtures/cli/USAGE-CAPTURE.json"
+	exit 0
+fi
 [[ "$*" == app-server ]]
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex "$@"
 cat "$USAGE_TEST_DIR/codex.stderr" >&2
 for _ in 1 2 3; do IFS= read -r request; done
 [[ "$request" == '{"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read"}' ]]
-cat "$USAGE_TEST_DIR/codex.jsonl"
+if [[ -f "$USAGE_TEST_DIR/codex-defect.json" ]]; then
+	jq -cn --slurpfile result "$USAGE_TEST_DIR/codex-defect.json" '{id:2,result:$result[0]}'
+else
+	python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" codex-rate-limits "$USAGE_TEST_DIR/codex.jsonl"
+fi
 cat >/dev/null
 MOCK
 cat >"$test_dir/bin/sleep" <<'MOCK'
@@ -71,7 +96,7 @@ exit 99
 MOCK
 chmod +x "$test_dir/bin/claude" "$test_dir/bin/codex" "$test_dir/bin/sleep" "$test_dir/bin/multica"
 export USAGE_TEST_DIR=$test_dir
-future_epoch=$(( ($(date '+%s') / 60 + 2880) * 60 ))
+future_epoch=$(( (USAGE_FIXTURE_NOW / 60 + 2880) * 60 ))
 reset=$(LC_ALL=C usage_epoch_format "$future_epoch" '%b %d at %I:%M%p (UTC)' | sed -e 's/AM /am /' -e 's/PM /pm /')
 resets_at=$(epoch_rfc3339 "$future_epoch")
 
@@ -96,15 +121,28 @@ run_read() {
 		cat "$test_dir/out.json" "$test_dir/err" >&2
 		return 1
 	fi
-	test ! -s "$test_dir/err"
+	if [[ -s "$test_dir/err" ]]; then
+		echo 'FAIL read: 予期しない標準エラー' >&2
+		cat "$test_dir/err" >&2
+		return 1
+	fi
 	test ! -e "$test_dir/state.json"
 	test ! -e "$test_dir/multica-called"
-	jq -se '(.[0].read_at | sub("\\+00:00$"; "Z") | fromdateiso8601) as $read
-		| length == 1 and ((now - $read) >= 0) and ((now - $read) < 60)' "$test_dir/out.json" >/dev/null
+	jq -se --argjson now "$USAGE_FIXTURE_NOW" '(.[0].read_at | sub("\\+00:00$"; "Z") | fromdateiso8601) as $read
+		| length == 1 and $read == $now' "$test_dir/out.json" >/dev/null
 }
 assert_error() {
 	jq -e --arg tool "$1" --arg reason "$2" '.[$tool].error == $reason' "$test_dir/out.json" >/dev/null
 }
+fixtures
+equivalent_claude=$(jq -r '.[0].result | capture("Current week \\(all models\\): (?<percent>[0-9]+)%").percent' "$root/tests/fixtures/cli/claude-usage.json")
+jq -c '.[0]' "$root/tests/fixtures/cli/claude-usage.json" >"$test_dir/claude.json"
+jq -c '.[0] | {id:2,result:.}' "$root/tests/fixtures/cli/codex-rate-limits.json" >"$test_dir/codex.jsonl"
+run_read 0
+jq -e --argjson percent "$equivalent_claude" '.claude.week.used_percent == $percent
+	and .claude.session == {used_percent:0,resets_at:null}' "$test_dir/out.json" >/dev/null
+echo 'PASS 実物: 匿名化した CLI の見本をそのまま読み、リセット表示のない session を保つ'
+
 fixtures
 run_read 0
 jq -e --arg resets "$resets_at" '.claude == {week: {used_percent: 27, resets_at: $resets},
@@ -162,6 +200,22 @@ mv "$test_dir/changed" "$test_dir/codex.jsonl"
 run_read 0
 jq -e '.codex.allowed == false and .codex.week.used_percent == 28' "$test_dir/out.json" >/dev/null
 echo 'PASS Codex: primary の週と、使用率と別の利用不可の情報を返す'
+
+fixtures
+for field in ordinaryUsageAllowed rateLimitsByLimitId rateLimits.rateLimitReachedType \
+	rateLimitsByLimitId.codex.primary rateLimitsByLimitId.codex.secondary \
+	rateLimitsByLimitId.codex.primary.windowDurationMins rateLimitsByLimitId.codex.primary.usedPercent \
+	rateLimitsByLimitId.codex.primary.resetsAt; do
+	jq --arg path "$field" '.[0] | delpaths([$path | split(".")])' \
+		"$root/tests/fixtures/cli/codex-rate-limits.json" >"$test_dir/codex-defect.json"
+	run_read 1
+	jq -e --arg field "${field##*.}" '.codex.error | contains($field)' "$test_dir/out.json" >/dev/null || {
+		echo "FAIL Codex 欠落: $field" >&2; cat "$test_dir/out.json" >&2; exit 1;
+	}
+	jq -e '.claude.week.used_percent == 27' "$test_dir/out.json" >/dev/null
+done
+rm "$test_dir/codex-defect.json"
+echo 'PASS Codex 欠落: 必須・条件付きの欄名を固定の理由に残し、Claude の読み取りを続ける'
 
 for tool in claude codex; do
 	fixtures
