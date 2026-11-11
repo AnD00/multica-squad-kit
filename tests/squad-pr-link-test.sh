@@ -28,14 +28,16 @@ cat >"$test_dir/bin/multica" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 dir=$PR_LINK_TEST_DIR
-python3 "$PR_LINK_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
-if [[ ${1-} == version ]]; then echo 'multica fixture-version'; exit 0; fi
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/multica.jsonl"
+stub_args=("$@")
+stub() { recorded=1; python3 "$PR_LINK_TEST_ROOT/tests/cli-stub.py" multica "$dir" multica "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+if [[ ${1-} == version ]]; then stub - record; echo 'multica fixture-version'; exit 0; fi
+recorded=
+trap '[[ -n $recorded ]] || stub multica.jsonl record' EXIT
 if [[ $1 == issue && $2 == get ]]; then
 	[[ $3 == TASK-7 || $3 == task-id ]]
 	[[ $4 == --output && $5 == json ]]
 	if [[ -f $dir/get-fail ]]; then echo "$MULTICA_TOKEN" >&2; exit 1; fi
-	python3 "$PR_LINK_TEST_ROOT/tests/multica-fixture.py" "$dir" emit issue-get "$dir/issue.json"
+	stub multica.jsonl emit issue-get "$dir/issue.json"
 elif [[ $1 == issue && $2 == metadata && $3 == set ]]; then
 	[[ $4 == task-id && $5 == --key && $6 == pr_url && $7 == --value ]]
 	[[ $9 == --type && ${10} == string ]]
@@ -50,8 +52,7 @@ cat >"$test_dir/bin/curl" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 dir=$PR_LINK_TEST_DIR
-python3 "$PR_LINK_TEST_ROOT/tests/cli-test-trace.py" "$dir" curl "$@"
-jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/curl.jsonl"
+python3 "$PR_LINK_TEST_ROOT/tests/cli-stub.py" none "$dir" curl curl.jsonl record -- "$@"
 [[ $1 == -q && $2 == --config && $3 == - ]]
 config=$(cat)
 [[ $config == "header = \"Authorization: Bearer $MULTICA_TOKEN\"" ]]

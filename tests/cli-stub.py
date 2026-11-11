@@ -1,4 +1,4 @@
-"""テストの gh・multica・curl のスタブが 1 回の呼び出しで使う補助。
+"""テストの gh・multica・claude・codex・curl のスタブが 1 回の呼び出しで使う補助。
 
 使い方: cli-stub.py 種類 作業先 コマンド 記録先 操作 [名前 [ファイルまたは値]] -- スタブの引数...
 
@@ -7,7 +7,7 @@
 - 記録先が - でなければ、作業先のその名前のファイルへ、引数の JSON の配列を 1 行で足す
 - 操作が record なら、ここまで。それ以外は、種類の見本のファイルの関数 run で見本を返す
   種類: gh（gh-fixture.py）、multica（multica-fixture.py）、pr-watch（pr-watch-fixture.py）、
-  review-wait（review-wait-fixture.py）、none（見本なし）
+  review-wait（review-wait-fixture.py）、usage（usage-fixture.py。claude・codex の使用量）、none（見本なし）
 """
 
 import json
@@ -22,6 +22,7 @@ fixture_files = {
     "multica": "multica-fixture.py",
     "pr-watch": "pr-watch-fixture.py",
     "review-wait": "review-wait-fixture.py",
+    "usage": "usage-fixture.py",
 }
 
 

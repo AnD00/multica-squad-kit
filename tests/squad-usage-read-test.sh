@@ -61,9 +61,8 @@ cat >"$test_dir/bin/claude" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
-python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$USAGE_TEST_DIR" claude "$@"
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" usage "$USAGE_TEST_DIR" claude - emit claude-usage "$USAGE_TEST_DIR/claude.json" -- "$@"
 cat "$USAGE_TEST_DIR/claude.stderr" >&2
-python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" claude-usage "$USAGE_TEST_DIR/claude.json"
 exit "$(cat "$USAGE_TEST_DIR/claude.status")"
 MOCK
 cat >"$test_dir/bin/codex" <<'MOCK'
@@ -74,14 +73,17 @@ if [[ "$*" == --version ]]; then
 	exit 0
 fi
 [[ "$*" == app-server ]]
-python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex "$@"
+stub_args=("$@")
+stub() { recorded=1; python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" usage "$USAGE_TEST_DIR" codex - "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 cat "$USAGE_TEST_DIR/codex.stderr" >&2
 for _ in 1 2 3; do IFS= read -r request; done
 [[ "$request" == '{"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read"}' ]]
 if [[ -f "$USAGE_TEST_DIR/codex-defect.json" ]]; then
 	jq -cn --slurpfile result "$USAGE_TEST_DIR/codex-defect.json" '{id:2,result:$result[0]}'
 else
-	python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" codex-rate-limits "$USAGE_TEST_DIR/codex.jsonl"
+	stub emit codex-rate-limits "$USAGE_TEST_DIR/codex.jsonl"
 fi
 cat >/dev/null
 MOCK
