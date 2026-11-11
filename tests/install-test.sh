@@ -665,12 +665,22 @@ run_stdin notty --verify "$version" "$assets"
 [[ $rc == 0 ]]
 grep -qF '展開も実行もしていません' "$case_dir/out"
 # ファイルとして流すときは、端末を確かめず、標準入力をそのまま setup.sh へ渡す（上の「質問に答えられるよう」と同じ）。
-# 最後の行（main の呼び出し）が欠けた入口は、何も取らず、何も流さない。
-sed '$d' "$root/install.sh" >"$case_dir/truncated.sh"
-[[ $(tail -n 1 "$root/install.sh") == 'main "$@"' && $(wc -l <"$case_dir/truncated.sh") -eq $(($(wc -l <"$root/install.sh") - 1)) ]]
-TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/truncated.sh" run_stdin tty
-[[ $rc == 0 && ! -s $case_dir/out && ! -s $case_dir/err && ! -s $case_dir/gh.log ]]
-not_run 0
+# 最後の呼び出し（main を波括弧で囲んだ塊）は、閉じ括弧まで届かなければ構文の誤りで止まる。行の途中で切れても、引数のない main は流れない。
+[[ $(tail -n 3 "$root/install.sh") == $'{\n\tmain "$@"\n}' ]]
+# 切れ方ごとに入口を作る: 閉じ括弧の行が欠けた / main の引数の手前（`main` まで）で切れた / 波括弧の行で切れた。
+sed '$d' "$root/install.sh" >"$case_dir/cut-brace.sh"
+{ sed '$d' "$root/install.sh" | sed '$d'; printf '\tmain'; } >"$case_dir/cut-main.sh"
+{ sed '$d' "$root/install.sh" | sed '$d' | sed '$d'; printf '{'; } >"$case_dir/cut-open.sh"
+[[ $(tail -c 5 "$case_dir/cut-main.sh") == $'\tmain' && $(tail -c 1 "$case_dir/cut-open.sh") == '{' ]]
+for cut in cut-brace cut-main cut-open; do
+	# 引数なし、バージョン、拡張つき、--verify のどれでも、何も取らず、何も流さない（バージョンや --verify が失われて最新版の導入へ進まない）。
+	for args in "" "$version" "$version --extension /ext" "--verify $version $assets"; do
+		# shellcheck disable=SC2086 # 引数は空白で分ける
+		TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/$cut.sh" run_stdin tty $args
+		[[ $rc != 0 && ! -s $case_dir/out && ! -s $case_dir/gh.log ]] || { echo "FAIL: $cut 引数「$args」: 切れた入口が何かを流しました（rc=$rc）" >&2; exit 1; }
+		not_run 0
+	done
+done
 # 途中で切れた入口（関数の途中まで）は、構文の誤りで止まり、何も取らない。
 head -n "$(($(grep -n '^main() {' "$root/install.sh" | cut -d: -f1) + 3))" "$root/install.sh" >"$case_dir/cut.sh"
 TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/cut.sh" run_stdin tty

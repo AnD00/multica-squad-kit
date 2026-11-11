@@ -88,7 +88,7 @@ fi
 exit 1
 STUB
 # スタブの curl は、受けた引数を CURL_LOG に残し、最新の Release の入口の URL だけに、置き場の install.sh を返す。
-# CURL_FAIL は HTTP の誤り（-f で本文なしの 22）、CURL_MODE=trunc は最後の行を欠いた入口、cut は main の関数の途中で切れた入口を返す。
+# CURL_FAIL は HTTP の誤り（-f で本文なしの 22）、CURL_MODE=trunc は最後の閉じ括弧を欠いた入口、cut は main の関数の途中で切れた入口、mid は最後の呼び出しの `main` まででバイトの途中で切れた入口を返す。
 cat >"$test_dir/bin/curl" <<'STUB'
 #!/bin/bash
 echo "$*" >>"$CURL_LOG"
@@ -103,6 +103,7 @@ echo "$*" >>"$CURL_LOG"
 case ${CURL_MODE:-} in
 trunc) sed '$d' "$GH_ASSETS/install.sh" ;;
 cut) head -n "$CURL_CUT_LINES" "$GH_ASSETS/install.sh" ;;
+mid) { sed '$d' "$GH_ASSETS/install.sh" | sed '$d'; printf '\tmain'; } ;;
 *) cat "$GH_ASSETS/install.sh" ;;
 esac
 STUB
@@ -281,15 +282,19 @@ for shell in "${shells[@]}"; do
 done
 echo 'PASS oneline: bash -s -- のあとのバージョンと拡張が届く（バージョンを渡せば最新を読まず、拡張は setup.sh へ渡る）'
 
-# 入口が途中で切れたとき（最後の行の main の呼び出しが欠けた、関数の途中で切れた）は、何も取らず、何も流さない。curl の失敗も、何も流さない。
+# 入口が途中で切れたとき（最後の呼び出しの閉じ括弧が欠けた、関数の途中で切れた）は、何も取らず、何も流さない。curl の失敗も、何も流さない。
 main_line=$(grep -n '^main() {' "$root/install.sh" | cut -d: -f1)
 for shell in "${shells[@]}"; do
 	CURL_MODE=trunc run_script "$shell" c "$oneline"
-	[[ $rc == 0 ]] || fail "$shell: 最後の行が欠けた入口が失敗しています（${rc}）"
+	[[ $rc != 0 ]] || fail "$shell: 閉じ括弧が欠けた入口が通りました"
 	nothing_ran
-	[[ ! -s $case_dir/out ]] || fail "$shell: 最後の行が欠けた入口が何かを出しています"
+	[[ ! -s $case_dir/out ]] || fail "$shell: 閉じ括弧が欠けた入口が何かを出しています"
 	CURL_MODE=cut CURL_CUT_LINES=$((main_line + 3)) run_script "$shell" c "$oneline"
 	[[ $rc != 0 ]] || fail "$shell: 関数の途中で切れた入口が通りました"
+	nothing_ran
+	# 最後の呼び出しの行の途中で切れても、指定したバージョンや拡張が失われて最新版へ進まない。
+	CURL_MODE=mid run_script "$shell" c "$(one_line_args "$version --extension /ext/dir")"
+	[[ $rc != 0 ]] || fail "$shell: 最後の行の途中で切れた入口が通りました"
 	nothing_ran
 	CURL_FAIL=1 run_script "$shell" c "$oneline"
 	[[ $(curl_calls) == 1 ]] || fail "$shell: curl が 1 回呼ばれていません"
