@@ -225,6 +225,11 @@ jq -e '.content|split("\n")|map(select(startswith("## `")))|length==3' "$TEST_DB
 jq -e '.description|contains("{{")|not' "$TEST_DB/projects/project-a.json" >/dev/null
 jq -e '.content|contains("{{")|not' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.content|contains("[記入: 実際に使うコマンドと実行順]")' "$TEST_DB/skills/verify.json" >/dev/null
+for repo in example/project example/second example/third; do
+ jq -e --arg repo "$repo" '.content|contains("### コンフリクトを解消したときの検証（"+$repo+"）")' "$TEST_DB/skills/verify.json" >/dev/null
+done
+jq -e '.content|split("\n")|map(select(startswith("### コンフリクトを解消したときの検証（")))|length==3' "$TEST_DB/skills/verify.json" >/dev/null
+jq -e '.content|contains("[記入: 衝突したファイルと PR が変えたファイルから、関わるテストを選ぶ方法とコマンド。")' "$TEST_DB/skills/verify.json" >/dev/null
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
 # 環境の修復試験の準備には、ここで本体から作った全15役の状態を使う。
 mkdir -p "$test_dir/completed"
