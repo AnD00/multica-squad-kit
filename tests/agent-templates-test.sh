@@ -89,7 +89,7 @@ for dir in "$test_dir/"*/; do
 	[[ $first_check == *'squad-handoff の「実行の始めの確認」'* && $first_check == *'分かれ道より先'* ]]
 	if grep -qF 'squad-review-wait status' "$dir/orchestrator"; then
 		grep -F 'squad-review-wait status' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
-		grep -F 'squad-review-wait leader-check' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
+		grep -F 'squad-review-wait proceed' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
 	fi
 	for role in ci-monitor dependabot-merger usage-monitor; do
 		file=$dir/$role

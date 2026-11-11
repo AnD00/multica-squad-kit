@@ -8,7 +8,7 @@ da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 4912ff6422fd85499df9f5615563c28009c58e0b1f42c2f08df7c6c8aabcf971  ./AGENTS.md
 8fa78b85c38992ae3c5551735c075f6f3bb8a0272504fa4d132bc7d8b5ebf167  ./CHANGELOG.md
-ba9cd7833e096e173fac2184c52128a914c571de4a5a87ff9bb8d6177e50d8fc  ./CONTRIBUTING.md
+ab6fbde36109b6e084a6d6c08f1de13c7b122c6cb5e86002e416afbc217a8945  ./CONTRIBUTING.md
 df6557f34dddab303e1a91da05957c419b28ba44f89621d830abc74ce2f9128a  ./EXTENSIONS.md
 57a36e961da94d4d2c841f9f444ddacd2f1cd788c64bdf1bd025e7b479c66939  ./README.md
 7eeea52d4b80909b004dc28b062d38f525d18ce5cf74c152674a1ad2c72d3c05  ./VERSION
@@ -21,7 +21,7 @@ eb97da8ab78ebecbacbacda87191ab4de6ca1e0809c7f2e6b2ee2cad26fe9e06  ./common/agent
 30f5c2c51417291cc369d4d478f29b34ebcc80749b0922cf6a484c6138d3437b  ./common/agents/codex-implementer.md
 b755ad48a56615b9b91cf8b6d247e880366b4fb224719d0c0ae2160d5c31819b  ./common/agents/dependabot-merger.md
 1a43afd4c5a93232dd25740aec8c4716861b4b0ca54a773445da61d72ec77b8b  ./common/agents/designer.md
-a6cd69ba55253ba51ce0475b4a88c113870f410eb7efabf6a2eac714df466730  ./common/agents/orchestrator.md
+2c2ef99d81fea06ac9be3f513afc9ea5b313c867d612080e7f3aec62fa141922  ./common/agents/orchestrator.md
 678786da55abeda96a09d641e145513747ed223e125e54abf278e0ff7543fc15  ./common/agents/performance-reviewer.md
 f5e00ce60297971780c259e13394d0d8b6eb83e29d0fffde1c0b6f4b70c67287  ./common/agents/planner.md
 29875cdb635b41626a9a7aff5c507a09e39a37e54ac66691cc66ce52a131ddf2  ./common/agents/qa.md
@@ -86,7 +86,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 2f501dc49e8e96fd567147831b581f38eaf03a2ca6857305fc43c0db7c82fe98  ./skeleton/README.md
 bbad056d147f7f1ff8783c13fcb87e64d5e0804b71ad1370a94ddbddbcf79f61  ./skeleton/project.md
 f13b9d6f1d3d251a28f825e23de024d5a81bd817a10ea7f2ccace772b91aea78  ./skeleton/verify-repository.md
-1f7d358daa1c81744bdfe0105e7c2e89006d5cdb0044449b73c6f55b2035b579  ./tests/agent-templates-test.sh
+c2fef8f31f0f2646ea4c1aaf68c15077945f4d38b0c0fc878df391fbe4a0869b  ./tests/agent-templates-test.sh
 79e73b4fadf882baca4314b1eb52cbdd618c2a1a3e3fbb93351c4f57f4d36d81  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
 7915f34f30cd4712d3265f354edf354c00bf495e0faa26f36f3f375e4900825b  ./tests/capture-cli-fixtures.sh
