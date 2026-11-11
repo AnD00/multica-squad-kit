@@ -193,7 +193,7 @@ d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-con
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
 33c3410492e1d198cae4253f967abcbc9ebda0b40235b5c8c596a5788b2617d1  ./tests/usage-fixture.py
-7478c94d2b00af95c077e225ef27d3d40dce6e6946092fa2b69eec2fa36fca55  ./tests/vm-guest-test.sh
+d0405376145ffb7896701d992528b90670f62f59916ccdd69d4691f951006f30  ./tests/vm-guest-test.sh
 45e7efedfaa487173c4e6c37ab12fb6d3bd9e6461519be694479315004f2c3aa  ./tests/vm-lima-test.sh
 fed6d2880cbdd02752bf5d377de7f0ad1912765a6a92436eedb5d77999c59632  ./tests/vm-wsl-cli.py
 e45a4621e54abb773ee81a439afc0ba097ffcf13bf6d80b5941d98389f34e571  ./tests/vm-wsl-test.ps1
@@ -201,7 +201,7 @@ e45a4621e54abb773ee81a439afc0ba097ffcf13bf6d80b5941d98389f34e571  ./tests/vm-wsl
 fd3cd06021c35f13239e1bd31cc7ac40d7c1c5640c923f8a263a3da4899b69c0  ./tests/webhook-gh.py
 55b016d8cf7fc3249410fa650b71f31983e020fc522fec97fb554112e88f348c  ./tests/webhooks-test.sh
 33fba080cbe6db9f6605cf839fafb6400d81910271b5506d7d33c2fcba787e36  ./tests/workspace-test.sh
-3b4d3e63c617e70c331860494104a94ba14ee0af4ba224234ba3bd98a5544f3f  ./vm/guest/provision.sh
+36dd66ce61a8f83a685002fbef0c921bf3715c247a3a536a4fee78c89a3e53ee  ./vm/guest/provision.sh
 060ee2905b252bd3051aa6a7b5aa95a0a1ac924df19d24598b0e0a4cb7e12f66  ./vm/guest/record-server
 189b4dc2de09439bb1c8950dc7021065c9080278f84dd471fce2dda75dfc68fd  ./vm/guest/start-daemon
 bb2530ec2746c31c8ee66acaf2a8d55bc2ae00109c114b3bacc2f13e77661d8b  ./vm/guest/verify.sh
