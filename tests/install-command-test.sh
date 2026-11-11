@@ -194,7 +194,7 @@ not_started() {
 new_case oneline
 for shell in "${shells[@]}"; do
 	run_script "$shell" c "$oneline"
-	[[ $rc == 0 ]] || fail "$shell: 1 行のコマンドが失敗しました（$rc）"
+	[[ $rc == 0 ]] || fail "$shell: 1 行のコマンドが失敗しました（${rc}）"
 	[[ $(calls 'release view ') == 1 ]] || fail "$shell: 最新のバージョンの読みが 1 回ではありません"
 	[[ $(grep -c '使うバージョン: ' "$case_dir/out") == 1 ]] || fail "$shell: バージョンを 1 回出していません"
 	grep -qxF "使うバージョン: $version" "$case_dir/out" || fail "$shell: 読んだバージョンを出していません"
@@ -214,11 +214,11 @@ echo "PASS oneline: bash と zsh で、最新のバージョンを出してか�
 # バージョンの指定（V= のあと）は、最新を読まずに、指定したバージョンを出して使う。拡張のディレクトリは setup.sh へ渡る。
 for shell in "${shells[@]}"; do
 	run_script "$shell" c "${oneline/V=;/V=$version;}"
-	[[ $rc == 0 ]] || fail "$shell: バージョンを指定した 1 行のコマンドが失敗しました（$rc）"
+	[[ $rc == 0 ]] || fail "$shell: バージョンを指定した 1 行のコマンドが失敗しました（${rc}）"
 	[[ $(calls 'release view ') == 0 ]] || fail "$shell: 指定したのに最新を読んでいます"
 	grep -qxF "使うバージョン: $version" "$case_dir/out" || fail "$shell: 指定したバージョンを出していません"
 	run_script "$shell" c "$oneline --extension /ext/dir"
-	[[ $rc == 0 ]] || fail "$shell: 拡張を渡した 1 行のコマンドが失敗しました（$rc）"
+	[[ $rc == 0 ]] || fail "$shell: 拡張を渡した 1 行のコマンドが失敗しました（${rc}）"
 	grep -q '^args:--extension /ext/dir$' "$case_dir/setup.log" || fail "$shell: 拡張のディレクトリが setup.sh へ渡っていません"
 	cp "$case_dir/setup.log" "$case_dir/setup.log.$shell.oneline-ext"
 done
@@ -276,7 +276,7 @@ manual_ext="$test_dir/manual-ext.sh"
 sed '$ s|$| --extension /ext/dir|' "$test_dir/manual.sh" >"$manual_ext"
 for shell in "${shells[@]}"; do
 	run_script "$shell" e "$test_dir/manual.sh"
-	[[ $rc == 0 ]] || fail "$shell: 手動の手順が失敗しました（$rc）"
+	[[ $rc == 0 ]] || fail "$shell: 手動の手順が失敗しました（${rc}）"
 	[[ $(calls 'release download ') == 1 ]] || fail "$shell: 手動の手順で取得が 1 回ではありません（取り直しています）"
 	grep -qx "release download $version --repo $repo_name --pattern $asset --pattern SHA256SUMS --dir .*" "$case_dir/gh.log" || fail "$shell: 手動の手順の取得が違います"
 	[[ $(normalized_attestations | tr '\n' '|') == "attestation verify SHA256SUMS$specs|attestation verify $asset$specs|" ]] || fail "$shell: 手動の手順の証明の確かめが違います"
@@ -288,7 +288,7 @@ for shell in "${shells[@]}"; do
 	cmp "$case_dir/setup.log" "$case_dir/setup.log.$shell.oneline" || fail "$shell: 1 行のコマンドと setup.sh の流れ方が違います"
 	[[ -s $case_dir/err ]] && fail "$shell: 標準エラー出力に出ています: $(<"$case_dir/err")"
 	run_script "$shell" e "$manual_ext"
-	[[ $rc == 0 ]] || fail "$shell: 拡張を足した手動の手順が失敗しました（$rc）"
+	[[ $rc == 0 ]] || fail "$shell: 拡張を足した手動の手順が失敗しました（${rc}）"
 	cmp "$case_dir/setup.log" "$case_dir/setup.log.$shell.oneline-ext" || fail "$shell: 拡張を渡した 1 行のコマンドと setup.sh の流れ方が違います"
 done
 echo 'PASS manual: bash と zsh で、手動の手順は取り直さず、1 行のコマンドと同じ確かめをして、同じ setup.sh を同じ引数で流す'

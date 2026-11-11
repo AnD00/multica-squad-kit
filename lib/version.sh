@@ -60,6 +60,6 @@ record_installed_version() {
 	tmp=$file.tmp.$$
 	if ! { (umask 077; mkdir -p "$(dirname "$file")") && printf '%s\n' "$(version_running)" >"$tmp" && mv -f "$tmp" "$file"; }; then
 		rm -f -- "$tmp" 2>/dev/null || true
-		ui_warning "導入済みのバージョンを記録できませんでした: $file。セットアップ自体は終わっています。"
+		ui_warning "導入済みのバージョンを記録できませんでした: ${file}。セットアップ自体は終わっています。"
 	fi
 }

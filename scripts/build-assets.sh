@@ -63,9 +63,9 @@ command -v shasum >/dev/null || stop 'shasum がありません。'
 tag_ref=refs/tags/$version
 tag_commit=$(git rev-parse --verify --quiet "$tag_ref^{commit}") || stop "タグ $version がありません。"
 head_commit=$(git rev-parse --verify --quiet 'HEAD^{commit}') || stop 'HEAD を読めません。'
-[[ $head_commit == "$tag_commit" ]] || stop "HEAD（$head_commit）が、タグ $version の指すコミット（$tag_commit）と違います。タグを取り出してから流してください。"
+[[ $head_commit == "$tag_commit" ]] || stop "HEAD（${head_commit}）が、タグ $version の指すコミット（${tag_commit}）と違います。タグを取り出してから流してください。"
 tag_version=$(git show "$tag_ref:VERSION" 2>/dev/null) || stop "タグ $version に VERSION がありません。"
-[[ $tag_version == "$version" ]] || stop "タグ $version の VERSION（$tag_version）が、バージョンと違います。"
+[[ $tag_version == "$version" ]] || stop "タグ $version の VERSION（${tag_version}）が、バージョンと違います。"
 install_mode=$(git ls-tree "$tag_ref" -- install.sh | cut -c1-6)
 [[ $install_mode == 100644 || $install_mode == 100755 ]] || stop "タグ $version に、通常のファイルの install.sh がありません。"
 
@@ -89,7 +89,7 @@ verbose=$(tar -tvzf "$work/$asset") || stop '配布物の詳細な一覧を読�
 [[ -n $names ]] || stop '配布物が空です。'
 names_count=$(printf '%s\n' "$names" | wc -l)
 verbose_count=$(printf '%s\n' "$verbose" | wc -l)
-[[ $names_count -eq $verbose_count ]] || stop "配布物の 2 つの一覧の行の数が違います（$names_count と $verbose_count）。名前に改行があるおそれがあります。"
+[[ $names_count -eq $verbose_count ]] || stop "配布物の 2 つの一覧の行の数が違います（${names_count} と ${verbose_count}）。名前に改行があるおそれがあります。"
 while IFS= read -r name; do
 	case $name in
 	/*) stop "配布物に絶対パスがあります: $name" ;;
@@ -133,4 +133,4 @@ mkdir -p "$out"
 cp "$work/$asset" "$out/$asset"
 git show "$tag_ref:install.sh" >"$out/install.sh"
 (cd "$out" && shasum -a 256 "$asset" install.sh >SHA256SUMS)
-ui_line out success "配布物を作りました: $out（$asset、install.sh、SHA256SUMS）"
+ui_line out success "配布物を作りました: ${out}（${asset}、install.sh、SHA256SUMS）"

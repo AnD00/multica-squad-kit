@@ -496,7 +496,7 @@ pwd:$case_dir" ]]
 for code in 1 2 7 130; do
 	SETUP_EXIT=$code run_install "$version"
 	[[ $rc == "$code" ]] || {
-		echo "setup.sh の終了コード $code で終わっていません（$rc）" >&2
+		echo "setup.sh の終了コード $code で終わっていません（${rc}）" >&2
 		exit 1
 	}
 	[[ -e $case_dir/setup.log && -z $(ls -A "$case_dir/tmp") ]]

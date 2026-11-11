@@ -130,8 +130,10 @@ echo 'PASS version-notice: 保存の失敗やキャンセルで止まったと�
 fresh
 mkdir -p "$test_dir/host-home"
 : >"$test_dir/host-home/template"
-run
+# macOS の UTF-8 ロケールでは、波括弧のない変数が句点に接すると、長い変数名として読まれて異常終了する。
+LC_ALL=en_US.UTF-8 run
 grep -qF '導入済みのバージョンを記録できませんでした' "$test_dir/err"
+grep -qF '/template/version。セットアップ自体は終わっています。' "$test_dir/err"
 grep -qF TEST-project-prepared "$test_dir/out"
 [[ -f $test_dir/host-home/template && ! -e $record ]]
 echo 'PASS version-notice: 記録を書けなくても警告にとどめ、終わったセットアップは失敗にしない'
@@ -143,3 +145,22 @@ TEST_LATEST_TAG=v9.0.0 run
 grep -qF '警告: 新しいバージョン v9.0.0 があります。' "$test_dir/err"
 [[ $(cat "$record") == "$running" ]]
 echo 'PASS version-notice: 壊れた記録は記録がないときと同じに扱い、終わったあとに書き直す'
+
+# 変数の直後に日本語の文字が続く形は、macOS の UTF-8 ロケールで変数名の一部と読まれる。配る原本のスクリプトには残さない。
+python3 -I - "$(cd "$(dirname "$0")/.." && pwd)" <<'PY'
+import pathlib, re, sys
+root = pathlib.Path(sys.argv[1])
+files = [root / "setup.sh", root / "install.sh"]
+files += sorted((root / "lib").glob("*.sh")) + sorted((root / "scripts").glob("*.sh")) + sorted((root / "vm").glob("*.sh"))
+pattern = re.compile(r"\$[A-Za-z_][A-Za-z0-9_]*[^\x00-\x7f]")
+bad = []
+for f in files:
+    if not f.is_file():
+        continue
+    for n, line in enumerate(f.read_text(encoding="utf-8").splitlines(), 1):
+        if not line.lstrip().startswith("#") and pattern.search(line):
+            bad.append(f"{f.relative_to(root)}:{n}")
+if bad:
+    sys.exit("変数の直後に日本語の文字が続いています（${変数} で区切る）: " + ", ".join(bad))
+PY
+echo 'PASS version-notice: 変数の直後に日本語の文字が続く形が、配るスクリプトに残っていない'
