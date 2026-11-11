@@ -51,7 +51,7 @@ ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell
 8ee2652094a7efe0706f74534f2a2f47d77dd011322cb75e836af0fb56d0fe3f  ./common/skills/squad-handoff/SKILL.md
 7efa073dee1f55412d6e5cb69f65c614d86c1fc03845f5ab2a99aedbe7c5b45a  ./common/squad.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
-e7ea843742d610d2226ebfc42435b1153aaac55f2478653f60c3323304713d88  ./docs/ci.md
+da1a906c1b2680ac9a609f2f1b40eaa7debe832e26b4824aec4b7d1bbde7ea1b  ./docs/ci.md
 2910f634f6cd463505503b45390b07abed7697ee3027d6311ed7fbb11644e4f3  ./docs/gh-gate-path.md
 be653b5fca32f490a7d1fd8d9d2927157887bfbe41ca649d72ed01be5743ede6  ./docs/install.md
 dc5ad95d2923365b792d7abfe8b3f5d6666c1348654c380fa9e5e9d2e522be5c  ./docs/pr-conflict-check.md
@@ -217,7 +217,7 @@ ae219749b643f6f28eca7191963efe8f153da3fbdca9fbc9f9a4c8b9233b922f  ./tests/squad-
 a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-tty-run.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 d103940f18b86ac56c54aa0bdc8cb9b61d47ae92c458832b08d42409d04b148f  ./tests/test-runner-test.sh
-5b7ba21e8482c80c6e8afe501588b9b38ffb2b09c41ab6de336d08db417564ea  ./tests/test-weights
+a22ba5d87aa88c272de4614da681bac4bd5d36f94acf7b18b02ffcb2a3681341  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
