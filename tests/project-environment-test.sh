@@ -7,7 +7,7 @@ source "$root/tests/project-test-lib.sh"
 
 make_completed
 
-export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=17
 rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
 cp -R "$test_dir/completed/db" "$TEST_DB"
 cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"

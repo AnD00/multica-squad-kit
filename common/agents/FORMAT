@@ -16,6 +16,8 @@ skills は共通スキルの名前と、プロジェクトの区別を除いた�
 orchestrator は必須。claude-implementer と claude-fixer、codex-implementer と
 codex-fixer は、それぞれ系統として一緒に有効・無効にする。少なくとも一系統を残す。
 使うランタイムにない系統は、外す役に選ばれていなくても無効にする。
+claude-principal と codex-principal は系統ごとに 1 体ずつ置き、外す役には選べない。
+使うランタイムにない系統の方だけ無効にし、ない方のモデルへは移さない。
 
 ランタイムの印:
   IF には役のキーのほか、使うランタイムを表す runtime-claude と runtime-codex を書ける。

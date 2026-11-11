@@ -19,5 +19,5 @@ skill = dict(id='handoff', name='squad-handoff', description=description,
 db = dict(issues=[], skills=[skill], members=[dict(user_id='actor', name='Owner', role='owner'),
                                             dict(user_id='creator', name='Creator', role='member')],
           labels=[dict(id='ops', name='運用'), dict(id='instructions', name='指示の改善'),
-                  dict(id='trial', name='検証')])
+                  dict(id='trial', name='検証'), dict(id='important', name='重要')])
 destination.write_text(json.dumps(db, ensure_ascii=False))

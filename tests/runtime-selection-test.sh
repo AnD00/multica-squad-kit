@@ -53,7 +53,7 @@ jq -e '.schema==1 and .runtimes==["claude"] and .excluded_roles==[]' "$saved" >/
 grep -qF '少なくとも一系統' "$test_dir/err"
 grep -qF 'Codex の実装・修正:' "$test_dir/err"
 grep -qF '使うランタイムにないため外れます' "$test_dir/err"
-grep -qF 'エージェント: 13件' "$test_dir/err"
+grep -qF 'エージェント: 14件' "$test_dir/err"
 printf '1\n1\ndemo\n1\nmembera\n0\n3\n4\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.runtimes==["codex"] and .excluded_roles==[]' "$saved" >/dev/null

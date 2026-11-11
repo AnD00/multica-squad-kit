@@ -32,7 +32,7 @@ prepare_project() (
 	# 登録する系統だけに反映する。保存済みの回答には自分で外した役だけを残す。
 	for role in claude codex; do
 		if ! uses_runtime "$role"; then
-			excluded_roles=$(jq -c --arg runtime "$role" '.+[$runtime+"-implementer",$runtime+"-fixer"]|unique' <<<"$excluded_roles")
+			excluded_roles=$(jq -c --arg runtime "$role" '.+[$runtime+"-implementer",$runtime+"-fixer",$runtime+"-principal"]|unique' <<<"$excluded_roles")
 		fi
 	done
 	for role in $template_roles; do
