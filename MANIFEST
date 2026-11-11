@@ -1,8 +1,12 @@
+a6075c06025d8c2d6445a942619b5062fd172e5402b77fe4c294029707e0dcba  ./.agents/rules/code.md
+abf065e356a79e4d04e947447889ae145ab1e7dc04d891d9e703e8fb019def87  ./.agents/rules/docs.md
+7ec8af9fdbda60aacfcd7510d9e44ebc478f79feae2fd586d0393fd396da39c1  ./.agents/rules/tests.md
 63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull_request_template.md
 4a9bc7c0ae67e04c1eddd73c9d0726633601ecfe87fccb8c6c04f85f26261fb6  ./.github/workflows/check.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
+4912ff6422fd85499df9f5615563c28009c58e0b1f42c2f08df7c6c8aabcf971  ./AGENTS.md
 8fa78b85c38992ae3c5551735c075f6f3bb8a0272504fa4d132bc7d8b5ebf167  ./CHANGELOG.md
 ba9cd7833e096e173fac2184c52128a914c571de4a5a87ff9bb8d6177e50d8fc  ./CONTRIBUTING.md
 df6557f34dddab303e1a91da05957c419b28ba44f89621d830abc74ce2f9128a  ./EXTENSIONS.md
