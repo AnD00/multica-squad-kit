@@ -326,7 +326,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 | Multica の `multica daemon autostart` で起動する | 引数を受けず、`CODEX_HOME` と関所の PATH を渡せない |
 | 使う人の systemd の unit で起動する | 起動の順が linger とログインに左右される。system の unit に `User=` を付ければ足りる |
 | Docker を root で動かし、docker の群に入れる | 群の人は中の root になれ、WSL ではドライブをつなぎ直せる |
-| `gh` を Ubuntu の標準の apt から入れる | 2.45.0 で、`gh attestation` を持たず、1 行のコマンドの確かめが流せない |
+| `gh` を Ubuntu の標準の apt から入れる | 2.45.0 で、`gh attestation` を持たず、入口の確かめが流せない |
 | WSL を Ubuntu のイメージから `wsl --import` で作る | イメージの URL と照合値を原本で保つ手間が増える。公式の `wsl --install` で足りる |
 | Windows のタスク スケジューラや `limactl start-at-login` で自動で起動する | ホストに設定が残り、要件の「残るのは Lima（WSL）と VM のディスクだけ」に反する |
 | 接続先を `verify` のときだけ記録する | `verify` を流さずに VM を止めると、記録が残らない |
