@@ -217,7 +217,7 @@ ae219749b643f6f28eca7191963efe8f153da3fbdca9fbc9f9a4c8b9233b922f  ./tests/squad-
 a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-tty-run.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 d103940f18b86ac56c54aa0bdc8cb9b61d47ae92c458832b08d42409d04b148f  ./tests/test-runner-test.sh
-a22ba5d87aa88c272de4614da681bac4bd5d36f94acf7b18b02ffcb2a3681341  ./tests/test-weights
+a7612452ee09d8b5302cae60eaa054dedc816fbad072b3c769873c1d21612c89  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh

@@ -6,6 +6,7 @@ tests/project-followup-test.sh 181
 tests/squad-dependabot-merge-advance-request-test.sh 172
 tests/squad-pr-watch-ci-test.sh 161
 tests/squad-cli-lib-test.sh 156
+tests/release-test.sh 155
 tests/squad-dependabot-merge-advance-diff-test.sh 141
 tests/squad-dependabot-merge-escalate-test.sh 141
 tests/setup-test.sh 136
@@ -23,7 +24,6 @@ tests/questions-ui-test.sh 68
 tests/squad-usage-check-test.sh 68
 tests/project-environment-test.sh 66
 tests/project-failure-test.sh 62
-tests/release-test.sh 58
 tests/squad-pr-link-test.sh 58
 tests/project-runtimes-test.sh 54
 tests/project-select-test.sh 53
