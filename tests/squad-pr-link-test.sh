@@ -117,7 +117,7 @@ run_link() {
 assert_warning() {
 	[[ ! -s $test_dir/out ]]
 	grep -F "タスク TASK-7 に PR $url を紐付けられませんでした" "$test_dir/err" >/dev/null
-	grep -F '課題の画面の PR の欄で、この URL を指定して紐付けてください。' "$test_dir/err" >/dev/null
+	grep -F 'タスクの画面の PR の欄で、この URL を指定して紐付けてください。' "$test_dir/err" >/dev/null
 	jq -e '.metadata | has("pr_url") | not' "$test_dir/issue.json" >/dev/null
 }
 assert_no_write() {
