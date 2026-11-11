@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# install.sh の確かめ（gh のバージョン、証明、チェックサム、一覧、--verify、引数）を、スタブの gh と一時の置き場で確かめる。
-# 本物の GitHub には触れず、展開もしない。表示の部品は lib/ui.sh と同じかも照らす。
+# install.sh の確かめ（gh のバージョン、証明、チェックサム、一覧、--verify、引数）と、取得・展開・セットアップの流し・片付けを、
+# スタブの gh と一時の置き場で確かめる。本物の GitHub には触れない。展開した setup.sh はスタブで、受けた引数を残す。
+# 表示の部品は lib/ui.sh と同じかも照らす。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -8,13 +9,15 @@ test_dir=$(mktemp -d "$root/tmp/install.XXXXXX")
 exec 8>&2
 trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then for log in "$test_dir"/*/out "$test_dir"/*/err; do [[ -f $log ]] && { echo "--- $log" >&8; cat "$log" >&8; }; done; fi; rm -rf -- "$test_dir"' EXIT
 real_uname=$(command -v uname)
+real_tar=$(command -v tar)
 version=v1.6.0
 asset=multica-squad-kit-$version.tar.gz
 repo_name=AnD00/multica-squad-kit
 default_gh_out=$'gh version 2.102.0 (2026-01-01)\nhttps://github.com/cli/cli/releases/tag/v2.102.0'
 
-# スタブの gh は、--version で GH_VERSION_OUT を出し、attestation verify の呼び方を GH_LOG に 1 行で残す。
-# GH_FAIL_ON に名前を渡したファイルの確かめだけが失敗する。
+# スタブの gh は、--version で GH_VERSION_OUT を出し、呼び方を GH_LOG に 1 行で残す。
+# attestation verify は、GH_FAIL_ON に名前を渡したファイルの確かめだけが失敗する。
+# release download は、--pattern のファイルを GH_ASSETS から --dir へ写す（GH_DOWNLOAD_FAIL で失敗、GH_DOWNLOAD_EMPTY で何も写さず成功）。
 mkdir -p "$test_dir/bin"
 cat >"$test_dir/bin/gh" <<'STUB'
 #!/bin/bash
@@ -25,6 +28,32 @@ if [[ ${1:-} == --version ]]; then
 	exit 0
 fi
 echo "$*" >>"$GH_LOG"
+if [[ ${1:-} == release && ${2:-} == download ]]; then
+	[[ -z ${GH_DOWNLOAD_FAIL:-} ]] || {
+		echo 'stub: release not found' >&2
+		exit 1
+	}
+	shift 3
+	dir=
+	patterns=()
+	while [[ $# -gt 0 ]]; do
+		case $1 in
+		--pattern) patterns+=("$2"); shift 2 ;;
+		--dir) dir=$2; shift 2 ;;
+		*) shift ;;
+		esac
+	done
+	[[ -d $dir ]] || exit 1
+	[[ -z ${GH_DOWNLOAD_EMPTY:-} ]] || exit 0
+	for pattern in "${patterns[@]}"; do
+		[[ -f $GH_ASSETS/$pattern ]] || {
+			echo "stub: no assets match the file pattern $pattern" >&2
+			exit 1
+		}
+		cp "$GH_ASSETS/$pattern" "$dir/$pattern"
+	done
+	exit 0
+fi
 if [[ ${1:-} == attestation && ${2:-} == verify ]]; then
 	file=${3:-}
 	if [[ ${file##*/} == "${GH_FAIL_ON:-}" ]]; then
@@ -43,7 +72,22 @@ else
 	exec "$REAL_UNAME" "$@"
 fi
 STUB
-chmod +x "$test_dir/bin/gh" "$test_dir/bin/uname"
+# スタブの tar は、呼び方を TAR_LOG に残し、本物の tar に任せる。PLANT があれば、展開のあとに、一覧の確かめをすり抜けたものを 1 つ足す。
+cat >"$test_dir/bin/tar" <<'STUB'
+#!/bin/bash
+echo "$*" >>"$TAR_LOG"
+"$REAL_TAR" "$@" || exit $?
+if [[ ${1:-} == -xzf && -n ${PLANT:-} ]]; then
+	top=${4:-}/multica-squad-kit-v1.6.0
+	case $PLANT in
+	symlink) ln -s /etc/passwd "$top/planted" ;;
+	hardlink) ln "$top/VERSION" "$top/hard" ;;
+	fifo) mkfifo "$top/fifo" ;;
+	esac
+fi
+exit 0
+STUB
+chmod +x "$test_dir/bin/gh" "$test_dir/bin/uname" "$test_dir/bin/tar"
 
 # make_archive <モード> <出力先>: 正しい配布物（MANIFEST が合う）に、モードの 1 つのものを足した tar.gz を作る。
 make_archive() {
@@ -56,14 +100,28 @@ import tarfile
 mode, path = sys.argv[1], sys.argv[2]
 prefix = "multica-squad-kit-v1.6.0/"
 version = b"v1.6.0\n"
+# 展開した setup.sh のスタブ。受けた引数と流した場所を SETUP_LOG に残し、SETUP_EXIT で終わる。
+setup_stub = br"""#!/bin/bash
+[[ -z ${SETUP_STARTED:-} ]] || : >"$SETUP_STARTED"
+{
+	printf 'args:%s\n' "$*"
+	printf 'pwd:%s\n' "$PWD"
+} >"$SETUP_LOG"
+if [[ -n ${SETUP_READ:-} ]]; then
+	read -r answer
+	printf 'stdin:%s\n' "$answer" >>"$SETUP_LOG"
+fi
+[[ -z ${SETUP_SLEEP:-} ]] || sleep "$SETUP_SLEEP"
+exit "${SETUP_EXIT:-0}"
+"""
 manifest = ("%s  ./VERSION\n" % hashlib.sha256(version).hexdigest()).encode()
 with tarfile.open(path, "w:gz", format=tarfile.PAX_FORMAT) as tar:
-    def add(name, data=None, kind=tarfile.REGTYPE, link=""):
+    def add(name, data=None, kind=tarfile.REGTYPE, link="", dir_mode=0o755):
         info = tarfile.TarInfo(name)
         info.type = kind
         info.linkname = link
         if kind == tarfile.DIRTYPE:
-            info.mode = 0o755
+            info.mode = dir_mode
             tar.addfile(info)
         elif kind == tarfile.REGTYPE:
             info.size = len(data)
@@ -73,9 +131,15 @@ with tarfile.open(path, "w:gz", format=tarfile.PAX_FORMAT) as tar:
             info.mode = 0o777
             tar.addfile(info)
     add(prefix, kind=tarfile.DIRTYPE)
-    add(prefix + "VERSION", version)
+    if mode != "no-version":
+        add(prefix + "VERSION", b"v1.6.1\n" if mode == "bad-version" else version)
     add(prefix + "MANIFEST", manifest)
-    if mode == "absolute":
+    if mode != "no-setup":
+        add(prefix + "setup.sh", setup_stub)
+    if mode == "readonly-dir":
+        add(prefix + "ro/", kind=tarfile.DIRTYPE, dir_mode=0o555)
+        add(prefix + "ro/file", b"x")
+    elif mode == "absolute":
         add("/tmp/escape.txt", b"x")
     elif mode == "dotdot":
         add(prefix + "../escape.txt", b"x")
@@ -97,7 +161,7 @@ with tarfile.open(path, "w:gz", format=tarfile.PAX_FORMAT) as tar:
         add(prefix + "a\n" + prefix + "b.txt", b"x")
     elif mode == "fifo":
         add(prefix + "fifo", kind=tarfile.FIFOTYPE)
-    elif mode != "none":
+    elif mode not in ("none", "no-version", "bad-version", "no-setup"):
         raise SystemExit("unknown mode: " + mode)
 PY
 }
@@ -124,14 +188,39 @@ write_sums() {
 }
 
 gh_out=$default_gh_out
-# run_install <引数...>: 終了コードを rc に置く。gh の呼び方は $case_dir/gh.log に残る。
+# run_install <引数...>: 終了コードを rc に置く。gh と tar の呼び方は $case_dir/gh.log と tar.log、展開した setup.sh のスタブの記録は setup.log に残る。
+# 一時の置き場は $case_dir/tmp の下に作らせる。標準入力は INSTALL_STDIN のファイル（なければ空）。
 # 実行環境の BASH_ENV が PATH の先頭へ本物の gh を戻すことがあるので、外して、スタブを先に選ばせる。
 run_install() {
 	rc=0
 	: >"$case_dir/gh.log"
-	(cd "$case_dir" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_VERSION_OUT="$gh_out" GH_VERSION_FAIL="${GH_VERSION_FAIL:-}" \
-		GH_FAIL_ON="${GH_FAIL_ON:-}" FAKE_UNAME="${FAKE_UNAME:-}" REAL_UNAME="$real_uname" bash "$root/install.sh" "$@") \
-		>"$case_dir/out" 2>"$case_dir/err" </dev/null || rc=$?
+	: >"$case_dir/tar.log"
+	rm -f "$case_dir/setup.log"
+	mkdir -p "$case_dir/tmp"
+	(cd "$case_dir" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" GH_LOG="$case_dir/gh.log" GH_ASSETS="$assets" \
+		GH_VERSION_OUT="$gh_out" GH_VERSION_FAIL="${GH_VERSION_FAIL:-}" GH_FAIL_ON="${GH_FAIL_ON:-}" \
+		GH_DOWNLOAD_FAIL="${GH_DOWNLOAD_FAIL:-}" GH_DOWNLOAD_EMPTY="${GH_DOWNLOAD_EMPTY:-}" \
+		TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" PLANT="${PLANT:-}" \
+		SETUP_LOG="$case_dir/setup.log" SETUP_EXIT="${SETUP_EXIT:-0}" SETUP_READ="${SETUP_READ:-}" \
+		SETUP_SLEEP="${SETUP_SLEEP:-}" SETUP_STARTED="${SETUP_STARTED:-}" \
+		FAKE_UNAME="${FAKE_UNAME:-}" REAL_UNAME="$real_uname" bash "$root/install.sh" "$@") \
+		>"$case_dir/out" 2>"$case_dir/err" <"${INSTALL_STDIN:-/dev/null}" || rc=$?
+}
+# tar_extracts: 展開した回数。
+tar_extracts() { grep -c '^-xzf ' "$case_dir/tar.log" || true; }
+# not_run: セットアップは流れておらず、一時の置き場は残っておらず、取得は 1 回だけ（取り直していない）。
+# 展開したかどうかは、tar の呼び方が残るので、引数の expect_extract で確かめる（yes か no）。
+not_run() {
+	[[ ! -e $case_dir/setup.log ]] || {
+		echo "セットアップが流れています" >&2
+		exit 1
+	}
+	[[ -z $(ls -A "$case_dir/tmp") ]] || {
+		echo "一時の置き場が残っています: $(ls -A "$case_dir/tmp")" >&2
+		exit 1
+	}
+	[[ $(grep -c '^release download ' "$case_dir/gh.log" || true) -le 1 ]]
+	[[ $(tar_extracts) == "${1:-0}" ]]
 }
 # attest_calls: 証明を確かめた回数。
 attest_calls() { grep -c '^attestation verify ' "$case_dir/gh.log" || true; }
@@ -209,9 +298,10 @@ expect_stop 1 'gh のバージョンを読めません'
 GH_VERSION_FAIL=1 run_install --verify "$version" "$assets"
 expect_stop 1 'gh のバージョンを読めません'
 [[ $(attest_calls) == 0 ]]
-# 通常の流し方（--verify なし）も、証明の前にバージョンで止まる。
+# 通常の流し方（--verify なし）も、取得の前にバージョンで止まる。
 gh_out='gh version 2.101.9' run_install "$version"
 expect_stop 1 'gh のバージョンが古く'
+! grep -q '^release ' "$case_dir/gh.log"
 
 # 証明が通らない: SHA256SUMS の証明で止まれば、チェックサムも配布物の証明も見ない。
 new_case attest-sums
@@ -363,12 +453,191 @@ done
 run_install --help "$version"
 [[ $rc == 2 ]]
 
-# 通常の流し方（--verify なし）は、取得と展開が入るまでは、何も取得せず 1 で止まる。
+# 流す: 取得、確かめ、展開、確かめのあとで、展開した setup.sh を子のプロセスとして流し、一時の置き場を消す。
+new_case run
+for os in Darwin Linux; do
+	FAKE_UNAME=$os run_install "$version"
+	[[ $rc == 0 ]]
+	[[ ! -s $case_dir/err ]]
+	grep -qF "取得します: $version" "$case_dir/out"
+	grep -qF 'セットアップを流します' "$case_dir/out"
+	# 引数は渡さず、流した場所のまま流す。
+	[[ $(cat "$case_dir/setup.log") == "args:
+pwd:$case_dir" ]]
+	# 取得は 1 回で、確かめは取ってきたファイルに、証明は SHA256SUMS、配布物の順に行う。
+	dl_dir=$(sed -n 's/.* --dir //p' "$case_dir/gh.log")
+	[[ $dl_dir == "$case_dir"/tmp/*/assets && $(printf '%s\n' "$dl_dir" | wc -l) -eq 1 ]]
+	{
+		echo '--version'
+		echo "release download $version --repo $repo_name --pattern $asset --pattern SHA256SUMS --dir $dl_dir"
+		expected_call "$dl_dir/SHA256SUMS"
+		expected_call "$dl_dir/$asset"
+	} >"$case_dir/expected.log"
+	cmp "$case_dir/gh.log" "$case_dir/expected.log"
+	# 展開は 1 回で、確かめた配布物を、新しい空のディレクトリへ。
+	[[ $(tar_extracts) == 1 ]]
+	grep -qF -- "-xzf $dl_dir/$asset -C ${dl_dir%/assets}/src" "$case_dir/tar.log"
+	# 片付け: 一時の置き場は消え、置いてあった配布物はそのまま、流した場所には何も増えない。
+	[[ -z $(ls -A "$case_dir/tmp") ]]
+	no_extract
+	[[ $(ls "$case_dir" | LC_ALL=C sort | tr '\n' ' ') == "assets err expected.log gh.log out setup.log tar.log tmp " ]]
+done
+# --extension は、そのまま setup.sh へ渡す（相対のまま。絶対にするのは setup.sh）。--no-checkout は渡さない。
+run_install "$version" --extension ext
+[[ $rc == 0 ]]
+[[ $(cat "$case_dir/setup.log") == "args:--extension ext
+pwd:$case_dir" ]]
+run_install "$version" --extension "$case_dir/ext dir"
+[[ $rc == 0 ]]
+[[ $(cat "$case_dir/setup.log") == "args:--extension $case_dir/ext dir
+pwd:$case_dir" ]]
+[[ -z $(ls -A "$case_dir/tmp") && ! -e $case_dir/ext && ! -e "$case_dir/ext dir" ]]
+# setup.sh の終了コードで終わり、成否によらず一時の置き場を消す。
+for code in 1 2 7 130; do
+	SETUP_EXIT=$code run_install "$version"
+	[[ $rc == "$code" ]] || {
+		echo "setup.sh の終了コード $code で終わっていません（$rc）" >&2
+		exit 1
+	}
+	[[ -e $case_dir/setup.log && -z $(ls -A "$case_dir/tmp") ]]
+done
+# 質問に答えられるよう、標準入力は setup.sh へ渡る。
+printf 'yes\n' >"$case_dir/stdin"
+INSTALL_STDIN="$case_dir/stdin" SETUP_READ=1 run_install "$version"
+[[ $rc == 0 ]]
+grep -qxF 'stdin:yes' "$case_dir/setup.log"
+# setup.sh の流れている途中で止められても、一時の置き場を消す（終了コードは 128 + シグナル）。
+# INT は、バックグラウンドで流すと無視される設定で始まるので、ここでは確かめない（install.sh は INT でも同じに止まる trap を持つ）。
+for entry in TERM:143 HUP:129; do
+	sig=${entry%%:*}
+	: >"$case_dir/gh.log"
+	rm -f "$case_dir/started"
+	(cd "$case_dir" && exec env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" GH_LOG="$case_dir/gh.log" GH_ASSETS="$assets" \
+		GH_VERSION_OUT="$gh_out" TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" SETUP_LOG="$case_dir/setup.log" \
+		SETUP_STARTED="$case_dir/started" SETUP_SLEEP=1 REAL_UNAME="$real_uname" bash "$root/install.sh" "$version") \
+		>"$case_dir/out" 2>"$case_dir/err" </dev/null &
+	install_pid=$!
+	waited=0
+	until [[ -e $case_dir/started ]]; do
+		waited=$((waited + 1))
+		[[ $waited -le 100 ]] || {
+			kill -KILL "$install_pid" 2>/dev/null || true
+			echo "setup.sh が流れ始めません" >&2
+			exit 1
+		}
+		sleep 0.1
+	done
+	[[ -n $(ls -A "$case_dir/tmp") ]]
+	kill "-$sig" "$install_pid"
+	rc=0
+	wait "$install_pid" || rc=$?
+	[[ $rc == "${entry#*:}" ]] || {
+		echo "シグナル $sig で終わった終了コードが違います（${rc}、期待 ${entry#*:}）" >&2
+		exit 1
+	}
+	[[ -z $(ls -A "$case_dir/tmp") ]] || {
+		echo "シグナル $sig のあとに一時の置き場が残っています" >&2
+		exit 1
+	}
+done
+# 展開した中が読み取り専用のディレクトリでも、片付けられる。
+new_case readonly-dir readonly-dir
 run_install "$version"
-expect_stop 1 '取得と展開は、まだこの install.sh に入っていません'
-run_install "$version" --extension "$case_dir/ext"
-expect_stop 1 '取得と展開は、まだこの install.sh に入っていません'
-[[ $(attest_calls) == 0 && ! -e $case_dir/ext ]]
+[[ $rc == 0 ]]
+[[ -z $(ls -A "$case_dir/tmp") ]]
+
+# 取得できない: gh の出した理由と gh auth status の確認を出して 1 で止まる。確かめも展開も流しもしない。取り直さない。
+new_case fetch-fail
+GH_DOWNLOAD_FAIL=1 run_install "$version"
+expect_stop 1 "$version を取得できませんでした"
+grep -qF 'stub: release not found' "$case_dir/err"
+grep -qF 'gh auth status' "$case_dir/err"
+[[ $(attest_calls) == 0 ]]
+not_run 0
+# Release に配布物がない、SHA256SUMS がない: 取れなかったものとして止まる。
+mv "$assets/$asset" "$case_dir/asset.keep"
+run_install "$version"
+expect_stop 1 "$version を取得できませんでした"
+grep -qF "no assets match the file pattern $asset" "$case_dir/err"
+not_run 0
+mv "$case_dir/asset.keep" "$assets/$asset"
+mv "$assets/SHA256SUMS" "$case_dir/sums.keep"
+run_install "$version"
+expect_stop 1 "$version を取得できませんでした"
+not_run 0
+mv "$case_dir/sums.keep" "$assets/SHA256SUMS"
+# gh が成功と言いながらファイルを置かなかったときも、確かめの前に止まる。
+GH_DOWNLOAD_EMPTY=1 run_install "$version"
+expect_stop 1 '通常のファイルの SHA256SUMS がありません'
+not_run 0
+
+# 確かめに通らないものは、展開も流しもしない（取得のあとの 5 つのどれで止まっても、一時の置き場は消える）。
+new_case run-attest-sums
+GH_FAIL_ON=SHA256SUMS run_install "$version"
+expect_stop 1 '証明を確かめられませんでした: SHA256SUMS'
+[[ $(attest_calls) == 1 ]]
+not_run 0
+GH_FAIL_ON=$asset run_install "$version"
+expect_stop 1 "証明を確かめられませんでした: $asset"
+[[ $(attest_calls) == 2 ]]
+not_run 0
+# 配布物を 1 バイト書き換える。
+new_case run-tampered
+printf 'x' >>"$assets/$asset"
+run_install "$version"
+expect_stop 1 'チェックサムが、SHA256SUMS と違います'
+[[ $(attest_calls) == 1 ]]
+not_run 0
+# SHA256SUMS の配布物の行がない、2 行ある。
+new_case run-sums-missing
+printf '%s  install.sh\n' "$(sha_of "$assets/install.sh")" >"$assets/SHA256SUMS"
+run_install "$version"
+expect_stop 1 "SHA256SUMS に $asset の行がありません"
+not_run 0
+new_case run-sums-dup
+sums_hash=$(sha_of "$assets/$asset")
+printf '%s  %s\n%s  %s\n' "$sums_hash" "$asset" "$sums_hash" "$asset" >"$assets/SHA256SUMS"
+run_install "$version"
+expect_stop 1 "SHA256SUMS に $asset の行が 2 行以上あります"
+not_run 0
+# 絶対パス、..、別の置き場の下、リンク、特殊なファイルを含む配布物は、展開の前に拒む（展開先の外に何もできない）。
+for entry in "${evil_cases[@]}"; do
+	mode=${entry%%|*}
+	reason=${entry#*|}
+	new_case "run-evil-$mode" "$mode"
+	run_install "$version"
+	expect_stop 1 "$reason"
+	[[ $(attest_calls) == 2 ]]
+	not_run 0
+	[[ ! -e $case_dir/escape.txt && ! -e $case_dir/tmp/escape.txt ]]
+done
+new_case run-evil-newline newline
+run_install "$version"
+[[ $rc == 1 ]]
+not_run 0
+
+# 展開したものの確かめ: 一覧の確かめをすり抜けたものがあっても、流す前に止まる。
+for entry in 'bad-version||VERSION が、指定したバージョン' 'no-version||VERSION がありません' 'no-setup||setup.sh がありません'; do
+	mode=${entry%%||*}
+	reason=${entry#*||}
+	new_case "run-$mode" "$mode"
+	run_install "$version"
+	expect_stop 1 "$reason"
+	not_run 1
+done
+for plant in symlink hardlink fifo; do
+	new_case "run-plant-$plant"
+	PLANT=$plant run_install "$version"
+	[[ $rc == 1 ]]
+	grep -q '^エラー: ' "$case_dir/err"
+	not_run 1
+done
+grep -qF 'リンクか特殊なファイル' "$case_dir/err"
+new_case run-plant-hardlink
+PLANT=hardlink run_install "$version"
+expect_stop 1 'ハードリンクのファイルがあります'
+not_run 1
+# 展開できない配布物（tar.gz として読めるが、展開に失敗する）は、tar のスタブで再現できないので、確かめない。
 
 # 表示の部品は、lib/ui.sh と同じ値と同じ書き方を持つ（install.sh は lib/ui.sh を読めないので、写しを持つ）。
 func_body() { awk -v n="$1" 'index($0, n "() {") == 1 { p = 1; if ($0 ~ /\}$/) { print; exit } } p { print } p && /^}$/ { exit }' "$2"; }
@@ -391,4 +660,4 @@ new_case ui
 gh_out=garbage run_install --verify "$version" "$assets"
 grep -q '^エラー: ' "$case_dir/err"
 ! grep -q $'\033' "$case_dir/err"
-echo 'PASS install: gh のバージョン・証明・チェックサム・一覧・--verify・引数を、スタブの gh と一時の置き場で確かめた。表示の部品は lib/ui.sh と揃っている'
+echo 'PASS install: gh のバージョン・証明・チェックサム・一覧・--verify・引数・取得・展開・setup.sh の流し・片付けを、スタブの gh と一時の置き場で確かめた。表示の部品は lib/ui.sh と揃っている'

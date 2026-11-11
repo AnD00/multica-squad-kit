@@ -197,6 +197,63 @@ verify_assets() {
 	check_listing "$dir/$asset" "$version"
 }
 
+# 一時の置き場。取得、展開、セットアップの流しのすべてを、この下に置く。
+work_dir=
+cleanup() {
+	[[ -n $work_dir && -d $work_dir ]] || return 0
+	chmod -R u+rwX "$work_dir" 2>/dev/null || true
+	rm -rf -- "$work_dir" || ui_warning "一時の置き場を消せませんでした: $work_dir"
+}
+
+# fetch_assets <バージョン> <置き場>: 配布物と SHA256SUMS を、新しい空の置き場へ取ってくる。取り直しはしない。
+fetch_assets() {
+	local version=$1 dir=$2 asset=multica-squad-kit-$1.tar.gz result
+	mkdir "$dir" || stop "取得先を作れません: $dir"
+	result=$(gh release download "$version" --repo "$repo" --pattern "$asset" --pattern SHA256SUMS --dir "$dir" 2>&1 </dev/null) || {
+		printf '%s\n' "$result" >&2
+		stop "$version を取得できませんでした。gh のログインは gh auth status で確かめられます。"
+	}
+}
+
+# check_extracted <展開先> <バージョン>: 展開したものに、リンクと、通常のファイルとディレクトリのほかのものがなく、VERSION が合うか確かめる。
+check_extracted() {
+	local dir=$1 version=$2 top=$1/multica-squad-kit-$2 found
+	[[ -d $top && ! -L $top ]] || stop "展開したものに multica-squad-kit-${version} のディレクトリがありません。"
+	found=$(find "$dir" ! -type f ! -type d -print -quit) || stop '展開したものを調べられませんでした。'
+	[[ -z $found ]] || stop "展開したものに、通常のファイルとディレクトリのどちらでもないもの（リンクか特殊なファイル）があります: ${found#"$dir"/}"
+	found=$(find "$dir" -type f -links +1 -print -quit) || stop '展開したものを調べられませんでした。'
+	[[ -z $found ]] || stop "展開したものに、ハードリンクのファイルがあります: ${found#"$dir"/}"
+	[[ -f $top/VERSION ]] || stop "展開したものに VERSION がありません。"
+	[[ $(<"$top/VERSION") == "$version" ]] || stop "展開したものの VERSION が、指定したバージョン $version と違います。"
+	[[ -f $top/setup.sh ]] || stop "展開したものに setup.sh がありません。"
+}
+
+# install_release <バージョン> [拡張のディレクトリ]: 取得、確かめ、展開、確かめ、セットアップの順に行う。
+# セットアップが終わったときはその終了コードで、止まったときは 1 で終わる。
+install_release() {
+	local version=$1 extension=${2-} asset=multica-squad-kit-$1.tar.gz setup_rc=0
+	trap cleanup EXIT
+	trap 'exit 129' HUP
+	trap 'exit 130' INT
+	trap 'exit 143' TERM
+	# macOS の mktemp -d は TMPDIR を見ないので、名前の型を渡して、TMPDIR の下に作らせる。
+	work_dir=$(mktemp -d "${TMPDIR:-/tmp}/multica-squad-kit.XXXXXX") || stop '一時の置き場を作れません。'
+	echo "取得します: $version"
+	fetch_assets "$version" "$work_dir/assets"
+	verify_assets "$version" "$work_dir/assets"
+	echo "確かめが通りました。展開します。"
+	mkdir "$work_dir/src" || stop "展開先を作れません。"
+	tar -xzf "$work_dir/assets/$asset" -C "$work_dir/src" || stop '配布物を展開できませんでした。'
+	check_extracted "$work_dir/src" "$version"
+	echo "セットアップを流します。"
+	if [[ -n $extension ]]; then
+		bash "$work_dir/src/multica-squad-kit-$version/setup.sh" --extension "$extension" || setup_rc=$?
+	else
+		bash "$work_dir/src/multica-squad-kit-$version/setup.sh" || setup_rc=$?
+	fi
+	exit "$setup_rc"
+}
+
 # 引数を読む。
 mode=install
 version=
@@ -243,4 +300,4 @@ if [[ $mode == verify ]]; then
 	ui_line out success "確かめが通りました: ${version}（SHA256SUMS と配布物の証明、チェックサム、一覧）。展開も実行もしていません。"
 	exit 0
 fi
-stop "取得と展開は、まだこの install.sh に入っていません。--verify で、置き場にある配布物を確かめられます。"
+install_release "$version" "$extension"
