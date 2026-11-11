@@ -234,6 +234,7 @@ result = read('issue-get', 'task with spaces; echo no', '--limit', '20')
 assert result.returncode == 0, result.stderr
 calls = [json.loads(line) for line in (work/'calls.jsonl').read_text().splitlines()]
 assert calls[0][2] == 'task with spaces; echo no' and calls[0][-2:] == ['--limit', '20'], calls
+assert ['version'] not in calls, calls  # 成功するときは、バージョンを読まない
 before = len(calls)
 assert read('issue-get', 'task', '--compact').returncode == 1
 assert len((work/'calls.jsonl').read_text().splitlines()) == before
@@ -243,6 +244,8 @@ del invalid['id']
 result = read('issue-get', 'task')
 assert result.returncode == 1 and result.stdout == ''
 assert 'multica fixture-version' in result.stderr and 'ignored-version-line' not in result.stderr
+calls = [json.loads(line) for line in (work/'calls.jsonl').read_text().splitlines()]
+assert calls.count(['version']) == 1, calls  # 欄が欠けて失敗するときだけ、1 回読む
 (work / 'version-fail').touch()
 result = read('issue-get', 'task')
 assert result.returncode == 1 and 'id' in result.stderr and 'fixture-version' not in result.stderr

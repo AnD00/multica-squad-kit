@@ -24,7 +24,7 @@
 | `common/monitor/squad-pr-watch` | サブコマンド `conflicts-check` を足す。使い方の文と冒頭のコメントにも足す |
 | `common/agents/orchestrator.md` | 「CI とコンフリクト」で、状態の確認と規則の入れ直しを別の手順に書き分ける（[リーダーの指示](#リーダーの指示)） |
 | `common/skills/squad-handoff/SKILL.md` | 節「PR の状態を書く」を足す（[受け渡しの決まり](#受け渡しの決まり)） |
-| `tests/squad-pr-watch-test.sh` | `conflicts-check` のテストを足す（[テスト](#テスト)） |
+| `tests/squad-pr-watch-register-test.sh` | `conflicts-check` のテストを足す（[テスト](#テスト)） |
 | `tests/agent-templates-test.sh` | 展開したリーダーの指示と `squad-handoff` に、新しい手順と決まりが残ることを確かめる行を足す |
 | `CHANGELOG.md`、`MANIFEST` | 「次のバージョン」の節に変更を書き、`MANIFEST` を生成し直す |
 
@@ -136,7 +136,7 @@ GitHub は `mergeable` をあとから計算するので、push の直後は `UN
 
 ## テスト
 
-`tests/squad-pr-watch-test.sh` に `conflicts-check` のテストを足す。スタブの `gh` は、決めた順に `pr view` の応答を返すか失敗する。スタブの `sleep` は受け取った秒を記録して待たずに返し、スタブの `date` は記録した秒の合計だけ進んだ時刻を返す。
+`tests/squad-pr-watch-register-test.sh` に `conflicts-check` のテストを足す。スタブの `gh` は、決めた順に `pr view` の応答を返すか失敗する。スタブの `sleep` は受け取った秒を記録して待たずに返し、スタブの `date` は記録した秒の合計だけ進んだ時刻を返す。
 
 | 確かめること | 受け入れ条件 |
 | --- | --- |

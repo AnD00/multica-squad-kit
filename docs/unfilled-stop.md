@@ -92,8 +92,8 @@
 | squad-handoff に、節「記入が足りずに止まるとき」があり、2 つの印、見つからないときの報告、その実行で確かめること、推測で検証しないこと、未記入や未実行を成功にしないことが書いてある | `tests/agent-templates-test.sh` に足す |
 | 検証スキルのひな形に、推測して実行しないこと、未記入や未実行を成功にしないこと、squad-handoff の節への案内がある | `tests/agent-templates-test.sh` に足す |
 | 原本の共通スキルが、タグが変われば同じ ID のまま更新される | 今の `tests/workspace-test.sh` |
-| 既存の検証スキルの中身を、更新で書き換えない | 今の `tests/setup-runtimes-test.sh` |
-| 編集したプロジェクトの説明を、更新で書き換えない | 今の `tests/project-test.sh` |
+| 既存の検証スキルの中身を、更新で書き換えない | 今の `tests/setup-runtimes-both-test.sh` |
+| 編集したプロジェクトの説明を、更新で書き換えない | 今の `tests/project-create-test.sh` |
 
 文の確かめは、節の見出しと、決まりの要の語句（`squad_kit_task=project-instructions`、`repository-change`、`見つからなかった` など）の有無だけにする。文全体を固定すると、文言の手直しのたびにテストを直すことになるため。実機で、記入のタスクが終わる前に検証の要るタスクを振り、報告に識別子と状態が出ることは、人が確かめる。
 

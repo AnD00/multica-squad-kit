@@ -43,6 +43,8 @@ load_extension_inventory() {
 	fi
 	for role in $(jq -r '.roles[]' <<<"$previous"); do
 		if [[ " ${extension_current_roles:-} " != *" $role "* ]]; then
+			# 以前の拡張のキーが今の原本の役と同名なら、外れた拡張の役として扱うと原本の役が登録から消える。
+			[[ " $template_roles " != *" $role "* ]] || die "以前の拡張の役のキー「${role}」が原本の役と同じです。更新を止めました。何も登録していません。以前の拡張の役を別のキーに改めるか、保存済みの拡張の記録を確認してから流し直してください。"
 			template_roles+=" $role"
 			extension_disabled_roles+=" $role"
 		fi

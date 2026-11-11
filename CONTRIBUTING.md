@@ -10,12 +10,34 @@
 PR を出す前に、原本のルートで次を流す。
 
 ```bash
-bash tests/run.sh
 bash scripts/check.sh
 bash scripts/manifest.sh
+bash tests/run.sh tests/webhooks-test.sh     # 関連テスト。選び方は下に書く
+npx markdownlint-cli2 '**/*.md' '#tmp/**'    # Markdown を変えたとき
 SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh
-npx markdownlint-cli2 '**/*.md' '#tmp/**'
 ```
+
+手元では、変更の大きさによらず、構文の確認、MANIFEST の作り直し、関連テスト、Markdown を変えたときの markdownlint を流す。  
+テストの全件は、PR の CI が macOS と Ubuntu で流す。
+
+関連テストは、変えたテストのファイルと、変えたファイルの名前（パスの最後の部分）を含むテストのファイルである。  
+`MANIFEST` は、作り直すと毎回変わるので、変えたファイルに数えない。  
+`README.md`、`manual.md`、`CONTRIBUTING.md` を変えたときは、`tests/doc-lines-test.sh` も流す。  
+関連テストが 1 本も選べないときは、選べなかったことを PR の確認に書き、CI で確かめる。
+
+次のどれかに当たるときは、関連テストの代わりに、手元で `bash tests/run.sh` の全件を流す。
+
+| 条件 | 当たるファイル |
+| --- | --- |
+| テストの仕組み | `tests/run.sh`、`tests/run-one.sh`、`tests/run-hook.sh` |
+| 多くのテストが共有するスタブと補助 | `tests/` の直下で、名前に `fixture` か `lib` を含み、`-test.sh` で終わらないファイル。`tests/fixtures/` の下のすべて |
+| 多くのテストが読む共通の部品 | `setup.sh`、`lib/ui.sh`、`lib/check.sh`、`lib/project.sh`、`lib/render.sh`、`common/monitor/squad-cli-lib` |
+| CI の定義 | `.github/workflows/` の下のすべて |
+| 数と自信 | 関連テストが 10 本を超えるとき。または、選び方に自信が持てないとき（名前を含まずに読み込まれるファイルを変えたときなど） |
+
+手元で流さなかった全件は、PR の確認に「CI で確かめる」と書く。  
+エージェントは、検証スキルの同じ条件に従う。  
+条件を変えるときは、検証スキルとそろえる。
 
 ## 原本と正本
 
@@ -30,21 +52,25 @@ npx markdownlint-cli2 '**/*.md' '#tmp/**'
 
 `bash tests/run.sh` は、`tests/*-test.sh` を並べて流す。  
 すべて通れば 0、1 本でも失敗すれば 1 で終わる。  
-CI も同じコマンドを流す。
+手元では、[変更の進め方](#変更の進め方)に従って関連テストを選んで流す。  
+全件は CI が流す。
 
 ```bash
 bash tests/run.sh                            # 並べて流す
 SQUAD_KIT_TEST_JOBS=4 bash tests/run.sh      # 並列数を 4 にする
 SQUAD_KIT_TEST_JOBS=1 bash tests/run.sh      # 1 本ずつ流す
-bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
+bash tests/run.sh tests/project-create-test.sh   # 選んだファイルだけ流す
+SQUAD_KIT_TEST_SHARD=2/4 bash tests/run.sh   # 4 つに分けた 2 つ目だけ流す
 ```
 
 並列数は、指定しなければ論理 CPU の数になる。  
 1 本ずつ流しても、起こす順と出力は並べたときと同じで、途中で失敗しても最後まで流す。  
 並べたときだけ失敗するかを確かめるときに使う。
 
+CI は、テストをシャードごとのジョブに分けて流す。
+
 失敗したファイルのログは最後にまとめて出て、失敗した場所と直前に通ったケースが添えられる。  
-流している間の出力を見たいときは、`bash tests/project-test.sh` のようにファイルを直接流す。
+流している間の出力を見たいときは、`bash tests/project-create-test.sh` のようにファイルを直接流す。
 
 仕組みは、`tests/run.sh` の冒頭のコメントを参照する。
 
@@ -60,6 +86,8 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
   - Git の名前とメールが要るときは、`git -c user.name=… -c user.email=…` で渡す
 - 原本の `tmp/` 以外のファイルを書き換えない。
   - 決まった名前のファイルを共有の場所に作らず、プロセスを名前で止めない
+- テストのファイルを足したら、`tests/test-weights` に重み（macOS の CI での秒数の目安）を書く。
+  - 重みのないファイルがあると `tests/test-runner-test.sh` が失敗する。分けたファイルを足したときと、CI の秒数が目安から 2 倍以上ずれたときは、`tests/run.sh` の `==== PASS` の行の秒数を写して直す
 - CLI の出力のデータは実物から取る。取り方とバージョンの記録は [CLI の実物の見本](tests/fixtures/cli/README.md)に従い、CLI のバージョンを上げたら取り直す
 - 見張りが読む欄は、先に `common/monitor/squad-cli-lib` の約束に必須・条件付き・省略可能の分類を書く。`// 既定値` や `--compact` で欄の欠けを隠さない
 - 見張りのテストは、整形の前と後で同じ動作になることを確かめる。終了コード・標準出力・CLI のコマンドと引数を比べる
@@ -130,7 +158,7 @@ VM を作るスクリプト（`vm/lima.sh` と `vm/wsl.ps1`）と、中で流す
 まだタグがないバージョンを確かめるので、中では確かめるコミットを取り出して `bash setup.sh --no-checkout` で流す。
 
 1. スクリプトで VM を作り、中でセットアップを最後まで流す
-2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる。関所のディレクトリを含まない PATH でセットアップの外からデーモンを起動し直した状態でも、Claude と Codex のエージェントの実行で `command -v gh` が関所の `gh` を返し、`squad-dispatch-pick`・`squad-pr-watch`・`squad-review-wait` が名前で解決する
+2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる。関所のディレクトリを含まない PATH でセットアップの外からデーモンを起動し直した状態でも、Claude と Codex のエージェントの実行で `command -v gh` が関所の `gh` を返し、`squad-dispatch-pick`・`squad-pr-watch`・`squad-review-wait` が名前で解決する。最上位の役（Claude の `claude-principal` と Codex の `codex-principal`）のエージェントの実行でも、同じく名前で解決する
 3. `verify` が通る。中で MySQL のコンテナを立てたあとも通る
 4. VM を止めて起動し直し、中に入らずに、デーモンがオンラインになってタスクが動く。WSL では、窓をすべて閉じたあとも動く
 5. VM を消したあと、ホストのホームに、セットアップが書いたファイル（`~/.multica-agent`、`~/.multica`、`~/multica_workspaces`）がない

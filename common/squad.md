@@ -24,6 +24,15 @@
 <!-- IF orchestrator -->
 - 使用率と残る系統からの振り分けは {{agent.orchestrator.name}} の「実装・修正を頼む前」に従う。フェーズの大きさは使用率が読めないときの代わりの決まりだけに使う
 <!-- ENDIF -->
+<!-- IF orchestrator -->
+- ラベル `重要` のあるタスクだけ、最上位の役が 2 つの務めを担う。設計のあとの見直しと、人間のマージの前の最終レビューである。重要かどうかの判断、呼ぶ時機、使用率による選び方は {{agent.orchestrator.name}} の「重要なタスクと最上位の役」に従う。最上位の役は読んで指摘するだけで、直さない
+<!-- IF claude-principal -->
+- Claude の最上位: {{agent.claude-principal.name}}
+<!-- ENDIF -->
+<!-- IF codex-principal -->
+- Codex の最上位: {{agent.codex-principal.name}}
+<!-- ENDIF -->
+<!-- ENDIF -->
 <!-- IF code-reviewer -->
 - まず {{agent.code-reviewer.name}} がレビューし、修正の役が直す
 <!-- ENDIF -->
@@ -54,6 +63,9 @@
 ## 人間を待つところ
 
 - 使用枠の残る系統に回せないとき
+<!-- IF claude-principal codex-principal -->
+- 最上位の役の使用枠が、使うランタイムのすべてで上限の近くのとき
+<!-- ENDIF -->
 - 要件の合意と設計の承認
 - プロジェクトが人間との合意を必要とする外部インターフェースの変更
 - 要件や設計だけでは方針を決められないとき

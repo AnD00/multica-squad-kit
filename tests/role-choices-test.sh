@@ -42,6 +42,16 @@ test -z "$(role_choice_note claude)"
 test -z "$(role_choice_note planner)"
 echo 'PASS role-choices: 使わないランタイムの系統だけ、1行目に外れる注意が付く'
 
-# リーダーのエージェント名を、外せない役として出す。
-test "$(role_fixed_text)" = "$(printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: shop-orchestrator-owner')"
-echo 'PASS role-choices: リーダーのエージェント名を出す'
+# リーダーのエージェント名と、使うランタイムの最上位の役を、外せない役として出す。
+leader=$(printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: shop-orchestrator-owner')
+claude_principal=$(printf 'Claude の最上位のレビュー（claude-principal）: 重要なタスクの設計と PR を見直します。外せません。\n  エージェント: shop-claude-principal-owner')
+codex_principal=$(printf 'Codex の最上位のレビュー（codex-principal）: 重要なタスクの設計と PR を見直します。外せません。\n  エージェント: shop-codex-principal-owner')
+runtimes='["claude","codex"]'
+test "$(role_fixed_text)" = "$leader"$'\n'"$claude_principal"$'\n'"$codex_principal"
+runtimes='["claude"]'
+test "$(role_fixed_text)" = "$leader"$'\n'"$claude_principal"
+runtimes='["codex"]'
+test "$(role_fixed_text)" = "$leader"$'\n'"$codex_principal"
+# 外せる項目の候補に、最上位の役は出ない。
+test "$(jq '[.[].roles[]|select(test("principal"))]|length' <<<"$role_choices")" = 0
+echo 'PASS role-choices: リーダーと使うランタイムの最上位の役を、外せない役として出す'
