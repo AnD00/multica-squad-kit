@@ -23,13 +23,13 @@ Multica のスクワッドを、プロジェクトごとに導入して更新す
    gh auth login
    ```
 
-2. 原本を clone して、セットアップを流します。セットアップは [Releases](https://github.com/AnD00/multica-squad-kit/releases) の最新のタグを自分で取り出し、そのバージョンで流れます。
+2. 次の 1 行のコマンドを貼って、セットアップを流します。コマンドは、[Releases](https://github.com/AnD00/multica-squad-kit/releases) の最新のバージョンを読んで画面に出し、そのバージョンの入口のスクリプトを取ってきます。入口の証明を確かめてから、入口を流して、配布物の取得・確かめ・展開・セットアップまでを行います。途中のどこかで失敗したら、その先は流れません。
 
    ```bash
-   git clone https://github.com/AnD00/multica-squad-kit.git
-   cd multica-squad-kit
-   bash setup.sh
+   V=; gh --version | awk 'NR==1&&$1=="gh"&&$2=="version"{n=split($3,a,".");if(n>=3&&a[1]*1000000+a[2]*1000+a[3]>=2102000)ok=1}END{exit ok?0:1}' || { echo "gh 2.102.0 以上が必要です。gh を更新してください。" >&2; false; } && V=${V:-$(gh release view --repo AnD00/multica-squad-kit --json tagName --jq .tagName)} && test -n "$V" && echo "使うバージョン: $V" && D=$(mktemp -d) && gh release download "$V" --repo AnD00/multica-squad-kit --pattern install.sh --dir "$D" && gh attestation verify "$D/install.sh" --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref "refs/tags/$V" --deny-self-hosted-runners && bash "$D/install.sh" "$V"
    ```
+
+   macOS の zsh と Linux の bash のどちらに貼っても同じに動きます。`gh` は 2.102.0 以上が必要です。Ubuntu の標準の apt の `gh` は古いので、入れ方は [受け取る人の準備](manual.md#受け取る人の準備) を参照してください。特定のバージョンを入れるときは、先頭の `V=` のあとにタグを書きます（例: `V=v1.8.0;`）。プロジェクトの拡張を使うときは、末尾の `"$V"` のあとに `--extension <拡張のディレクトリ>` を足します。入口のスクリプトを置いた一時のディレクトリは、OS の一時の置き場の片付けに任せます。
 
 3. 質問に答えます。最初の拡張のディレクトリは、使わなければ Enter です。ワークスペースは番号で選び、ほかは既定値でよければ Enter で進めます。最後に答えの一覧を確かめて `yes` と答えます。各質問の意味は [質問への答え方](manual.md#質問への答え方) にあります。
 4. エージェント用のログインが済んでいないと、セットアップは止まってログインのコマンドを表示します。表示どおりにログインして、同じコマンドを流し直します。
@@ -39,17 +39,10 @@ Multica のスクワッドを、プロジェクトごとに導入して更新す
 
 ## 更新する
 
-同じ clone で、同じ答えでセットアップを流し直します。  
-セットアップが最新のタグを取ってきて取り出すので、タグを選ぶ必要はありません。  
+クイックスタートの 1 行のコマンドを、もう一度流します。  
+最新のバージョンを読んで入れるので、バージョンを選ぶ必要はありません。  
 前回の答えが既定になるので、ワークスペースの番号のほかは Enter で進められます。  
-途中で止まったときも、直してから同じように流し直します。
-
-```bash
-bash setup.sh
-```
-
-v1.7.0 以前のバージョンを取り出している clone では、そのセットアップはタグを取り出しません。  
-一度だけ `git checkout main && git pull` をしてから流してください。
+途中で止まったときも、直してから同じコマンドを流し直します。
 
 新しいバージョンの通知を受けるには、GitHub でこのリポジトリの Watch を「Custom」の「Releases」にします。  
 詳しくは [更新と、途中で止まったあとの再実行](manual.md#更新と途中で止まったあとの再実行) を参照してください。
@@ -58,6 +51,88 @@ ZIP で導入済みの場合は、人がその関所・見張り・シェル設�
 回答の既定の保存先は `~/.multica-agent/template/answers/<workspace-id>/<project-key>.json` です。
 
 対象の確認と手順は [導入済みの配布物を入れ直す](manual.md#導入済みの配布物を入れ直す) を参照してください。
+
+## 手動の手順
+
+1 行のコマンドを流す前に中身を見たいときと、入口のスクリプトを使いたくないときは、次の手順を 1 つずつ流します。  
+入口のスクリプトと同じ確かめを、人が行う手順です。  
+どの手順も、前の手順で取ってきたファイルをそのまま使い、取り直しません。  
+読んだファイルと流すファイルが同じになります。
+
+先に次のコマンドを流して、`gh` が 2.102.0 以上であることを確かめます。  
+続く手順は、同じシェルで順に流します。
+
+```bash
+gh --version
+```
+
+1. 使うバージョンと、取ってくる置き場を決めます。特定のバージョンを入れるときは、`V=` にタグを書きます（例: `V=v1.8.0`）。
+
+   ```bash
+   V=$(gh release view --repo AnD00/multica-squad-kit --json tagName --jq .tagName)
+   D=$(mktemp -d)
+   echo "使うバージョン: $V"
+   ```
+
+2. 配布物と `SHA256SUMS` を取ってきます。
+
+   ```bash
+   gh release download "$V" --repo AnD00/multica-squad-kit --pattern "multica-squad-kit-$V.tar.gz" --pattern SHA256SUMS --dir "$D"
+   ```
+
+3. `SHA256SUMS` と配布物の証明を確かめます。どちらも、4 つの指定をそろえて流します。
+
+   ```bash
+   gh attestation verify "$D/SHA256SUMS" --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref "refs/tags/$V" --deny-self-hosted-runners
+   gh attestation verify "$D/multica-squad-kit-$V.tar.gz" --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref "refs/tags/$V" --deny-self-hosted-runners
+   ```
+
+4. 配布物が、`SHA256SUMS` の配布物の行と合うことを確かめます。`OK` と出れば合っています。
+
+   ```bash
+   (cd "$D" && grep " multica-squad-kit-$V.tar.gz\$" SHA256SUMS | shasum -a 256 -c -)
+   ```
+
+5. 配布物の一覧を出し、`multica-squad-kit-<バージョン>/` の下のファイルとディレクトリだけであることを目で確かめます。
+
+   ```bash
+   tar -tvzf "$D/multica-squad-kit-$V.tar.gz"
+   ```
+
+6. 新しい空のディレクトリを作って、展開します。
+
+   ```bash
+   W=$(mktemp -d)
+   tar -xzf "$D/multica-squad-kit-$V.tar.gz" -C "$W"
+   ```
+
+7. 展開した `setup.sh` と、気になるファイルを読みます。
+
+   ```bash
+   less "$W/multica-squad-kit-$V/setup.sh"
+   ```
+
+8. 読んだのと同じ `setup.sh` を流します。プロジェクトの拡張を使うときは、末尾に `--extension <拡張のディレクトリ>` を足します。
+
+   ```bash
+   bash "$W/multica-squad-kit-$V/setup.sh"
+   ```
+
+どれかが失敗したら、そこで止めて、その先は流しません。  
+取り直すときは、手順 1 からやり直して、新しい置き場に取ってきます。
+
+## 防げることと残るリスク
+
+配布物の確かめで防げるのは、Release の外で配布物や入口のスクリプトを差し替えること、途中で書き換えること、別のリポジトリやワークフローで作ったものを紛れ込ませることです。  
+展開の前の確かめで、展開先の外へ書かせることも防ぎます。
+
+次のリスクは残ります。
+
+- 発行の権限を持つ人の乗っ取りと、発行のワークフローの書き換え。証明は、決まったワークフローで作ったことを示すだけで、中身が無害であることは示しません
+- 公開の前に中身を読み落とすこと。手動の手順で中身を読めますが、読む人の判断に任せます
+- セットアップは、流した人の普段の権限で動くこと。エージェントは、ホームの SSH の鍵や普段の `gh` の認証を読めます
+
+鍵を分けたいときは、次の「閉じ込めて動かす」の VM の手順を使ってください。
 
 ## 次に読むもの
 
@@ -88,7 +163,7 @@ VM はホームを共有しないので、中のエージェントはホスト�
 VM を消せば、ホストはセットアップの前に戻ります。  
 ネットワークは閉じ込めません。
 
-Mac は Lima 1.0.0 以上、Windows は WSL 2.6.1 以上を使い、原本の clone で次を流します。  
+Mac は Lima 1.0.0 以上、Windows は WSL 2.6.1 以上を使い、手動の手順の 1 から 6 で展開した `multica-squad-kit-<バージョン>` のディレクトリに移って、次を流します。  
 割くリソースの目安は、CPU 4、メモリ 8 GiB、ディスク 100 GiB です。
 
 ```bash

@@ -58,7 +58,7 @@ use_latest_tag() {
 }
 use_latest_tag
 cd "$root"
-damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を clone し直して、流してください。"; }
+damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を取り直して、流してください。"; }
 [[ -f MANIFEST && ! -L MANIFEST ]] || damaged 'MANIFEST がありません。'
 listed=''
 while IFS= read -r line || [[ -n $line ]]; do
