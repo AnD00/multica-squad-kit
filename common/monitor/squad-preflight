@@ -13,6 +13,8 @@ bin_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 set -- \
 	squad-dependabot-merge \
 	squad-dispatch-pick \
+	squad-pr-link \
+	squad-pr-link-lib \
 	squad-pr-watch \
 	squad-review-wait \
 	squad-usage-check \

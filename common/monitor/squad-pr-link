@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# PR を作った直後に呼ぶ。紐付けに失敗しても、役は止まらずに引き継ぐ。
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/squad-pr-link-lib"
+
+if [[ $# != 2 || -z $1 || ! $2 =~ ^https://github\.com/[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$ ]]; then
+	echo '使い方: squad-pr-link <タスク> <PR の URL (https://github.com/OWNER/REPO/pull/番号)>' >&2
+	exit 2
+fi
+task=$1 url=$2 identifier=$1
+warn() {
+	printf 'タスク %s に PR %s を紐付けられませんでした（%s）。課題の画面の PR の欄で、この URL を指定して紐付けてください。\n' "$identifier" "$url" "$1" >&2
+}
+
+if ! issue=$(multica issue get "$task" --output json 2>/dev/null) ||
+	! jq -e 'type == "object" and (.id | type == "string" and length > 0)
+		and (.identifier | type == "string" and length > 0)
+		and ((.metadata // {}) | type == "object")' <<<"$issue" >/dev/null 2>&1; then
+	warn 'タスクを読めない'
+	exit 1
+fi
+id=$(jq -r '.id' <<<"$issue")
+identifier=$(jq -r '.identifier' <<<"$issue")
+metadata=$(jq -c '.metadata // {}' <<<"$issue")
+if ! pr_link_pull_request "$id" "$url" "$metadata"; then
+	warn "$PR_LINK_REASON"
+	exit 1
+fi
+if jq -e 'has("pr_url")' <<<"$metadata" >/dev/null; then
+	existing_url=$(jq -r '.pr_url' <<<"$metadata")
+	if [[ $existing_url != "$url" ]]; then
+		printf 'タスク %s の metadata の pr_url は PR %s と違うため、紐付けは変えません。\n' "$identifier" "$url" >&2
+	fi
+	printf '%s %s\n' "$identifier" "$existing_url"
+else
+	printf '%s %s\n' "$identifier" "$url"
+fi

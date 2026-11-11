@@ -6,6 +6,7 @@
 #   squad-dependabot-merge <OWNER/REPO> <プロジェクト ID> escalate <PR> <本文のファイル> --assignee <名前>
 # macOS の bash 3.2 でも動くよう、連想配列は使わない。
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/squad-pr-link-lib"
 
 RUN_SECONDS=14400
 
@@ -341,22 +342,12 @@ escalation_label() {
 
 # Dependabot の PR は題・ブランチ・本文に識別子を入れられず、自動では紐付かないので API で紐付ける。
 # 紐付けたら metadata の pr_url に残し、人間が外した紐付けを次の回で戻さない。
-# CLI に紐付けのコマンドがないため、タスクに渡されたトークンを curl の設定として標準入力から渡す。
+# API と待ち、トークンの扱いは共有の関数に任せる。
 # 失敗しても issue は人間に渡せるので止めず、次に同じ PR を回すときに補う。
 link_pull_request() {
-	local id=$1 identifier=$2 url=$3 metadata status headers
+	local id=$1 identifier=$2 url=$3 metadata
 	if metadata=$(multica issue metadata list "$id" --output json) && jq -e 'type == "object"' <<<"$metadata" >/dev/null; then
-		[[ $(jq -r 'has("pr_url")' <<<"$metadata") == true ]] && return
-		if [[ -n ${MULTICA_TOKEN:-} && -n ${MULTICA_SERVER_URL:-} ]] && command -v curl >/dev/null; then
-			headers=(-H 'Content-Type: application/json')
-			[[ -z ${MULTICA_WORKSPACE_ID:-} ]] || headers+=(-H "X-Workspace-ID: $MULTICA_WORKSPACE_ID")
-			status=$(printf 'header = "Authorization: Bearer %s"\n' "$MULTICA_TOKEN" | curl --config - -sS --max-time 30 -o /dev/null -w '%{http_code}' \
-				-X POST "${headers[@]}" --data "$(jq -cn --arg url "$url" '{url: $url}')" \
-				"${MULTICA_SERVER_URL%/}/api/issues/${id}/pull-requests") || status=
-			if [[ $status == 200 ]] && multica issue metadata set "$id" --key pr_url --value "$url" --type string >/dev/null; then
-				return
-			fi
-		fi
+		if pr_link_pull_request "$id" "$url" "$metadata"; then return; fi
 	fi
 	echo "issue ${identifier} に PR を紐付けられませんでした。次に同じ PR を回すときに補います。急ぐときは issue の画面で ${url} を紐付けてください。" >&2
 }
