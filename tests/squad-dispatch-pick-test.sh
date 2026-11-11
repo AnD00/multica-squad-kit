@@ -328,7 +328,62 @@ done <"$test_dir/pids"
 rm "$test_dir/hang" "$test_dir/timeout-fifo" "$test_dir/timeout-hold" "$test_dir/timeout-ready" "$test_dir/timeout-ticks"
 echo 'PASS 時間切れ: 子の準備後に仮想の 90 回を進め、読み取りとその子を残さない'
 
-for args in '' 'other' 'fix 小さな' 'implement 小さな extra'; do
+# 最上位の役は、実装・修正と同じ除外の閾値を使い、大きさを取らない。
+fixtures
+run_pick 0 claude-principal principal
+assert_line '振り分け: Claude。Claude 週 20%（使ってよい量 40%）・5 時間 10%、Codex 週 50%（使ってよい量 40%）'
+change '.claude.week.used_percent = 50 | .codex.week.used_percent = 20'
+run_pick 0 codex-principal principal
+for exclusion in session claude_week codex_week allowed both session_and_codex; do
+	fixtures
+	case "$exclusion" in
+	session) change '.claude.session.used_percent = 80'; chosen=codex ;;
+	claude_week) change '.claude.week.used_percent = 80'; chosen=codex ;;
+	codex_week) change '.codex.week.used_percent = 80 | .claude.week.used_percent = 79'; chosen=claude ;;
+	allowed) change '.codex.allowed = false | .claude.week.used_percent = 79'; chosen=claude ;;
+	both) change '.claude.week.used_percent = 80 | .codex.week.used_percent = 80'; chosen=なし ;;
+	session_and_codex) change '.claude.session.used_percent = 80 | .codex.allowed = false'; chosen=なし ;;
+	esac
+	if [[ "$chosen" == なし ]]; then
+		run_pick 2 なし principal
+		assert_line '振り分け: なし（Claude は'
+		assert_line 'Codex は'
+	else
+		run_pick 0 "$chosen-principal" principal
+	fi
+done
+# 読めないときは、読めた側が除外でなければその側、どちらも読めなければ Codex を選ぶ。
+for failure in exit claude_error codex_error both_error invalid_json stale bad_time bad_shape; do
+	fixtures
+	case "$failure" in
+	exit) echo 1 >"$test_dir/status"; reason='使用率の読み取りに失敗した'; chosen=codex ;;
+	claude_error) change '.claude = {error: "claude が見つからない"}'; reason='Claude: claude が見つからない'; chosen=codex ;;
+	codex_error) change '.codex = {error: "codex が見つからない"}'; reason='Codex: codex が見つからない'; chosen=claude ;;
+	both_error) change '.claude = {error: "claude が見つからない"} | .codex = {error: "codex が見つからない"}'
+		reason='Claude: claude が見つからない'; chosen=codex ;;
+	invalid_json) echo mock-private-diagnostic >"$test_dir/usage.json"; reason='使用率の出力を JSON として読めなかった'; chosen=codex ;;
+	stale) change '.read_at = "2026-10-26T23:29:59Z" | .claude.week.used_percent = 0 | .codex.week.used_percent = 99'
+		reason='使用率が 30 分より古い'; chosen=codex ;;
+	bad_time) change '.read_at = "読めない"'; reason='使用率を読んだ時刻を読めなかった'; chosen=codex ;;
+	bad_shape) change '.codex.week = "不正"'; reason='Codex: 使用率・リセット時刻・利用可否を読めなかった'; chosen=claude ;;
+	esac
+	run_pick 0 "$chosen-principal" principal
+	assert_line '使用率を読めないため、最上位の役の代わりの決まりで決めた。'
+	assert_line "$reason"
+	if grep -q 'mock-private-diagnostic' "$test_dir/out" "$test_dir/err"; then exit 1; fi
+done
+# 読めた側が使用上限なら、読めない側を選ぶ（実装・修正と同じ）。
+fixtures
+change '.claude = {error: "claude が見つからない"} | .codex.allowed = false'
+run_pick 0 claude-principal principal
+assert_line 'Codex は利用不可'
+fixtures
+change '.codex = {error: "codex が見つからない"} | .claude.session.used_percent = 90'
+run_pick 0 codex-principal principal
+assert_line 'Claude は 5 時間の枠が 80% 以上'
+echo 'PASS 最上位の役: 空いている方を選び、閾値以上は除き、両方なら終了コード 2、読めないときは読めた側かなければ Codex'
+
+for args in '' 'other' 'fix 小さな' 'implement 小さな extra' 'principal 小さな' 'principal 大きな' 'principal extra'; do
 	status=0
 	# ここだけは意図的に引数を空白で分ける。
 	PATH="$test_dir/bin" /bin/bash "$script" $args >"$test_dir/out" 2>"$test_dir/err" || status=$?

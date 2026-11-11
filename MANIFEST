@@ -37,7 +37,7 @@ a26ee9bcd6bc2983fe8d8a45b7f33bea27a1b25421ab1da2689b768a384f8e67  ./common/agent
 54f56ac47add3d2a37cfdc3110afb664441d832e9b026aa0f2b5c3b66142bec4  ./common/labels
 26148cdd6af56ca15f03c7960bf7a9a323ed9836a1531ccf8d294727c1e3f59d  ./common/monitor/squad-cli-lib
 d1c48f6b2b3a4e8cbe99170631d9ff55a82cd75e8199f571f5c37793b75f19db  ./common/monitor/squad-dependabot-merge
-479cf63d78266ceb17647a9d7af85afe30562401944ffc19d8e71840ec4dad40  ./common/monitor/squad-dispatch-pick
+2591799f2d72fe4b0dec1581bedb0a3ae021be28b423f195c9f1502014114079  ./common/monitor/squad-dispatch-pick
 8d052954ad9e8da0e1a76f3faec439a7ff00676d66aaf2edb6bc143dcda13288  ./common/monitor/squad-pr-link
 e383e041f6e0d6878950fef2fe0b348b269647d0f8ae7e6038ba9de4526584cd  ./common/monitor/squad-pr-link-lib
 6766fa81f81854791c250662a6ba15bd50dbb958590061d8b5d3a0be3d5ceb8b  ./common/monitor/squad-pr-watch
@@ -176,7 +176,7 @@ e74d3d6be110378b66a9c8b203a2b715d336ae1fa22c0c252258ac1a58a06e9b  ./tests/run.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
 a71f08ee51416c89e6dc1d7a9a5628ca28086b064d2ba595bd3099e654cf1521  ./tests/squad-cli-lib-test.sh
 912ccc3347086a38da55839134a102a7848481fcf472757eca27253eb4b9f343  ./tests/squad-dependabot-merge-test.sh
-5655a075aaa7e1292a887f6da18de6143074dbcddb590ec5167cd8ef78baa373  ./tests/squad-dispatch-pick-test.sh
+66a773c7847ad1522d768e46c16c6630b12c6ef47ac343143b93ef6c054616e8  ./tests/squad-dispatch-pick-test.sh
 aabdf5811147158fb48ba7993576fde10c067c50d818c3d9b2785c3fe0c0e031  ./tests/squad-pr-link-test.sh
 d7c6b686aff9f54e1642e44a5bfcd141da184807acd348ca3093f4c58cdf3549  ./tests/squad-pr-watch-test.sh
 ce99351b7b1b24a9973ed25fe1f933b63cd34d9ae9714d2792db6a301fcb4c96  ./tests/squad-preflight-test.sh
