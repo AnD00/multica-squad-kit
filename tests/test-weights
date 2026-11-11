@@ -15,7 +15,7 @@ tests/squad-review-wait-report-test.sh 99
 tests/webhooks-test.sh 84
 tests/installation-test.sh 83
 tests/questions-ui-test.sh 83
-tests/squad-pr-watch-register-test.sh 79
+tests/squad-pr-watch-register-test.sh 92
 tests/setup-runtimes-codex-test.sh 76
 tests/setup-runtimes-claude-test.sh 74
 tests/squad-usage-check-test.sh 73

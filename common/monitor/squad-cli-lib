@@ -1013,6 +1013,41 @@ squad_cli_contracts() {
         }
       ]
     },
+    "gh-pr-mergeable": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{pr}",
+        "--json",
+        "state,headRefOid,mergeable"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeable",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
     "gh-commit": {
       "command": [
         "gh",

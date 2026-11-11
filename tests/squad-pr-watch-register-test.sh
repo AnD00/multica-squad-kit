@@ -54,6 +54,218 @@ for family in claude codex; do
 	echo "PASS conflicts: $family のみでは通知から単一系統の使用率判定と有効な修正役へたどれる"
 done
 
+# conflicts-check: 今の head と mergeable を読み、値と head の 1 行を必ず出す。
+# gh・sleep・date を差し替え、実際には待たない。gh は決めた順に応答を返し、最後の応答は繰り返す。
+clock_dir="$test_dir/clock"
+mkdir -p "$clock_dir"
+cat >"$clock_dir/gh" <<'EOF2'
+#!/usr/bin/env bash
+set -euo pipefail
+dir=$PR_WATCH_TEST_DIR
+[[ "$*" == 'pr view test-pr --json state,headRefOid,mergeable' ]] || exit 1
+n=$(($(wc -l <"$dir/gh-calls") + 1))
+echo "$n" >>"$dir/gh-calls"
+total=$(wc -l <"$dir/gh-responses")
+((n <= total)) || n=$total
+line=$(sed -n "${n}p" "$dir/gh-responses")
+if [[ $line == FAIL ]]; then
+	echo 'gh mock failure' >&2
+	exit 1
+fi
+printf '%s\n' "$line"
+EOF2
+cat >"$clock_dir/sleep" <<'EOF2'
+#!/usr/bin/env bash
+echo "$1" >>"$PR_WATCH_TEST_DIR/sleeps"
+EOF2
+cat >"$clock_dir/date" <<'EOF2'
+#!/usr/bin/env bash
+if [[ ${1:-} == +%s ]]; then
+	slept=$(awk '{s += $1} END {print s + 0}' "$PR_WATCH_TEST_DIR/sleeps")
+	echo $((1000000 + slept))
+else
+	exec /bin/date "$@"
+fi
+EOF2
+chmod +x "$clock_dir/gh" "$clock_dir/sleep" "$clock_dir/date"
+
+# 呼び出しごとの応答を並べて登録する。応答は STATE:HEAD:MERGEABLE か FAIL。実物から作った見本の値だけを差し替える。
+cc_responses() {
+	: >"$test_dir/gh-responses"
+	: >"$test_dir/gh-calls"
+	: >"$test_dir/sleeps"
+	local r
+	for r in "$@"; do
+		if [[ $r == FAIL ]]; then
+			echo FAIL >>"$test_dir/gh-responses"
+		else
+			IFS=: read -r state head mergeable <<<"$r"
+			fixture gh-pr-mergeable | jq -c --arg s "$state" --arg h "$head" --arg m "$mergeable" '.state = $s | .headRefOid = $h | .mergeable = $m' >>"$test_dir/gh-responses"
+		fi
+	done
+}
+
+# 終了コード 0 で、標準出力がちょうど 1 行であることを確かめ、その行を出す。
+cc_run() {
+	local out status=0
+	out=$(cd "$test_dir" && PATH="$clock_dir:$PATH" bash "$script" conflicts-check test-issue) || status=$?
+	((status == 0)) || { echo "終了コード $status" >&2; exit 1; }
+	[[ $(printf '%s\n' "$out" | wc -l) -eq 1 && -n $out ]] || { printf '出力が 1 行でない:\n%s\n' "$out" >&2; exit 1; }
+	printf '%s' "$out"
+}
+cc_no_nashi() { if [[ $1 == *なし* ]]; then printf '「なし」を含む: %s\n' "$1" >&2; exit 1; fi; }
+
+head_x=0123456789abcdef0123456789abcdef01234567
+head_y=fedcba9876543210fedcba9876543210fedcba98
+
+# 受け入れ条件 1: CONFLICTING
+reset_fixture
+cc_responses "OPEN:$head_x:CONFLICTING"
+line=$(cc_run)
+[[ $line == "コンフリクト: CONFLICTING head: $head_x" ]] || { echo "$line" >&2; exit 1; }
+cc_no_nashi "$line"
+[[ ! -s $test_dir/sleeps ]]
+echo 'PASS conflicts-check: CONFLICTING は head と値を 1 行で出す'
+
+# 受け入れ条件 2: MERGEABLE
+reset_fixture
+cc_responses "OPEN:$head_x:MERGEABLE"
+line=$(cc_run)
+[[ $line == "コンフリクト: MERGEABLE head: $head_x" ]] || { echo "$line" >&2; exit 1; }
+cc_no_nashi "$line"
+echo 'PASS conflicts-check: MERGEABLE は head と値を 1 行で出す'
+
+# 受け入れ条件 3: UNKNOWN のあと読み直して CONFLICTING
+reset_fixture
+cc_responses "OPEN:$head_x:UNKNOWN" "OPEN:$head_x:CONFLICTING"
+line=$(cc_run)
+[[ $line == "コンフリクト: CONFLICTING head: $head_x" ]] || { echo "$line" >&2; exit 1; }
+[[ $(<"$test_dir/sleeps") == 10 ]]
+echo 'PASS conflicts-check: UNKNOWN のあと 10 秒待って読み直し、CONFLICTING を出す'
+
+# 読み直しの間に head が変わったときは、最後に読んだ head を書く
+reset_fixture
+cc_responses "OPEN:$head_x:UNKNOWN" "OPEN:$head_y:MERGEABLE"
+line=$(cc_run)
+[[ $line == "コンフリクト: MERGEABLE head: $head_y" ]] || { echo "$line" >&2; exit 1; }
+echo 'PASS conflicts-check: 読み直しで head が変わったら最後に読んだ head を出す'
+
+# 受け入れ条件 4: UNKNOWN が続く。待ちの合計は 60 秒以内で、読み取りは 7 回以内
+reset_fixture
+cc_responses "OPEN:$head_x:UNKNOWN"
+line=$(cc_run)
+[[ $line == "コンフリクト: 未確認 head: $head_x 理由: mergeable が 60 秒たっても UNKNOWN" ]] || { echo "$line" >&2; exit 1; }
+cc_no_nashi "$line"
+total=$(awk '{s += $1} END {print s + 0}' "$test_dir/sleeps")
+((total <= 60 && total > 0))
+(($(wc -l <"$test_dir/gh-calls") <= 7))
+echo 'PASS conflicts-check: UNKNOWN が続くと 未確認 と head を出し、待ちの合計は 60 秒以内'
+
+# 受け入れ条件 5: gh の失敗、pr_url なし、タスクを読めない
+reset_fixture
+cc_responses FAIL
+line=$(cc_run 2>/dev/null)
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない（gh の失敗か必須欄の欠落）' ]] || { echo "$line" >&2; exit 1; }
+cc_no_nashi "$line"
+# 読み直しの途中で読めなくなったときは、最後に読めた head を書く
+cc_responses "OPEN:$head_x:UNKNOWN" FAIL
+line=$(cc_run 2>/dev/null)
+[[ $line == "コンフリクト: 未確認 head: $head_x 理由: PR を読めない（gh の失敗か必須欄の欠落）" ]] || { echo "$line" >&2; exit 1; }
+# head が空の応答
+: >"$test_dir/gh-calls"
+printf '%s\n' '{"state":"OPEN","headRefOid":"","mergeable":"MERGEABLE"}' >"$test_dir/gh-responses"
+line=$(cc_run)
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない（gh の失敗か必須欄の欠落）' ]] || { echo "$line" >&2; exit 1; }
+# 必須欄が欠けた応答（実物から作った見本から 1 欄だけ消す）は、MERGEABLE とは報告せず「未確認」の 1 行にする
+for missing in state headRefOid mergeable; do
+	cc_responses "OPEN:$head_x:MERGEABLE"
+	fixture gh-pr-mergeable | jq -c --arg k "$missing" 'del(.[$k])' >"$test_dir/gh-responses"
+	: >"$test_dir/gh-calls"
+	line=$(cc_run 2>/dev/null)
+	[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない'* ]] || { echo "$missing 欠落: $line" >&2; exit 1; }
+	[[ $line != *MERGEABLE* && $line != *CONFLICTING* ]] || { echo "$missing 欠落: $line" >&2; exit 1; }
+	cc_no_nashi "$line"
+	echo "PASS conflicts-check: $missing が欠けた応答は 未確認 の 1 行"
+done
+# null の必須欄も、値として補わない
+fixture gh-pr-mergeable | jq -c '.mergeable = null' >"$test_dir/gh-responses"
+: >"$test_dir/gh-calls"
+line=$(cc_run 2>/dev/null)
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない'* ]] || { echo "mergeable null: $line" >&2; exit 1; }
+reset_fixture
+jq '.metadata = {}' "$test_dir/task.json" >"$test_dir/updated.json"
+mv "$test_dir/updated.json" "$test_dir/task.json"
+cc_responses "OPEN:$head_x:MERGEABLE"
+line=$(cc_run)
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: metadata に pr_url がない' ]] || { echo "$line" >&2; exit 1; }
+cc_no_nashi "$line"
+[[ ! -s $test_dir/gh-calls ]]
+reset_fixture
+printf '%s' 'issue get test-issue' >"$test_dir/fail"
+line=$(cc_run 2>/dev/null)
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: タスクを読めない' ]] || { echo "$line" >&2; exit 1; }
+cc_no_nashi "$line"
+rm -f "$test_dir/fail"
+echo 'PASS conflicts-check: gh の失敗・pr_url なし・タスクを読めないときは 未確認 を出す'
+
+# PR がマージ済みか閉じている
+for state in MERGED CLOSED; do
+	reset_fixture
+	cc_responses "$state:$head_x:UNKNOWN"
+	line=$(cc_run)
+	[[ $line == "コンフリクト: 未確認 head: $head_x 理由: PR がマージ済みか閉じている" ]] || { echo "$line" >&2; exit 1; }
+done
+echo 'PASS conflicts-check: マージ済みか閉じている PR は 未確認 を出す'
+
+# UNKNOWN 以外の想定外の値は、読み直さずに 未確認
+reset_fixture
+cc_responses "OPEN:$head_x:SURPRISE"
+line=$(cc_run)
+[[ $line == "コンフリクト: 未確認 head: $head_x 理由: mergeable が想定外の値 SURPRISE" ]] || { echo "$line" >&2; exit 1; }
+[[ ! -s $test_dir/sleeps ]]
+echo 'PASS conflicts-check: 想定外の mergeable は読み直さず 未確認 を出す'
+
+# gh・jq・multica が見つからないときも、未確認の 1 行を 0 で出す
+for missing in gh jq multica; do
+	reset_fixture
+	cc_responses "OPEN:$head_x:MERGEABLE"
+	bare="$test_dir/bare-$missing"
+	mkdir -p "$bare"
+	ln -sf "$(command -v dirname)" "$bare/dirname"
+	for cmd in jq multica gh; do
+		[[ $cmd == "$missing" ]] && continue
+		case $cmd in
+		gh) ln -sf "$clock_dir/gh" "$bare/gh" ;;
+		# 共通のスタブは python3 などを PATH から呼ぶので、ここではタスクを返すだけの 1 本に替える。
+		multica) printf '#!%s\nprintf "%%s\\n" "$(<"$PR_WATCH_TEST_DIR/task.json")"\n' "$BASH" >"$bare/multica" && chmod +x "$bare/multica" ;;
+		*) ln -sf "$(command -v "$cmd")" "$bare/$cmd" ;;
+		esac
+	done
+	# BASH_ENV などが PATH を足さないよう、環境を空にして流す。差し替えた monitor は PATH の道具を使うので、実物の見張りを直接呼ぶ。
+	line=$(cd "$test_dir" && env -i PATH="$bare" PR_WATCH_TEST_DIR="$test_dir" "$BASH" "$SQUAD_CLI_TEST_ACTUAL_SCRIPT" conflicts-check test-issue)
+	[[ $line == "コンフリクト: 未確認 head: 不明 理由: $missing が見つからない" ]] || { echo "$line" >&2; exit 1; }
+	cc_no_nashi "$line"
+done
+echo 'PASS conflicts-check: コマンドが見つからないときも 未確認 の 1 行を出す'
+
+# 確認は読むだけ。wakeup の規則・metadata・コメントを書かない
+reset_fixture
+cc_responses "OPEN:$head_x:CONFLICTING"
+cc_run >/dev/null
+assert_jq -s 'length == 1 and (.[0][0:2] == ["issue", "get"])' "$test_dir/calls.jsonl"
+[[ ! -s $test_dir/wakeups.jsonl && ! -s $test_dir/posted.jsonl ]]
+echo 'PASS conflicts-check: multica はタスクの読み取りだけを呼び、規則・metadata・コメントを書かない'
+
+# 引数の数が違うと、使い方を標準エラーに出し、終了コード 2 で標準出力は空
+for args in "" "a b"; do
+	status=0
+	# shellcheck disable=SC2086
+	out=$(cd "$test_dir" && bash "$script" conflicts-check $args 2>"$test_dir/usage-err") || status=$?
+	[[ $status -eq 2 && -z $out ]]
+	grep -qF 'conflicts-check' "$test_dir/usage-err"
+done
+echo 'PASS conflicts-check: 引数の数が違うと終了コード 2 で、標準出力は空'
+
 # 通知先は、担当のスクワッドではなく、渡された役をリーダーとする有効な候補で選ぶ。
 reset_fixture
 jq '.[0] as $base | . + [$base + {id:"archived",archived_at:"2026-01-01T00:00:00Z"},

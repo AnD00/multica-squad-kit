@@ -21,6 +21,16 @@
       "--json",
       "headRefOid"
     ],
+    "gh-pr-mergeable": [
+      "gh",
+      "pr",
+      "view",
+      "2599",
+      "--repo",
+      "actions/checkout",
+      "--json",
+      "state,headRefOid,mergeable"
+    ],
     "gh-commit": [
       "gh",
       "api",
@@ -116,6 +126,12 @@
       }
     ],
     "gh-pr-head": [
+      {
+        "name": "element",
+        "count": 1
+      }
+    ],
+    "gh-pr-mergeable": [
       {
         "name": "element",
         "count": 1
