@@ -1,0 +1,17 @@
+[
+  {
+    "branch": "feature/installer",
+    "ci_watch_thread": "fixture-id-000010",
+    "pr_url": "https://github.com/AnD00/multica-squad-kit/pull/29",
+    "repository": "and00/multica-squad-kit"
+  },
+  {
+    "repository": "and00/multica-squad-kit",
+    "squad_kit_targets": "[\"and00/multica-squad-kit\"]",
+    "squad_kit_task": "repository-rules"
+  },
+  {
+    "ci_watch_thread": "fixture-thread",
+    "pr_url": "https://github.com/AnD00/multica-squad-kit/pull/34"
+  }
+]

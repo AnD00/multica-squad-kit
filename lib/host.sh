@@ -24,6 +24,20 @@ host_shared_file() {
 	host_install "$src" "$dst" "$executable"
 }
 
+# 見本を採取したバージョンを、配布するライブラリ自身に持たせる。
+host_cli_library() (
+	local generated version quoted content result=0 fixture_root=${kit_root:-$root}
+	mkdir -p "$root/tmp" || die 'CLI のライブラリの作業場所を作れませんでした。'
+	generated=$(mktemp "$root/tmp/cli-library.XXXXXX") || die 'CLI のライブラリの一時ファイルを作れませんでした。'
+	trap 'rm -f -- "$generated"' EXIT
+	IFS= read -r version <"$fixture_root/tests/fixtures/cli/VERSION" || die 'CLI の見本のバージョンを読めませんでした。'
+	printf -v quoted '%q' "$version"
+	content=$(cat "$root/common/monitor/squad-cli-lib") || die 'CLI のライブラリを読めませんでした。'
+	printf '%s\n' "${content//'{{SQUAD_CLI_VERIFIED_VERSION}}'/$quoted}" >"$generated"
+	host_shared_file "$generated" "$agent_home/bin/squad-cli-lib" yes || result=$?
+	return "$result"
+)
+
 prepare_host() {
 	local file auth
 	host_paths
@@ -54,7 +68,11 @@ PY
 		fi
 	fi
 	for file in "$root/common/monitor/"squad-*; do
-		host_shared_file "$file" "$agent_home/bin/$(basename "$file")" yes
+		if [[ ${file##*/} == squad-cli-lib ]]; then
+			host_cli_library
+		else
+			host_shared_file "$file" "$agent_home/bin/$(basename "$file")" yes
+		fi
 	done
 	if uses_runtime claude; then
 		auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"

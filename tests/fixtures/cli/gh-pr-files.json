@@ -1,0 +1,16 @@
+[
+  [
+    {
+      "sha": "dced4ad473737fead0d7d8f87e335161765bd92f",
+      "filename": "fixture",
+      "status": "modified",
+      "additions": 25,
+      "deletions": 25,
+      "changes": 50,
+      "blob_url": "https://example.invalid/fixture",
+      "raw_url": "https://example.invalid/fixture",
+      "contents_url": "https://example.invalid/fixture",
+      "patch": "fixture"
+    }
+  ]
+]
