@@ -22,7 +22,7 @@ SquadKit は、Multica のスクワッドをプロジェクトごとに導入・
 | `scripts/` | 構文確認、MANIFEST の生成、タグと Release の公開 |
 | `.github/` | CI と PR テンプレート |
 | `docs/` | 機能ごとの設計と判断の理由 |
-| `VERSION`、`CHANGELOG.md`、`MANIFEST` | 配布する版、変更点、原本のファイル一覧とハッシュ |
+| `VERSION`、`CHANGELOG.md`、`MANIFEST` | 配布するバージョン、変更点、原本のファイル一覧とハッシュ |
 
 `setup.sh` が `lib/` を読み、`common/` と `skeleton/` を条件と値で展開します。展開結果を Multica とホストに配置し、VM のスクリプトはゲスト内でセットアップを流します。外部との接続は `multica`・`gh` などの CLI を使い、テストではスタブに置き換えます。
 
@@ -56,4 +56,4 @@ hooks が自動で動くと仮定せず、完了の条件を自分で確かめ�
 
 変更はブランチにコミットして push し、draft PR と実際に流した検証結果を渡します。既存の設計 PR があるときは同じブランチに積みます。PR の本文は [.github/pull_request_template.md](.github/pull_request_template.md) の見出しに従います。
 
-コミットには変更した動作と理由を書きます。作業番号や進行の記録は Multica の課題に置き、PR 本文と引き継ぎは `squad-handoff` に従います。タグを動かさず、公開済みの版の修正は新しい版で配ります。[タグと Release を出す](CONTRIBUTING.md#タグと-release-を出す)操作は人間に渡します。
+コミットには変更した動作と理由を書きます。作業番号や進行の記録は Multica のタスクに置き、PR 本文と引き継ぎは `squad-handoff` に従います。タグを動かさず、公開済みのバージョンの修正は新しいバージョンで配ります。[タグと Release を出す](CONTRIBUTING.md#タグと-release-を出す)操作は人間に渡します。
