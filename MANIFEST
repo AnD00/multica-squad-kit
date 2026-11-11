@@ -66,7 +66,7 @@ a080f4d6333dc934675e18c79d760474ecac3ac72c84f90218f2d6f16382fe56  ./docs/unfille
 d5da15ab6568bd6b3cf2c635f9e8d3c50b63492177f2085a77a6d7f2dd61907d  ./lib/autopilots.sh
 5c20dd328dac9d1ac26d86ab62a2b9d81438f17f073fcaa67dc9be18cf632e70  ./lib/check.sh
 49c5a7c08563616004b4c402fc31331af6a3f9dc049ab6d8518bb79f5f31b908  ./lib/extensions.py
-286fbc78cb005aed2d79d07a27ae349af5e1d166b6aeff7998681e00689f7e33  ./lib/extensions.sh
+38d488e0936f8fe1d0dfc0850e3443a16e46417e2a18f4844b078259881a0cc6  ./lib/extensions.sh
 923a4ca2ed6cefadc61050b76569e3ffdbf080c134797aa5e108e8bfb6b744c6  ./lib/host.sh
 e042f7692fd3b291d67de0297ba39e0e3bc4cb98245b480f6013f64c35988d3c  ./lib/installation.sh
 5347a2157370ff88cf75f0532603f715270a57c63fa749a3e95e32b57fa09825  ./lib/project-changes.sh
@@ -108,7 +108,7 @@ aed31c09c7a0005d2f49d4bf0f5ce7287f39963d3d0770fd4598c8b07f0af784  ./tests/cli-te
 0dc1ed5f1fea04eb14614dba2e98fd88d5ab76cafa79240f71d2633fb8742693  ./tests/content-test.sh
 ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-lines-test.sh
 ff9b71d33eb9dc89ede91c06427abd204c85a27be05a64b7fcfbebdca04f83c1  ./tests/error-marks-test.sh
-e7bbaf38ad54784197849192e619ddc45a64d5f709bf800ffce1693c4d076791  ./tests/extensions-test.sh
+726edf12288d6694caa3c8b3311b205c8150eb1d15c6357bf5fc2489c55e05e1  ./tests/extensions-test.sh
 7f28a53512ccfb38f34ea5446afbc0d886fe284915c69835aaeb66e7e798ab7e  ./tests/fixtures/cli/CAPTURE.json
 146111fed58714fcf54a11b28d86e2ee940a37caff1991401a2767995325b2af  ./tests/fixtures/cli/GH-CAPTURE.json
 566a51cbf6ff8249b20032c2960dd6fecf5e4b6dc03cf3fe9820a64a08b41483  ./tests/fixtures/cli/README.md
