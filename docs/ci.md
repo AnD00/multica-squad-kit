@@ -43,6 +43,8 @@ PR の Checks のすべてのジョブを、ジョブの開始から 7 分以内
 
 ubuntu の `apt-get install` は、イメージにない `zsh`・`zsh-common`・`libdigest-sha-perl` の 3 つを入れている。テストに要るので残す。
 
+`apt-get update` が DNS の失敗（`Temporary failure resolving 'azure.archive.ubuntu.com'`）で落ちると、ミラーごとに再試行して約 6 分を使い切ってから終わる。この間、テストは始まらない。
+
 ## PR 34 で延びた原因
 
 PR 34 は、見張りが CLI の出力を約束で確かめて整える仕組み（[CLI の出力の欄](review-wait.md#cli-の出力の欄)）と、そのテストを入れた。延びたのは、CLI を 1 回読むたびに起こすプロセスが増えたためである。テストのケースの数ではない。
