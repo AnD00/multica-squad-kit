@@ -218,12 +218,50 @@ for role in claude-principal codex-principal; do
 	grep -qF '`重要`' "$root/common/agents/$role.md"
 done
 for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
-	grep -qx 'model: claude-fable-5-2' "$test_dir/$scenario/claude-principal" || [[ ! -f $test_dir/$scenario/claude-principal ]]
-	grep -qx 'model: gpt-6-astra' "$test_dir/$scenario/codex-principal" || [[ ! -f $test_dir/$scenario/codex-principal ]]
+	[[ ! -f $test_dir/$scenario/claude-principal ]] || grep -qx 'model: claude-fable-5-2' "$test_dir/$scenario/claude-principal"
+	[[ ! -f $test_dir/$scenario/codex-principal ]] || grep -qx 'model: gpt-6-astra' "$test_dir/$scenario/codex-principal"
 done
 [[ ! -f $test_dir/runtime-claude-only/codex-principal && ! -f $test_dir/runtime-codex-only/claude-principal ]]
 [[ -f $test_dir/runtime-claude-only/claude-principal && -f $test_dir/runtime-codex-only/codex-principal && -f $test_dir/all/claude-principal && -f $test_dir/all/codex-principal ]]
 echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと high を持ち、使わない系統には置かない'
+
+# 重要なタスクの指示は、使う系統の最上位の役だけを参照し、系統ごとの選び方を残す。
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
+	file="$test_dir/$scenario/orchestrator"
+	section=$(awk '/^## 重要なタスクと最上位の役$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file")
+	for heading in 重要の基準 判断する時機 印の記録 修正の依頼の数え方 最上位の役を呼ぶところ 返事の待ち方 最上位の役の選び方; do grep -qxF "### $heading" <<<"$section"; done
+	grep -qF '重要の印: 付けた。基準:' <<<"$section"
+	grep -qF '修正の依頼: <N> 回目' <<<"$section"
+	grep -qF '設計の変更: 実装を始めたあと' <<<"$section"
+	grep -qF 'squad-review-wait watch' <<<"$section"
+	grep -qF '最上位の役の使用枠が' "$test_dir/$scenario/squad"
+	grep -qF '2 つの務め' "$test_dir/$scenario/squad"
+done
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews; do
+	section=$(awk '/^### 最上位の役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$test_dir/$scenario/orchestrator")
+	grep -qF 'squad-dispatch-pick principal' <<<"$section"
+	grep -qF -- '- `claude-principal`:' <<<"$section"
+	grep -qF -- '- `codex-principal`:' <<<"$section"
+done
+section=$(awk '/^### 最上位の役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$test_dir/runtime-claude-only/orchestrator")
+grep -qF 'squad-usage-read' <<<"$section"
+if grep -qF 'squad-dispatch-pick' <<<"$section"; then exit 1; fi
+section=$(awk '/^### 最上位の役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$test_dir/runtime-codex-only/orchestrator")
+grep -qF 'squad-usage-read' <<<"$section"
+if grep -qF 'squad-dispatch-pick' <<<"$section"; then exit 1; fi
+for role in orchestrator designer squad; do
+	[[ -f $test_dir/runtime-claude-only/$role ]] || continue
+	if grep -qF 'codex-principal' "$test_dir/runtime-claude-only/$role"; then exit 1; fi
+	if grep -qF 'claude-principal' "$test_dir/runtime-codex-only/$role"; then exit 1; fi
+done
+grep -qF 'claude-principal' "$test_dir/runtime-claude-only/orchestrator"
+grep -qF 'codex-principal' "$test_dir/runtime-codex-only/orchestrator"
+grep -qF '最上位の役は置かない' "$test_dir/minimum/orchestrator"
+grep -qxF '## 重要の基準' "$root/skeleton/project.md"
+grep -qF '[記入: このプロジェクトで重要なタスクとみなす条件' "$root/skeleton/project.md"
+grep -qxF '## ラベル `重要` のあるタスク' "$root/common/agents/designer.md"
+grep -qF '人間ではなくスクワッドへ返す' "$test_dir/all/designer"
+echo 'PASS templates: リーダーの指示に重要の基準・時機・記録・選び方が残り、系統ごとに選び方が変わり、ない系統の最上位の役を参照しない'
 
 # 省略した役を代行せず、次の有効な役へ回す。不足は人間へ返す。
 grep -qF '次の有効な役へ直接回す' "$test_dir/no-planning/orchestrator"

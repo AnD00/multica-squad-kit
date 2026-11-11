@@ -223,6 +223,7 @@ for repo in example/project example/second example/third; do
 done
 jq -e '.content|split("\n")|map(select(startswith("## `")))|length==3' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.description|contains("{{")|not' "$TEST_DB/projects/project-a.json" >/dev/null
+jq -e '.description|split("\n")|index("## 重要の基準")!=null and any(.[]; startswith("[記入: このプロジェクトで重要なタスクとみなす条件"))' "$TEST_DB/projects/project-a.json" >/dev/null
 jq -e '.content|contains("{{")|not' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.content|contains("[記入: 実際に使うコマンドと実行順]")' "$TEST_DB/skills/verify.json" >/dev/null
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
