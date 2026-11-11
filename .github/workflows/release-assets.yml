@@ -1,0 +1,69 @@
+name: Release assets
+# scripts/release.sh が、タグと下書きの Release を作ったあとに起こす。設計は docs/release.md の「発行のワークフロー」。
+# タグと Release は作らず、公開もしない。下書きに、配布物と証明を載せるだけにする。
+on:
+  workflow_dispatch:
+permissions: {}
+jobs:
+  assets:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Check the tag and the draft Release
+        id: guard
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REF: ${{ github.ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [[ ! $REF =~ ^refs/tags/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "::error::タグ（refs/tags/vX.Y.Z）を指定して起こしてください: $REF"
+            exit 1
+          fi
+          tag=${BASH_REMATCH[1]}
+          drafts=$(gh api "repos/$REPO/releases?per_page=100" --paginate --jq ".[] | select(.tag_name == \"$tag\") | \"\\(.draft) \\(.assets | length)\"")
+          if [[ $drafts != 'true 0' ]]; then
+            echo "::error::$tag の下書きの Release が、ちょうど 1 つで、配布物がない状態ではありません。"
+            exit 1
+          fi
+          echo "tag=$tag" >>"$GITHUB_OUTPUT"
+      - name: Check out the tag
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Check the checkout
+        env:
+          TAG: ${{ steps.guard.outputs.tag }}
+        run: |
+          set -euo pipefail
+          [[ $(git rev-parse HEAD) == "$(git rev-parse "refs/tags/$TAG^{commit}")" ]]
+      - name: Build the assets
+        env:
+          TAG: ${{ steps.guard.outputs.tag }}
+        run: bash scripts/build-assets.sh "$TAG" "$RUNNER_TEMP/assets"
+      - name: Attest the assets
+        id: attest
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            ${{ runner.temp }}/assets/multica-squad-kit-${{ steps.guard.outputs.tag }}.tar.gz
+            ${{ runner.temp }}/assets/install.sh
+            ${{ runner.temp }}/assets/SHA256SUMS
+      - name: Upload to the draft Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ steps.guard.outputs.tag }}
+          BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          set -euo pipefail
+          cp "$BUNDLE" "$RUNNER_TEMP/assets/multica-squad-kit-$TAG.sigstore.json"
+          gh release upload "$TAG" --repo "$REPO" \
+            "$RUNNER_TEMP/assets/multica-squad-kit-$TAG.tar.gz" \
+            "$RUNNER_TEMP/assets/install.sh" \
+            "$RUNNER_TEMP/assets/SHA256SUMS" \
+            "$RUNNER_TEMP/assets/multica-squad-kit-$TAG.sigstore.json"

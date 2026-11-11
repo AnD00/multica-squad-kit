@@ -4,6 +4,7 @@ a6075c06025d8c2d6445a942619b5062fd172e5402b77fe4c294029707e0dcba  ./.agents/rule
 63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull_request_template.md
 4a9bc7c0ae67e04c1eddd73c9d0726633601ecfe87fccb8c6c04f85f26261fb6  ./.github/workflows/check.yml
+84c6d113ac418d9812edad92f27dfe8af5a645de6e5bf5914af361ffca807aeb  ./.github/workflows/release-assets.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 d53ad43ea0db729b90fc1f55850b98e00a7d5065a954591d9b21f0eb6d2f183b  ./AGENTS.md
@@ -74,6 +75,7 @@ fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
 2acbe40057c86b3059cf53669db57e2b7e6f0afa11bca7695fef880734f7a610  ./lib/webhooks.sh
 6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
 c560dae4529c83b97c2ce7b616d2a9e56c275a279834667fef464100302dc046  ./manual.md
+0cd71e4a2f36ae78d71e7d5f4e13c5ae7ff78163ba878f17edcd3372a78741e5  ./scripts/build-assets.sh
 70234570a08252ccf4bc8054663c1e55439d6620121c31dbd701252d8bca2939  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 80f95ac15a3d31e9f71614287267b6d8004c2aed96e8e25ce690bd09057bfb20  ./scripts/release.sh
@@ -87,6 +89,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 395267dc18d95577d740c73aad72de169617d898019f451caf33e4cf9b28adbe  ./skeleton/project.md
 a5c1768652ad26d58317815edb0bd31f888306c2e08685862a187f105d2f949a  ./skeleton/verify-repository.md
 d750abf2685d7b3af7c9856bd97b2fbf290fe16dcff3d5d9da0c419334ffc9ac  ./tests/agent-templates-test.sh
+c0a4918cf140c51fec5a0a619a09714411551361dd8acf0f749237f79d8f4e46  ./tests/build-assets-test.sh
 652723d0d604daa3599abccdf863468790297df334e55ab242ae548fd0c741e4  ./tests/check-content.py
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh
 ca57b2d3fb51c612235c7615222adc93a7c35115988d57b8e63881d6ab0914e6  ./tests/check-doc-lines.py
@@ -112,6 +115,7 @@ ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/projec
 260ce77131bea00a3dcf161a8a421c66d29f26ebedff27a1191d146c84c218c5  ./tests/project-test.sh
 d2af6a622b96527ad9aac212d3792731648a95256d04953ef6f477b00556bd4a  ./tests/questions-ui-test.sh
 cba2962934e32109f0847ea97aa4ade187557803e084eabebcf3d9cefb9bdbbc  ./tests/release-test.sh
+e676ddae52c4c2173140a0905b5752315cd041654670608396896d397b76491d  ./tests/release-workflow-test.sh
 f595df0fd3f7f57e9a366d1ab45deb008a7ac8bde791c238d90ad8725f73685f  ./tests/role-choices-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
 95737260b4ead2219f5599907d5f5ad99231f3bc73d48fa8600dacd07e2d42a2  ./tests/run-one.sh
