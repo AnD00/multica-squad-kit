@@ -1,41 +1,181 @@
 #!/usr/bin/env bash
 # scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確かめる。
-# origin は一時の bare のリポジトリで、本物の GitHub には push せず、Release も作らない。
+# origin は一時の bare のリポジトリで、本物の GitHub には push せず、Release もワークフローの実行も作らない。
+# 設計は docs/release.md の「テストと CI」。スタブの gh は、Release の一覧を JSON の状態として持ち、
+# release create、run watch、release edit で状態を動かす。配布物は、スタブが scripts/build-assets.sh をタグに流して作る。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/release.XXXXXX")
 # 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
 exec 8>&2
-trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then for log in "$test_dir"/*/out "$test_dir"/*/err; do [[ -f $log ]] && { echo "--- $log" >&8; cat "$log" >&8; }; done; fi; rm -rf -- "$test_dir"' EXIT
+trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then for log in "$test_dir"/*/out "$test_dir"/*/err "$test_dir"/*/gh.log; do [[ -f $log ]] && { echo "--- $log" >&8; cat "$log" >&8; }; done; fi; rm -rf -- "$test_dir"' EXIT
 # 手元の Git の設定（環境変数で入る GIT_CONFIG_COUNT 以降を含む）から切り離す。push は一時の bare にだけ届く。
 unset GIT_CONFIG_COUNT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 export GIT_AUTHOR_NAME='Test User' GIT_AUTHOR_EMAIL=test@example.test
 export GIT_COMMITTER_NAME='Test User' GIT_COMMITTER_EMAIL=test@example.test
+# 起こしたワークフローの実行を探す間隔は、待たずに読み直させる。
+export RELEASE_RUN_FIND_INTERVAL=0
 
-# スタブの gh は、受けた引数を行にして記録し、release create の --notes-file の中身を写す。
-# api は GH_API で、Release が exists（ある）、fail（404 のほかの失敗）、それ以外（なし: 404）を切り替える。
+# スタブの gh は、受けた引数を GH_LOG に 1 行で残す。状態は GH_RELEASES（Release の一覧の JSON）と GH_STATE にある。
+# ケースごとに、環境変数で成否を切り替える。
+#   GH_VERSION_OUT / GH_VERSION_FAIL: --version の出力と失敗
+#   GH_LIST_FAIL: Release の一覧を読めない
+#   GH_CREATE_FAIL / GH_WORKFLOW_FAIL / GH_WATCH_FAIL / GH_EDIT_FAIL: release create、workflow run、run watch、release edit の失敗
+#   GH_RUNS_MODE: run list の返し方（空: 1 件 / none: 見つからない / dup: 2 件 / fail: 読めない）、GH_RUNS_DELAY: 見つかるまでの空振りの回数
+#   GH_TAMPER: 配布物の差し替え（content / sums / install / install-sum）
+#   GH_ATTEST_FAIL: 証明を拒むファイル名、GH_ATTEST_FAIL_WITH: bundle（--bundle ありだけ）/ nobundle / 空（どちらも）
+#   GH_DL_FAIL: 取得に失敗する配布物の ID
+# __seed <差し替え>: テストが、下書きの Release に配布物を載せた状態を作るために呼ぶ（記録しない）。
 mkdir -p "$test_dir/bin"
 cat >"$test_dir/bin/gh" <<'STUB'
 #!/bin/bash
+# upload_assets <差し替え>: 来歴のタグに scripts/build-assets.sh を流して配布物を作り、下書きの Release に載せる。
+upload_assets() {
+	local tamper=$1 tag=$GH_TAG out=$GH_STATE/built clone=$GH_STATE/clone tarf ex assets_json
+	tarf=multica-squad-kit-$tag.tar.gz
+	rm -rf "$out" "$clone" "$GH_STATE/tamper"
+	git clone -q "$GH_ORIGIN" "$clone" || return 1
+	git -C "$clone" checkout -q --detach "$tag" || return 1
+	(cd "$clone" && bash scripts/build-assets.sh "$tag" "$out") >/dev/null || return 1
+	case $tamper in
+	content)
+		# 配布物に、タグにないファイルを足す。SHA256SUMS は作り直し、ほかの確かめは通す。
+		ex=$GH_STATE/tamper
+		mkdir -p "$ex"
+		tar -xzf "$out/$tarf" -C "$ex"
+		printf 'evil\n' >"$ex/multica-squad-kit-$tag/evil.txt"
+		COPYFILE_DISABLE=1 tar -czf "$out/$tarf" -C "$ex" "multica-squad-kit-$tag"
+		(cd "$out" && shasum -a 256 "$tarf" install.sh >SHA256SUMS)
+		;;
+	sums) printf 'x' >>"$out/$tarf" ;;
+	install)
+		printf '# changed\n' >>"$out/install.sh"
+		(cd "$out" && shasum -a 256 "$tarf" install.sh >SHA256SUMS)
+		;;
+	install-sum) printf '# changed\n' >>"$out/install.sh" ;;
+	esac
+	mkdir -p "$GH_STATE/assets"
+	cp "$out/$tarf" "$GH_STATE/assets/101"
+	cp "$out/install.sh" "$GH_STATE/assets/102"
+	cp "$out/SHA256SUMS" "$GH_STATE/assets/103"
+	printf '{"stub":"bundle"}\n' >"$GH_STATE/assets/104"
+	assets_json=$(printf '[{"id":101,"name":"%s"},{"id":102,"name":"install.sh"},{"id":103,"name":"SHA256SUMS"},{"id":104,"name":"multica-squad-kit-%s.sigstore.json"}]' "$tarf" "$tag")
+	jq --arg tag "$tag" --argjson assets "$assets_json" '(.[] | select(.tag_name == $tag and .draft == true)).assets = $assets' "$GH_RELEASES" >"$GH_RELEASES.new" && mv "$GH_RELEASES.new" "$GH_RELEASES"
+}
+
+if [[ ${1:-} == __seed ]]; then
+	upload_assets "${2:-}"
+	exit $?
+fi
 printf '%s\n' "$*" >>"$GH_LOG"
+
+if [[ ${1:-} == --version ]]; then
+	[[ -z ${GH_VERSION_FAIL:-} ]] || exit 1
+	printf '%s\n' "$GH_VERSION_OUT"
+	exit 0
+fi
+
+# Release の一覧: --jq の式は、本物の jq で一覧の JSON に当てる。
+if [[ ${1:-} == api && ${2:-} == --paginate && ${3:-} == 'repos/example/kit/releases?per_page=100' && ${4:-} == --jq ]]; then
+	[[ -z ${GH_LIST_FAIL:-} ]] || { echo 'gh: Bad credentials (HTTP 401)' >&2; exit 1; }
+	jq -r "$5" "$GH_RELEASES"
+	exit $?
+fi
+
+# 配布物の取得: 配布物の ID のファイルをそのまま返す。
+if [[ ${1:-} == api && ${2:-} == -H && ${3:-} == 'Accept: application/octet-stream' && ${4:-} == repos/example/kit/releases/assets/* ]]; then
+	id=${4##*/}
+	[[ ${GH_DL_FAIL:-} != "$id" ]] || { echo 'gh: download failed' >&2; exit 1; }
+	[[ -f $GH_STATE/assets/$id ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+	cat "$GH_STATE/assets/$id"
+	exit 0
+fi
+
 if [[ ${1:-} == release && ${2:-} == create ]]; then
 	[[ -z ${GH_CREATE_FAIL:-} ]] || { echo 'intentional release failure' >&2; exit 1; }
+	tag=${3:-}
+	git -C "$GH_ORIGIN" rev-parse --verify --quiet "refs/tags/$tag" >/dev/null || { echo "gh: tag $tag not found on the remote" >&2; exit 1; }
+	url=https://github.com/example/kit/releases/tag/untagged-0123456789ab
 	while [[ $# -gt 0 ]]; do
 		if [[ $1 == --notes-file ]]; then cp "$2" "$GH_NOTES"; fi
 		shift
 	done
-	echo "https://github.com/example/kit/releases/tag/$GH_TAG"
+	jq --arg tag "$tag" --arg url "$url" '. + [{tag_name: $tag, draft: true, html_url: $url, assets: []}]' "$GH_RELEASES" >"$GH_RELEASES.new" && mv "$GH_RELEASES.new" "$GH_RELEASES"
+	echo "$url"
 	exit 0
 fi
-if [[ ${1:-} == api && ${2:-} == repos/example/kit/releases/tags/* ]]; then
-	case ${GH_API:-none} in
-	exists) echo "https://github.com/example/kit/releases/tag/${2##*/}"; exit 0 ;;
-	fail) echo 'gh: Bad credentials (HTTP 401)' >&2; exit 1 ;;
-	*) echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
-	esac
+
+if [[ ${1:-} == workflow && ${2:-} == run ]]; then
+	[[ -z ${GH_WORKFLOW_FAIL:-} ]] || { echo 'intentional workflow failure' >&2; exit 1; }
+	[[ ${3:-} == release-assets.yml ]] || { echo "unexpected workflow: ${3:-}" >&2; exit 1; }
+	while [[ $# -gt 0 ]]; do
+		if [[ $1 == --ref ]]; then printf '%s' "$2" >"$GH_STATE/dispatched"; fi
+		shift
+	done
+	exit 0
 fi
+
+# 実行の一覧: 起こしたあとなら、条件に合う実行が 1 件（dup なら 2 件）出る。ほかの実行も混ぜ、絞り込みを確かめる。
+if [[ ${1:-} == run && ${2:-} == list ]]; then
+	filter=
+	while [[ $# -gt 0 ]]; do
+		if [[ $1 == --jq ]]; then filter=$2; fi
+		shift
+	done
+	[[ ${GH_RUNS_MODE:-} != fail ]] || { echo 'gh: run list failed' >&2; exit 1; }
+	calls=$(($(cat "$GH_STATE/runs-calls" 2>/dev/null || echo 0) + 1))
+	printf '%s' "$calls" >"$GH_STATE/runs-calls"
+	ref=$(cat "$GH_STATE/dispatched" 2>/dev/null || echo none)
+	now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+	extra='[]'
+	if [[ -f $GH_STATE/dispatched && ${GH_RUNS_MODE:-} != none && $calls -gt ${GH_RUNS_DELAY:-0} ]]; then
+		extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4242"}]'
+		if [[ ${GH_RUNS_MODE:-} == dup ]]; then
+			extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4242"},{"databaseId":4243,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4243"}]'
+		fi
+	fi
+	jq -n --arg ref "$ref" --arg now "$now" --argjson extra "$extra" '[
+		{databaseId: 1, headBranch: $ref, createdAt: "2020-01-01T00:00:00Z", event: "workflow_dispatch", url: "https://github.com/example/kit/actions/runs/1"},
+		{databaseId: 2, headBranch: "main", createdAt: $now, event: "workflow_dispatch", url: "https://github.com/example/kit/actions/runs/2"},
+		{databaseId: 3, headBranch: $ref, createdAt: $now, event: "push", url: "https://github.com/example/kit/actions/runs/3"}
+	] + $extra' | jq -r "$filter"
+	exit 0
+fi
+
+# 実行を待つ: 成功すると、ワークフローが配布物を載せたことにする。
+if [[ ${1:-} == run && ${2:-} == watch ]]; then
+	[[ ${3:-} == 4242 ]] || { echo "unexpected run id: ${3:-}" >&2; exit 1; }
+	[[ -z ${GH_WATCH_FAIL:-} ]] || { echo 'intentional run failure' >&2; exit 1; }
+	upload_assets "${GH_TAMPER:-}"
+	exit $?
+fi
+
+if [[ ${1:-} == release && ${2:-} == edit ]]; then
+	[[ -z ${GH_EDIT_FAIL:-} ]] || { echo 'intentional edit failure' >&2; exit 1; }
+	[[ ${3:-} == v1.6.0 && ${4:-} == --repo && ${5:-} == example/kit && ${6:-} == --draft=false ]] || { echo "unexpected release edit: $*" >&2; exit 1; }
+	jq '(.[] | select(.tag_name == "v1.6.0")).draft = false | (.[] | select(.tag_name == "v1.6.0")).html_url = "https://github.com/example/kit/releases/tag/v1.6.0"' "$GH_RELEASES" >"$GH_RELEASES.new" && mv "$GH_RELEASES.new" "$GH_RELEASES"
+	echo 'https://github.com/example/kit/releases/tag/v1.6.0'
+	exit 0
+fi
+
+# 証明: --bundle の有無を見て、GH_ATTEST_FAIL のファイルだけ拒む。
+if [[ ${1:-} == attestation && ${2:-} == verify ]]; then
+	file=${3:-}
+	bundle=no
+	for arg in "$@"; do
+		[[ $arg != --bundle ]] || bundle=yes
+	done
+	if [[ -n ${GH_ATTEST_FAIL:-} && ${file##*/} == "$GH_ATTEST_FAIL" ]]; then
+		if [[ -z ${GH_ATTEST_FAIL_WITH:-} || (${GH_ATTEST_FAIL_WITH} == bundle && $bundle == yes) || (${GH_ATTEST_FAIL_WITH} == nobundle && $bundle == no) ]]; then
+			echo 'stub: attestation failed' >&2
+			exit 1
+		fi
+	fi
+	exit 0
+fi
+
 echo "unexpected gh call: $*" >&2
 exit 1
 STUB
@@ -60,27 +200,41 @@ changelog_default() {
 CHANGELOG
 }
 notes_expected=$'新しいバージョンの 1 段落目。\n\n- 項目 1\n- 項目 2'
+draft_url=https://github.com/example/kit/releases/tag/untagged-0123456789ab
+published_url=https://github.com/example/kit/releases/tag/v1.6.0
+run_url=https://github.com/example/kit/actions/runs/4242
+gh_env_vars='GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY'
 
 # make_case <名前> [origin の URL]: bare の origin と、その URL を insteadOf で bare に向けた作業コピーを作る。
+# 作業コピーは、配布物を作るスクリプトと本物の install.sh を持つ。一覧には、別のバージョンの公開済みの Release だけがある。
 make_case() {
-	local url=${2:-https://github.com/example/kit.git}
+	local url=${2:-https://github.com/example/kit.git} v
 	case_dir="$test_dir/$1"
 	bare="$case_dir/origin.git"
 	work="$case_dir/work"
-	mkdir -p "$case_dir"
+	mkdir -p "$case_dir/tmp" "$case_dir/gh/assets"
 	git init -q --bare -b main "$bare"
 	git init -q -b main "$work"
 	mkdir -p "$work/scripts" "$work/lib"
-	cp "$root/scripts/release.sh" "$work/scripts/release.sh"
+	cp "$root/scripts/release.sh" "$root/scripts/build-assets.sh" "$root/scripts/manifest.sh" "$work/scripts/"
 	cp "$root/lib/ui.sh" "$work/lib/ui.sh"
+	cp "$root/install.sh" "$work/install.sh"
+	printf '#!/bin/sh\necho setup\n' >"$work/setup.sh"
+	chmod +x "$work/setup.sh"
 	printf 'v1.6.0\n' >"$work/VERSION"
 	changelog_default >"$work/CHANGELOG.md"
 	printf 'tracked\n' >"$work/tracked.txt"
+	(cd "$work" && bash scripts/manifest.sh)
+	rm -rf "$work/tmp"
 	git -C "$work" add -A
 	git -C "$work" commit -qm 'Release content'
 	git -C "$work" remote add origin "$url"
 	git -C "$work" config "url.$bare.insteadOf" "$url"
 	git -C "$work" push -q origin main
+	printf '[{"tag_name":"v1.5.0","draft":false,"html_url":"https://github.com/example/kit/releases/tag/v1.5.0","assets":[{"id":1,"name":"old.tar.gz"}]}]\n' >"$case_dir/gh/releases.json"
+	export GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 GH_ORIGIN="$bare" GH_STATE="$case_dir/gh" GH_RELEASES="$case_dir/gh/releases.json"
+	export GH_VERSION_OUT='gh version 2.102.0 (2026-01-01)'
+	for v in $gh_env_vars; do export "$v="; done
 }
 
 # commit_work <メッセージ>: 作業コピーの変更をコミットして origin に push する。
@@ -90,6 +244,31 @@ commit_work() {
 	git -C "$work" push -q origin main
 }
 
+# tag_here: 手元の main の先頭に注釈付きのタグを作り、origin に push する。
+tag_here() {
+	git -C "$work" tag -a v1.6.0 -m v1.6.0
+	git -C "$work" push -q origin refs/tags/v1.6.0
+}
+
+# add_release <draft: true|false>: Release の一覧に、そのバージョンの Release を 1 件足す（配布物なし）。
+add_release() {
+	local url=$published_url
+	[[ $1 == false ]] || url=$draft_url
+	jq --argjson draft "$1" --arg url "$url" '. + [{tag_name: "v1.6.0", draft: $draft, html_url: $url, assets: []}]' "$GH_RELEASES" >"$GH_RELEASES.new"
+	mv "$GH_RELEASES.new" "$GH_RELEASES"
+}
+# seed_assets [差し替え]: 下書きの Release に、タグから作った 4 つの配布物を載せる。タグを origin に push してから呼ぶ。
+seed_assets() {
+	"$test_dir/bin/gh" __seed "${1:-}"
+}
+# edit_assets <jq の式>: 一覧のそのバージョンの配布物を、式で書き換える。
+edit_assets() {
+	jq "(.[] | select(.tag_name == \"v1.6.0\")).assets |= ($1)" "$GH_RELEASES" >"$GH_RELEASES.new"
+	mv "$GH_RELEASES.new" "$GH_RELEASES"
+}
+# draft_flag: そのバージョンの Release が下書きかどうか（true か false）。
+draft_flag() { jq -r '.[] | select(.tag_name == "v1.6.0") | .draft' "$GH_RELEASES"; }
+
 # snapshot: 手元と origin のブランチとタグを 1 つの文字にする。
 snapshot() {
 	git -C "$work" for-each-ref refs/heads refs/tags
@@ -97,12 +276,12 @@ snapshot() {
 }
 
 # run_release <入力のファイル> [引数...]: 標準入力を疑似端末につないで流す。終了コードを rc に置く。
+# 一時の置き場は $case_dir/tmp の下に作らせる。実行環境の BASH_ENV が PATH の先頭へ本物の gh を戻すことがあるので、外す。
 run_release() {
 	local input=$1
 	shift
 	rm -f "$case_dir/rc"
-	(cd "$work" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 \
-		GH_API="${GH_API:-none}" GH_CREATE_FAIL="${GH_CREATE_FAIL:-}" \
+	(cd "$work" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" \
 		python3 "$root/tests/ui-pty.py" none "$case_dir/out" "$case_dir/err" --stdin-tty "$input" -- \
 		/bin/bash -c 'rc=0; /bin/bash scripts/release.sh "$@" || rc=$?; printf "%s" "$rc" >"$0"' "$case_dir/rc" "$@")
 	rc=$(<"$case_dir/rc")
@@ -111,7 +290,7 @@ run_release() {
 # run_release_notty <引数...>: 標準入力を /dev/null にして流す（端末でない）。
 run_release_notty() {
 	rc=0
-	(cd "$work" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" GH_TAG=v1.6.0 GH_API="${GH_API:-none}" \
+	(cd "$work" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" \
 		/bin/bash scripts/release.sh "$@") </dev/null >"$case_dir/out" 2>"$case_dir/err" || rc=$?
 }
 
@@ -121,10 +300,27 @@ printf '\n' >"$test_dir/answer-empty"
 : >"$test_dir/answer-eof"
 printf 'yes\n' >"$test_dir/answer-yes"
 
-no_release() { [[ ! -e $case_dir/gh.log ]] || ! grep -q '^release create' "$case_dir/gh.log"; }
+# gh の呼び方の記録（gh.log）を読む道具。
+log_count() { grep -c -- "$1" "$case_dir/gh.log" || true; }
+# log_has / log_lacks <正規表現>: 呼ばれた / 呼ばれていない。
+log_has() { [[ -f $case_dir/gh.log ]] && grep -q -- "$1" "$case_dir/gh.log"; }
+log_lacks() { [[ ! -f $case_dir/gh.log ]] || ! grep -q -- "$1" "$case_dir/gh.log"; }
+# before_in_log <先の正規表現> <後の正規表現>: 先の最初の呼び出しが、後の最初の呼び出しより前にある。
+before_in_log() {
+	local a b
+	a=$(grep -n -m1 -- "$1" "$case_dir/gh.log" | cut -d: -f1 || true)
+	b=$(grep -n -m1 -- "$2" "$case_dir/gh.log" | cut -d: -f1 || true)
+	[[ -n $a && -n $b && $a -lt $b ]]
+}
+# no_write: GitHub に書く gh の呼び出し（Release の作成・公開・削除、ワークフローの実行）がない。
+no_write() { log_lacks '^release \(create\|edit\|delete\|upload\)\|^workflow run\|^api -X\|^api --method'; }
+# no_download: 配布物を取得していない。
+no_download() { log_lacks 'releases/assets/'; }
 no_tag() { [[ -z $(git -C "$work" tag) && -z $(git -C "$bare" tag) ]]; }
+# no_leftover: 流したあとに、一時の置き場が残っていない。
+no_leftover() { [[ -z $(ls -A "$case_dir/tmp") ]]; }
 
-# 承認する: origin に注釈付きのタグができ、main の先頭を指す。Release の本文は、そのバージョンの節の前後の空行を除いたもの。
+# 承認する: origin に注釈付きのタグができ、main の先頭を指す。下書きを作り、ワークフローを起こして待ち、確かめて公開する。
 make_case approve
 main_head=$(git -C "$work" rev-parse HEAD)
 run_release "$test_dir/answer-y"
@@ -134,14 +330,38 @@ run_release "$test_dir/answer-y"
 [[ $(git -C "$bare" tag -l --format='%(contents:subject)' v1.6.0) == v1.6.0 ]]
 [[ $(git -C "$work" cat-file -t v1.6.0) == tag ]]
 [[ $(git -C "$work" rev-parse 'v1.6.0^{commit}') == "$main_head" ]]
-[[ $(grep -c '^release create' "$case_dir/gh.log") == 1 ]]
-grep -q '^release create v1.6.0 --repo example/kit --verify-tag --title v1.6.0 --notes-file ' "$case_dir/gh.log"
+[[ $(log_count '^release create') == 1 ]]
+log_has '^release create v1.6.0 --repo example/kit --draft --verify-tag --title v1.6.0 --notes-file '
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
+log_has '^workflow run release-assets.yml --repo example/kit --ref v1.6.0$'
+log_has '^run list --repo example/kit --workflow release-assets.yml --event workflow_dispatch --limit 20 --json databaseId,headBranch,createdAt,event,url --jq '
+log_has '^run watch 4242 --repo example/kit --exit-status$'
+log_has '^release edit v1.6.0 --repo example/kit --draft=false$'
+before_in_log '^release create' '^workflow run'
+before_in_log '^workflow run' '^run list'
+before_in_log '^run list' '^run watch'
+before_in_log '^run watch' 'releases/assets/'
+before_in_log 'releases/assets/' '^attestation verify .* --bundle '
+before_in_log '^attestation verify .* --bundle ' '^release edit'
+# 公開の前に、配布物を 1 回ずつ取得する。
+[[ $(log_count 'api -H Accept: application/octet-stream repos/example/kit/releases/assets/') == 4 ]]
+# 証明は、タグの install.sh の --verify（束なし、2 つ）と、束での確かめ（3 つ）の 5 回。指定は docs/install.md の 4 つ。
+[[ $(log_count '^attestation verify ') == 5 ]]
+[[ $(log_count '^attestation verify .* --bundle ') == 3 ]]
+for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
+	grep -q "^attestation verify .*/$file --bundle .*/multica-squad-kit-v1.6.0.sigstore.json --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref refs/tags/v1.6.0 --deny-self-hosted-runners\$" "$case_dir/gh.log"
+done
+[[ $(draft_flag) == false ]]
 grep -qxF '出すバージョン: v1.6.0' "$case_dir/out"
 grep -qF "タグを付けるコミット: $main_head Release content" "$case_dir/out"
+grep -qxF 'すること: 注釈付きのタグを作って origin に push し、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
 grep -qxF '新しいバージョンの 1 段落目。' "$case_dir/out"
-grep -qF 'https://github.com/example/kit/releases/tag/v1.6.0' "$case_dir/out"
+grep -qxF "下書きの Release を作りました: $draft_url" "$case_dir/out"
+grep -qxF "発行のワークフローを待ちます: $run_url" "$case_dir/out"
+grep -qxF '配布物の確かめが通りました。' "$case_dir/out"
+grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
 grep -qF '公開しますか [y/N]: ' "$case_dir/err"
+no_leftover
 
 # 追跡していないファイルは、止める理由にしない。origin の URL の 3 つの形から OWNER/REPO を読む。
 for url in https://github.com/example/kit git@github.com:example/kit.git ssh://git@github.com/example/kit.git; do
@@ -150,20 +370,36 @@ for url in https://github.com/example/kit git@github.com:example/kit.git ssh://g
 	run_release "$test_dir/answer-y"
 	[[ $rc == 0 ]]
 	[[ $(git -C "$bare" cat-file -t v1.6.0) == tag ]]
-	grep -q '^release create v1.6.0 --repo example/kit ' "$case_dir/gh.log"
+	log_has '^release create v1.6.0 --repo example/kit '
+	[[ $(draft_flag) == false ]]
 done
 
-# 承認しない: n、yes、空の答え、入力の終わりでは、何も変えずに 1 で終わる。
+# 承認しない: n、yes、空の答え、入力の終わりでは、何も変えずに 1 で終わる。gh は書き込みも取得もしない。
 for answer in n yes empty eof; do
 	make_case "decline-$answer"
 	before=$(snapshot)
 	run_release "$test_dir/answer-$answer"
 	[[ $rc == 1 ]]
 	no_tag
-	no_release
+	no_write
+	no_download
 	[[ $(snapshot) == "$before" ]]
 	grep -qF '公開を取りやめました。' "$case_dir/err"
+	no_leftover
 done
+# 配布物のそろった下書きがあるときも、承認しなければ、確かめも公開もしない。
+make_case decline-verify
+tag_here
+add_release true
+seed_assets
+before=$(snapshot)
+run_release "$test_dir/answer-n"
+[[ $rc == 1 ]]
+no_write
+no_download
+log_lacks '^attestation verify'
+[[ $(snapshot) == "$before" && $(draft_flag) == true ]]
+grep -qF '公開を取りやめました。' "$case_dir/err"
 
 # 標準入力が端末でない: 問いを出さず、確認を求められないと出して、何も変えない。
 make_case notty
@@ -171,25 +407,26 @@ before=$(snapshot)
 run_release_notty
 [[ $rc == 1 ]]
 no_tag
-no_release
+no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF '端末でない' "$case_dir/err"
 ! grep -qF '公開しますか' "$case_dir/err"
 # パイプで y を流し込んでも、確認を飛ばせない。
 rc=0
-(cd "$work" && printf 'y\n' | env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" GH_NOTES="$case_dir/gh.notes" /bin/bash scripts/release.sh) >"$case_dir/out" 2>"$case_dir/err" || rc=$?
+(cd "$work" && printf 'y\n' | env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" /bin/bash scripts/release.sh) >"$case_dir/out" 2>"$case_dir/err" || rc=$?
 [[ $rc == 1 ]]
 no_tag
-no_release
+no_write
 
-# 確かめで止まるケース: 理由を出し、fetch のほかは何も変えず、タグも Release も作らない。
+# 確かめで止まるケース: 理由を出し、fetch のほかは何も変えず、タグも Release も作らない。gh は書き込まない。
 # expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確かめる。タグがあるケース用。
 expect_stop_keep() {
 	local before
 	before=$(snapshot)
 	run_release "$test_dir/answer-y"
 	[[ $rc == 1 ]]
-	no_release
+	no_write
+	no_download
 	[[ $(snapshot) == "$before" ]]
 	grep -qF "$1" "$case_dir/err"
 	! grep -qF '公開しますか' "$case_dir/err"
@@ -199,6 +436,20 @@ expect_stop() {
 	expect_stop_keep "$1"
 	no_tag
 }
+
+# 1: gh のバージョンが古い・読めない。必要なバージョンを出す。
+make_case stop-gh-old
+GH_VERSION_OUT='gh version 2.101.9 (2026-01-01)' expect_stop 'gh のバージョンが古く'
+grep -qF '2.102.0' "$case_dir/err"
+make_case stop-gh-unreadable
+GH_VERSION_OUT='unknown' expect_stop 'gh のバージョンを読めません'
+grep -qF '2.102.0' "$case_dir/err"
+make_case stop-gh-fails
+GH_VERSION_FAIL=1 expect_stop 'gh のバージョンを読めません'
+# 新しいバージョンの gh は通る。
+make_case gh-newer
+GH_VERSION_OUT='gh version 2.200.7 (2026-06-01)' run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
 
 # 2: origin が GitHub のリポジトリでない
 make_case stop-origin
@@ -262,61 +513,120 @@ mkdir -p "$case_dir/copy/scripts" "$case_dir/copy/lib"
 cp "$root/scripts/release.sh" "$case_dir/copy/scripts/"
 cp "$root/lib/ui.sh" "$case_dir/copy/lib/"
 rc=0
-(cd "$case_dir/copy" && env PATH="$test_dir/bin:$PATH" GH_LOG="$case_dir/gh.log" /bin/bash scripts/release.sh) </dev/null >"$case_dir/out" 2>"$case_dir/err" || rc=$?
+(cd "$case_dir/copy" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" /bin/bash scripts/release.sh) </dev/null >"$case_dir/out" 2>"$case_dir/err" || rc=$?
 [[ $rc == 1 ]]
 grep -qF 'ルートで流してください' "$case_dir/err"
-no_release
+no_write
 
-# tag_here: 手元の main の先頭に注釈付きのタグを作り、origin に push する。
-tag_here() {
-	git -C "$work" tag -a v1.6.0 -m v1.6.0
-	git -C "$work" push -q origin refs/tags/v1.6.0
-}
-
-# タグがあって Release がない: 承認すると、タグを変えずに Release だけを作る。
-# タグのあとに main に別のコミットがあっても、本文と確認の画面はタグの中身から作る。
+# タグがあって Release がない: 承認すると、タグを変えずに、下書きの作成から続ける。
+# タグのあとに main に別のコミットがあっても、本文と配布物はタグの中身から作る。
 make_case tag-only
 tag_here
 tag_sha=$(git -C "$work" rev-parse v1.6.0)
 tag_commit=$(git -C "$work" rev-parse HEAD)
 sed 's/新しいバージョンの 1 段落目。/main のあとの本文。/' "$work/CHANGELOG.md" >"$work/CHANGELOG.new"
 mv "$work/CHANGELOG.new" "$work/CHANGELOG.md"
+printf 'after the tag\n' >"$work/after.txt"
 commit_work 'Content after the tag'
 before=$(snapshot)
 run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 [[ $(snapshot) == "$before" ]]
 [[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
-[[ $(grep -c '^release create' "$case_dir/gh.log") == 1 ]]
-grep -qxF 'api repos/example/kit/releases/tags/v1.6.0 --jq .html_url' "$case_dir/gh.log"
+[[ $(log_count '^release create') == 1 ]]
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
-grep -qxF 'すること: すでにあるタグのまま、Release だけを作る' "$case_dir/out"
+grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
 grep -qF "タグを付けるコミット: $tag_commit Release content" "$case_dir/out"
-grep -qF 'https://github.com/example/kit/releases/tag/v1.6.0' "$case_dir/out"
-# 承認しないときは、Release を作らない。
+[[ $(draft_flag) == false ]]
+# 配布物は、main のあとのファイルを含まない（タグの中身から作られている）。
+[[ ! -e $case_dir/gh/built/multica-squad-kit-v1.6.0.tar.gz || -z $(tar -tzf "$case_dir/gh/built/multica-squad-kit-v1.6.0.tar.gz" | grep after.txt || true) ]]
+# 承認しないときは、何も作らない。
 make_case tag-only-decline
 tag_here
 before=$(snapshot)
 run_release "$test_dir/answer-n"
 [[ $rc == 1 ]]
-no_release
+no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF '公開を取りやめました。' "$case_dir/err"
 
-# タグも Release もある: 問いを出さず、何も変えずに 0 で終わる。標準入力が端末でなくても同じ。
-make_case both-exist
+# 配布物のない下書きがある: 承認すると、release create を呼ばず、workflow run から続ける。
+make_case draft-empty
 tag_here
+add_release true
+run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+log_lacks '^release create'
+[[ $(log_count '^workflow run') == 1 ]]
+before_in_log '^workflow run' '^run watch'
+before_in_log '^run watch' '^release edit'
+grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて確かめ、公開する' "$case_dir/out"
+[[ $(draft_flag) == false ]]
+no_leftover
+
+# 配布物のそろった下書きがある: 承認すると、workflow run を呼ばず、確かめから続ける。
+make_case draft-complete
+tag_here
+add_release true
+seed_assets
+run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+log_lacks '^release create'
+log_lacks '^workflow run'
+log_lacks '^run list'
+log_lacks '^run watch'
+[[ $(log_count 'releases/assets/') == 4 ]]
+before_in_log 'releases/assets/' '^release edit'
+grep -qxF 'すること: すでにある下書きの Release の配布物を確かめ、公開する' "$case_dir/out"
+grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
+[[ $(draft_flag) == false ]]
+no_leftover
+
+# 配布物が足りないか余分な下書き: 理由と、画面で消すことを出して止まり、何も変えない。
+make_case draft-missing
+tag_here
+add_release true
+seed_assets
+edit_assets 'map(select(.name != "SHA256SUMS"))'
+expect_stop_keep '4 つそろっていないか、余分なものがあります'
+grep -qF '下書きの配布物を消してから流し直してください' "$case_dir/err"
+grep -qF "$draft_url" "$case_dir/err"
+[[ $(draft_flag) == true ]]
+make_case draft-extra
+tag_here
+add_release true
+seed_assets
+edit_assets '. + [{"id": 105, "name": "extra.txt"}]'
+expect_stop_keep '4 つそろっていないか、余分なものがあります'
+grep -qF 'extra.txt' "$case_dir/err"
+make_case draft-duplicate
+tag_here
+add_release true
+seed_assets
+edit_assets '. + [{"id": 106, "name": "install.sh"}]'
+expect_stop_keep '4 つそろっていないか、余分なものがあります'
+make_case draft-partial
+tag_here
+add_release true
+seed_assets
+edit_assets 'map(select(.name == "install.sh"))'
+expect_stop_keep '4 つそろっていないか、余分なものがあります'
+
+# 公開済み: 問いを出さず、何も変えずに 0 で終わる。標準入力が端末でなくても同じ。配布物のない古い Release も公開済みとして扱う。
+make_case published
+tag_here
+add_release false
 before=$(snapshot)
-GH_API=exists run_release "$test_dir/answer-n"
+run_release "$test_dir/answer-n"
 [[ $rc == 0 ]]
-no_release
+no_write
+no_download
 [[ $(snapshot) == "$before" ]]
-grep -qF 'すでに出してあります' "$case_dir/out"
-grep -qF 'https://github.com/example/kit/releases/tag/v1.6.0' "$case_dir/out"
+grep -qxF "v1.6.0 のタグと Release は、すでに出してあります: $published_url" "$case_dir/out"
 ! grep -qF '公開しますか' "$case_dir/err"
-GH_API=exists run_release_notty
+run_release_notty
 [[ $rc == 0 ]]
-no_release
+no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF 'すでに出してあります' "$case_dir/out"
 
@@ -348,18 +658,31 @@ git -C "$work" tag v1.6.0
 git -C "$work" push -q origin refs/tags/v1.6.0
 expect_stop_keep '注釈付きではありません'
 
-# タグのない Release
+# タグのない Release: 下書きでも公開済みでも止まる。
 make_case release-without-tag
-GH_API=exists expect_stop_keep 'Release があります'
+add_release true
+expect_stop_keep 'Release があります'
+grep -qF "$draft_url" "$case_dir/err"
+no_tag
+make_case release-without-tag-published
+add_release false
+expect_stop_keep 'Release があります'
 no_tag
 
-# gh api が 404 のほかで失敗する: 読めないので止まる。タグがあっても、ないときも。
-make_case api-fails
-GH_API=fail expect_stop 'GitHub から読めません'
-grep -qF 'Bad credentials' "$case_dir/err"
-make_case api-fails-with-tag
+# 同じタグの Release が 2 つある
+make_case release-twice
 tag_here
-GH_API=fail expect_stop_keep 'GitHub から読めません'
+add_release true
+add_release false
+expect_stop_keep 'Release が GitHub に 2 件あります'
+
+# Release の一覧を読めない: 理由を出して止まる。タグがあっても、ないときも。
+make_case list-fails
+GH_LIST_FAIL=1 expect_stop 'GitHub から読めません'
+grep -qF 'Bad credentials' "$case_dir/err"
+make_case list-fails-with-tag
+tag_here
+GH_LIST_FAIL=1 expect_stop_keep 'GitHub から読めません'
 
 # 6〜8 は、タグが指すコミットで確かめる。main がそのあとで直っていても、タグの中身が悪ければ止まる。
 make_case tag-commit-version
@@ -377,17 +700,18 @@ changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fill the section'
 expect_stop_keep '節が空です'
 
-# タグも Release もあるときも、タグが指すコミットで 6〜8 を確かめてから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
+# 公開済みのときも、タグが指すコミットで 6〜8 を確かめてから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
 make_case published-tag-commit-version
 printf 'v1.5.9\n' >"$work/VERSION"
 commit_work 'Other version'
 tag_here
 printf 'v1.6.0\n' >"$work/VERSION"
 commit_work 'Back to the version'
-GH_API=exists expect_stop_keep 'タグが指すコミットの VERSION'
+add_release false
+expect_stop_keep 'タグが指すコミットの VERSION'
 ! grep -qF 'すでに出してあります' "$case_dir/out"
 before=$(snapshot)
-GH_API=exists run_release_notty
+run_release_notty
 [[ $rc == 1 ]]
 [[ $(snapshot) == "$before" ]]
 grep -qF 'タグが指すコミットの VERSION' "$case_dir/err"
@@ -397,7 +721,8 @@ commit_work 'Other top version'
 tag_here
 changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fix the changelog'
-GH_API=exists expect_stop_keep 'CHANGELOG.md の先頭のバージョン'
+add_release false
+expect_stop_keep 'CHANGELOG.md の先頭のバージョン'
 ! grep -qF 'すでに出してあります' "$case_dir/out"
 make_case published-tag-commit-empty-section
 printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古いバージョンの本文。\n' >"$work/CHANGELOG.md"
@@ -405,22 +730,24 @@ commit_work 'Empty section'
 tag_here
 changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fill the section'
-GH_API=exists expect_stop_keep '節が空です'
+add_release false
+expect_stop_keep '節が空です'
 ! grep -qF 'すでに出してあります' "$case_dir/out"
 before=$(snapshot)
-GH_API=exists run_release_notty
+run_release_notty
 [[ $rc == 1 ]]
 [[ $(snapshot) == "$before" ]]
 grep -qF '節が空です' "$case_dir/err"
 # main が先に進んでいても、タグの中身が正しければ、公開済みとして 0 で終わる。
 make_case published-after-main-moves
 tag_here
+add_release false
 printf '# 変更の記録\n' >"$work/CHANGELOG.md"
 commit_work 'Main moves on'
 before=$(snapshot)
-GH_API=exists run_release_notty
+run_release_notty
 [[ $rc == 0 ]]
-no_release
+no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF 'すでに出してあります' "$case_dir/out"
 
@@ -431,30 +758,187 @@ chmod +x "$bare/hooks/pre-receive"
 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 no_tag
-no_release
+no_write
 grep -qF 'push に失敗しました' "$case_dir/err"
+grep -qF '手元のタグを消したので、流し直せます' "$case_dir/err"
 
-# Release の作成が失敗する: タグは残り、1 で終わる。流し直すと、タグを変えずに Release だけを作る。
+# 下書きの作成が失敗する: タグは残り、1 で終わる。流し直すと、タグを変えずに下書きの作成から続ける。
 make_case release-fails
 GH_CREATE_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 [[ $(git -C "$bare" cat-file -t v1.6.0) == tag && $(git -C "$work" cat-file -t v1.6.0) == tag ]]
-grep -q '^release create' "$case_dir/gh.log"
-grep -qF 'Release の作成に失敗しました' "$case_dir/err"
+log_has '^release create'
+log_lacks '^workflow run'
+grep -qF 'タグは push しましたが、下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。' "$case_dir/err"
 tag_sha=$(git -C "$work" rev-parse v1.6.0)
 before=$(snapshot)
 rm -f "$case_dir/gh.log"
 run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 [[ $(snapshot) == "$before" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
-[[ $(grep -c '^release create' "$case_dir/gh.log") == 1 ]]
+[[ $(log_count '^release create') == 1 ]]
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
-grep -qxF 'すること: すでにあるタグのまま、Release だけを作る' "$case_dir/out"
-# Release だけを作るときの失敗も、同じコマンドで流し直せると出す。
+grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
+[[ $(draft_flag) == false ]]
+# タグがあるときの失敗は、タグを push したとは言わず、同じコマンドで流し直せると出す。
+make_case release-fails-tag-exists
+tag_here
+tag_sha=$(git -C "$work" rev-parse v1.6.0)
 GH_CREATE_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 [[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" ]]
-grep -qF 'Release の作成に失敗しました。同じコマンドを流し直すと、Release だけを作ります。' "$case_dir/err"
+grep -qF '下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。' "$case_dir/err"
+! grep -qF 'タグは push しましたが' "$case_dir/err"
+
+# ワークフローを起こせない: 下書きが残り、1 で終わる。流し直すと、下書きの作成を飛ばして、配布物を作らせ直す。
+make_case workflow-fails
+GH_WORKFLOW_FAIL=1 run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+grep -qF '発行のワークフローを起こせませんでした' "$case_dir/err"
+log_lacks '^run list'
+log_lacks '^release edit'
+[[ $(draft_flag) == true ]]
+rm -f "$case_dir/gh.log"
+run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+log_lacks '^release create'
+[[ $(log_count '^workflow run') == 1 ]]
+grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて確かめ、公開する' "$case_dir/out"
+[[ $(draft_flag) == false ]]
+
+# 起こした実行が、一覧に出るまで間がある: 決まった回数のうちは読み直して、見つかれば続ける。
+make_case runs-delayed
+GH_RUNS_DELAY=3 run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+[[ $(log_count '^run list') == 4 ]]
+[[ $(draft_flag) == false ]]
+# 実行が見つからない: 決まった回数（10 回）で止まり、watch も release edit も呼ばない。
+make_case runs-not-found
+GH_RUNS_MODE=none run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+[[ $(log_count '^run list') == 10 ]]
+grep -qF '一覧に見つかりません' "$case_dir/err"
+log_lacks '^run watch'
+log_lacks '^release edit'
+[[ $(draft_flag) == true ]]
+# 条件に合う実行が 2 つ: どれか決められないので止まる。
+make_case runs-duplicate
+GH_RUNS_MODE=dup run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+grep -qF 'どれか決められません' "$case_dir/err"
+log_lacks '^run watch'
+log_lacks '^release edit'
+# 実行の一覧を読めない
+make_case runs-list-fails
+GH_RUNS_MODE=fail run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+grep -qF '実行の一覧を読めません' "$case_dir/err"
+log_lacks '^release edit'
+# 実行が失敗する: 実行の URL を出し、確かめも release edit もしない。配布物がないので、流し直すと配布物を作らせ直す。
+make_case workflow-run-fails
+GH_WATCH_FAIL=1 run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+grep -qF "発行のワークフローが失敗しました: $run_url" "$case_dir/err"
+no_download
+log_lacks '^release edit'
+[[ $(draft_flag) == true ]]
+rm -f "$case_dir/gh.log"
+run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+log_lacks '^release create'
+[[ $(draft_flag) == false ]]
+
+# 公開の前の確かめが失敗する: 何が合わなかったかを出し、release edit も削除も呼ばない。下書きと配布物は残り、流し直さないことを出す。
+# expect_verify_stop <理由に含む文字>: 配布物のそろった下書きから流して、確かめで止まったことを確かめる。
+expect_verify_stop() {
+	run_release "$test_dir/answer-y"
+	[[ $rc == 1 ]]
+	grep -qF "$1" "$case_dir/err"
+	grep -qF '公開しません。下書きと配布物は残してあります。' "$case_dir/err"
+	grep -qF '人が確かめるまで流し直さないでください。' "$case_dir/err"
+	log_lacks '^release \(edit\|delete\)'
+	log_lacks '^api -X\|^api --method'
+	log_lacks '^workflow run'
+	[[ $(draft_flag) == true ]]
+	[[ $(jq -r '.[] | select(.tag_name == "v1.6.0") | .assets | length' "$GH_RELEASES") == 4 ]]
+	no_leftover
+}
+# 束での証明が通らない: タグの install.sh の確かめ（束なし）は通り、配布物ごとの束での確かめで止まる。
+for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
+	make_case "verify-bundle-$file"
+	tag_here
+	add_release true
+	seed_assets
+	GH_ATTEST_FAIL=$file GH_ATTEST_FAIL_WITH=bundle expect_verify_stop "証明の束で、$file の証明を確かめられませんでした。"
+	grep -qF 'stub: attestation failed' "$case_dir/err"
+done
+# 使う人の入口と同じ確かめ（束なしの証明）が通らない: タグの install.sh の --verify が止める。
+make_case verify-nobundle
+tag_here
+add_release true
+seed_assets
+GH_ATTEST_FAIL=SHA256SUMS GH_ATTEST_FAIL_WITH=nobundle expect_verify_stop 'タグの install.sh の --verify が通りませんでした。'
+grep -qF '証明を確かめられませんでした: SHA256SUMS' "$case_dir/err"
+log_lacks '^attestation verify .* --bundle '
+# チェックサムが合わない: 配布物が SHA256SUMS と違う。
+make_case verify-checksum
+tag_here
+add_release true
+seed_assets sums
+expect_verify_stop 'タグの install.sh の --verify が通りませんでした。'
+grep -qF 'のチェックサムが、SHA256SUMS と違います' "$case_dir/err"
+# 配布物の install.sh がタグと違う（SHA256SUMS は合っている）。
+make_case verify-install-differs
+tag_here
+add_release true
+seed_assets install
+expect_verify_stop '配布物の install.sh が、タグの install.sh と違います。'
+# 配布物の install.sh が SHA256SUMS と違う。
+make_case verify-install-sum
+tag_here
+add_release true
+seed_assets install-sum
+expect_verify_stop 'install.sh のチェックサムが、SHA256SUMS と違います。'
+# 配布物の中身が、git archive で取り出したタグの中身と違う（ほかの確かめは通る）。違いの先頭を出す。
+make_case verify-content
+tag_here
+add_release true
+seed_assets content
+expect_verify_stop '配布物の中身が、git archive で取り出したタグの中身と違います。'
+grep -qF 'evil.txt' "$case_dir/err"
+# 配布物を取得できない
+make_case verify-download
+tag_here
+add_release true
+seed_assets
+GH_DL_FAIL=104 expect_verify_stop '配布物を取得できませんでした: multica-squad-kit-v1.6.0.sigstore.json'
+# ワークフローを経た流れでも、差し替えられた配布物は公開しない。
+make_case verify-after-workflow
+GH_TAMPER=content run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+grep -qF '配布物の中身が、git archive で取り出したタグの中身と違います。' "$case_dir/err"
+log_lacks '^release edit'
+[[ $(draft_flag) == true ]]
+! grep -qF 'Release を公開しました' "$case_dir/out"
+
+# 公開が失敗する: 下書きが残り、1 で終わる。流し直すと、配布物を確かめ直して公開する。
+make_case edit-fails
+tag_here
+add_release true
+seed_assets
+GH_EDIT_FAIL=1 run_release "$test_dir/answer-y"
+[[ $rc == 1 ]]
+grep -qF 'Release の公開に失敗しました。下書きは残してあります。' "$case_dir/err"
+[[ $(draft_flag) == true ]]
+rm -f "$case_dir/gh.log"
+run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+log_lacks '^release create'
+log_lacks '^workflow run'
+[[ $(log_count 'releases/assets/') == 4 ]]
+log_has '^release edit v1.6.0 --repo example/kit --draft=false$'
+grep -qxF 'すること: すでにある下書きの Release の配布物を確かめ、公開する' "$case_dir/out"
+[[ $(draft_flag) == false ]]
 
 # 引数: 知らない引数と余分な引数は、使い方を出して 2 で終わる。--help と -h は、使い方を出して 0 で終わる。
 make_case args
@@ -472,4 +956,4 @@ for flag in --help -h; do
 	no_tag
 	[[ ! -e $case_dir/gh.log ]]
 done
-echo 'PASS release: 確かめで止まり、承認でだけ注釈付きのタグと Release を作る。拒否・端末でない・push と Release の失敗・すでにあるタグと Release の状態・引数を確かめた'
+echo 'PASS release: 確かめで止まり、承認でだけ、タグと下書きの Release を作り、ワークフローで配布物を作らせ、確かめてから公開する。拒否・端末でない・各手順の失敗と流し直し・公開の前の確かめの失敗・すでにあるタグと Release の状態・引数を確かめた'

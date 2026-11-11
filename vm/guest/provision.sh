@@ -18,7 +18,22 @@ source_dir=$(cd "$(dirname "$0")" && pwd)
 
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps ca-certificates curl uidmap dbus-user-session slirp4netns iptables apparmor
+apt-get install -y bash zsh git jq zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps ca-certificates curl uidmap dbus-user-session slirp4netns iptables apparmor
+# Ubuntu 24.04 の標準の gh は 2.45.0 で gh attestation を持たない。GitHub の公式の apt のリポジトリの鍵と sources を置き、そこから入れる。
+install -d -m 0755 "$guest_root/etc/apt/keyrings" "$guest_root/etc/apt/sources.list.d"
+architecture=$(dpkg --print-architecture)
+curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o "$guest_root/etc/apt/keyrings/githubcli-archive-keyring.gpg"
+chmod 0644 "$guest_root/etc/apt/keyrings/githubcli-archive-keyring.gpg"
+cat >"$guest_root/etc/apt/sources.list.d/github-cli.sources" <<EOF
+Types: deb
+URIs: https://cli.github.com/packages
+Suites: stable
+Components: main
+Architectures: $architecture
+Signed-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+EOF
+apt-get update
+apt-get install -y gh
 if ! passwd_entry=$(getent passwd "$guest_user"); then
 	[[ $platform == wsl ]] || die 'Lima の使う人が見つかりません。'
 	useradd --create-home --shell /bin/bash "$guest_user"
@@ -44,10 +59,8 @@ for kind in subuid subgid; do
 	fi
 done
 
-install -d -m 0755 "$guest_root/etc/apt/keyrings" "$guest_root/etc/apt/sources.list.d"
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o "$guest_root/etc/apt/keyrings/docker.asc"
 chmod 0644 "$guest_root/etc/apt/keyrings/docker.asc"
-architecture=$(dpkg --print-architecture)
 cat >"$guest_root/etc/apt/sources.list.d/docker.sources" <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/ubuntu

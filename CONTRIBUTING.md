@@ -68,8 +68,10 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
 
 自動テストで確かめる範囲は、macOS と Ubuntu 24.04 のセットアップ・再実行、導入の確認、Webhook の登録・配信確認、起票、関所の許可と拒否、見張り、シェル設定と時刻の読み取り、VM を作るスクリプトの引数と閉じ込めの設定である。  
 実行の始めの確認と、ランタイムのコマンドの組み立てをまねた PATH の復元も確かめる。  
+入口のスクリプト（`install.sh`）の確かめと展開、README の 1 行のコマンドの擬似端末での実行、配布物を作るスクリプト、発行のコマンド（`scripts/release.sh`）、発行のワークフローの定義の決まりも確かめる。  
 CI でも両 OS に同じテストを流す。  
-外部 CLI とサーバー、`limactl` と `wsl.exe` はスタブを使う。
+外部 CLI とサーバー、`limactl` と `wsl.exe` はスタブを使う。  
+発行のワークフローの実行と、本物の GitHub での証明の確かめは、最初のバージョンを出すときに人が確かめる。
 
 認証済みのデーモン・ランタイムの実行と、WSL 実機の動作は、VM を使わない普段のユーザーでは未確認である。  
 WSL 2 は Linux との互換性と各ツールの公式対応に基づく対応である。
@@ -138,8 +140,9 @@ Mac は Lima、Windows は WSL の専用のディストリで、それぞれ確�
 
 ## タグと Release を出す
 
-人間が、レビューと CI を通した変更のマージ後に、原本のリポジトリのルートで次を流す。  
-タグの名前は `VERSION` から読む。
+人間が、バージョンを上げる PR のマージのあとに、原本のリポジトリのルートで次を流す。  
+タグの名前は `VERSION` から読む。  
+`gh` は 2.102.0 以上が要る。
 
 ```bash
 git switch main
@@ -148,16 +151,51 @@ bash scripts/release.sh
 ```
 
 コマンドは、公開の前に、バージョン、タグを付けるコミット、Release の本文（`CHANGELOG.md` のそのバージョンの節）を出して、確認を求める。  
-`y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、Release を作る。
-
 確認は端末で答えるので、端末から流す。  
 パイプや自動の実行では、公開されない。
+
+`y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、下書きの Release を作る。  
+そのあと、配布物を作るワークフローの終わりを待ち、配布物と証明を確かめて、確かめが通ったときだけ公開する。
 
 止まったときは、出た理由に従って直してから、流し直す。  
 未公開のコミットがあるときや、`VERSION` と `CHANGELOG.md` の先頭のバージョンが違うときは、変更を PR でレビュー・マージしてからやり直す。
 
-Release の作成だけが失敗したときも、同じコマンドを流し直す。  
-タグは作り直さず、Release だけを作る。
+下書きの作成、ワークフロー、公開のどこで失敗したときも、同じコマンドを流し直す。  
+タグは作り直さず、続きから進む。
+
+配布物の確かめで止まったときは、流し直さない。  
+下書きの配布物を GitHub の画面で見て、差し替えられていないかを調べる。
 
 発行済みのタグは動かさない。  
 修正は新しいタグで配る。
+
+### リポジトリの設定
+
+README の 1 行のコマンドは、入口のスクリプト（`install.sh`）を確かめずに流す。  
+入口は公開した Release にあるので、公開したあとに差し替えられると、そのまま流れてしまう。  
+これを防ぐため、リポジトリの管理者が、公開したあとの Release の配布物とタグを差し替えられない次の 2 つを設定する。  
+この変更を入れた最初のバージョンを出す前に行う。  
+不変の Release は、有効にしたあとに公開した Release にだけ効くため。
+
+| 設定 | 値 |
+| --- | --- |
+| Settings → Releases の「Enable release immutability」 | 有効にする |
+| タグの ruleset（Target tags は `v*`） | 「Restrict updates」と「Restrict deletions」を有効にし、「Restrict creations」は付けない。bypass の一覧は空にする |
+
+ruleset は、タグを作ることを止めない。  
+`scripts/release.sh` が、タグを push できるようにするため。
+
+設定のあと、最初のバージョンを出したら、公開済みの Release とそのタグが、差し替えられないことを確かめる。  
+`V` には、公開したバージョンのタグを入れる。
+
+```bash
+V=v1.8.0
+D=$(mktemp -d)
+gh release download "$V" --repo AnD00/multica-squad-kit --pattern SHA256SUMS --dir "$D"
+gh release upload "$V" "$D/SHA256SUMS" --repo AnD00/multica-squad-kit --clobber
+git push --force origin "refs/tags/$V^{commit}:refs/tags/$V"
+```
+
+どちらも、拒まれれば設定が効いている。  
+通ってしまったら、設定が効いていないので、直す。  
+`git push` が通ったときは、`git push --force origin "refs/tags/$V:refs/tags/$V"` で、注釈付きのタグに戻す。
