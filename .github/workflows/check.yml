@@ -5,31 +5,43 @@ on:
     branches: [main]
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   scripts:
+    timeout-minutes: 10
     env:
       SQUAD_KIT_REQUIRE_PWSH: '1'
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-24.04]
+        include:
+          - { os: macos-latest, shard: 1/4 }
+          - { os: macos-latest, shard: 2/4 }
+          - { os: macos-latest, shard: 3/4 }
+          - { os: macos-latest, shard: 4/4 }
+          - { os: ubuntu-24.04, shard: 1/2 }
+          - { os: ubuntu-24.04, shard: 2/2 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - if: runner.os == 'macOS'
-        run: brew install jq python
       - if: runner.os == 'Linux'
         run: |
           sudo apt-get update
           sudo apt-get install -y bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps
       - name: Tests
+        env:
+          SQUAD_KIT_TEST_SHARD: ${{ matrix.shard }}
         run: /bin/bash tests/run.sh
       - name: Syntax and integrity
+        if: startsWith(matrix.shard, '1/')
         run: |
           bash scripts/check.sh
           bash scripts/manifest.sh
           git diff --exit-code -- MANIFEST
   content:
+    timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

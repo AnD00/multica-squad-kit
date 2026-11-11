@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh と全 lib を本体のまま通し、外部 CLI とホストのプロセスだけを差し替える。
-set -euo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd)
+# setup-runtimes-*-test.sh が読み込む共通の処理。選んだランタイムを $runtime_selections で受け、それぞれの入口を通す。単独では実行しない。
 mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/setup-runtimes.XXXXXX")
 scenario_dir=$test_dir
@@ -21,7 +19,7 @@ done
 (cd "$test_dir/package"; while IFS= read -r file; do shasum -a 256 "$file"; done < <(find . -type f | LC_ALL=C sort)) >"$test_dir/package-manifest"
 cp "$test_dir/package-manifest" "$test_dir/package/MANIFEST"
 
-for selected in claude codex both; do
+for selected in $runtime_selections; do
  scenario_dir="$test_dir/$selected"
  mkdir -p "$scenario_dir/bin"
  : >"$scenario_dir/out"; : >"$scenario_dir/err"

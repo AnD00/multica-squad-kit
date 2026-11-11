@@ -5,10 +5,18 @@
 # なければ 2 で終わる。macOS の bash 3.2 には wait -n がないので、xargs -P で
 # 1 本ごとに tests/run-one.sh を起こす。run-one.sh は成否によらず 0 で終わり、
 # 結果をファイルに書く。xargs が途中で起こすのをやめないようにするため。
-# 下の slow の一覧のファイルを先に、残りを名前の順に起こす。遅いファイルが後に
-# 回ると、全体がその分だけ延びるため。一覧のファイルがなければ 2 で終わる。
+# 重みの大きい順（同じ重みは名前の順）に起こす。遅いファイルが後に回ると、全体が
+# その分だけ延びるため。重みは tests/test-weights に 1 行 1 ファイルで書く（名前と
+# macOS の CI での秒数を空白で区切る。# で始まる行と空の行は読み飛ばす）。一覧に
+# ないファイルは 30 秒として扱い、一覧にあるファイルがなければ 2 で終わる。
 # 補助の run-one.sh と run-hook.sh は、テストとして拾われないよう -test.sh で
 # 終えない。
+#
+# シャード: SQUAD_KIT_TEST_SHARD=k/N（1 ≦ k ≦ N の正の整数）なら、選んだファイルを
+# N 個に分け、k 番目だけを流す。重みの大きい順に、それまでの重みの合計がいちばん
+# 小さいシャード（同じなら番号の小さいほう）へ入れるので、同じ一覧からは毎回同じ分け
+# 方になり、全シャードを合わせると指定のないときと同じファイルを流す。流すファイル
+# がないシャードは、0 本として 0 で終わる。指定がなければすべてを流す。
 #
 # 分け方: 1 回の実行で tmp/test-run.XXXXXX/ を作り、ファイルごとに空の HOME と
 # TMPDIR を渡す。既定の置き場所に書くテストどうしが取り合わず、開発者の本物の
@@ -41,13 +49,53 @@ if [[ ! $jobs =~ ^[0-9]+$ || ! $jobs =~ [1-9] ]]; then
 	exit 2
 fi
 while [[ $jobs == 0* ]]; do jobs=${jobs#0}; done
-slow=(tests/project-test.sh tests/project-followup-test.sh tests/squad-dispatch-pick-test.sh tests/squad-dependabot-merge-test.sh)
-for test in "${slow[@]}"; do
-	if [[ ! -f $test ]]; then
-		printf '起こす順の一覧にあるファイルがありません: %s\n' "$test" >&2
+shard=
+shard_index=1 shard_count=1
+if [[ ${SQUAD_KIT_TEST_SHARD+x} ]]; then
+	shard=$SQUAD_KIT_TEST_SHARD
+	if [[ ! $shard =~ ^([0-9]{1,6})/([0-9]{1,6})$ ]]; then
+		echo 'SQUAD_KIT_TEST_SHARD は k/N の形（1 ≦ k ≦ N の正の整数、例: 2/4）にしてください' >&2
 		exit 2
 	fi
-done
+	shard_index=$((10#${BASH_REMATCH[1]})) shard_count=$((10#${BASH_REMATCH[2]}))
+	if ((shard_index < 1 || shard_index > shard_count)); then
+		echo 'SQUAD_KIT_TEST_SHARD は k/N の形（1 ≦ k ≦ N の正の整数、例: 2/4）にしてください' >&2
+		exit 2
+	fi
+fi
+default_weight=30
+weights_file=tests/test-weights
+if [[ ! -f $weights_file ]]; then
+	printf '重みの一覧がありません: %s\n' "$weights_file" >&2
+	exit 2
+fi
+weight_names=() weight_values=()
+while IFS= read -r line || [[ -n $line ]]; do
+	if [[ $line =~ ^[[:space:]]*(#|$) ]]; then continue; fi
+	read -r name seconds extra <<<"$line"
+	if [[ -n $extra || ! $seconds =~ ^[0-9]{1,9}$ ]]; then
+		printf '重みの一覧の行が正しくありません（名前と秒を空白で区切る）: %s\n' "$line" >&2
+		exit 2
+	fi
+	for existing in ${weight_names[@]+"${weight_names[@]}"}; do
+		if [[ $existing == "$name" ]]; then
+			printf '重みの一覧に同じファイルが 2 回あります: %s\n' "$name" >&2
+			exit 2
+		fi
+	done
+	if [[ ! -f $name ]]; then
+		printf '重みの一覧にあるファイルがありません: %s\n' "$name" >&2
+		exit 2
+	fi
+	weight_names+=("$name") weight_values+=("$((10#$seconds))")
+done <"$weights_file"
+weight_of() {
+	local i
+	for ((i=0; i<${#weight_names[@]}; i++)); do
+		if [[ ${weight_names[$i]} == "$1" ]]; then printf '%s' "${weight_values[$i]}"; return; fi
+	done
+	printf '%s' "$default_weight"
+}
 if [[ $# == 0 ]]; then set -- tests/*-test.sh; fi
 selected=("$@")
 for test in "${selected[@]}"; do
@@ -79,23 +127,34 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
-if ! printf '%s\0' "${selected[@]}" | LC_ALL=C sort -z >"$run_dir/selected"; then
+# 重みの大きい順、同じ重みは名前の順に並べる。鍵は「999999999 - 重み」を 9 桁にした数と名前。
+for test in "${selected[@]}"; do
+	printf '%09d\t%s\0' "$((999999999 - $(weight_of "$test")))" "$test"
+done >"$run_dir/keyed"
+if ! LC_ALL=C sort -z <"$run_dir/keyed" >"$run_dir/selected"; then
 	echo '起こす順の並べ替えに失敗しました' >&2
 	exit 1
 fi
+# 重みの大きい順に、合計がいちばん小さいシャードへ入れ、k 番目のシャードのファイルを起こす順に残す。
 ordered=()
-for priority in "${slow[@]}"; do
-	for test in "${selected[@]}"; do
-		if [[ $test == "$priority" ]]; then ordered+=("$test"); fi
+shard_totals=()
+for ((i=0; i<shard_count; i++)); do shard_totals+=(0); done
+while IFS= read -r -d '' line; do
+	test=${line#*$'\t'}
+	weight=$((999999999 - 10#${line%%$'\t'*}))
+	target=0
+	for ((i=1; i<shard_count; i++)); do
+		if ((shard_totals[i] < shard_totals[target])); then target=$i; fi
 	done
-done
-while IFS= read -r -d '' test; do
-	is_slow=no
-	for priority in "${slow[@]}"; do
-		if [[ $test == "$priority" ]]; then is_slow=yes; break; fi
-	done
-	if [[ $is_slow == no ]]; then ordered+=("$test"); fi
+	shard_totals[target]=$((shard_totals[target] + weight))
+	if ((target == shard_index - 1)); then ordered+=("$test"); fi
 done <"$run_dir/selected"
+suite_note=
+if [[ -n $shard ]]; then suite_note="、シャード $shard_index/$shard_count"; fi
+if [[ ${#ordered[@]} == 0 ]]; then
+	printf 'PASS suite: すべてのテスト（0 本、並列 %s%s）\n' "$jobs" "$suite_note"
+	exit 0
+fi
 for ((i=0; i<${#ordered[@]}; i++)); do
 	mkdir -p "$run_dir/$i/home" "$run_dir/$i/tmp"
 	printf '%s\0%s\0' "$i" "${ordered[$i]}" >>"$run_dir/queue"
@@ -174,4 +233,4 @@ if [[ ${#failed[@]} != 0 || $launch_status != 0 || $sort_status != 0 ]]; then
 	printf '\n'
 	exit 1
 fi
-printf 'PASS suite: すべてのテスト（%s 本、並列 %s）\n' "${#ordered[@]}" "$jobs"
+printf 'PASS suite: すべてのテスト（%s 本、並列 %s%s）\n' "${#ordered[@]}" "$jobs" "$suite_note"

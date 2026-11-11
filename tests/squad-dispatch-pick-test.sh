@@ -86,13 +86,16 @@ cat >"$test_dir/bin/claude" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
-python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$DISPATCH_TEST_DIR" claude "$@"
+stub_args=("$@")
+stub() { recorded=1; python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" usage "$DISPATCH_TEST_DIR" claude - "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 echo read >>"$DISPATCH_TEST_DIR/calls"
 reset=$("$DISPATCH_TEST_DIR/bin/cli-reset")
 jq -c --arg reset "$reset" '{is_error:false,result:
 	("Current session: " + (.claude.session.used_percent | tostring) + "% used · resets Oct 27 at 1am (UTC)\n"
 	+ "Current week (all models): " + (.claude.week.used_percent | tostring) + "% used · resets " + $reset)}' "$DISPATCH_TEST_DIR/usage.json" >"$DISPATCH_TEST_DIR/claude.json"
-python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" claude-usage "$DISPATCH_TEST_DIR/claude.json"
+stub emit claude-usage "$DISPATCH_TEST_DIR/claude.json"
 MOCK
 cat >"$test_dir/bin/codex" <<'MOCK'
 #!/bin/bash
@@ -102,7 +105,10 @@ if [[ "$*" == --version ]]; then
 	exit 0
 fi
 [[ "$*" == app-server ]]
-python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex "$@"
+stub_args=("$@")
+stub() { recorded=1; python3 "$USAGE_FIXTURE_ROOT/tests/cli-stub.py" usage "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex - "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 for _ in 1 2 3; do IFS= read -r request; done
 jq -c '
 	def timestamp:
@@ -113,7 +119,7 @@ jq -c '
 			| $utc - ($offset * (if .zone[0:1] == "-" then -1 else 1 end)) end;
 	{id:2,result:{ordinaryUsageAllowed:.codex.allowed,rateLimitsByLimitId:{codex:{primary:{
 		windowDurationMins:10080,usedPercent:.codex.week.used_percent,resetsAt:(.codex.week.resets_at | timestamp)}}}}}' "$DISPATCH_TEST_DIR/usage.json" >"$DISPATCH_TEST_DIR/codex.jsonl"
-python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" codex-rate-limits "$DISPATCH_TEST_DIR/codex.jsonl"
+stub emit codex-rate-limits "$DISPATCH_TEST_DIR/codex.jsonl"
 printf 'ready\n' >&9
 cat >/dev/null
 MOCK

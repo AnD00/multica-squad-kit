@@ -41,9 +41,11 @@ cat >"$test_dir/tools/multica" <<'STUB'
 #!/bin/bash
 set -euo pipefail
 work=$PREFLIGHT_TEST_DIR
-python3 "$PREFLIGHT_TEST_ROOT/tests/cli-test-trace.py" "$work" multica "$@"
-jq -cn --args '$ARGS.positional' -- "$@" >>"$work/calls.jsonl"
-if [[ "$*" == version ]]; then cat "$work/version"; exit 0; fi
+stub_args=("$@")
+stub() { recorded=1; python3 "$PREFLIGHT_TEST_ROOT/tests/cli-stub.py" multica "$work" multica calls.jsonl "$@" -- ${stub_args[@]+"${stub_args[@]}"}; }
+if [[ "$*" == version ]]; then stub record; cat "$work/version"; exit 0; fi
+recorded=
+trap '[[ -n $recorded ]] || stub record' EXIT
 case "${1-} ${2-} ${3-}" in
 'squad list --output') name=squad-list ;;
 'agent get fixture-agent') name=agent-get ;;
@@ -56,7 +58,7 @@ esac
 if [[ -f $work/cli-fail && $(cat "$work/cli-fail") == "$name" ]]; then
 	echo 'mock CLI failure' >&2; exit 19
 fi
-python3 "$PREFLIGHT_TEST_ROOT/tests/multica-fixture.py" "$work" emit "$name" "$work/responses/$name.json"
+stub emit "$name" "$work/responses/$name.json"
 STUB
 chmod +x "$test_dir/tools/multica"
 monitors=()
