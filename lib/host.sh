@@ -210,7 +210,7 @@ if ! printf 'refs/heads/template-permission-check 111111111111111111111111111111
 fi
 CHECK
 	while IFS= read -r repo; do
-		# zsh では .zshenv と env.sh を別々の段で確かめる。
+		# zsh では .zshenv と env.sh を別々の手順で確かめる。
 		for shell in /bin/zsh /bin/bash; do
 			for mode in allow deny; do
 				if ! (cd "$probe/repository" && PATH="$probe_path" ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" "$shell" -c '[[ $(command -v gh) == "$1" ]]' -- "$agent_home/bin/gh"); then

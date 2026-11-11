@@ -132,7 +132,7 @@ assert '配信 成功（HTTP 200）' in (scenario / 'out').read_text()
 display = (scenario / 'out').read_text()
 assert display.count(': 一致') == 5 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
 assert ': 要確認' not in display
-assert display.index('導入の確認:') < display.index('Webhook の登録:') < display.index('起票した issue:')
+assert display.index('導入の確認:') < display.index('Webhook の登録:') < display.index('起票したタスク:')
 issues = {i['metadata']['squad_kit_task']: i for i in db['issues']}
 assert set(issues) == {'dependabot-filter', 'repository-rules', 'project-instructions', 'squad-trial'}
 for kind, issue in issues.items():
@@ -145,7 +145,7 @@ first_issue = next(n for n, call in enumerate(calls) if call[:2] == ['issue', 'c
 last_registration = max(n for n, call in enumerate(calls) if call[:2] == ['agent', 'update'] or call[:2] == ['autopilot', 'trigger-add'])
 assert first_issue > last_registration
 assert (scenario / 'out').read_text().count('（新規）') == 4
-assert '起票できなかった issue:' not in (scenario / 'out').read_text()
+assert '起票できなかったタスク:' not in (scenario / 'out').read_text()
 pilot = next(a for a in db['autopilots'] if a['assignee_id'] == agents['usage-monitor']['id'])
 value = re.search(r'USAGE_CHECK_RUNTIMES に "([^"]+)"', pilot['description'])[1]
 assert value == ' '.join(runtimes)
@@ -182,7 +182,7 @@ PY
   printf '%s\n' 'スクワッドの動きを試す' >"$scenario_dir/fail-issue"
   if /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"; then exit 1; fi
   grep -qF 'プロジェクトの設定が終わりました' "$scenario_dir/out"
-  grep -qF '起票できなかった issue:' "$scenario_dir/out"
+  grep -qF '起票できなかったタスク:' "$scenario_dir/out"
   grep -qF 'スクワッドの動きを試す: issue を作れませんでした。' "$scenario_dir/out"
   jq -e '.issues|length==3' "$scenario_dir/db.json" >/dev/null
   rm "$scenario_dir/fail-issue"

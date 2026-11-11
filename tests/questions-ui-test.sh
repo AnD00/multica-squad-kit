@@ -21,7 +21,7 @@ grep -qF 'スクワッドに入れる人間: Member A' "$test_dir/err"
 # Webhook は既定で使わず、最後の確認にもそう出す。
 awk '/^質問 \(9\/9\) Dependabot の PR の Webhook/ {show=1} /^答えの一覧/ {show=0} show {print}' "$test_dir/err" >"$test_dir/webhook-question"
 grep -qxF '既定値: 1（Enter で使います）' "$test_dir/webhook-question"
-grep -qxF '1: 使わない（週次のスケジュールだけで扱う。Webhook の登録と issue の起票をしない）' "$test_dir/webhook-question"
+grep -qxF '1: 使わない（週次のスケジュールだけで扱う。Webhook の登録とタスクの起票をしない）' "$test_dir/webhook-question"
 grep -qxF 'Dependabot の PR の Webhook: 使わない（週次のスケジュールだけ。登録と起票をしない）' "$test_dir/err"
 # 説明に、人の目印との違いと、使う場所がある。
 grep -qF '人の目印とは別です' "$test_dir/err"
@@ -32,19 +32,19 @@ grep -qxF '1: example/one' "$test_dir/repository-question"
 grep -qxF '2: example/two' "$test_dir/repository-question"
 ! grep -qE 'https://|git@|\.git' "$test_dir/repository-question"
 awk '/^質問 \(8\/9\) 外す役/ {show=1} /^質問 \(9\/9\)/ {show=0} show {print}' "$test_dir/err" >"$test_dir/role-question"
-awk '/^常に入る役:/ {fixed=NR} /^進行役（orchestrator）:/ {leader=NR} /^外せる役:/ {optional=NR} /^1: 要件定義:/ {first=NR} END {exit !(fixed<leader && leader<optional && optional<first)}' "$test_dir/role-question"
+awk '/^常に入る役:/ {fixed=NR} /^リーダー（orchestrator）:/ {leader=NR} /^外せる役:/ {optional=NR} /^1: 要件定義:/ {first=NR} END {exit !(fixed<leader && leader<optional && optional<first)}' "$test_dir/role-question"
 grep -qxF '  エージェント: shop-orchestrator-owner' "$test_dir/role-question"
 grep -qxF '  エージェント: shop-claude-implementer-owner、shop-claude-fixer-owner' "$test_dir/role-question"
 grep -qxF '  エージェント: shop-codex-implementer-owner、shop-codex-fixer-owner' "$test_dir/role-question"
 grep -qxF '6: セキュリティ: 危険な実装を確認する。' "$test_dir/role-question"
 grep -qxF '  オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one、週 1 回の依存ライブラリの脆弱性チェック shop example/two' "$test_dir/role-question"
 grep -qxF '10: PR の CI の見張り: CIの結果を知らせる。' "$test_dir/role-question"
-grep -qxF '  見張り: 進行役が PR ごとに置く CI の見張り' "$test_dir/role-question"
+grep -qxF '  見張り: リーダーが PR ごとに置く CI の見張り' "$test_dir/role-question"
 grep -qxF '  オートパイロット: 使用上限の見張り shop-owner' "$test_dir/role-question"
 grep -qxF '  ほかに変わること: Webhook を使うかを聞かず、GitHub への Webhook の登録をしない' "$test_dir/role-question"
 ! grep -qF '選べない役:' "$test_dir/role-question"
 ! grep -qE '^  shop-(orchestrator|codex-fixer)-owner（' "$test_dir/err"
-echo 'PASS display: リポジトリ候補を OWNER/REPO にそろえ、進行役を先に示し、外せる役と二つの実装・修正の組を分ける'
+echo 'PASS display: リポジトリ候補を OWNER/REPO にそろえ、リーダーを先に示し、外せる役と二つの実装・修正の組を分ける'
 # ファイルへ出した画面には色の制御文字がない。端末なら種類ごとの色が付き、制御文字を除くと同じ文字になる。
 esc=$'\033'
 ! grep -qF "$esc" "$test_dir/err"
@@ -178,7 +178,7 @@ grep -qxF '  セキュリティ: 危険な実装を確認する。' "$test_dir/s
 grep -qxF '    エージェント: shop-security-reviewer-owner' "$test_dir/summary"
 grep -qxF '    オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one' "$test_dir/summary"
 grep -qxF '    ほかに変わること: 返事を待つ役の一覧から外れる' "$test_dir/summary"
-grep -qxF '  使用上限の見張り: AIの残量を見張る。' "$test_dir/summary"
+grep -qxF '  使用上限の見張り: AI の使用上限を見張る。' "$test_dir/summary"
 grep -qxF '    オートパイロット: 使用上限の見張り shop-owner' "$test_dir/summary"
 awk '/^外す役と、一緒に外れるもの:/ {exit} {print}' "$test_dir/summary" >"$test_dir/summary-plan"
 if grep -qE 'shop-(security-reviewer|usage-monitor)-owner' "$test_dir/summary-plan"; then exit 1; fi

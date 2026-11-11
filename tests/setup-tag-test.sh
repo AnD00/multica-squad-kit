@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clone した原本は最新のリリースのタグを取り出して流し直し、ZIP の原本と --no-checkout は今の版のまま流すことを確かめる。
+# clone した原本は最新のリリースのタグを取り出して流し直し、ZIP の原本と --no-checkout は今のバージョンのまま流すことを確かめる。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -8,7 +8,7 @@ exec 8>&2
 trap 'test_exit=$?; if [[ $test_exit != 0 && -f $test_dir/err ]]; then cat "$test_dir/out" "$test_dir/err" >&8; fi; rm -rf -- "$test_dir"' EXIT
 g() { git -c user.name=test -c user.email=test@example.test -c init.defaultBranch=main -c advice.detachedHead=false "$@"; }
 
-# タグの版の setup.sh は、受け取った印と引数を出すだけの偽物にする。main の setup.sh は本物にする。
+# タグのバージョンの setup.sh は、受け取った印と引数を出すだけの偽物にする。main の setup.sh は本物にする。
 work=$test_dir/work
 origin=$test_dir/origin.git
 g init -q "$work"
@@ -53,7 +53,7 @@ if run --no-checkout; then exit 1; fi
 grep -qF 'MANIFEST がありません' "$test_dir/err"
 ! grep -qF '取り出しました' "$test_dir/err"
 head_is main
-echo 'PASS setup-tag: --no-checkout では取り出さず、今の版のまま検査に進む'
+echo 'PASS setup-tag: --no-checkout では取り出さず、今のバージョンのまま検査に進む'
 
 fresh
 if SQUAD_KIT_TAG_CHECKED_OUT=v1.11.0 run; then exit 1; fi
@@ -82,7 +82,7 @@ rm -rf -- "$test_dir/kit/.git"
 if run; then exit 1; fi
 grep -qF 'MANIFEST がありません' "$test_dir/err"
 ! grep -qF '取り出しました' "$test_dir/err"
-echo 'PASS setup-tag: .git のない原本（ZIP）は、展開した版のまま検査に進む'
+echo 'PASS setup-tag: .git のない原本（ZIP）は、展開したバージョンのまま検査に進む'
 
 g -C "$work" tag v1.12.0 main
 push_tag v1.12.0

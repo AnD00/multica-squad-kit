@@ -76,7 +76,7 @@ deny('replace-agent')
 (ext / 'monitor/squad-pr-watch').write_text('replace')
 deny('replace-monitor')
 (ext / 'monitor/squad-pr-watch').unlink()
-print('PASS extensions: 版の違いは配置前に止め、指示・役・見張りの置き換えを拒否する')
+print('PASS extensions: バージョンの違いは配置前に止め、指示・役・見張りの置き換えを拒否する')
 PY
 # 前の拡張を外したときも、停止対象を原本とは別に引き継ぐ。
 /bin/bash -s -- "$root" "$test_dir" <<'SH'

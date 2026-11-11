@@ -66,7 +66,7 @@ for title in 'example/one の Dependabot の Webhook のフィルターを設定
  grep -qF "${title}（新規）" "$test_dir/out"
 done
 [[ $(grep -c '^  TEST-' "$test_dir/out") == 6 ]]
-! grep -qF '起票できなかった issue:' "$test_dir/out"
+! grep -qF '起票できなかったタスク:' "$test_dir/out"
 cp "$TEST_DB/db.json" "$test_dir/first.json"
 run
 cmp "$test_dir/first.json" "$TEST_DB/db.json"
@@ -92,12 +92,12 @@ deny
 jq -e '.issues|length==5 and any(.[];.metadata.squad_kit_task=="squad-trial")' "$TEST_DB/db.json" >/dev/null
 grep -qF 'プロジェクトの設定が終わりました' "$test_dir/out"
 grep -qF '今回作った件数:' "$test_dir/out"
-grep -qF '起票できなかった issue:' "$test_dir/out"
+grep -qF '起票できなかったタスク:' "$test_dir/out"
 grep -qF 'example/one の Dependabot の Webhook のフィルターを設定する: issue を作れませんでした。' "$test_dir/out"
 [[ $(grep -c '（新規）' "$test_dir/out") == 5 ]]
 rm "$TEST_DB/fail-issue"
 run
 jq -e '.issues|length==6' "$TEST_DB/db.json" >/dev/null
 [[ $(grep -c '（新規）' "$test_dir/out") == 1 && $(grep -c '（既存）' "$test_dir/out") == 5 ]]
-! grep -qF '起票できなかった issue:' "$test_dir/out"
+! grep -qF '起票できなかったタスク:' "$test_dir/out"
 echo 'PASS project issues: 途中の起票失敗でも残りを起票し、題と理由を表示して失敗を返し、流し直すと未起票分だけ作る'

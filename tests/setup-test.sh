@@ -88,7 +88,7 @@ jq 'del(.dependabot_webhook)' "$test_dir/previous" >"$saved"
 printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 cmp "$saved" "$test_dir/previous"
-grep -qF '警告: 前の答えにはこの項目がありません。前の版は聞かずに Webhook を登録していました。' "$test_dir/err"
+grep -qF '警告: 前の答えにはこの項目がありません。前のバージョンは聞かずに Webhook を登録していました。' "$test_dir/err"
 printf '1\n\n\n\n\n\n\n12\nyes\n' >"$test_dir/input"
 run
 jq -e '.dependabot_webhook==false and (.excluded_roles|index("dependabot-merger")!=null)' "$saved" >/dev/null
@@ -121,7 +121,7 @@ printf '1\n1\ndemo\n1\nmembera\n99\n1\n1\n99\n3 4\n4 9\n\nyes\n' >"$test_dir/inp
 run
 jq -e '.member_ids==["member-a"] and .excluded_roles==["codex-fixer","codex-implementer","qa"]' "$saved" >/dev/null
 grep -q '少なくとも一系統' "$test_dir/err"
-echo 'PASS setup: 一覧にない選択・進行役の除外・両系統の除外は聞き直す'
+echo 'PASS setup: 一覧にない選択・リーダーの除外・両系統の除外は聞き直す'
 cp "$saved" "$test_dir/updated"
 base_input yes
 TEST_SAVE_FAIL=yes deny
@@ -188,12 +188,12 @@ ext_deny() {
 }
 ext_deny "$test_dir/callers/missing" '拡張のディレクトリがありません。'
 printf 'v0.0.0\n' >"$test_dir/callers/extension/kit-version"
-ext_deny "$test_dir/callers/extension" '拡張が求める原本の版と、流している版が違います'
+ext_deny "$test_dir/callers/extension" '拡張が求める原本のバージョンと、流しているバージョンが違います'
 cp "$test_dir/package/VERSION" "$test_dir/callers/extension/kit-version"
 : >"$test_dir/callers/extension/unknown.txt"
 ext_deny "$test_dir/callers/extension" '未知の拡張の項目です'
 rm "$test_dir/callers/extension/unknown.txt"
-echo 'PASS setup: --extension のディレクトリがない・版が違う・形式が違うときは、CLI と保存の前に止まる'
+echo 'PASS setup: --extension のディレクトリがない・バージョンが違う・形式が違うときは、CLI と保存の前に止まる'
 for args in '--extension' '--extension=' '--extension a --extension b' '--extension=a --other'; do
  # shellcheck disable=SC2086
  if run_extension "$test_dir" $args; then exit 1; fi

@@ -48,7 +48,7 @@ changelog_default() {
 ## v1.6.0
 
 
-新しい版の 1 段落目。
+新しいバージョンの 1 段落目。
 
 - 項目 1
 - 項目 2
@@ -56,10 +56,10 @@ changelog_default() {
 
 ## v1.5.0
 
-古い版の本文。
+古いバージョンの本文。
 CHANGELOG
 }
-notes_expected=$'新しい版の 1 段落目。\n\n- 項目 1\n- 項目 2'
+notes_expected=$'新しいバージョンの 1 段落目。\n\n- 項目 1\n- 項目 2'
 
 # make_case <名前> [origin の URL]: bare の origin と、その URL を insteadOf で bare に向けた作業コピーを作る。
 make_case() {
@@ -124,7 +124,7 @@ printf 'yes\n' >"$test_dir/answer-yes"
 no_release() { [[ ! -e $case_dir/gh.log ]] || ! grep -q '^release create' "$case_dir/gh.log"; }
 no_tag() { [[ -z $(git -C "$work" tag) && -z $(git -C "$bare" tag) ]]; }
 
-# 承認する: origin に注釈付きのタグができ、main の先頭を指す。Release の本文は、その版の節の前後の空行を除いたもの。
+# 承認する: origin に注釈付きのタグができ、main の先頭を指す。Release の本文は、そのバージョンの節の前後の空行を除いたもの。
 make_case approve
 main_head=$(git -C "$work" rev-parse HEAD)
 run_release "$test_dir/answer-y"
@@ -137,9 +137,9 @@ run_release "$test_dir/answer-y"
 [[ $(grep -c '^release create' "$case_dir/gh.log") == 1 ]]
 grep -q '^release create v1.6.0 --repo example/kit --verify-tag --title v1.6.0 --notes-file ' "$case_dir/gh.log"
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
-grep -qxF '出す版: v1.6.0' "$case_dir/out"
+grep -qxF '出すバージョン: v1.6.0' "$case_dir/out"
 grep -qF "タグを付けるコミット: $main_head Release content" "$case_dir/out"
-grep -qxF '新しい版の 1 段落目。' "$case_dir/out"
+grep -qxF '新しいバージョンの 1 段落目。' "$case_dir/out"
 grep -qF 'https://github.com/example/kit/releases/tag/v1.6.0' "$case_dir/out"
 grep -qF '公開しますか [y/N]: ' "$case_dir/err"
 
@@ -238,17 +238,17 @@ for bad in 1.6.0 v1.6 v1.6.0.1 v01.6.0 v1.6.0-rc1 'v1.6.0 ' ''; do
 	expect_stop 'vX.Y.Z の形ではありません'
 done
 
-# 7: CHANGELOG.md の先頭の版が VERSION と違う
+# 7: CHANGELOG.md の先頭のバージョンが VERSION と違う
 make_case stop-changelog-top
 printf 'v1.7.0\n' >"$work/VERSION"
 commit_work 'Version only'
-expect_stop 'CHANGELOG.md の先頭の版'
+expect_stop 'CHANGELOG.md の先頭のバージョン'
 grep -qF 'v1.7.0' "$case_dir/err"
 grep -qF 'v1.6.0' "$case_dir/err"
 
-# 8: その版の節が、空白と改行だけ
+# 8: そのバージョンの節が、空白と改行だけ
 make_case stop-empty-section
-printf '# 変更の記録\n\n## v1.6.0\n\n  \n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+printf '# 変更の記録\n\n## v1.6.0\n\n  \n\n## v1.5.0\n\n古いバージョンの本文。\n' >"$work/CHANGELOG.md"
 commit_work 'Empty section'
 expect_stop '節が空です'
 make_case stop-empty-last-section
@@ -279,7 +279,7 @@ make_case tag-only
 tag_here
 tag_sha=$(git -C "$work" rev-parse v1.6.0)
 tag_commit=$(git -C "$work" rev-parse HEAD)
-sed 's/新しい版の 1 段落目。/main のあとの本文。/' "$work/CHANGELOG.md" >"$work/CHANGELOG.new"
+sed 's/新しいバージョンの 1 段落目。/main のあとの本文。/' "$work/CHANGELOG.md" >"$work/CHANGELOG.new"
 mv "$work/CHANGELOG.new" "$work/CHANGELOG.md"
 commit_work 'Content after the tag'
 before=$(snapshot)
@@ -370,7 +370,7 @@ printf 'v1.6.0\n' >"$work/VERSION"
 commit_work 'Back to the version'
 expect_stop_keep 'タグが指すコミットの VERSION'
 make_case tag-commit-empty-section
-printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古いバージョンの本文。\n' >"$work/CHANGELOG.md"
 commit_work 'Empty section'
 tag_here
 changelog_default >"$work/CHANGELOG.md"
@@ -392,15 +392,15 @@ GH_API=exists run_release_notty
 [[ $(snapshot) == "$before" ]]
 grep -qF 'タグが指すコミットの VERSION' "$case_dir/err"
 make_case published-tag-commit-changelog-top
-printf '# 変更の記録\n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+printf '# 変更の記録\n\n## v1.5.0\n\n古いバージョンの本文。\n' >"$work/CHANGELOG.md"
 commit_work 'Other top version'
 tag_here
 changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fix the changelog'
-GH_API=exists expect_stop_keep 'CHANGELOG.md の先頭の版'
+GH_API=exists expect_stop_keep 'CHANGELOG.md の先頭のバージョン'
 ! grep -qF 'すでに出してあります' "$case_dir/out"
 make_case published-tag-commit-empty-section
-printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古い版の本文。\n' >"$work/CHANGELOG.md"
+printf '# 変更の記録\n\n## v1.6.0\n\n## v1.5.0\n\n古いバージョンの本文。\n' >"$work/CHANGELOG.md"
 commit_work 'Empty section'
 tag_here
 changelog_default >"$work/CHANGELOG.md"
