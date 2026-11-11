@@ -67,7 +67,7 @@ squad-pr-watch conflicts-check <タスク>
 | PR がマージ済みか閉じている | `コンフリクト: 未確認 head: <SHA> 理由: PR がマージ済みか閉じている` |
 | タスクを読めない | `コンフリクト: 未確認 head: 不明 理由: タスクを読めない` |
 | metadata に `pr_url` がない | `コンフリクト: 未確認 head: 不明 理由: metadata に pr_url がない` |
-| `gh` が失敗した、応答に head がない | `コンフリクト: 未確認 head: <最後に読めた SHA か 不明> 理由: gh で PR を読めない` |
+| `gh` が失敗した、応答に `state`・`headRefOid`・`mergeable` のどれかがない | `コンフリクト: 未確認 head: <最後に読めた SHA か 不明> 理由: PR を読めない（gh の失敗か必須欄の欠落）` |
 | `gh`・`jq`・`multica` が見つからない | `コンフリクト: 未確認 head: 不明 理由: <コマンド> が見つからない` |
 
 ## 処理の順序
@@ -75,7 +75,7 @@ squad-pr-watch conflicts-check <タスク>
 1. 引数の数を確かめる。合わなければ、使い方を標準エラーに出して終了コード 2 で終える
 2. `jq`・`multica`・`gh` があるかを確かめる。なければ「未確認」の行を出す
 3. `multica issue get <タスク> --output json` でタスクを読み、metadata の `pr_url` を取る。読めないか、`pr_url` がなければ「未確認」の行を出す
-4. `gh pr view <pr_url> --json state,headRefOid,mergeable` で読む。失敗したか、`headRefOid` が空なら「未確認」の行を出す
+4. `gh pr view <pr_url> --json state,headRefOid,mergeable` を、共通ライブラリの `squad_cli_read gh-pr-mergeable` で読む。3 つの欄は必須で、`null` も認めない。失敗したか、欄が欠けたか、`headRefOid` が空なら「未確認」の行を出す
 5. `state` が `MERGED` か `CLOSED` なら「未確認」の行を出す
 6. `mergeable` が `MERGEABLE` か `CONFLICTING` なら、その値の行を出す
 7. `UNKNOWN` なら、[読み直し](#読み直し)に従って 4 に戻る。上限に達したら「未確認」の行を出す

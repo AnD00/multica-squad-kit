@@ -94,20 +94,21 @@ conflicts_check() {
 	fi
 	start=$(date +%s)
 	while :; do
-		if ! pr=$(gh pr view "$pr_url" --json state,headRefOid,mergeable) \
-			|| ! new=$(jq -r '.headRefOid // empty' <<<"$pr") || [[ -z $new ]]; then
-			conflicts_check_line 未確認 "$head" 'gh で PR を読めない'
+		# 共通の応答契約で読む。state・headRefOid・mergeable のどれかが欠けた応答は、「未確認」にする。
+		if ! pr=$(squad_cli_read gh-pr-mergeable "$pr_url") \
+			|| ! new=$(jq -r '.headRefOid' <<<"$pr") || [[ -z $new ]]; then
+			conflicts_check_line 未確認 "$head" 'PR を読めない（gh の失敗か必須欄の欠落）'
 			return 0
 		fi
 		head=$new
-		state=$(jq -r '.state // empty' <<<"$pr")
+		state=$(jq -r '.state' <<<"$pr")
 		case $state in
 		MERGED | CLOSED)
 			conflicts_check_line 未確認 "$head" 'PR がマージ済みか閉じている'
 			return 0
 			;;
 		esac
-		mergeable=$(jq -r '.mergeable // empty' <<<"$pr")
+		mergeable=$(jq -r '.mergeable' <<<"$pr")
 		case $mergeable in
 		MERGEABLE | CONFLICTING)
 			conflicts_check_line "$mergeable" "$head"

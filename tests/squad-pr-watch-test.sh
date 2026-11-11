@@ -421,7 +421,7 @@ fi
 EOF2
 chmod +x "$clock_dir/gh" "$clock_dir/sleep" "$clock_dir/date"
 
-# 呼び出しごとの応答を並べて登録する。応答は {state, head, mergeable} か FAIL。
+# 呼び出しごとの応答を並べて登録する。応答は STATE:HEAD:MERGEABLE か FAIL。実物から作った見本の値だけを差し替える。
 cc_responses() {
 	: >"$test_dir/gh-responses"
 	: >"$test_dir/gh-calls"
@@ -432,7 +432,7 @@ cc_responses() {
 			echo FAIL >>"$test_dir/gh-responses"
 		else
 			IFS=: read -r state head mergeable <<<"$r"
-			jq -cn --arg s "$state" --arg h "$head" --arg m "$mergeable" '{state:$s, headRefOid:$h, mergeable:$m}' >>"$test_dir/gh-responses"
+			fixture gh-pr-mergeable | jq -c --arg s "$state" --arg h "$head" --arg m "$mergeable" '.state = $s | .headRefOid = $h | .mergeable = $m' >>"$test_dir/gh-responses"
 		fi
 	done
 }
@@ -497,17 +497,33 @@ echo 'PASS conflicts-check: UNKNOWN が続くと 未確認 と head を出し、
 reset_fixture
 cc_responses FAIL
 line=$(cc_run 2>/dev/null)
-[[ $line == 'コンフリクト: 未確認 head: 不明 理由: gh で PR を読めない' ]] || { echo "$line" >&2; exit 1; }
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない（gh の失敗か必須欄の欠落）' ]] || { echo "$line" >&2; exit 1; }
 cc_no_nashi "$line"
 # 読み直しの途中で読めなくなったときは、最後に読めた head を書く
 cc_responses "OPEN:$head_x:UNKNOWN" FAIL
 line=$(cc_run 2>/dev/null)
-[[ $line == "コンフリクト: 未確認 head: $head_x 理由: gh で PR を読めない" ]] || { echo "$line" >&2; exit 1; }
+[[ $line == "コンフリクト: 未確認 head: $head_x 理由: PR を読めない（gh の失敗か必須欄の欠落）" ]] || { echo "$line" >&2; exit 1; }
 # head が空の応答
 : >"$test_dir/gh-calls"
 printf '%s\n' '{"state":"OPEN","headRefOid":"","mergeable":"MERGEABLE"}' >"$test_dir/gh-responses"
 line=$(cc_run)
-[[ $line == 'コンフリクト: 未確認 head: 不明 理由: gh で PR を読めない' ]] || { echo "$line" >&2; exit 1; }
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない（gh の失敗か必須欄の欠落）' ]] || { echo "$line" >&2; exit 1; }
+# 必須欄が欠けた応答（実物から作った見本から 1 欄だけ消す）は、MERGEABLE とは報告せず「未確認」の 1 行にする
+for missing in state headRefOid mergeable; do
+	cc_responses "OPEN:$head_x:MERGEABLE"
+	fixture gh-pr-mergeable | jq -c --arg k "$missing" 'del(.[$k])' >"$test_dir/gh-responses"
+	: >"$test_dir/gh-calls"
+	line=$(cc_run 2>/dev/null)
+	[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない'* ]] || { echo "$missing 欠落: $line" >&2; exit 1; }
+	[[ $line != *MERGEABLE* && $line != *CONFLICTING* ]] || { echo "$missing 欠落: $line" >&2; exit 1; }
+	cc_no_nashi "$line"
+	echo "PASS conflicts-check: $missing が欠けた応答は 未確認 の 1 行"
+done
+# null の必須欄も、値として補わない
+fixture gh-pr-mergeable | jq -c '.mergeable = null' >"$test_dir/gh-responses"
+: >"$test_dir/gh-calls"
+line=$(cc_run 2>/dev/null)
+[[ $line == 'コンフリクト: 未確認 head: 不明 理由: PR を読めない'* ]] || { echo "mergeable null: $line" >&2; exit 1; }
 reset_fixture
 jq '.metadata = {}' "$test_dir/task.json" >"$test_dir/updated.json"
 mv "$test_dir/updated.json" "$test_dir/task.json"
