@@ -12,6 +12,7 @@ issue=${1-}
 
 bin_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
 set -- \
+	squad-cli-lib \
 	squad-dependabot-merge \
 	squad-dispatch-pick \
 	squad-pr-link \

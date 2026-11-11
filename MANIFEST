@@ -39,7 +39,7 @@ ba93be75076361a32fe85feeb8770ccd1f49be56d78c2586a6bc7c3cb21167bf  ./common/label
 fcf9e17ccd8ead52fc6bdc7a24c65f9c8fc3e75f2c7004658ec76658956a0f5d  ./common/monitor/squad-pr-link
 e383e041f6e0d6878950fef2fe0b348b269647d0f8ae7e6038ba9de4526584cd  ./common/monitor/squad-pr-link-lib
 31dade5ce7a349adbd8f2acb3d96790412aab593d82c8020285a279f161badb7  ./common/monitor/squad-pr-watch
-78a3972739a9ebc7dbe60dffd599543c0ece37e28b50184cfde66d916614920a  ./common/monitor/squad-preflight
+6ea5c89cb61c724038a9af64143c91ca3bc156d51857e19ff9ffe2ecd07e7929  ./common/monitor/squad-preflight
 8bec15c91868e2e8a41319137f8827c33e20338169c7e0f94b53922d9676d507  ./common/monitor/squad-review-wait
 ad4627368608dfc7cc8a87091c2198629244b414b04758d5138a0ac5803e44cd  ./common/monitor/squad-usage-check
 67746f87ae656f2e23961f61772297fc617a13dc86f5122a61e25b26a53b133b  ./common/monitor/squad-usage-lib
