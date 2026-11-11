@@ -23,7 +23,7 @@ deafe76efbfd3f3b2616898ded2831e669eb246edac2aa6c98730f64992d3cbc  ./common/agent
 0e3e40df8d63f2a663e2346a48a1dca02bf17d0d2e8e3dc7b5e6bb846718282b  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 c469e87e9ef355cad173fa9894e020717ab24efa252f54e3b353c7b8bdef050e  ./common/agents/designer.md
-f451cf1852465c1cba400898b6450097b96bb11f5b516afd800a91653272a1f7  ./common/agents/orchestrator.md
+d46e2d233d374a8d95fe5266905e107db241c4d18a0ac2ecb330cd266af73c66  ./common/agents/orchestrator.md
 775341f7a54fed2c0ec77b03b8047b88aa557ffe627f6a7b6d0983f759237270  ./common/agents/performance-reviewer.md
 792447cdc0b16290d0a7af7e10f63836a652dbd3fc8837b51304d6b903316ad8  ./common/agents/planner.md
 c390705b43bda9ecee8aed75ea1a406b16ae6b753c3161f37040c5e9da97ea96  ./common/agents/qa.md
