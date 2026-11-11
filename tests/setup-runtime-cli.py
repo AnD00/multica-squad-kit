@@ -79,7 +79,8 @@ elif event == ('runtime', 'list'):
                    daemon_id='daemon-a', provider=runtime, status=db.get('runtime_status', {}).get(runtime, 'online'))
               for runtime in db['runtimes']] if db['running'] else []
 elif event == ('label', 'list'):
-    result = db['labels']
+    prototype = json.loads((Path(__file__).resolve().parent / 'fixtures/cli/label-list.json').read_text())[0][0]
+    result = [{**prototype, **label} for label in db['labels']]
 elif event == ('label', 'create'):
     result = create('labels', name=option('--name'), color=option('--color'),
                     description=option('--description'))

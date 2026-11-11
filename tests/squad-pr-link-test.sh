@@ -3,26 +3,39 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/pr-link-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 export PR_LINK_TEST_DIR=$test_dir
+export PR_LINK_TEST_ROOT="$root"
+source "$root/common/monitor/squad-cli-lib"
+squad_cli_contracts >"$test_dir/contracts.json"
+cli_fixture() { python3 "$root/tests/multica-fixture.py" "$test_dir" base "$@"; }
 script=$root/common/monitor/squad-pr-link
+source "$root/tests/cli-mode-test-lib.sh"
+cli_test_wrap_monitor "$script" "$test_dir"
 mkdir -p "$test_dir/bin" "$test_dir/work/tmp"
 # curl がないケースも、ホストの実物を呼ばない。
-for cmd in bash dirname jq tr cat; do
+for cmd in bash dirname jq tr cat python3 mkdir mktemp rm sed; do
 	ln -s "$(command -v "$cmd")" "$test_dir/bin/$cmd"
 done
 cat >"$test_dir/bin/multica" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 dir=$PR_LINK_TEST_DIR
+python3 "$PR_LINK_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
+if [[ ${1-} == version ]]; then echo 'multica fixture-version'; exit 0; fi
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/multica.jsonl"
 if [[ $1 == issue && $2 == get ]]; then
 	[[ $3 == TASK-7 || $3 == task-id ]]
 	[[ $4 == --output && $5 == json ]]
 	if [[ -f $dir/get-fail ]]; then echo "$MULTICA_TOKEN" >&2; exit 1; fi
-	cat "$dir/issue.json"
+	python3 "$PR_LINK_TEST_ROOT/tests/multica-fixture.py" "$dir" emit issue-get "$dir/issue.json"
 elif [[ $1 == issue && $2 == metadata && $3 == set ]]; then
 	[[ $4 == task-id && $5 == --key && $6 == pr_url && $7 == --value ]]
 	[[ $9 == --type && ${10} == string ]]
@@ -37,6 +50,7 @@ cat >"$test_dir/bin/curl" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 dir=$PR_LINK_TEST_DIR
+python3 "$PR_LINK_TEST_ROOT/tests/cli-test-trace.py" "$dir" curl "$@"
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/curl.jsonl"
 [[ $1 == -q && $2 == --config && $3 == - ]]
 config=$(cat)
@@ -87,7 +101,8 @@ export MULTICA_WORKSPACE_ID=workspace-id
 url=https://github.com/Example/Template/pull/33
 
 fixture() {
-	printf '{"id":"task-id","identifier":"TASK-7","metadata":{"repository":"example/template"}}\n' >"$test_dir/issue.json"
+	cli_fixture issue-get | jq '. + {id:"task-id",identifier:"TASK-7"} | .metadata.repository="example/template" | del(.metadata.pr_url)' >"$test_dir/issue.json"
+	rm -f "$test_dir/allow-missing-fields"
 	printf '[200]\n' >"$test_dir/statuses.json"
 	printf '[0]\n' >"$test_dir/durations.json"
 	echo 1000 >"$test_dir/now"
@@ -264,8 +279,9 @@ for failure in get set transport; do
 done
 echo 'PASS failures: タスクの読み取り・通信・metadata の失敗の診断を漏らさない'
 
-for invalid in 'null' '[]' '{}' '{"id":"task-id","identifier":"TASK-7","metadata":[]}'; do
+for invalid in 'null' '[]' '{}' ; do
 	fixture
+	touch "$test_dir/allow-missing-fields"
 	printf '%s\n' "$invalid" >"$test_dir/issue.json"
 	run_link 1 TASK-7 "$url"
 	[[ ! -s $test_dir/curl.jsonl ]]
@@ -280,7 +296,8 @@ run_link 1 TASK-7 https://github.com/Other/Template/pull/33
 assert_no_write
 grep -F 'metadata の repository と違う' "$test_dir/err" >/dev/null
 fixture
-printf '{"id":"task-id","identifier":"TASK-7","metadata":{}}\n' >"$test_dir/issue.json"
+jq 'del(.metadata.repository,.metadata.pr_url)' "$test_dir/issue.json" >"$test_dir/next.json"
+mv "$test_dir/next.json" "$test_dir/issue.json"
 run_link 0 TASK-7 "$url"
 echo 'PASS repository: 大文字小文字を区別せず照合し、値がなければ紐付ける'
 
@@ -298,3 +315,41 @@ run_link 2 TASK-7 "$url" extra
 run_link 2 '' "$url"
 [[ ! -s $test_dir/multica.jsonl && ! -s $test_dir/curl.jsonl ]]
 echo 'PASS arguments: 個数・空のタスク・URL の形が違えば、使い方と終了コード 2'
+
+# 鍵の有無の全組み合わせ。null・空文字の鍵も「ある」として保つ。
+for repository in absent same other; do
+ for linked in absent value null empty; do
+  fixture
+  jq --arg repository "$repository" --arg linked "$linked" --arg url "$url" '
+   (if $repository == "absent" then del(.metadata.repository)
+    elif $repository == "other" then .metadata.repository="other/service" else . end)
+   | if $linked == "value" then .metadata.pr_url=$url
+     elif $linked == "null" then .metadata.pr_url=null
+     elif $linked == "empty" then .metadata.pr_url="" else del(.metadata.pr_url) end' \
+   "$test_dir/issue.json" >"$test_dir/next.json"
+  mv "$test_dir/next.json" "$test_dir/issue.json"
+  expected=0
+  [[ $repository != other ]] || expected=1
+  run_link "$expected" TASK-7 "$url"
+  if [[ $repository != other && $linked == absent ]]; then
+   [[ $(jq -s length "$test_dir/curl.jsonl") == 1 ]]
+   jq -e --arg url "$url" '.metadata.pr_url==$url' "$test_dir/issue.json" >/dev/null
+  else
+   [[ ! -s $test_dir/curl.jsonl ]]
+   assert_no_write
+  fi
+ done
+done
+echo 'PASS presence: repository と pr_url の有無、null・空文字でも初回・抑止・別リポジトリの拒否を保つ'
+
+for field in id identifier status status_category metadata; do
+ fixture
+ touch "$test_dir/allow-missing-fields"
+ jq --arg field "$field" 'del(.[$field])' "$test_dir/issue.json" >"$test_dir/next.json"
+ mv "$test_dir/next.json" "$test_dir/issue.json"
+ run_link 1 TASK-7 "$url"
+ grep -F "issue-get の $field" "$test_dir/err" >/dev/null
+ [[ ! -s $test_dir/curl.jsonl ]]
+ assert_no_write
+done
+echo 'PASS contract: 必須の欄の欠落を欄名で知らせ、紐付けを書かない'

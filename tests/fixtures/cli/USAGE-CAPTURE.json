@@ -1,0 +1,51 @@
+{
+  "versions": {
+    "codex": "codex-cli 0.167.0",
+    "claude": "2.1.322 (Claude Code)"
+  },
+  "sources": {
+    "codex-rate-limits": "codex app-server: account/rateLimits/read の result",
+    "claude-usage": "claude -p /usage --output-format json"
+  },
+  "coverage": {
+    "codex-rate-limits": [
+      {
+        "name": "element",
+        "count": 1
+      },
+      {
+        "name": "primary-present",
+        "count": 1
+      },
+      {
+        "name": "secondary-null",
+        "count": 1
+      },
+      {
+        "name": "primary-null",
+        "count": 0,
+        "unavailable": "採取したアカウントは primary に週の枠を持ち、null の形は取れなかった。設計で null 可とした枠の条件外をテストする。"
+      },
+      {
+        "name": "secondary-present",
+        "count": 0,
+        "unavailable": "採取したアカウントは secondary が null で、非 null の形は取れなかった。primary と同じ枠の欄で条件付きをテストする。"
+      },
+      {
+        "name": "reached-null",
+        "count": 1
+      },
+      {
+        "name": "reached-present",
+        "count": 0,
+        "unavailable": "採取したアカウントは上限に達しておらず null だった。利用可否を変えるケースで理由の値を変更する。"
+      }
+    ],
+    "claude-usage": [
+      {
+        "name": "display",
+        "count": 1
+      }
+    ]
+  }
+}

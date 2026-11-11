@@ -1,0 +1,1664 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# セットアップが、実物の見本の VERSION の先頭行を埋める。
+SQUAD_CLI_VERIFIED_VERSION={{SQUAD_CLI_VERIFIED_VERSION}}
+# CLI の欄の約束。検証・整形の関数は、このデータを読み込んで使う。
+# fields は応答全体、items.fields は items.path の配列の各要素に当たる。
+# when と samples.where は、その要素を入力とする jq の式。
+# samples.unavailable は、採取できない形の理由。通常の欠落と分けて知らせる。
+squad_cli_contracts() {
+	cat <<'SQUAD_CLI_CONTRACTS'
+{
+  "format_version": 1,
+  "entries": {
+    "issue-get": {
+      "command": [
+        "multica",
+        "issue",
+        "get",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "identifier",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "status",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "status_category",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "metadata",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "assignee_type",
+          "class": "required",
+          "nullable": true
+        },
+        {
+          "path": "assignee_id",
+          "class": "required",
+          "nullable": true
+        },
+        {
+          "path": "metadata.ci_watch_thread",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "metadata.pr_url",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "metadata.repository",
+          "class": "optional",
+          "nullable": true
+        }
+      ],
+      "samples": [
+        {
+          "name": "assigned",
+          "where": ".assignee_type != null"
+        },
+        {
+          "name": "unassigned",
+          "where": ".assignee_type == null"
+        },
+        {
+          "name": "ci_watch_thread-present",
+          "where": ".metadata | has(\"ci_watch_thread\")"
+        },
+        {
+          "name": "ci_watch_thread-absent",
+          "where": ".metadata | has(\"ci_watch_thread\") | not"
+        },
+        {
+          "name": "pr_url-present",
+          "where": ".metadata | has(\"pr_url\")"
+        },
+        {
+          "name": "pr_url-absent",
+          "where": ".metadata | has(\"pr_url\") | not"
+        },
+        {
+          "name": "repository-present",
+          "where": ".metadata | has(\"repository\")"
+        },
+        {
+          "name": "repository-absent",
+          "where": ".metadata | has(\"repository\") | not"
+        }
+      ]
+    },
+    "issue-comments": {
+      "command": [
+        "multica",
+        "issue",
+        "comment",
+        "list",
+        "{issue}",
+        "--full",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "author_type",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "author_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "content",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "parent_id",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "source_task_id",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".author_type == \"agent\" or .author_type == \"system\""
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "member",
+          "where": ".author_type == \"member\""
+        },
+        {
+          "name": "agent",
+          "where": ".author_type == \"agent\""
+        },
+        {
+          "name": "system",
+          "where": ".author_type == \"system\""
+        }
+      ]
+    },
+    "issue-runs": {
+      "command": [
+        "multica",
+        "issue",
+        "runs",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "agent_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "kind",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "status",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "delivered_comment_ids",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "error",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "trigger_comment_id",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".kind == \"comment\""
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "comment",
+          "where": ".kind == \"comment\""
+        },
+        {
+          "name": "direct",
+          "where": ".kind == \"direct\""
+        }
+      ]
+    },
+    "issue-wakeups": {
+      "command": [
+        "multica",
+        "issue",
+        "wakeup",
+        "list",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "agent_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "mode",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "enabled",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "instruction",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "condition",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "paused_reason",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "condition.type",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".condition != null"
+          },
+          {
+            "path": "condition.event",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".condition.type == \"pull_request\""
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "no-condition",
+          "where": ".condition == null"
+        },
+        {
+          "name": "pull-request",
+          "where": ".condition.type == \"pull_request\""
+        }
+      ]
+    },
+    "issue-labels": {
+      "command": [
+        "multica",
+        "issue",
+        "label",
+        "list",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "issue-metadata": {
+      "command": [
+        "multica",
+        "issue",
+        "metadata",
+        "list",
+        "{issue}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "repository",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "pr_url",
+          "class": "optional",
+          "nullable": true
+        }
+      ],
+      "samples": [
+        {
+          "name": "pr-present",
+          "where": "has(\"pr_url\")"
+        },
+        {
+          "name": "pr-absent",
+          "where": "has(\"pr_url\") | not"
+        },
+        {
+          "name": "repository-present",
+          "where": "has(\"repository\")"
+        },
+        {
+          "name": "repository-absent",
+          "where": "has(\"repository\") | not"
+        }
+      ]
+    },
+    "issue-search": {
+      "command": [
+        "multica",
+        "issue",
+        "search",
+        "{query}",
+        "--include-closed",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "issues",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "items": {
+        "path": [
+          "issues"
+        ],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "identifier",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "title",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "project_id",
+            "class": "required",
+            "nullable": true
+          }
+        ]
+      }
+    },
+    "agent-get": {
+      "command": [
+        "multica",
+        "agent",
+        "get",
+        "{agent}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "name",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "archived_at",
+          "class": "required",
+          "nullable": true
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "squad-list": {
+      "command": [
+        "multica",
+        "squad",
+        "list",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "leader_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "archived_at",
+            "class": "required",
+            "nullable": true
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "label-list": {
+      "command": [
+        "multica",
+        "label",
+        "list",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "resource_type",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "member-list": {
+      "command": [
+        "multica",
+        "workspace",
+        "member",
+        "list",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "user_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "email",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "issue-comment-add": {
+      "command": [
+        "multica",
+        "issue",
+        "comment",
+        "add",
+        "{issue}",
+        "--parent",
+        "{parent}",
+        "--content-file",
+        "{file}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "response",
+          "where": "true"
+        }
+      ],
+      "capture": "response-file"
+    },
+    "issue-create": {
+      "command": [
+        "multica",
+        "issue",
+        "create",
+        "--title",
+        "{title}",
+        "--description-file",
+        "{file}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "identifier",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "capture": "response-file"
+    },
+    "issue-wakeup-create": {
+      "command": [
+        "multica",
+        "issue",
+        "wakeup",
+        "create",
+        "{issue}",
+        "--instruction-file",
+        "{file}",
+        "--output",
+        "json"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "id",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "capture": "response-file"
+    },
+    "gh-pr-checks": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{pr}",
+        "--json",
+        "state,headRefOid,statusCheckRollup"
+      ],
+      "shape": "object",
+      "fields": [
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "statusCheckRollup",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "CheckRun",
+          "where": ".__typename == \"CheckRun\""
+        },
+        {
+          "name": "StatusContext",
+          "where": ".__typename == \"StatusContext\"",
+          "unavailable": "このリポジトリの CI は commit status を使わない。欄は設計文書の GitHub GraphQL スキーマに基づく。"
+        }
+      ],
+      "items": {
+        "path": [
+          "statusCheckRollup"
+        ],
+        "fields": [
+          {
+            "path": "__typename",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"CheckRun\""
+          },
+          {
+            "path": "status",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"CheckRun\""
+          },
+          {
+            "path": "workflowName",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"CheckRun\""
+          },
+          {
+            "path": "conclusion",
+            "class": "conditional",
+            "nullable": true,
+            "when": ".__typename == \"CheckRun\""
+          },
+          {
+            "path": "context",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"StatusContext\""
+          },
+          {
+            "path": "state",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".__typename == \"StatusContext\""
+          }
+        ]
+      }
+    },
+    "gh-dependabot-pulls": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "dependabot",
+          "where": ".user.login == \"dependabot[bot]\""
+        },
+        {
+          "name": "other",
+          "where": ".user.login != \"dependabot[bot]\""
+        },
+        {
+          "name": "user-null",
+          "where": ".user == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "user",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "number",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "state",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "user.type",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".user != null"
+          },
+          {
+            "path": "user.login",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".user != null"
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-branch-rules": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "required",
+          "where": ".type == \"required_status_checks\""
+        },
+        {
+          "name": "other",
+          "where": ".type != \"required_status_checks\""
+        },
+        {
+          "name": "integration_id-present",
+          "where": "any(.parameters.required_status_checks[]?; has(\"integration_id\"))"
+        },
+        {
+          "name": "integration_id-absent",
+          "where": "any(.parameters.required_status_checks[]?; has(\"integration_id\") | not)",
+          "unavailable": "採取した公開リポジトリの規則は integration_id を出す。省略可能の分類は GitHub REST API の仕様と承認済み設計による。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "type",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "parameters.required_status_checks",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".type == \"required_status_checks\""
+          }
+        ],
+        "items": {
+          "path": [
+            "parameters",
+            "required_status_checks"
+          ],
+          "when": ".type == \"required_status_checks\"",
+          "fields": [
+            {
+              "path": "context",
+              "class": "required",
+              "nullable": false
+            },
+            {
+              "path": "integration_id",
+              "class": "optional",
+              "nullable": true
+            }
+          ]
+        }
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-dependabot-pr": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{number}",
+        "--repo",
+        "{repo}",
+        "--json",
+        "number,title,author,state,isDraft,baseRefName,headRefOid,headRefName,mergeable,mergeStateStatus"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "author",
+          "class": "required",
+          "nullable": true
+        },
+        {
+          "path": "number",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "title",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "author.is_bot",
+          "class": "conditional",
+          "nullable": false,
+          "when": ".author != null"
+        },
+        {
+          "path": "author.login",
+          "class": "conditional",
+          "nullable": false,
+          "when": ".author != null"
+        },
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "isDraft",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "baseRefName",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefName",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeable",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeStateStatus",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "dependabot",
+          "where": ".author.login == \"app/dependabot\""
+        },
+        {
+          "name": "author-null",
+          "where": ".author == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ]
+    },
+    "gh-pr-head": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{number}",
+        "--repo",
+        "{repo}",
+        "--json",
+        "headRefOid"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "gh-pr-mergeable": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{pr}",
+        "--json",
+        "state,headRefOid,mergeable"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeable",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "gh-commit": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "fields": [
+        {
+          "path": "commit.message",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "commit.committer.date",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "pagination": {
+        "kind": "object"
+      }
+    },
+    "gh-pr-files": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "patch-present",
+          "where": "has(\"patch\")"
+        },
+        {
+          "name": "patch-absent",
+          "where": "has(\"patch\") | not",
+          "unavailable": "採取した Dependabot の PR はテキスト差分だけで patch を出す。バイナリ・大きな差分での省略は GitHub REST API の仕様による。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "status",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "additions",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "deletions",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "patch",
+            "class": "optional",
+            "nullable": true
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-check-runs": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        },
+        {
+          "name": "app-null",
+          "where": ".app == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ],
+      "fields": [
+        {
+          "path": "check_runs",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "items": {
+        "path": [
+          "check_runs"
+        ],
+        "fields": [
+          {
+            "path": "app",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "name",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "app.id",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".app != null"
+          },
+          {
+            "path": "status",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "conclusion",
+            "class": "required",
+            "nullable": true
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "object",
+        "path": [
+          "check_runs"
+        ]
+      }
+    },
+    "gh-statuses": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true",
+          "unavailable": "採取した公開元の commit status はいずれも空配列だった。欄は GitHub REST API の仕様による。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "context",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "state",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-pr-comments": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}",
+        "--paginate"
+      ],
+      "shape": "array",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        },
+        {
+          "name": "user-null",
+          "where": ".user == null",
+          "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+        }
+      ],
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "user",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "id",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "user.login",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".user != null"
+          },
+          {
+            "path": "body",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "pagination": {
+        "kind": "array"
+      }
+    },
+    "gh-viewer": {
+      "command": [
+        "gh",
+        "api",
+        "user",
+        "--jq",
+        "with_entries(select(.key == \"login\"))"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "login",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
+    "codex-rate-limits": {
+      "command": [
+        "codex",
+        "app-server",
+        "account/rateLimits/read"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "ordinaryUsageAllowed",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "rateLimitsByLimitId",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "rateLimits.rateLimitReachedType",
+          "class": "required",
+          "nullable": true
+        }
+      ],
+      "values": {
+        "path": [
+          "rateLimitsByLimitId"
+        ],
+        "fields": [
+          {
+            "path": "primary",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "secondary",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "primary.windowDurationMins",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".primary != null"
+          },
+          {
+            "path": "primary.usedPercent",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".primary != null"
+          },
+          {
+            "path": "primary.resetsAt",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".primary != null"
+          },
+          {
+            "path": "secondary.windowDurationMins",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".secondary != null"
+          },
+          {
+            "path": "secondary.usedPercent",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".secondary != null"
+          },
+          {
+            "path": "secondary.resetsAt",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".secondary != null"
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        },
+        {
+          "name": "primary-present",
+          "where": "any(.rateLimitsByLimitId[]; .primary != null)"
+        },
+        {
+          "name": "secondary-null",
+          "where": "any(.rateLimitsByLimitId[]; .secondary == null)"
+        },
+        {
+          "name": "primary-null",
+          "where": "any(.rateLimitsByLimitId[]; .primary == null)",
+          "unavailable": "採取したアカウントは primary に週の枠を持ち、null の形は取れなかった。設計で null 可とした枠の条件外をテストする。"
+        },
+        {
+          "name": "secondary-present",
+          "where": "any(.rateLimitsByLimitId[]; .secondary != null)",
+          "unavailable": "採取したアカウントは secondary が null で、非 null の形は取れなかった。primary と同じ枠の欄で条件付きをテストする。"
+        },
+        {
+          "name": "reached-null",
+          "where": ".rateLimits.rateLimitReachedType == null"
+        },
+        {
+          "name": "reached-present",
+          "where": ".rateLimits.rateLimitReachedType != null",
+          "unavailable": "採取したアカウントは上限に達しておらず null だった。利用可否を変えるケースで理由の値を変更する。"
+        }
+      ]
+    }
+  }
+}
+SQUAD_CLI_CONTRACTS
+}
+
+# JSON の応答を検証・整形する。第 2 引数は、テストなどで固定する CLI のバージョン。
+# 入力の検証がすべて済むまで標準出力には何も返さない。
+squad_cli_normalize() {
+	local name=$1 entry version=${2-} program
+	entry=$(squad_cli_contracts | jq -ce --arg name "$name" '.entries[$name] | select(. != null)') || {
+		echo "CLI の読み取りが約束にありません: $name" >&2
+		return 1
+	}
+	if [[ $# == 1 ]]; then
+		case $(jq -r '.command[0]' <<<"$entry") in
+		gh) version=$(gh --version 2>/dev/null) || version= ;;
+		codex) version=$(codex --version 2>/dev/null) || version= ;;
+		*) version=$(multica version 2>/dev/null) || version= ;;
+		esac
+		version=${version%%$'\n'*}
+	fi
+	program=$(cat <<'PY'
+import copy
+import json
+import os
+import subprocess
+import sys
+
+name, entry, version = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3]
+errors = []
+missing = object()
+
+def get(value, path):
+    for key in path:
+        if not isinstance(value, dict) or key not in value:
+            return missing
+        value = value[key]
+    return value
+
+def matches(value, expression):
+    result = subprocess.run(["jq", "-e", expression], input=json.dumps(value),
+                            capture_output=True, text=True)
+    if result.returncode not in (0, 1, 4):
+        raise ValueError("約束の条件が不正です")
+    return result.returncode == 0
+
+def report(reason, field, value, index, when=None):
+    identity = value.get("id", index) if isinstance(value, dict) else index
+    context = (when + " のとき、" if when else "") + "要素 " + str(identity)
+    suffix = "（" + version + "）" if version else ""
+    errors.append(f"CLI の出力{reason}: {name} の {field}（{context}）{suffix}")
+
+def project(value, tree):
+    if not tree or not isinstance(value, dict):
+        return copy.deepcopy(value)
+    return {key: project(value[key], children) for key, children in tree.items() if key in value}
+
+def normalize(value, schema, index, prefix=""):
+    fields = schema.get("fields", [])
+    if not isinstance(value, dict):
+        report("の形が不正です", "object", value, index)
+        return value
+    tree = {}
+    for field in fields:
+        path = field["path"].split(".")
+        node = tree
+        for key in path:
+            node = node.setdefault(key, {})
+        when = field.get("when")
+        required = field["class"] == "required" or (when is not None and matches(value, when))
+        actual = get(value, path)
+        if required and actual is missing:
+            report("に欄がありません", prefix + field["path"], value, index, when)
+        elif required and actual is None and not field["nullable"]:
+            report("の欄が null です", prefix + field["path"], value, index, when)
+    result = project(value, tree)
+    mapping = schema.get("values")
+    if mapping:
+        path = mapping["path"]
+        values = get(value, path)
+        if values is not missing:
+            if not isinstance(values, dict):
+                report("の形が不正です", prefix + ".".join(path), value, index)
+            else:
+                parent = get(result, path[:-1])
+                if isinstance(parent, dict):
+                    parent[path[-1]] = {key: normalize(item, mapping, key, prefix + ".".join(path) + "." + key + ".")
+                                          for key, item in values.items()}
+    child = schema.get("items")
+    if child and (not child.get("when") or matches(value, child["when"])):
+        path = child["path"]
+        items = get(value, path)
+        if items is not missing:
+            if not isinstance(items, list):
+                report("の形が不正です", prefix + ".".join(path), value, index)
+            else:
+                parent = get(result, path[:-1])
+                if isinstance(parent, dict):
+                    parent[path[-1]] = [normalize(item, child, position, prefix + ".".join(path) + "[].")
+                                           for position, item in enumerate(items)]
+    return result
+
+try:
+    decoder = json.JSONDecoder()
+    text = sys.stdin.read().strip()
+    pages = []
+    while text:
+        page, end = decoder.raw_decode(text)
+        pages.append(page)
+        text = text[end:].lstrip()
+    if not pages or len(pages) > 1 and "pagination" not in entry:
+        raise ValueError("応答の個数が不正です")
+    normalized = []
+    for page in pages:
+        if entry["shape"] == "array":
+            if not isinstance(page, list):
+                raise ValueError("配列ではありません")
+            normalized.append([normalize(item, entry["items"], index) for index, item in enumerate(page)])
+        else:
+            normalized.append(normalize(page, entry, 0))
+    if entry.get("pagination", {}).get("kind") == "array":
+        result = [item for page in normalized for item in page]
+        value = [item for page in pages for item in page]
+    else:
+        result, value = normalized[0], copy.deepcopy(pages[0])
+        path = entry.get("pagination", {}).get("path")
+        if path and not errors:
+            for target, source in [(result, normalized), (value, pages)]:
+                get(target, path[:-1])[path[-1]] = [item for page in source for item in get(page, path)]
+    if errors:
+        print("\n".join(errors), file=sys.stderr)
+        sys.exit(1)
+    # テストだけで使う。検証は省かず、射影の前後で呼び出し元の動作を比べる。
+    if os.environ.get("SQUAD_CLI_TEST_KEEP_FIELDS") == "1":
+        result = value
+    print(json.dumps(result, ensure_ascii=False))
+except (ValueError, TypeError, KeyError) as error:
+    print(f"CLI の出力を確かめられません: {name}（{error}）", file=sys.stderr)
+    sys.exit(1)
+PY
+	) || return 1
+	python3 -c "$program" "$name" "$entry" "$version"
+}
+
+# Codex: app-server の account/rateLimits/read を呼び、応答の .result を 1 行の JSON で出す。
+# モデルを呼ばないので、使用量を消費しない。
+# app-server は stdin が閉じると終わるので、応答が来るか 30 秒たつまで、stdin を開けたまま待つ。
+squad_cli_codex_usage() {
+	local out_file
+	mkdir -p "$PWD/tmp" || return 1
+	out_file=$(mktemp "$PWD/tmp/squad-codex.XXXXXX") || return 1
+	{
+		printf '%s\n' \
+			'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"squad-usage-check","version":"1.0.0"}}}' \
+			'{"jsonrpc":"2.0","method":"initialized"}' \
+			'{"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read"}'
+		for _ in $(seq 30); do
+			grep -q '"id":2' "$out_file" && break
+			sleep 1
+		done
+	} | codex app-server >"$out_file" 2>/dev/null || true
+
+	local res
+	res=$(jq -c 'select(.id == 2)' "$out_file" 2>/dev/null || true)
+	rm -f "$out_file"
+	if [[ -z "$res" ]]; then
+		echo "codex app-server から使用量の応答がなかった" >&2
+		return 1
+	fi
+	if ! jq -e '.result' <<<"$res" >/dev/null; then
+		echo "codex app-server がエラーを返した: $(jq -r '.error.message // .' <<<"$res")" >&2
+		return 1
+	fi
+	jq -c '.result' <<<"$res"
+}
+
+# 約束のコマンドの {引数} を、記載順の位置引数で埋める。
+# その後の引数は --limit などの追加オプション。JSON の出力指定は変更させない。
+# 書き込みもここを通せるが、失敗した応答の検証を理由に投稿し直してはいけない。
+squad_cli_read() {
+	local name=$1 entry token raw status
+	local -a command=()
+	shift
+	entry=$(squad_cli_contracts | jq -ce --arg name "$name" '.entries[$name] | select(. != null)') || {
+		echo "CLI の読み取りが約束にありません: $name" >&2
+		return 1
+	}
+	# app-server は CLI の位置引数でなく、初期化後の JSON-RPC で問い合わせる。
+	if [[ $name == codex-rate-limits ]]; then
+		(($# == 0)) || { echo 'Codex の使用量の読み取りに追加の引数は渡せません' >&2; return 1; }
+		command=(squad_cli_codex_usage)
+	else
+	while IFS= read -r token; do
+		if [[ $token == \{*\} ]]; then
+			(($# > 0)) || { echo "CLI の読み取りの引数が足りません: $name の $token" >&2; return 1; }
+			command+=("$1")
+			shift
+		else
+			command+=("$token")
+		fi
+	done < <(jq -r '.command[]' <<<"$entry")
+	fi
+	for token in "$@"; do
+		case $token in
+		--compact|--compact=*|--output|--output=*|--json|--json=*)
+			echo "CLI の JSON の出力指定は変更できません: $name の $token" >&2
+			return 1 ;;
+		esac
+	done
+	if raw=$("${command[@]}" "$@"); then
+		printf '%s\n' "$raw" | squad_cli_normalize "$name"
+	else
+		status=$?
+		return "$status"
+	fi
+}
+
+# 回を書いた役をリーダーとする、有効なスクワッドを 1 つだけ返す。
+# review-wait と PR の見張りで、同じ選び方を使う。
+# 候補が 0 件・複数なら 2、CLI・欄の検証の失敗なら 1 を返す。
+squad_cli_squad_for_leader() {
+	local leader=$1 squads matches count
+	squads=$(squad_cli_read squad-list) || return 1
+	matches=$(jq --arg leader "$leader" '[.[] | select(.leader_id == $leader and .archived_at == null)]' <<<"$squads") || return 1
+	count=$(jq length <<<"$matches") || return 1
+	if [[ $count != 1 ]]; then
+		printf '知らせるスクワッドを決められません: %s 件（回を書いたエージェント %s）\n' "$count" "$leader" >&2
+		return 2
+	fi
+	jq '.[0]' <<<"$matches"
+}

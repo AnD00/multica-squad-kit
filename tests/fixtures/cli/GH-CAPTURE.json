@@ -1,0 +1,193 @@
+{
+  "version": "gh version 2.103.3 (2026-10-26)",
+  "sources": {
+    "gh-dependabot-pr": [
+      "gh",
+      "pr",
+      "view",
+      "2599",
+      "--repo",
+      "actions/checkout",
+      "--json",
+      "number,title,author,state,isDraft,baseRefName,headRefOid,headRefName,mergeable,mergeStateStatus"
+    ],
+    "gh-pr-head": [
+      "gh",
+      "pr",
+      "view",
+      "2599",
+      "--repo",
+      "actions/checkout",
+      "--json",
+      "headRefOid"
+    ],
+    "gh-pr-mergeable": [
+      "gh",
+      "pr",
+      "view",
+      "2599",
+      "--repo",
+      "actions/checkout",
+      "--json",
+      "state,headRefOid,mergeable"
+    ],
+    "gh-commit": [
+      "gh",
+      "api",
+      "repos/actions/checkout/commits/d1a058a24c2d8d66aeaa738a1823ad6fb0871e6a",
+      "--paginate"
+    ],
+    "gh-pr-files": [
+      "gh",
+      "api",
+      "repos/actions/checkout/pulls/2599/files?per_page=100",
+      "--paginate"
+    ],
+    "gh-check-runs": [
+      "gh",
+      "api",
+      "repos/actions/checkout/commits/d1a058a24c2d8d66aeaa738a1823ad6fb0871e6a/check-runs?filter=latest&per_page=100",
+      "--paginate"
+    ],
+    "gh-statuses": [
+      "gh",
+      "api",
+      "repos/facebook/react/commits/v16.8.0/statuses?per_page=100"
+    ],
+    "gh-pr-comments": [
+      "gh",
+      "api",
+      "repos/actions/checkout/issues/comments?per_page=10"
+    ],
+    "gh-viewer": [
+      "gh",
+      "api",
+      "user",
+      "--jq",
+      "with_entries(select(.key == \"login\"))"
+    ],
+    "gh-dependabot-pulls": [
+      "gh",
+      "api",
+      "repos/actions/checkout/pulls?state=open&per_page=100",
+      "--paginate"
+    ],
+    "gh-branch-rules": [
+      "gh",
+      "api",
+      "repos/vitejs/vite/rules/branches/main",
+      "--paginate"
+    ]
+  },
+  "coverage": {
+    "gh-dependabot-pulls": [
+      {
+        "name": "dependabot",
+        "count": 12
+      },
+      {
+        "name": "other",
+        "count": 138
+      },
+      {
+        "name": "user-null",
+        "count": 0,
+        "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+      }
+    ],
+    "gh-branch-rules": [
+      {
+        "name": "required",
+        "count": 1
+      },
+      {
+        "name": "other",
+        "count": 3
+      },
+      {
+        "name": "integration_id-present",
+        "count": 1
+      },
+      {
+        "name": "integration_id-absent",
+        "count": 0,
+        "unavailable": "採取した公開リポジトリの規則は integration_id を出す。省略可能の分類は GitHub REST API の仕様と承認済み設計による。"
+      }
+    ],
+    "gh-dependabot-pr": [
+      {
+        "name": "dependabot",
+        "count": 1
+      },
+      {
+        "name": "author-null",
+        "count": 0,
+        "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+      }
+    ],
+    "gh-pr-head": [
+      {
+        "name": "element",
+        "count": 1
+      }
+    ],
+    "gh-pr-mergeable": [
+      {
+        "name": "element",
+        "count": 1
+      }
+    ],
+    "gh-commit": [
+      {
+        "name": "element",
+        "count": 1
+      }
+    ],
+    "gh-pr-files": [
+      {
+        "name": "patch-present",
+        "count": 1
+      },
+      {
+        "name": "patch-absent",
+        "count": 0,
+        "unavailable": "採取した Dependabot の PR はテキスト差分だけで patch を出す。バイナリ・大きな差分での省略は GitHub REST API の仕様による。"
+      }
+    ],
+    "gh-check-runs": [
+      {
+        "name": "element",
+        "count": 12
+      },
+      {
+        "name": "app-null",
+        "count": 0,
+        "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+      }
+    ],
+    "gh-statuses": [
+      {
+        "name": "element",
+        "count": 0,
+        "unavailable": "採取した公開元の commit status はいずれも空配列だった。欄は GitHub REST API の仕様による。"
+      }
+    ],
+    "gh-pr-comments": [
+      {
+        "name": "element",
+        "count": 10
+      },
+      {
+        "name": "user-null",
+        "count": 0,
+        "unavailable": "公開元では親が null の形を取れなかった。GitHub の公式 REST / GraphQL スキーマに基づき、親は null 可、子は条件付きとする。"
+      }
+    ],
+    "gh-viewer": [
+      {
+        "name": "element",
+        "count": 1
+      }
+    ]
+  }
+}

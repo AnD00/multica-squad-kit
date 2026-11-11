@@ -118,7 +118,7 @@ save_state() {
 label_failed=false
 add_label() {
 	local id
-	id=$(multica label list --output json | jq -r --arg n "$LABEL_NAME" '[.[] | select(.name == $n)][0].id // empty') || true
+	id=$(squad_cli_read label-list | jq -r --arg n "$LABEL_NAME" '[.[] | select(.name == $n)][0].id // empty') || true
 	if [[ -z "$id" ]] || ! multica issue label add "$1" "$id" >/dev/null; then
 		echo "タスク ${1} に、ラベル ${LABEL_NAME} を付けられなかった" >&2
 		return 1
@@ -157,8 +157,13 @@ apply() {
 			local description
 			description=$(usage_tmpfile)
 			printf '%s\n\n%s\n\nこのタスクは使用上限の見張り（squad-usage-check）が作った。戻ったら、見張りがコメントして done にする。\n' "$summary" "$detail" >"$description"
-			issue=$(multica issue create --title "[使用上限] ${title}" --assignee "$USAGE_CHECK_ASSIGNEE" --project "$USAGE_CHECK_PROJECT" \
-				--description-file "$description" --output json | jq -r '.id')
+			local response
+			if ! response=$(squad_cli_read issue-create "[使用上限] ${title}" "$description" \
+				--assignee "$USAGE_CHECK_ASSIGNEE" --project "$USAGE_CHECK_PROJECT"); then
+				rm -f -- "$description"
+				return 1
+			fi
+			issue=$(jq -r '.id' <<<"$response")
 			rm -f -- "$description"
 			add_label "$issue" || label_failed=true
 		fi
