@@ -114,7 +114,9 @@ Multica の CLI 0.7.0 は、値が空か偽の欄を出力から省く。省か�
 
 一方で jq の `.欄` は、欄がないときも `null` を返す。読む側が `// 既定値` で補うと、あるはずの欄の欠けを見落とす。読む欄を一律に必須にすると、正常な省略で止まる。どちらも、欄ごとに省略が正常かを知らないことから起きる。
 
-そこで、欄ごとに、省略が正常かを実物の出力から決めて約束に書く。読む側は、約束にない補い方をしない。
+欄がないことと、値が `null` であることが、違う意味を持つ読み取りもある。PR の紐付けは、metadata に `pr_url` の鍵があれば、値によらず紐付けない。人間が画面で外した紐付けを戻さないため（[PR の紐付けの処理の順序](pr-link.md#処理の順序)）。整形が鍵を補ったり除いたりすると、この区別が消える。設計 v2 は、省略可能な欄に `null` を補い、約束にない `repository` を除いていた。
+
+そこで、欄ごとに、省略が正常かを実物の出力から決めて約束に書く。整形は鍵を補わず、読む欄を除かない。読む側は、約束にない補い方をしない。
 
 ### 欄の分け方
 
@@ -124,7 +126,9 @@ Multica の CLI 0.7.0 は、値が空か偽の欄を出力から省く。省か�
 | --- | --- | --- |
 | 必須 | 欄の名前を出して失敗する | `issue runs` の `id` |
 | 条件付き | 条件に当たる要素なら失敗する。当たらなければ `null` を入れる | `issue runs` の `trigger_comment_id`（`kind` が `comment` のとき） |
-| 省略可能 | 約束に書いた既定値を入れる | `issue get` の `metadata.pr_url`（既定値 `null`） |
+| 省略可能 | 鍵を補わずに、そのまま通す | `issue get` の `metadata.pr_url` |
+
+省略可能の欄と、条件に当たらない条件付きの欄には、既定値を置かない。読む側の `.欄` は、鍵がなければ `null` を返すので、値を読むだけなら補う必要がない。鍵の有無で動作を変える読み方（`has` など）は、補わないことで実物と同じに働く。
 
 条件は、同じ要素の必須の欄の値で書く。条件に使う欄を必須にするのは、条件に当たるかが、欠けた欄で変わらないようにするため。
 
@@ -152,19 +156,21 @@ Multica の CLI 0.7.0 は、値が空か偽の欄を出力から省く。省か�
 | `label-list` | `multica label list --output json` |
 | `member-list` | `multica workspace member list --output json` |
 
-| 読み取りの名前 | 必須（null 可は括弧） | 条件付き | 省略可能（既定値） |
+| 読み取りの名前 | 必須（null 可は括弧） | 条件付き | 省略可能 |
 | --- | --- | --- | --- |
-| `issue-get` | `id`、`status`、`status_category`、`metadata`、（`assignee_type`、`assignee_id`） | なし | `metadata.ci_watch_thread`、`metadata.pr_url`（`null`） |
+| `issue-get` | `id`、`identifier`、`status`、`status_category`、`metadata`、（`assignee_type`、`assignee_id`） | なし | `metadata.repository`、`metadata.ci_watch_thread`、`metadata.pr_url` |
 | `issue-comments` | `id`、`author_type`、`author_id`、`content`、`created_at`、（`parent_id`） | `source_task_id`（`author_type` が `agent` か `system`） | なし |
 | `issue-runs` | `id`、`agent_id`、`kind`、`status`、`created_at`、`delivered_comment_ids`、（`error`） | `trigger_comment_id`（`kind` が `comment`） | なし |
 | `issue-wakeups` | `id`、`agent_id`、`mode`、`enabled`、`instruction`、（`condition`、`paused_reason`） | `condition.type`（`condition` が `null` でない）、`condition.event`（`condition.type` が `pull_request`） | なし |
 | `issue-labels` | `id` | なし | なし |
-| `issue-metadata` | なし | なし | `pr_url`（`null`） |
-| `issue-search` | `issues`、`issues[].id`、`identifier`、`title`、`created_at`、`project_id` | なし | なし |
+| `issue-metadata` | なし | なし | `repository`、`pr_url` |
+| `issue-search` | `issues`、`issues[].id`、`identifier`、`title`、`created_at`、（`project_id`） | なし | なし |
 | `agent-get` | `id`、`name`、（`archived_at`） | なし | なし |
 | `squad-list` | `id`、`name`、`leader_id`、（`archived_at`） | なし | なし |
 | `label-list` | `id`、`name`、`resource_type` | なし | なし |
 | `member-list` | `user_id`、`name`、`email` | なし | なし |
+
+`issue-search` の `project_id` は、プロジェクトのないタスクで `null` になる。同じ種類の `parent_issue_id` と `due_date` は、8 件の実物で `null` で出ていた。Dependabot のマージは、ワークスペースの全体を検索するので、ほかのプロジェクトのタスクも読む。
 
 書き込みのコマンドの応答から読む欄も、同じ約束に入れる。`issue comment add` の `id`、`issue create` の `id` と `identifier`、`issue wakeup create` の `id` を必須にする。
 
@@ -176,10 +182,11 @@ Multica の CLI 0.7.0 は、値が空か偽の欄を出力から省く。省か�
 
 1. 必須の欄が、すべての要素にあるかを確かめる。値ではなく、鍵があるかで見る
 2. 条件付きの欄が、条件に当たる要素にあるかを確かめる
-3. 省略可能の欄と、条件に当たらない条件付きの欄がなければ、既定値を入れる
-4. 約束にない欄を除いて返す
+3. 約束にない欄を除いて返す。省略可能の欄と、条件に当たらない条件付きの欄は、鍵がなければないまま返す
 
-4 で、見張りは約束にない欄を読めなくなる。約束にない欄を読む変更は、テストでも実物でも `null` を読み、テストで気づける。欄を読むには、先に約束に分類を書くことになる。見張りは `// 既定値` で欄を補わない。既定値は約束にだけ書く。
+3 で、見張りは約束にない欄を読めなくなる。欄を読むには、先に約束に分類を書くことになる。見張りは `// 既定値` で欄を補わない。
+
+約束にない欄を読む変更は、`null` を読む。値を使う読み方なら、テストの結果が変わって気づける。しかし、欄がなければ確かめを飛ばす読み方は、`null` でも止まらず、確かめだけが黙って消える。設計 v2 では、紐付けの `repository` の照合がこうして消えた。そこで、見張りのテストで、整形の前と後の動作を比べる（[約束のテスト](#約束のテスト)）。
 
 欠けた欄は、すべて 1 行ずつ標準エラーに出し、終了コード 1 で失敗する。メッセージには、読み取りの名前、欄、条件付きなら条件、要素の `id`、CLI の版を書く。
 
@@ -217,11 +224,25 @@ CLI の版は `multica version` の 1 行目から読み、読めなければ版
 2. 条件付きの欄が、条件に当たるデータのすべての要素にある
 3. 約束が求める見本の形が、データにすべてある。「見本なし」の形は、件数とともに出力に書く
 4. 必須と条件付きの欄を 1 つずつ消すと、ライブラリがその欄の名前で失敗する
-5. 省略可能の欄と、条件に当たらない条件付きの欄をすべて消した最小の形でも通り、既定値が入る
+5. 省略可能の欄と、条件に当たらない条件付きの欄をすべて消した最小の形でも通り、消した鍵はないまま返る
 
 見張りのテストの各ケースは、データの要素を元に、値だけを変えて組み立てる。テストの関数は、データにない鍵を足したケースを失敗にする。手書きの欄が入ることを防ぐため。欄を消してよいのは、省略可能の欄と、条件に当たらない条件付きの欄と、4 のケースだけにする。見張りのテストは、ライブラリを通した出力で動かす。
 
+見張りのテストの各ケースは、整形の前と後の 2 通りで流し、動作が同じことを確かめる。整形の前は、必須と条件付きの欄を確かめただけで、欄を除かない出力である。終了コード、標準出力、呼んだコマンドと引数のどれかが違えば、見張りが約束にない欄を読んでいる。ライブラリは、このために、欄を除かない切り替えをテストにだけ開く。読む欄が約束から落ちても、黙って確かめが消えずに、テストで気づける。
+
 CLI の版を上げたときは、データを取り直す。1〜3 が、欄の省き方が変わったことを見つける。
+
+### 鍵の有無で決まる動作
+
+PR の紐付けは、metadata の 2 つの鍵の有無で動作を決める。`squad-pr-link` は `issue-get` の `metadata` を読む。Dependabot のマージは `issue-metadata` を読む。どちらも同じ共有の関数に渡す。どちらも約束を通し、次の性質を保つ。順序は [PR の紐付けの処理の順序](pr-link.md#処理の順序)のとおりにする。
+
+| metadata | 動作 |
+| --- | --- |
+| `repository` があり、PR の `OWNER/REPO` と違う | 紐付けを拒む。API も metadata の書き込みも呼ばない |
+| `repository` がない、または PR と同じで、`pr_url` がない | 初回の紐付けをする。API を呼び、成功したら `pr_url` を書く |
+| `repository` がない、または PR と同じで、`pr_url` がある | 何もしない。値によらず紐付け済みとみなし、人間が外した紐付けを戻さない |
+
+テストは、`issue-get` と `issue-metadata` の見本から、2 つの鍵のあり・なしの組をすべて作る。両方のスクリプトで、上の表を確かめる。ケースは約束を通した出力で流し、API と `metadata set` のスタブが呼ばれたかで判定する。見本には、`repository` のないタスクと、`pr_url` のないタスクの両方を入れる。
 
 ### 開始時の確認
 
@@ -247,8 +268,17 @@ CLI の版を上げたときは、データを取り直す。1〜3 が、欄の�
 | 読み取りの名前 | コマンド | 分け方 |
 | --- | --- | --- |
 | `gh-pr-checks` | `gh pr view <PR> --json state,headRefOid,statusCheckRollup` | 必須は `state`、`headRefOid`、`statusCheckRollup[].__typename`。`__typename` が `CheckRun` なら `name`、`status`、`workflowName`、（`conclusion`）が条件付き。`StatusContext` なら `context`、`state` が条件付き |
-| `gh api` の読み取り | Dependabot のマージが読む PR・コミット・チェック・ブランチの規則など | 見直しで約束に足す |
-| `codex-rate-limits` | `codex app-server` の `account/rateLimits/read` | 見直しで約束に足す。`primary` と `secondary` は省略可能 |
+| `gh api` の読み取り | Dependabot のマージが読む PR・コミット・チェック・ブランチの規則など | 読む欄を約束に足す。下に、鍵の有無が動作を変える欄を書く |
+| `codex-rate-limits` | `codex app-server` の `account/rateLimits/read` | 必須は `ordinaryUsageAllowed`、`rateLimitsByLimitId`、（`rateLimits.rateLimitReachedType`）。`rateLimitsByLimitId` の各値の（`primary`、`secondary`）は必須で、`null` でなければ `windowDurationMins`、`usedPercent`、`resetsAt` が条件付き |
+
+`codex-rate-limits` は、codex-cli 0.167.0 の実物で確かめた。使っていない枠の `secondary` は、鍵を省かず `null` で出る。上限に達していないときの `rateLimitReachedType` も同じである。そこで省略可能ではなく、null 可の必須にする。`rateLimitsByLimitId` は、`metadata` と同じく中の鍵が枠の名前で決まるので、欄そのものを必須にする。
+
+Dependabot のマージの `gh api` の読み取りには、鍵がないことに意味のある欄が 2 つある。約束から落ちると、確かめが黙って変わる。
+
+- ブランチの規則の `required_status_checks[].integration_id` は、省略可能にする。鍵がなければ、どの App のチェックでも通す。約束から落ちると、App を指定した規則まで、同じ名前の別の App のチェックで通る
+- PR のファイルの `patch` は、省略可能にする。GitHub は、バイナリや大きな差分では鍵を省く。鍵がなければ、ダイジェストだけの更新と見なさず、major に倒す
+
+この原本には、Dependabot の PR がない。見本は、Dependabot の PR と必須チェックの規則がある公開リポジトリから取ってよい。取れない形は「見本なし」と書き、欄は GitHub の REST API の仕様で決める。
 
 `StatusContext` の形は、このリポジトリの CI が commit status を使わないので、見本を取れない。約束に「見本なし」と書き、欄は GitHub の GraphQL のスキーマで決める。`claude -p /usage` は JSON の中の文を読むので、約束に入れない。読めないときは今も理由を出して失敗するので、テストのデータを実物の表示から取る。
 
@@ -275,8 +305,11 @@ CLI の版を上げたときは、データを取り直す。1〜3 が、欄の�
 | `squad-review-wait` | 返事を待つ判定が、実行の `trigger_comment_id` を読む | 直接始まった実行には欄がないので、条件付きとして読む |
 | `squad-review-wait` | `watch` の wakeup が、進行役の実行を起こす | 起きた実行は `status` と `proceed` だけを流し、どの実行でも進めるので、直さない |
 | `squad-dependabot-merge` | ラベルの `resource_type // "issue"` | 必須なので、`//` をやめる |
+| `squad-dependabot-merge`、`squad-pr-link` | PR の紐付けが、metadata の `repository` と `pr_url` を鍵の有無で読む | 約束に省略可能として足し、鍵を補わない。[鍵の有無で決まる動作](#鍵の有無で決まる動作)をテストする |
+| `squad-dependabot-merge` | 検索の `project_id` で、プロジェクトのタスクを選ぶ | プロジェクトのないタスクで `null` になるので、null 可にする |
+| `squad-dependabot-merge` | 必須チェックの `integration_id` と、ファイルの `patch` | 鍵がないことに意味があるので、省略可能として約束に足す |
 | `squad-dependabot-merge` | `gh api` で PR・コミット・チェックを読む | 約束に足し、テストのデータを実物から取る |
-| `squad-usage-check`、`squad-usage-lib`、`squad-dispatch-pick` | ラベルの一覧と、Codex の使用量を読む | 約束に足す。Claude の表示は、テストのデータを実物から取る |
+| `squad-usage-check`、`squad-usage-lib`、`squad-dispatch-pick` | ラベルの一覧と、Codex の使用量を読む | 約束に足す。Codex の `null` で出る欄は null 可の必須にする。Claude の表示は、テストのデータを実物から取る |
 
 スクワッドを決める処理は、`squad-review-wait` と `squad-pr-watch` で同じものを使う。ライブラリ `squad-cli-lib` に置く。
 
@@ -338,6 +371,16 @@ CLI の版を上げたときは、データを取り直す。1〜3 が、欄の�
 | 読む側が `// 既定値` で補う（もとの見張り） | 止まらない | あるはずの欄の欠けを見落とす。止まっていた理由 1 の形 |
 | 見本で欠けのある欄を、自動で省略可能にする | 分類を書かずに済む | 条件を見つけられず、欠けてはいけない要素の欠けも受け入れる |
 
+### 省略可能な欄の扱いの案
+
+| 案 | 良い点 | 悪い点 |
+| --- | --- | --- |
+| 鍵を補わない（採用） | 鍵の有無で決まる動作が、実物と同じに働く | 読む側は `has` と `.欄` の違いを意識する |
+| 既定値を入れる（設計 v2） | 読む側が鍵の有無を考えずに済む | `has` で決める動作が変わる。初回の紐付けが飛ばされた |
+| `null` も未設定とみなすよう紐付けを変える | 約束の整形を変えずに済む | 鍵が `null` のタスクに、外した紐付けを戻す |
+
+既定値は、どの欄でも `null` だったので、`.欄` で読む見張りには効き目がなかった。欄ごとに補う・補わないを選ばせると、同じ取り違えが次の欄で起きるので、すべての欄で補わない。
+
 ### 欄を確かめる場所
 
 欄を確かめるのを、テストのデータだけにする案もある。データは CLI の版を上げるまで変わらないので、ホストの CLI だけが上がったときに気づけない。実行のたびのライブラリの確かめと、開始時の確認を足し、実物の CLI で毎回確かめる。
@@ -348,3 +391,4 @@ CLI の版を上げたときは、データを取り直す。1〜3 が、欄の�
 
 - CLI の出力のデータは実物から取り、取り方と、版を上げたときに取り直すこと
 - 見張りが読む欄は、先に約束に分類を書き、`// 既定値` や `--compact` で補わないこと
+- 見張りのテストは、整形の前と後で同じ動作になることを確かめること
