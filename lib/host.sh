@@ -121,7 +121,19 @@ prepare_project_host() {
 host_check_guards() (
 	umask 077
 	local content=$1 probe file escaped escaped_bin needle='{{ALLOWED_REPOS_FILE}}' bin_needle='{{AGENT_BIN_DIR}}' repo shell mode allowed shell_content
+	local guard_dir dir candidate real_gh_dir='' probe_path path_dirs
 	[[ -x $agent_home/bin/gh && -x $agent_home/git-hooks/pre-push ]] || die '使う関所に実行権限がありません。表示した gh と pre-push の置き場と権限を管理者に確認してもらってください。'
+	guard_dir=$(cd "$agent_home/bin" && pwd) || die 'gh の関所の置き場を読めませんでした。'
+	IFS=: read -r -a path_dirs <<<"$PATH"
+	for dir in "${path_dirs[@]}"; do
+		[[ -n $dir && -x $dir/gh ]] || continue
+		candidate=$(cd "$dir" 2>/dev/null && pwd) || continue
+		[[ $candidate != "$guard_dir" ]] || continue
+		real_gh_dir=$candidate
+		break
+	done
+	[[ -n $real_gh_dir ]] || die '本物の gh が関所の外の PATH に見つかりません。gh の導入と PATH を確認してください。'
+	probe_path="$real_gh_dir:$PATH"
 	mkdir -p "$root/tmp" || die '関所の確認の作業場所を作れませんでした。'
 	probe=$(mktemp -d "$root/tmp/guard-check.XXXXXX") || die '関所の確認の作業場所を作れませんでした。'
 	trap 'rm -rf -- "$probe"' EXIT
@@ -146,7 +158,7 @@ host_check_guards() (
 set -euo pipefail
 guard=$1; hook=$2; repo=$3; temporary=$4; mode=$5
 if [[ $(command -v gh) != "$guard" ]]; then
- echo '通常の gh が関所を選びません。シェル起動ファイルの PATH を確認してください。' >&2
+ echo 'Claude の実行の順で gh が関所を選びません。ひな形の env.sh の PATH を確認してください。' >&2
  exit 1
 fi
 # 同じ選択先でも、空の許可なら両関所が拒否しなければならない。
@@ -198,9 +210,13 @@ if ! printf 'refs/heads/template-permission-check 111111111111111111111111111111
 fi
 CHECK
 	while IFS= read -r repo; do
-		for shell in /bin/bash /bin/zsh; do
+		# zsh では .zshenv と env.sh を別々の段で確かめる。
+		for shell in /bin/zsh /bin/bash; do
 			for mode in allow deny; do
-				if ! (cd "$probe/repository" && ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 "$shell" -c '. "$4/check.sh"' -- "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" "$repo" "$probe" "$mode"); then
+				if ! (cd "$probe/repository" && PATH="$probe_path" ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" "$shell" -c '[[ $(command -v gh) == "$1" ]]' -- "$agent_home/bin/gh"); then
+					die "通常の gh が関所を選びません。シェル起動ファイルの PATH を確認してください: ${repo}（${shell}、${mode}）"
+				fi
+				if ! (cd "$probe/repository" && PATH="$probe_path" ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 "$shell" -c 'export PATH="$6" && . "$BASH_ENV" && . "$4/check.sh"' -- "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" "$repo" "$probe" "$mode" "$probe_path"); then
 					die "選択したリポジトリの許可と分離を確認できませんでした: ${repo}（${shell}、${mode}）"
 				fi
 			done

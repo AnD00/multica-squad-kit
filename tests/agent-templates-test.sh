@@ -70,6 +70,45 @@ EOF
 done
 runtimes='["claude","codex"]'
 
+# 開始時の確認は、全構成で見張りの呼び出しと返事待ちの分岐より前に残す。
+preflight_section() {
+	awk '$0=="## 実行の始めの確認" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
+}
+assert_preflight() {
+	preflight_section "$1" >"$test_dir/preflight"
+	for text in squad-preflight 名前だけ 絶対パス '0 以外' 127 'GitHub の読み取り' 見張り in_review 呼ぶ人間 直し方 そのまま添 PATH '動いているタスクがないとき' セットアップ; do
+		grep -qF -- "$text" "$test_dir/preflight"
+	done
+	grep -Eq '引数なし|引数を付けず' "$test_dir/preflight"
+}
+assert_preflight "$root/common/skills/squad-handoff/SKILL.md"
+grep -qF 'どちらもしない実行では、この確認は流さない' "$test_dir/preflight"
+for dir in "$test_dir/"*/; do
+	[[ -f $dir/orchestrator ]] || continue
+	first_check=$(awk '/^## 受け取ったら確かめること$/ {inside=1; next} inside && /^- / {print; exit}' "$dir/orchestrator")
+	[[ $first_check == *'squad-handoff の「実行の始めの確認」'* && $first_check == *'分かれ道より先'* ]]
+	if grep -qF 'squad-review-wait status' "$dir/orchestrator"; then
+		grep -F 'squad-review-wait status' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
+		grep -F 'squad-review-wait leader-check' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
+	fi
+	for role in ci-monitor dependabot-merger usage-monitor; do
+		file=$dir/$role
+		[[ -f $file ]] || continue
+		assert_preflight "$file"
+		grep -qF '[@Owner](mention://member/member-a)' "$test_dir/preflight"
+		preflight_line=$(awk '/^## 実行の始めの確認$/ {print NR; exit}' "$file")
+		watch_line=$(awk '/squad-(pr-watch|dependabot-merge|usage-check)/ {print NR; exit}' "$file")
+		[[ $preflight_line -lt $watch_line ]]
+		if [[ $role == ci-monitor ]]; then
+			grep -qF -- '--content-file' "$test_dir/preflight"
+			grep -qF 'タスクの状態は、開始時の確認で止まるときだけ' "$file"
+		else
+			grep -qF 'タスクのない実行は、オートパイロットの指示' "$test_dir/preflight"
+		fi
+	done
+done
+echo 'PASS preflight templates: 共通スキルと全構成の進行・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
+
 for runtime in claude codex; do
 	if [[ $runtime == claude ]]; then expected=claude-sonnet-5-5; else expected=gpt-6.1-sol; fi
 	for file in "$test_dir/runtime-$runtime-only/"*; do
@@ -209,6 +248,20 @@ done
 grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/designer"
 grep -qF '実装の一覧は、課題のコメントに' "$test_dir/all/designer"
 echo 'PASS templates: 役の指示と共通スキルが、本文の書き方・PR の本文の置き場所・引き継ぎの順序を同じ見出しで参照する'
+
+# 記入が足りないときの案内は、更新で届く共通スキルだけで読める。
+sed -n '/^## 記入が足りずに止まるとき$/,/^## 人間を呼んで止まるとき$/p' "$skill" >"$test_dir/unfilled-stop"
+grep -qx '## 記入が足りずに止まるとき' "$test_dir/unfilled-stop"
+for phrase in 'squad_kit_task=project-instructions' 'squad_kit_task=repository-change' 見つからなかった 'その実行で受け取った' 推測で検証しない '未記入や未実行は成功にしない'; do
+	grep -qF "$phrase" "$test_dir/unfilled-stop"
+done
+echo 'PASS templates: 共通スキルに未記入の再確認・記入の issue の印・見つからないときの報告・検証の制約がある'
+
+verify_skill="$root/skeleton/.agents/skills/verify/SKILL.md"
+for phrase in 推測して実行せず '未記入や未実行は成功にしません' 'squad-handoff の「記入が足りずに止まるとき」'; do
+	grep -qF "$phrase" "$verify_skill"
+done
+echo 'PASS templates: 検証スキルのひな形は推測と成功扱いを禁じ、共通スキルの返し方へ案内する'
 
 # 指示にはリポジトリの一覧が必要である。
 awk -F '\t' '$1!="repositories"' "$test_dir/values" >"$test_dir/without-list"

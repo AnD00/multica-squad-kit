@@ -360,3 +360,50 @@ done
 if /bin/bash "$test_dir/project.sh" "$root" project-new >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new ]]
 echo 'PASS host: 空の選択や後ろの不正な値で前の許可を壊さず、空の許可ファイルも作らない'
+
+# 本物の gh が PATH の先でも、起動時と Claude の順の両方を確かめる。
+export TEST_GUARD_CALLS="$test_dir/guard-calls"
+: >"$TEST_GUARD_CALLS"
+PATH="$test_dir/bin:$TEMPLATE_AGENT_HOME/bin:$PATH" /bin/bash "$test_dir/project.sh" "$root" project-a example/one example/two >"$test_dir/out" 2>"$test_dir/err"
+[[ $(grep -c '^許可の確認:' "$test_dir/err") == 2 ]]
+[[ $(wc -l <"$TEST_GUARD_CALLS" | tr -d ' ') == 4 ]]
+for repo in one two; do
+ [[ $(grep -c "repos/example/$repo/git/refs" "$TEST_GUARD_CALLS") == 2 ]]
+done
+echo 'PASS host: 本物の gh が先でも起動時と Claude の順で確認し、許可の通信は各リポジトリ・シェルにつき 1 回に保つ'
+
+for target in allowed-repos.d/project-a template/shell/project-a/.zshenv template/shell/project-a/env.sh; do
+ cp "$TEMPLATE_AGENT_HOME/$target" "$test_dir/before-${target##*/}"
+done
+assert_previous_project() {
+ for target in allowed-repos.d/project-a template/shell/project-a/.zshenv template/shell/project-a/env.sh; do
+  cmp "$test_dir/before-${target##*/}" "$TEMPLATE_AGENT_HOME/$target"
+ done
+ [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new && ! -e $TEMPLATE_AGENT_HOME/template/shell/project-new ]]
+ [[ ! -s $TEST_GUARD_CALLS ]]
+ grep -q '従来の許可とシェル起動ファイルを保って停止' "$test_dir/err"
+}
+mkdir -p "$test_dir/package/lib" "$test_dir/package/common"
+cp "$root/lib/host.sh" "$root/lib/ui.sh" "$test_dir/package/lib/"
+cp -R "$root/common/shell" "$test_dir/package/common/"
+# .zshenv は起動時に直せても、env.sh がコマンド直前に戻さなければ止める。
+head -n 2 "$root/common/shell/env.sh" >"$test_dir/package/common/shell/env.sh"
+for id in project-a project-new; do
+ : >"$TEST_GUARD_CALLS"
+ if PATH="$test_dir/bin:$TEMPLATE_AGENT_HOME/bin:$PATH" /bin/bash "$test_dir/project.sh" "$test_dir/package" "$id" example/changed >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+ grep -q 'Claude の実行の順で gh が関所を選びません' "$test_dir/err"
+ grep -q 'ひな形の env.sh' "$test_dir/err"
+ assert_previous_project
+done
+echo 'PASS host: env.sh が PATH を戻さなければ Claude の順で通信前に止まり、既存の許可・起動ファイルを保ち新規にも書かない'
+
+# 関所以外に gh がない PATH でも、ほかのホストの本物を探しに行かない。
+mkdir "$test_dir/no-gh-bin"
+for tool in tr cat; do ln -s "$(command -v "$tool")" "$test_dir/no-gh-bin/$tool"; done
+for id in project-a project-new; do
+ : >"$TEST_GUARD_CALLS"
+ if PATH="$TEMPLATE_AGENT_HOME/bin:$test_dir/no-gh-bin" /bin/bash "$test_dir/project.sh" "$root" "$id" example/changed >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+ grep -q '本物の gh が関所の外の PATH に見つかりません' "$test_dir/err"
+ assert_previous_project
+done
+echo 'PASS host: 関所の外に gh がなければ理由を出し、従来の許可・起動ファイルを保って止まる'

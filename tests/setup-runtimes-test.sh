@@ -113,6 +113,10 @@ for role, agent in agents.items():
     needs_claude = provider == 'claude' or (role == 'usage-monitor' and 'claude' in runtimes)
     assert ('CLAUDE_CONFIG_DIR' in env) == needs_claude, role
     assert ('CLAUDE_CODE_SHELL' in env) == (provider == 'claude'), role
+    if provider == 'claude':
+        assert env['CLAUDE_ENV_FILE'] == env['BASH_ENV'] == str(scenario / 'host/template/shell/projects-1/env.sh'), role
+    else:
+        assert 'CLAUDE_ENV_FILE' not in env, role
     assert ('SQUAD_KIT_GH_DEPENDABOT_MERGE' in env) == (role == 'dependabot-merger')
     assert bool(agent['skills']) == (role not in monitors), role
 assert db['squads'][0]['leader_id'] == agents['orchestrator']['id']
