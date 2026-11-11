@@ -1281,6 +1281,118 @@ squad_cli_contracts() {
           "where": "true"
         }
       ]
+    },
+    "codex-rate-limits": {
+      "command": [
+        "codex",
+        "app-server",
+        "account/rateLimits/read"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "ordinaryUsageAllowed",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "rateLimitsByLimitId",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "rateLimits.rateLimitReachedType",
+          "class": "required",
+          "nullable": true
+        }
+      ],
+      "values": {
+        "path": [
+          "rateLimitsByLimitId"
+        ],
+        "fields": [
+          {
+            "path": "primary",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "secondary",
+            "class": "required",
+            "nullable": true
+          },
+          {
+            "path": "primary.windowDurationMins",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".primary != null"
+          },
+          {
+            "path": "primary.usedPercent",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".primary != null"
+          },
+          {
+            "path": "primary.resetsAt",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".primary != null"
+          },
+          {
+            "path": "secondary.windowDurationMins",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".secondary != null"
+          },
+          {
+            "path": "secondary.usedPercent",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".secondary != null"
+          },
+          {
+            "path": "secondary.resetsAt",
+            "class": "conditional",
+            "nullable": false,
+            "when": ".secondary != null"
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        },
+        {
+          "name": "primary-present",
+          "where": "any(.rateLimitsByLimitId[]; .primary != null)"
+        },
+        {
+          "name": "secondary-null",
+          "where": "any(.rateLimitsByLimitId[]; .secondary == null)"
+        },
+        {
+          "name": "primary-null",
+          "where": "any(.rateLimitsByLimitId[]; .primary == null)",
+          "unavailable": "採取したアカウントは primary に週の枠を持ち、null の形は取れなかった。設計で null 可とした枠の条件外をテストする。"
+        },
+        {
+          "name": "secondary-present",
+          "where": "any(.rateLimitsByLimitId[]; .secondary != null)",
+          "unavailable": "採取したアカウントは secondary が null で、非 null の形は取れなかった。primary と同じ枠の欄で条件付きをテストする。"
+        },
+        {
+          "name": "reached-null",
+          "where": ".rateLimits.rateLimitReachedType == null"
+        },
+        {
+          "name": "reached-present",
+          "where": ".rateLimits.rateLimitReachedType != null",
+          "unavailable": "採取したアカウントは上限に達しておらず null だった。利用可否を変えるケースで理由の値を変更する。"
+        }
+      ]
     }
   }
 }
@@ -1298,6 +1410,7 @@ squad_cli_normalize() {
 	if [[ $# == 1 ]]; then
 		case $(jq -r '.command[0]' <<<"$entry") in
 		gh) version=$(gh --version 2>/dev/null) || version= ;;
+		codex) version=$(codex --version 2>/dev/null) || version= ;;
 		*) version=$(multica version 2>/dev/null) || version= ;;
 		esac
 		version=${version%%$'\n'*}
@@ -1357,6 +1470,18 @@ def normalize(value, schema, index, prefix=""):
         elif required and actual is None and not field["nullable"]:
             report("の欄が null です", prefix + field["path"], value, index, when)
     result = project(value, tree)
+    mapping = schema.get("values")
+    if mapping:
+        path = mapping["path"]
+        values = get(value, path)
+        if values is not missing:
+            if not isinstance(values, dict):
+                report("の形が不正です", prefix + ".".join(path), value, index)
+            else:
+                parent = get(result, path[:-1])
+                if isinstance(parent, dict):
+                    parent[path[-1]] = {key: normalize(item, mapping, key, prefix + ".".join(path) + "." + key + ".")
+                                          for key, item in values.items()}
     child = schema.get("items")
     if child and (not child.get("when") or matches(value, child["when"])):
         path = child["path"]
@@ -1413,6 +1538,38 @@ PY
 	python3 -c "$program" "$name" "$entry" "$version"
 }
 
+# Codex: app-server の account/rateLimits/read を呼び、応答の .result を 1 行の JSON で出す。
+# モデルを呼ばないので、使用量を消費しない。
+# app-server は stdin が閉じると終わるので、応答が来るか 30 秒たつまで、stdin を開けたまま待つ。
+squad_cli_codex_usage() {
+	local out_file
+	mkdir -p "$PWD/tmp" || return 1
+	out_file=$(mktemp "$PWD/tmp/squad-codex.XXXXXX") || return 1
+	{
+		printf '%s\n' \
+			'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"squad-usage-check","version":"1.0.0"}}}' \
+			'{"jsonrpc":"2.0","method":"initialized"}' \
+			'{"jsonrpc":"2.0","id":2,"method":"account/rateLimits/read"}'
+		for _ in $(seq 30); do
+			grep -q '"id":2' "$out_file" && break
+			sleep 1
+		done
+	} | codex app-server >"$out_file" 2>/dev/null || true
+
+	local res
+	res=$(jq -c 'select(.id == 2)' "$out_file" 2>/dev/null || true)
+	rm -f "$out_file"
+	if [[ -z "$res" ]]; then
+		echo "codex app-server から使用量の応答がなかった" >&2
+		return 1
+	fi
+	if ! jq -e '.result' <<<"$res" >/dev/null; then
+		echo "codex app-server がエラーを返した: $(jq -r '.error.message // .' <<<"$res")" >&2
+		return 1
+	fi
+	jq -c '.result' <<<"$res"
+}
+
 # 約束のコマンドの {引数} を、記載順の位置引数で埋める。
 # その後の引数は --limit などの追加オプション。JSON の出力指定は変更させない。
 # 書き込みもここを通せるが、失敗した応答の検証を理由に投稿し直してはいけない。
@@ -1424,6 +1581,11 @@ squad_cli_read() {
 		echo "CLI の読み取りが約束にありません: $name" >&2
 		return 1
 	}
+	# app-server は CLI の位置引数でなく、初期化後の JSON-RPC で問い合わせる。
+	if [[ $name == codex-rate-limits ]]; then
+		(($# == 0)) || { echo 'Codex の使用量の読み取りに追加の引数は渡せません' >&2; return 1; }
+		command=(squad_cli_codex_usage)
+	else
 	while IFS= read -r token; do
 		if [[ $token == \{*\} ]]; then
 			(($# > 0)) || { echo "CLI の読み取りの引数が足りません: $name の $token" >&2; return 1; }
@@ -1433,6 +1595,7 @@ squad_cli_read() {
 			command+=("$token")
 		fi
 	done < <(jq -r '.command[]' <<<"$entry")
+	fi
 	for token in "$@"; do
 		case $token in
 		--compact|--compact=*|--output|--output=*|--json|--json=*)

@@ -45,12 +45,15 @@ PY
  for runtime in $runtime_words; do
   {
    printf '#!/bin/bash\nset -euo pipefail\nscenario_dir=%q\n' "$scenario_dir"
+   printf 'fixture_root=%q\n' "$root"
    printf 'printf "%%s\\n" "%s $*" >>"$scenario_dir/runtime-calls"\n' "$runtime"
    if [[ $runtime == claude ]]; then
     cat <<'STUB'
 case "$*" in
 'auth status') [[ $CLAUDE_CONFIG_DIR == "$scenario_dir/host/claude" ]]; echo '{"loggedIn":true}' ;;
-'-p /usage --output-format json') printf '{"is_error":false,"result":"Current session: %s%% used · resets Oct 27 at 12:29pm (Asia/Tokyo)"}\n' "${TEST_USAGE_PERCENT:-0}" ;;
+'-p /usage --output-format json')
+ printf '{"is_error":false,"result":"Current session: %s%% used · resets Oct 27 at 12:29pm (Asia/Tokyo)"}\n' "${TEST_USAGE_PERCENT:-0}" >"$scenario_dir/claude.json"
+ python3 "$fixture_root/tests/usage-fixture.py" claude-usage "$scenario_dir/claude.json" ;;
 *) echo 'Unexpected Claude invocation' >&2; exit 90 ;;
 esac
 STUB
@@ -58,9 +61,11 @@ STUB
     cat <<'STUB'
 case "$*" in
 'login status') [[ $CODEX_HOME == "$scenario_dir/host/codex" ]] ;;
+'--version') jq -r '.versions.codex' "$fixture_root/tests/fixtures/cli/USAGE-CAPTURE.json" ;;
 app-server)
  for _ in 1 2 3; do IFS= read -r request; done
- printf '{"id":2,"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{"codex":{"primary":{"windowDurationMins":10080,"usedPercent":%s,"resetsAt":0},"secondary":null}}}}\n' "${TEST_USAGE_PERCENT:-0}"
+ printf '{"id":2,"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{"codex":{"primary":{"windowDurationMins":10080,"usedPercent":%s,"resetsAt":0},"secondary":null}}}}\n' "${TEST_USAGE_PERCENT:-0}" >"$scenario_dir/codex.jsonl"
+ python3 "$fixture_root/tests/usage-fixture.py" codex-rate-limits "$scenario_dir/codex.jsonl"
  cat >/dev/null ;;
 *) echo 'Unexpected Codex invocation' >&2; exit 90 ;;
 esac

@@ -4,9 +4,15 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/dispatch-pick-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+export USAGE_FIXTURE_ROOT=$root
 mkdir -p "$test_dir/monitor" "$test_dir/bin"
 cp "$root/common/monitor/squad-dispatch-pick" "$test_dir/monitor/"
 script=$test_dir/monitor/squad-dispatch-pick
@@ -63,7 +69,7 @@ fi
 fi
 DRIVER
 # 使用率の読み取りと共通関数は本体を使う。
-cp "$root/common/monitor/squad-usage-read" "$root/common/monitor/squad-usage-lib" "$test_dir/monitor/"
+cp "$root/common/monitor/squad-usage-read" "$root/common/monitor/squad-usage-lib" "$root/common/monitor/squad-cli-lib" "$test_dir/monitor/"
 cat >"$test_dir/bin/cli-reset" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
@@ -80,16 +86,23 @@ cat >"$test_dir/bin/claude" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$DISPATCH_TEST_DIR" claude "$@"
 echo read >>"$DISPATCH_TEST_DIR/calls"
 reset=$("$DISPATCH_TEST_DIR/bin/cli-reset")
 jq -c --arg reset "$reset" '{is_error:false,result:
 	("Current session: " + (.claude.session.used_percent | tostring) + "% used · resets Oct 27 at 1am (UTC)\n"
-	+ "Current week (all models): " + (.claude.week.used_percent | tostring) + "% used · resets " + $reset)}' "$DISPATCH_TEST_DIR/usage.json"
+	+ "Current week (all models): " + (.claude.week.used_percent | tostring) + "% used · resets " + $reset)}' "$DISPATCH_TEST_DIR/usage.json" >"$DISPATCH_TEST_DIR/claude.json"
+python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" claude-usage "$DISPATCH_TEST_DIR/claude.json"
 MOCK
 cat >"$test_dir/bin/codex" <<'MOCK'
 #!/bin/bash
 set -euo pipefail
+if [[ "$*" == --version ]]; then
+	jq -r '.versions.codex' "$USAGE_FIXTURE_ROOT/tests/fixtures/cli/USAGE-CAPTURE.json"
+	exit 0
+fi
 [[ "$*" == app-server ]]
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex "$@"
 for _ in 1 2 3; do IFS= read -r request; done
 jq -c '
 	def timestamp:
@@ -99,7 +112,8 @@ jq -c '
 			((.zone[1:3] | tonumber)*3600 + (.zone[4:6] | tonumber)*60) as $offset
 			| $utc - ($offset * (if .zone[0:1] == "-" then -1 else 1 end)) end;
 	{id:2,result:{ordinaryUsageAllowed:.codex.allowed,rateLimitsByLimitId:{codex:{primary:{
-		windowDurationMins:10080,usedPercent:.codex.week.used_percent,resetsAt:(.codex.week.resets_at | timestamp)}}}}}' "$DISPATCH_TEST_DIR/usage.json"
+		windowDurationMins:10080,usedPercent:.codex.week.used_percent,resetsAt:(.codex.week.resets_at | timestamp)}}}}}' "$DISPATCH_TEST_DIR/usage.json" >"$DISPATCH_TEST_DIR/codex.jsonl"
+python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" codex-rate-limits "$DISPATCH_TEST_DIR/codex.jsonl"
 printf 'ready\n' >&9
 cat >/dev/null
 MOCK
@@ -131,6 +145,7 @@ run_pick() {
 	mkfifo "$test_dir/usage-ready"
 	(cd "$test_dir"; PATH="$test_dir/bin" BASH_ENV="$test_dir/synchronize.sh" DISPATCH_TEST_INITIALIZE=yes /bin/bash "$script" "$@") \
 		>"$test_dir/out" 2>"$test_dir/err" || status=$?
+	python3 "$root/tests/cli-test-trace.py" "$test_dir" result "$script" "$status" "$test_dir/out" "$@"
 	if [[ "$status" != "$expected_status" ]] \
 		|| [[ $(head -n 1 "$test_dir/out") != "役: $expected_role" ]] \
 		|| [[ $(wc -l <"$test_dir/out" | tr -d ' ') != 2 ]] \

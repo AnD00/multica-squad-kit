@@ -136,4 +136,36 @@ masked=gh['redact'](original,{})
 assert structure(masked)==structure(original) and 'PRIVATE_' not in json.dumps(masked)
 print('PASS GitHub capture: 書き込みのオプションを拒み、自由文・login・URL を匿名化する')
 
+usage = runpy.run_path('tests/capture-usage-fixtures.py')
+for name in ('codex-rate-limits', 'claude-usage'):
+    original = json.loads((fixtures / f'{name}.json').read_text())[0]
+    if name == 'codex-rate-limits':
+        original['accountId'] = 'PRIVATE_ACCOUNT'
+        original['rateLimitResetCredits']['credits'][0]['id'] = 'PRIVATE_CREDIT'
+    else:
+        original['result'] = ('PRIVATE_PERSON ~/PRIVATE_PATH\n'
+                              'Current session: 0% used\n'
+                              'Current week (all models): 24% used · resets Nov 14 at 5am (Asia/Tokyo)')
+    masked = usage['redact_usage'](original, name)
+    assert structure(masked) == structure(original)
+    assert 'PRIVATE_' not in json.dumps(masked) and '~/' not in json.dumps(masked)
+    if name == 'claude-usage':
+        assert masked['result'].splitlines()[1:] == original['result'].splitlines()[1:]
+print('PASS usage capture: 使用率の実表示と鍵・型を保ち、アカウント・クレジット・作業パスを匿名化する')
+original = {'codex-rate-limits': {'accountId': high},
+            'claude-usage': {'session_id': high, 'result': 'Current session: 0% used · resets ' + low}}
+aliases = capture['uuid_aliases'](original)
+masked = {name: usage['redact_usage'](value, name, aliases) for name, value in original.items()}
+assert masked['codex-rate-limits']['accountId'] == masked['claude-usage']['session_id']
+assert not capture['UUID'].search(json.dumps(masked))
+print('PASS usage capture IDs: 採取の全応答で共通の対応表を使う')
+
+with tempfile.TemporaryDirectory(dir='tmp', prefix='usage-case-test.') as directory:
+    path = Path(directory) / 'case.json'
+    path.write_text(json.dumps({'id':2,'result':{'invented_field':True}}))
+    result = subprocess.run(['python3','tests/usage-fixture.py','codex-rate-limits',str(path)],
+                            capture_output=True,text=True)
+    assert result.returncode != 0 and '見本にない鍵' in result.stderr
+print('PASS usage case: 見本にない手書きの鍵を拒否する')
+
 PY

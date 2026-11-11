@@ -59,3 +59,15 @@ Multica と合わせた取り込みでは、外部で採取した応答のディ
 `pagination` のある約束は JSON のページをすべて検証してから連結する。入れ子の `items` は、親の `when` に当たるときだけ中の配列の全要素を検証する。`gh-fixture.py` は見本へケースの値を重ね、見本にない鍵を拒否する。必須欄の欠落を試す `raw` のケースでは重ねずにそのまま返す。
 
 PR・コメントの `user`、チェックの `app` は、[GitHub の公開 OpenAPI](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.json)で null 可の必須欄である。PR の `author` も [GraphQL の仕様](https://docs.github.com/en/graphql/reference/pulls)では null 可である。公開元で null の形は取れなかったため「見本なし」と記録し、子の欄を条件付きとしてテストする。
+
+## 使用量の読み取り
+
+`codex-rate-limits.json` と `claude-usage.json` は、2026-11-11 に実物から採取した。版・コマンド・形ごとの件数は `USAGE-CAPTURE.json` にある。Claude の使用率・リセットの表示は残し、診断・提案・作業パスを含む自由文は置き換えた。アカウントとクレジットの ID も匿名化している。
+
+次のコマンドはモデルを呼ばず、使用量を読み直す。保存した実応答を使うときは、`codex-rate-limits.json`（JSON-RPC の `result`）と `claude-usage.json`（CLI の JSON 全体）を置いたディレクトリを `--response-dir` に渡す。
+
+```bash
+python3 tests/capture-usage-fixtures.py
+```
+
+`values.path` は、名前が値で決まるオブジェクトの各値を検証・整形する。Codex の枠の名前を保ち、その中の `primary`・`secondary` と、null でない枠の各欄を検証する。`usage-fixture.py` は実物にケースの値を重ね、枠の名前以外の新しい鍵を拒否する。非 null の `secondary` は取れなかったため「見本なし」と記録し、同じ枠の型を持つ実物の `primary` からテスト用の値を作る。Claude の表示のテストも、実物の JSON の鍵を保ち、表示の値だけを変える。

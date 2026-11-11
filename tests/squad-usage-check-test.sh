@@ -5,14 +5,24 @@ set -euo pipefail
 unset USAGE_CHECK_RUNTIMES
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/usage-check-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+export USAGE_FIXTURE_ROOT=$root
 script=$root/common/monitor/squad-usage-check
 source "$(dirname "$script")/squad-usage-lib"
 awk '/^[a-z_]+\(\) \{/ {inside=1} inside {print} /^}$/ {inside=0}' "$script" >"$test_dir/functions.sh"
 source "$test_dir/functions.sh"
+source "$root/tests/cli-mode-test-lib.sh"
+cli_test_wrap_monitor "$script" "$test_dir"
+source "$root/common/monitor/squad-cli-lib"
+squad_cli_contracts >"$test_dir/contracts.json"
 
 USAGE_CHECK_ASSIGNEE='テスト担当者 名前'
 USAGE_CHECK_PROJECT=test-project
@@ -31,21 +41,31 @@ cat >"$test_dir/bin/claude" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
 [[ "$*" == '-p /usage --output-format json' ]]
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$USAGE_TEST_DIR" claude "$@"
 printf 'claude\n' >>"$USAGE_TEST_DIR/runtime-calls"
-cat "$USAGE_TEST_DIR/claude.json"
+python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" claude-usage "$USAGE_TEST_DIR/claude.json"
 cat "$USAGE_TEST_DIR/claude.err" >&2
 exit "$(cat "$USAGE_TEST_DIR/claude.status")"
 MOCK
 cat >"$test_dir/bin/codex" <<'MOCK'
 #!/usr/bin/env bash
 set -euo pipefail
+if [[ "$*" == --version ]]; then
+	jq -r '.versions.codex' "$USAGE_FIXTURE_ROOT/tests/fixtures/cli/USAGE-CAPTURE.json"
+	exit 0
+fi
 [[ "$*" == app-server ]]
+python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "${USAGE_TEST_DIR:-$DISPATCH_TEST_DIR}" codex "$@"
 printf 'codex\n' >>"$USAGE_TEST_DIR/runtime-calls"
 for _ in 1 2 3; do
 	IFS= read -r request
 	printf '%s\n' "$request" >>"$USAGE_TEST_DIR/requests.jsonl"
 done
-cat "$USAGE_TEST_DIR/codex.jsonl"
+if [[ -f "$USAGE_TEST_DIR/codex-defect.json" ]]; then
+	jq -cn --slurpfile result "$USAGE_TEST_DIR/codex-defect.json" '{id:2,result:$result[0]}'
+else
+	python3 "$USAGE_FIXTURE_ROOT/tests/usage-fixture.py" codex-rate-limits "$USAGE_TEST_DIR/codex.jsonl"
+fi
 cat >/dev/null
 MOCK
 chmod +x "$test_dir/bin/claude" "$test_dir/bin/codex"
@@ -137,6 +157,8 @@ assert_fetch_error codex
 echo 'PASS Codex: エラー応答・応答なしの理由と終了コード'
 
 multica() {
+	if [[ "$*" == version ]]; then echo 'multica fixture-version'; return; fi
+	python3 "$USAGE_FIXTURE_ROOT/tests/cli-test-trace.py" "$test_dir" multica "$@"
 	jq -cn --args '$ARGS.positional' -- "$@" >>"$test_dir/calls.jsonl"
 	case "$1 $2" in
 	'issue create')
@@ -146,7 +168,11 @@ multica() {
 			shift
 		done
 		cat "$file" >"$test_dir/description.md"
-		echo '{"id":"test-issue"}'
+		if [[ -f $test_dir/create-response.json ]]; then
+			cat "$test_dir/create-response.json"
+		else
+			python3 "$USAGE_FIXTURE_ROOT/tests/multica-fixture.py" "$test_dir" base issue-create | jq '.id = "test-issue"'
+		fi
 		;;
 	'issue comment')
 		if [[ -f $test_dir/fail-comment ]]; then echo 'mock comment failure' >&2; return 1; fi
@@ -158,7 +184,10 @@ multica() {
 		jq -Rs '{body:.}' <"$file" >>"$test_dir/comments.jsonl"
 		;;
 	'issue status') test "$4" == done ;;
-	'label list') echo '[{"id":"operations-label","name":"運用"}]' ;;
+	'label list')
+		if [[ -f $test_dir/label-response.json ]]; then cat "$test_dir/label-response.json"; else
+			python3 "$USAGE_FIXTURE_ROOT/tests/multica-fixture.py" "$test_dir" base label-list | jq '[.id = "operations-label" | .name = "運用"]'
+		fi ;;
 	'issue label') test "$3 $4 $5" = 'add test-issue operations-label' ;;
 	*) echo "Unexpected mock call: $*" >&2; return 1 ;;
 	esac
@@ -326,3 +355,30 @@ for member in unset empty; do
 	grep -q 'USAGE_CHECK_MEMBER に、メンバーの区別を渡す' "$test_dir/err"
 done
 echo 'PASS メンバー: 未指定・空では記録や CLI の呼び出し前に止まる'
+
+# 書き込みは済んでいても応答が欠けていれば止まり、同じ実行で起票し直さない。
+for field in id identifier; do
+	state='{}'
+	: >"$test_dir/calls.jsonl"
+	python3 "$root/tests/multica-fixture.py" "$test_dir" base issue-create |
+		jq --arg field "$field" 'del(.[$field])' >"$test_dir/create-response.json"
+	if apply test-key warn 'テスト枠' '詳細' >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+	grep -qF "issue-create の $field" "$test_dir/err"
+	[[ $state == '{}' ]]
+	jq -se 'length==1 and .[0][0:2]==["issue","create"]' "$test_dir/calls.jsonl" >/dev/null
+done
+rm "$test_dir/create-response.json"
+echo 'PASS 起票応答: id・identifier の欠落で状態を進めず、起票は一度だけ'
+
+for field in id name resource_type; do
+	state='{}'; label_failed=false
+	: >"$test_dir/calls.jsonl"
+	python3 "$root/tests/multica-fixture.py" "$test_dir" base label-list |
+		jq --arg field "$field" '[del(.[$field])]' >"$test_dir/label-response.json"
+	apply test-key warn 'テスト枠' '詳細' >"$test_dir/out" 2>"$test_dir/err"
+	grep -qF "label-list の $field" "$test_dir/err"
+	[[ $label_failed == true ]]
+	jq -se '[.[]|select(.[0:3]==["issue","label","add"])]|length==0' "$test_dir/calls.jsonl" >/dev/null
+done
+rm "$test_dir/label-response.json"
+echo 'PASS ラベル応答: 必須欄の欠落は欄名で失敗し、ラベルを付けず起票済みの状態を保存する'

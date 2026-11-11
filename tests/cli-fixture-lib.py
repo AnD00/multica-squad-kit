@@ -46,8 +46,19 @@ def assert_fixture_response(original, candidate, entry, allow_required_deletion=
     def object_case(before, after, schema):
         child = schema.get("items")
         path = tuple(child["path"]) if child else None
+        mapping = schema.get("values")
+        map_path = tuple(mapping["path"]) if mapping else None
         assert_case_keys(before, after, schema.get("fields", []), allow_required_deletion,
-                         (path,) if path else ())
+                         tuple(p for p in (path, map_path) if p))
+        if mapping:
+            originals, values = before, after
+            for key in map_path:
+                if not isinstance(values, dict) or key not in values:
+                    break
+                originals, values = originals[key], values[key]
+            else:
+                if isinstance(values, dict):
+                    items(list(originals.values()), list(values.values()), mapping)
         if child:
             for key in path:
                 if not isinstance(after, dict) or key not in after:

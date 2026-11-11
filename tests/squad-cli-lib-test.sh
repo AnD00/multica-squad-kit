@@ -24,6 +24,7 @@ check_case = helper['assert_fixture_response']
 matches = helper['matches']
 fixtures = root / 'tests/fixtures/cli'
 versions = (fixtures / 'VERSION').read_text().splitlines()
+codex_version = json.loads((fixtures / 'USAGE-CAPTURE.json').read_text())['versions']['codex']
 missing = object()
 counts = {'responses': 0, 'deleted': 0, 'null': 0, 'minimal': 0, 'shapes': 0}
 
@@ -45,6 +46,13 @@ def mutate(value, path, delete=False, replacement=None):
 def scopes(response, entry):
     def walk(value, schema, prefix):
         yield prefix, value, schema.get('fields', [])
+        mapping = schema.get('values')
+        if mapping:
+            path = mapping['path']
+            values = get(value, path)
+            if isinstance(values, dict):
+                for key, item in values.items():
+                    yield from walk(item, mapping, prefix + path + [key])
         child = schema.get('items')
         if child and (not child.get('when') or matches(value, child['when'])):
             path = child['path']
@@ -61,8 +69,11 @@ def active(value, field):
     return field['class'] == 'required' or (
         field['class'] == 'conditional' and matches(value, field['when']))
 
+def version_for(name):
+    return codex_version if entries[name]['command'][0] == 'codex' else versions[1 if entries[name]['command'][0] == 'gh' else 0]
+
 def normalize(name, response, keep=False):
-    version = versions[1 if entries[name]['command'][0] == 'gh' else 0]
+    version = version_for(name)
     return subprocess.run(['bash', '-c', 'source "$1"; squad_cli_normalize "$2" "$3"',
                            'bash', str(library), name, version], input=json.dumps(response),
                           capture_output=True, text=True, env=dict(os.environ, SQUAD_CLI_TEST_KEEP_FIELDS="1" if keep else "0"))
@@ -78,7 +89,7 @@ def failure(name, response, field):
     assert name in result.stderr and field['path'] in result.stderr, result.stderr
     kept = normalize(name, response, keep=True)
     assert kept.returncode == 1 and kept.stdout == '' and field['path'] in kept.stderr
-    assert versions[1 if entries[name]['command'][0] == 'gh' else 0] in result.stderr
+    assert version_for(name) in result.stderr
     if field['class'] == 'conditional':
         assert field['when'] in result.stderr, result.stderr
 
@@ -103,7 +114,11 @@ for name, entry in entries.items():
                 assert (any(present) or any(s['name'] == field['path'] + '-present' for s in unavailable)) and (not all(present) or any(s['name'] == field['path'] + '-absent' for s in unavailable)), (name, field, '省略の両方の形が必要です')
             elif field['class'] == 'conditional':
                 present = [matches(value, field['when']) for value in values]
-                assert any(present) or any(sample['where'] == field['when'] for sample in unavailable), (name, field)
+                condition = field['when']
+                mapping = entry.get('values')
+                if mapping and mapping['fields'] is fields:
+                    condition = 'any(.' + '.'.join(mapping['path']) + '[]; ' + condition + ')'
+                assert any(present) or any(sample['where'] == condition for sample in unavailable), (name, field)
                 assert not all(present) or unavailable, (name, field, '非該当の形が必要です')
     for response in responses:
         normalized = success(name, response)
@@ -266,5 +281,20 @@ for field in entries['gh-statuses']['items']['fields']:
         mutate(changed, [0] + field['path'].split('.'), delete=True)
         failure('gh-statuses', changed, field)
 print('PASS unavailable Status: id・context・state を一つずつ消し、欄名・版と終了1を確認する')
+
+# 実物にない非 null の secondary は、同じ枠の型を持つ primary の値から作る。
+entry = entries['codex-rate-limits']
+codex = json.loads((fixtures / 'codex-rate-limits.json').read_text())[0]
+window = copy.deepcopy(codex['rateLimitsByLimitId']['codex']['primary'])
+codex['rateLimitsByLimitId']['codex']['secondary'] = window
+codex['rateLimitsByLimitId']['codex']['primary'] = None
+success('codex-rate-limits', codex)
+for field in entry['values']['fields']:
+    value = codex['rateLimitsByLimitId']['codex']
+    if active(value, field):
+        changed = copy.deepcopy(codex)
+        mutate(changed, ['rateLimitsByLimitId','codex'] + field['path'].split('.'), delete=True)
+        failure('codex-rate-limits', changed, field)
+print('PASS Codex: secondary の条件付きの全欄と primary の null を検証する')
 
 PY
