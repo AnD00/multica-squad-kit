@@ -131,7 +131,7 @@ Lima では、Lima の既定どおり、使う人に sudo を残す。共有の�
 
 中での呼び出しは `bash provision.sh lima|wsl USER` にする。確かめは使う人として `bash verify.sh lima|wsl` を流す。テストでは `SQUAD_VM_ROOT` で、設定の書き込み先と `/proc` などの読み取り先の根を一時の置き場へ変える。
 
-1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる。`gh` は、Ubuntu の標準の版では証明を確かめられないので、GitHub の公式の apt のリポジトリ（`cli.github.com/packages`）の鍵と `sources` を置いて、そこから入れる（`docs/install.md` の[必要な `gh` の版](install.md#必要な-gh-の版)）
+1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる。`gh` は、Ubuntu の標準のバージョンでは証明を確かめられないので、GitHub の公式の apt のリポジトリ（`cli.github.com/packages`）の鍵と `sources` を置いて、そこから入れる（`docs/install.md` の[必要な `gh` のバージョン](install.md#必要な-gh-のバージョン)）
 2. WSL では、使う人を `useradd` で作る。sudo の群には入れない
 3. Docker を rootless で入れる（[Docker](#docker)）
 4. 使う人の linger を入れる（`loginctl enable-linger USER`）

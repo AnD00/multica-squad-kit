@@ -66,7 +66,7 @@ for mode in parallel serial; do
 	echo "PASS runner: $mode で外のファイルを流し、環境とログを分け、後片付けする"
 done
 
-# HOME の設定から版を決める python3 の shim でも、空の HOME のテストから動く。
+# HOME の設定からバージョンを決める python3 の shim でも、空の HOME のテストから動く。
 mkdir -p "$test_dir/shim" "$test_dir/real python" "$test_dir/real-home"
 touch "$test_dir/real-home/.tool-versions"
 cat >"$test_dir/real python/python3" <<'STUB'
@@ -87,7 +87,7 @@ echo 'PASS fixture: python'
 FIXTURE
 HOME="$test_dir/real-home" PATH="$test_dir/shim:$PATH" TEST_RUNNER_REAL_PYTHON="$test_dir/real python/python3" run_suite 0 1 "$fixtures/python.sh"
 grep -qxF 'PASS fixture: python' "$test_dir/out"
-echo 'PASS runner: HOME から版を決める python3 の shim でも、本物の HOME で引いた実体を空の HOME のテストへ渡す'
+echo 'PASS runner: HOME からバージョンを決める python3 の shim でも、本物の HOME で引いた実体を空の HOME のテストへ渡す'
 
 cat >"$fixtures/fail.sh" <<'FIXTURE'
 #!/usr/bin/env bash

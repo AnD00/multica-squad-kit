@@ -33,7 +33,7 @@ def materialize(kit, extension, target):
     if any(p.is_symlink() for p in extension.rglob('*')):
         fail('拡張にシンボリックリンクがあります')
     if (extension / 'kit-version').read_text().strip() != (kit / 'VERSION').read_text().strip():
-        fail('拡張が求める原本の版と、流している版が違います')
+        fail('拡張が求める原本のバージョンと、流しているバージョンが違います')
     allowed = {'kit-version', 'agents', 'additions.json', 'instructions', 'autopilots.md', 'monitor', 'skills', 'link-repositories.json'}
     if any(p.name not in allowed for p in extension.iterdir()):
         fail('未知の拡張の項目です')

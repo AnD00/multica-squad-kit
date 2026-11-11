@@ -205,3 +205,42 @@ for shell in /bin/bash /bin/zsh; do
 	grep -q '^gh の関所:.*other/repo.*への 書き込み' "$test_dir/error"
 done
 echo 'PASS PATH: 本物の gh が先でも bash・zsh の起動時に関所が先になり、許可先だけを本物へ渡す'
+
+# Claude Code は起動ファイルのあとに snapshot の PATH を書き戻し、
+# CLAUDE_ENV_FILE の中身をコマンドの直前へ && でつなぐ。
+runtime_path="$test_dir/bin:$guard_bin:$PATH"
+printf 'export PATH=%q\n' "$runtime_path" >"$test_dir/claude-snapshot.sh"
+snapshot_command=$(printf 'source %q' "$test_dir/claude-snapshot.sh")
+export CLAUDE_ENV_FILE="$shell_dir/env.sh"
+claude_env=$(cat "$CLAUDE_ENV_FILE")
+for shell in /bin/bash /bin/zsh; do
+	reset_calls
+	PATH="$runtime_path" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c "$snapshot_command && command -v gh" >"$test_dir/selected-gh"
+	[[ $(cat "$test_dir/selected-gh") == "$test_dir/bin/gh" ]]
+	echo "PASS Claude PATH ($shell): env の中身なしでは snapshot が本物の gh を先に戻す"
+
+	PATH="$runtime_path" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c "$snapshot_command && $claude_env && command -v gh" >"$test_dir/selected-gh"
+	[[ $(cat "$test_dir/selected-gh") == "$guard_bin/gh" ]]
+	echo "PASS Claude PATH ($shell): snapshot のあとに env の中身を流すと関所を選ぶ"
+
+	: >"$SQUAD_KIT_ALLOWED_REPOS"
+	reset_calls
+	if PATH="$runtime_path" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c "$snapshot_command && $claude_env && gh api -X POST repos/example/template/issues -f title=test" >"$test_dir/output" 2>"$test_dir/error"; then
+		echo "Claude の順の $shell からの空の許可での書き込みが拒否されなかった" >&2
+		exit 1
+	fi
+	[[ ! -s $test_dir/writes.jsonl && ! -s $test_dir/output ]]
+	grep -q '^gh の関所:.*example/template.*への 書き込み' "$test_dir/error"
+	echo "PASS Claude PATH ($shell): 空の許可では関所の文言で拒否し、本物に書き込まない"
+
+	printf '%s\n' example/template >"$SQUAD_KIT_ALLOWED_REPOS"
+	reset_calls
+	PATH="$runtime_path" ZDOTDIR="$shell_dir" BASH_ENV="$shell_dir/env.sh" \
+		"$shell" -c "$snapshot_command && $claude_env && gh api -X POST repos/example/template/issues -f title=test" >"$test_dir/output" 2>"$test_dir/error"
+	jq -se '. == [["api","-X","POST","repos/example/template/issues","-f","title=test"]]' "$test_dir/writes.jsonl" >/dev/null
+	[[ ! -s $test_dir/error ]]
+	echo "PASS Claude PATH ($shell): 許可先への書き込みを本物に 1 回だけ渡す"
+done

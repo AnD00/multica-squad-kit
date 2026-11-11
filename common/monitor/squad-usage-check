@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
-# Multica のエージェントが使う Claude と Codex の使用上限を見て、状態が変わったら Multica の issue で知らせる。
-# Multica は残りの使用量を見ず、上限で失敗したタスクも再試行しないため、止まる前と戻ったときに人が気づけるようにする。
-# 上限で失敗したことは、Multica が task_failed の通知を受信箱に送るので、ここでは扱わない。
+# Multica のエージェントが使う Claude と Codex の使用上限を見て、状態が変わったら Multica のタスクで知らせる。
+# Multica は残りの使用量を見ず、使用上限で失敗したタスクも再試行しないため、止まる前と戻ったときに人が気づけるようにする。
+# 使用上限で失敗したことは、Multica が task_failed の通知を受信箱に送るので、ここでは扱わない。
 # Multica のオートパイロットから、各プロジェクト・メンバーの使用上限の見張り役が定期的に実行する。
-# エージェントの実行の中で動かすのは、issue をエージェントとして作り、担当者の受信箱に通知を届けるため
+# エージェントの実行の中で動かすのは、タスクをエージェントとして作り、担当者の受信箱に通知を届けるため
 # （人のアカウントで作ると、自分の操作は自分に通知されない）。
 # デーモンのホスト（macOS・Linux）で動く。
 set -euo pipefail
 
-# issue の担当にする人（Multica のメンバーの名前）。担当者の受信箱に通知が届く。
-: "${USAGE_CHECK_ASSIGNEE:?USAGE_CHECK_ASSIGNEE に、issue の担当にするメンバーの名前を渡す}"
-# 作る issue を入れるプロジェクト。setup.sh が指示の置き換えで渡す。
-: "${USAGE_CHECK_PROJECT:?USAGE_CHECK_PROJECT に、作る issue を入れるプロジェクトの ID を渡す}"
+# タスクの担当にする人（Multica のメンバーの名前）。担当者の受信箱に通知が届く。
+: "${USAGE_CHECK_ASSIGNEE:?USAGE_CHECK_ASSIGNEE に、タスクの担当にするメンバーの名前を渡す}"
+# 作るタスクを入れるプロジェクト。setup.sh が指示の置き換えで渡す。
+: "${USAGE_CHECK_PROJECT:?USAGE_CHECK_PROJECT に、作るタスクを入れるプロジェクトの ID を渡す}"
 # メンバーの区別はセットアップで選んだ値。同じ人の別のプロジェクトとも記録を分ける。
 : "${USAGE_CHECK_MEMBER:?USAGE_CHECK_MEMBER に、メンバーの区別を渡す}"
 # 保存先の要素として使うので、別のディレクトリを指す値は受け付けない。
@@ -25,12 +25,12 @@ usage_check_state_path() {
 	printf '%s/%s/%s.state\n' "${USAGE_CHECK_STATE_ROOT:-$HOME/.multica-agent/template/usage-check}" "$USAGE_CHECK_PROJECT" "$USAGE_CHECK_MEMBER"
 }
 STATE_FILE=$(usage_check_state_path)
-# 警告を出す使用率（%）。警告から上限までが短すぎて手当てが間に合わないなら下げ、issue が多すぎるなら上げる。
+# 警告を出す使用率（%）。警告から使用上限までが短すぎて手当てが間に合わないなら下げ、タスクが多すぎるなら上げる。
 USAGE_WARN_PERCENT=${USAGE_WARN_PERCENT:-80}
-# 作る issue に付けるラベル。開発の issue と分け、開発の進み具合に数えないため（セットアップで作るラベル）。
+# 作るタスクに付けるラベル。開発のタスクと分け、開発の進み具合に数えないため（セットアップで作るラベル）。
 LABEL_NAME=運用
 
-# 見るランタイムはセットアップの選択を受け取る。旧版の指示は両方を見る。
+# 見るランタイムはセットアップの選択を受け取る。古いバージョンの指示は両方を見る。
 case ${USAGE_CHECK_RUNTIMES-claude codex} in
 'claude codex') usage_check_runtimes=(claude codex) ;;
 claude) usage_check_runtimes=(claude) ;;
@@ -104,23 +104,23 @@ fetch_codex() {
 	fi
 }
 
-# 状態は「キー → {level, issue}」の JSON。issue は、その枠について開いている issue の ID。
+# 状態は「キー → {level, issue}」の JSON。`issue` は、その枠について開いているタスクの ID。
 state='{}'
 [[ -f "$STATE_FILE" ]] && state=$(cat "$STATE_FILE")
 
-# issue を作るたびに保存する。途中で失敗しても、作った issue を忘れて同じものを作り直さないため。
+# タスクを作るたびに保存する。途中で失敗しても、作ったタスクを忘れて同じものを作り直さないため。
 save_state() {
 	mkdir -p "$(dirname "$STATE_FILE")"
 	printf '%s\n' "$state" >"$STATE_FILE"
 }
 
-# issue にラベルを付ける。付けられなくても issue の状態の保存は続けるよう、失敗は返り値で返す。
+# タスクにラベルを付ける。付けられなくてもタスクの状態の保存は続けるよう、失敗は返り値で返す。
 label_failed=false
 add_label() {
 	local id
 	id=$(multica label list --output json | jq -r --arg n "$LABEL_NAME" '[.[] | select(.name == $n)][0].id // empty') || true
 	if [[ -z "$id" ]] || ! multica issue label add "$1" "$id" >/dev/null; then
-		echo "issue ${1} に、ラベル ${LABEL_NAME} を付けられなかった" >&2
+		echo "タスク ${1} に、ラベル ${LABEL_NAME} を付けられなかった" >&2
 		return 1
 	fi
 }
@@ -135,9 +135,9 @@ usage_comment() {
 	return "$code"
 }
 
-# 1 つの枠の状態の変化を、issue に反映する。
-#   ok → warn/limited/error: issue を作る
-#   warn → limited: 上限に達したとコメントする
+# 1 つの枠の状態の変化を、タスクに反映する。
+#   ok → warn/limited/error: タスクを作る
+#   warn → limited: 使用上限に達したとコメントする
 #   limited → warn/ok、warn/error → ok: 戻ったとコメントし、ok なら done にする
 apply() {
 	local key=$1 level=$2 title=$3 detail=$4
@@ -150,13 +150,13 @@ apply() {
 		if [[ "$level" != ok ]]; then
 			local summary
 			case "$level" in
-			warn) summary="上限が近い。重い作業の割り振りを控えるか、エージェントを別の系統のモデルに寄せる" ;;
-			limited) summary="上限に達した。リセットまで、このモデルのエージェントは失敗する" ;;
+			warn) summary="使用上限が近い。重い作業の割り振りを控えるか、エージェントを別の系統のモデルに寄せる" ;;
+			limited) summary="使用上限に達した。リセットまで、このモデルのエージェントは失敗する" ;;
 			error) summary="使用量を取れなくなり、見張れていない。ログインや表示の形が変わっていないか確かめる" ;;
 			esac
 			local description
 			description=$(usage_tmpfile)
-			printf '%s\n\n%s\n\nこの issue は使用上限の見張り（squad-usage-check）が作った。戻ったら、見張りがコメントして done にする。\n' "$summary" "$detail" >"$description"
+			printf '%s\n\n%s\n\nこのタスクは使用上限の見張り（squad-usage-check）が作った。戻ったら、見張りがコメントして done にする。\n' "$summary" "$detail" >"$description"
 			issue=$(multica issue create --title "[使用上限] ${title}" --assignee "$USAGE_CHECK_ASSIGNEE" --project "$USAGE_CHECK_PROJECT" \
 				--description-file "$description" --output json | jq -r '.id')
 			rm -f -- "$description"
@@ -164,10 +164,10 @@ apply() {
 		fi
 	else
 		case "$level:$prev" in
-		limited:*) printf '上限に達した。リセットまで、このモデルのエージェントは失敗する。\n\n%s\n' "$detail" |
+		limited:*) printf '使用上限に達した。リセットまで、このモデルのエージェントは失敗する。\n\n%s\n' "$detail" |
 			usage_comment "$issue" ;;
 		ok:error) printf '使用量をまた取れるようになった。\n' | usage_comment "$issue" ;;
-		*:limited) printf '戻った。上限で失敗したタスクは multica issue rerun で再実行する。\n\n%s\n' "$detail" |
+		*:limited) printf '戻った。使用上限で失敗したタスクは multica issue rerun で再実行する。\n\n%s\n' "$detail" |
 			usage_comment "$issue" ;;
 		ok:warn) printf 'リセットされた。\n\n%s\n' "$detail" | usage_comment "$issue" ;;
 		esac

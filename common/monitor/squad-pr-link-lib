@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# PR の紐付けを共有する。呼び出し元が source し、警告の文を作る。
+# pr_link_pull_request <タスクの ID> <PR の URL> <metadata の JSON>
+# 成功は 0、失敗は 1。理由は PR_LINK_REASON に返し、本文や診断は出さない。
+pr_link_pull_request() {
+	local id=$1 url=$2 metadata=$3 repository url_repository status started now
+	local remaining request_timeout wait_time transport_failed
+	local -a headers=()
+	local interval=10 timeout=120
+	local timeout_reason='サーバーが PR を見つけられない（120 秒待った）'
+	PR_LINK_REASON=''
+	repository=$(jq -r '.repository // empty' <<<"$metadata") || return 1
+	url_repository=${url#https://github.com/}
+	url_repository=${url_repository%/pull/*}
+	if [[ -n $repository && $(printf '%s' "$repository" | tr '[:upper:]' '[:lower:]') != "$(printf '%s' "$url_repository" | tr '[:upper:]' '[:lower:]')" ]]; then
+		PR_LINK_REASON='metadata の repository と違う'
+		return 1
+	fi
+	if jq -e 'has("pr_url")' <<<"$metadata" >/dev/null; then
+		return 0
+	fi
+	if [[ -z ${MULTICA_TOKEN:-} ]]; then
+		PR_LINK_REASON='トークンがない'
+		return 1
+	fi
+	if [[ -z ${MULTICA_SERVER_URL:-} ]]; then
+		PR_LINK_REASON='サーバーの URL がない'
+		return 1
+	fi
+	if ! command -v curl >/dev/null 2>&1; then
+		PR_LINK_REASON='curl がない'
+		return 1
+	fi
+	[[ -z ${MULTICA_WORKSPACE_ID:-} ]] || headers=(-H "X-Workspace-ID: $MULTICA_WORKSPACE_ID")
+	started=$(date +%s)
+	while :; do
+		now=$(date +%s)
+		remaining=$((started + timeout - now))
+		if (( remaining <= 0 )); then
+			PR_LINK_REASON=$timeout_reason
+			return 1
+		fi
+		request_timeout=30
+		if (( remaining < request_timeout )); then request_timeout=$remaining; fi
+		transport_failed=0
+		# 設定は標準入力だけに渡し、応答本文と curl の診断は捨てる。
+		if ! status=$(printf 'header = "Authorization: Bearer %s"\n' "$MULTICA_TOKEN" |
+			curl -q --config - -sS --max-time "$request_timeout" -o /dev/null -w '%{http_code}' \
+				-X POST -H 'Content-Type: application/json' ${headers[@]+"${headers[@]}"} \
+				--data "$(jq -cn --arg url "$url" '{url:$url}')" \
+				"${MULTICA_SERVER_URL%/}/api/issues/$id/pull-requests" 2>/dev/null); then
+			transport_failed=1
+		fi
+		# 期限後の応答は、状態コードが 200 でも成功として扱わない。
+		now=$(date +%s)
+		remaining=$((started + timeout - now))
+		if (( remaining <= 0 )); then
+			PR_LINK_REASON=$timeout_reason
+			return 1
+		fi
+		if (( transport_failed )); then
+			PR_LINK_REASON='通信に失敗した'
+			return 1
+		fi
+		case "$status" in
+		200)
+			if multica issue metadata set "$id" --key pr_url --value "$url" --type string >/dev/null 2>&1; then
+				return 0
+			fi
+			PR_LINK_REASON='metadata を書けない'
+			return 1
+			;;
+		404)
+			wait_time=$interval
+			if (( remaining < wait_time )); then wait_time=$remaining; fi
+			sleep "$wait_time"
+			;;
+		*)
+			PR_LINK_REASON="応答の状態コード $status"
+			return 1
+			;;
+		esac
+	done
+}

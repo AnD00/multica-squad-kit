@@ -32,11 +32,11 @@ esac
 for tool in find sort shasum; do
 	command -v "$tool" >/dev/null || die "$tool がありません。manual.md の「受け取る人の準備」に従って導入してください。Ubuntu では sudo apt-get install coreutils findutils libdigest-sha-perl、macOS では標準の道具と PATH を確認してください。何も変更していません。"
 done
-# clone した原本は、最新のリリースのタグを取り出し、その版の setup.sh で流し直す。
-# VERSION からタグの URL を作るので、手元の中身がタグと違うと、版の混ざった導入になる。
-# ZIP を展開した原本は .git がなく、展開した版のまま流す。
+# clone した原本は、最新のリリースのタグを取り出し、そのバージョンの setup.sh で流し直す。
+# VERSION からタグの URL を作るので、手元の中身がタグと違うと、バージョンの混ざった導入になる。
+# ZIP を展開した原本は .git がなく、展開したバージョンのまま流す。
 # 関数にするのは、checkout で setup.sh が書き換わる前に、exec までを読み終えておくため。
-# 流し直す先が古い版でも受けるよう、取り出し済みの印は引数でなく環境変数で渡す。
+# 流し直す先が古いバージョンでも受けるよう、取り出し済みの印は引数でなく環境変数で渡す。
 use_latest_tag() {
 	local checked=${SQUAD_KIT_TAG_CHECKED_OUT:-} tag target
 	unset SQUAD_KIT_TAG_CHECKED_OUT
@@ -47,9 +47,9 @@ use_latest_tag() {
 	[[ -n $tag ]] || die 'origin にリリースのタグがありません。何も変更していません。'
 	target=$(git -C "$root" rev-parse --verify --quiet "refs/tags/$tag^{commit}") || die "タグ $tag を読めません。何も変更していません。"
 	[[ $(git -C "$root" rev-parse HEAD) != "$target" ]] || return 0
-	[[ -z $(git -C "$root" status --porcelain --untracked-files=no) ]] || die "原本に未コミットの変更があるので、最新のタグ $tag を取り出せません。変更を退避するか捨てて流し直すか、今の版のまま流すなら --no-checkout を付けてください。何も変更していません。"
+	[[ -z $(git -C "$root" status --porcelain --untracked-files=no) ]] || die "原本に未コミットの変更があるので、最新のタグ $tag を取り出せません。変更を退避するか捨てて流し直すか、今のバージョンのまま流すなら --no-checkout を付けてください。何も変更していません。"
 	git -C "$root" -c advice.detachedHead=false checkout --quiet --detach "$target" || die "タグ $tag を取り出せません。git status で原本の状態を確かめてください。"
-	printf '最新のタグ %s を取り出しました。その版で流し直します。\n' "$tag" >&2
+	printf '最新のタグ %s を取り出しました。そのバージョンで流し直します。\n' "$tag" >&2
 	export SQUAD_KIT_TAG_CHECKED_OUT=$tag
 	if [[ -n $extension_option ]]; then
 		exec "$BASH" "$root/setup.sh" --extension "$extension_option"

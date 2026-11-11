@@ -23,7 +23,7 @@ choose_extension() {
 	template_roles+=" $extension_current_roles"
 }
 
-# 消えた拡張の名前だけを管理対象に残す。中身と版の記録には使わない。
+# 消えた拡張の名前だけを管理対象に残す。中身とバージョンの記録には使わない。
 load_extension_inventory() {
 	local previous role
 	extension_inventory="$state_root/$workspace_id/$project_key-$member_key.extensions.json"

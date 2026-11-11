@@ -1,7 +1,7 @@
 # プロジェクトとエージェントの設定を終えてから、スクワッドを設定する。
 prepare_project() (
 	umask 077
-	local project_work enabled role file model thinking name id result current desired skills matches field value runtime max
+	local project_work enabled role file model thinking name id result current desired skills matches field value runtime max custom_args
 	local profile people member_name owner_mention squad_name squad_id records='{}' values
 	local selected_repositories selected_repo
 	local created_agents=0 created_squads=0 created_autopilots=0
@@ -39,7 +39,7 @@ prepare_project() (
 		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || continue
 		if ! jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles"; then enabled+=" $role"; fi
 	done
-	[[ " $enabled " == *' orchestrator '* ]] || die '進行の役は必須です。'
+	[[ " $enabled " == *' orchestrator '* ]] || die 'リーダーは必須です。'
 	for role in claude codex; do
 		if [[ " $enabled " == *" $role-implementer "* ]]; then
 			[[ " $enabled " == *" $role-fixer "* ]] || die '実装と修正は系統ごとに選んでください。'
@@ -126,7 +126,8 @@ prepare_project() (
 		id=$(jq -r --arg role "$role" '.[$role].id // empty' <<<"$records")
 		if [[ -z $id ]]; then
 			agent_action=新規作成
-			result=$(mc agent create --name "$name" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --permission-mode private --instructions '初期化中です。本作業、タスクの状態変更、コメント、他者の呼び出しを行わず、セットアップの完了を待って停止してください。' --custom-env-file "$project_work/$role.env" --output json) || die "初期化用のエージェントを作れませんでした: $name"
+			custom_args=$(project_desired_args "$model" <<< '[]') || die '追加の引数を作れませんでした。'
+			result=$(mc agent create --name "$name" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --permission-mode private --instructions '初期化中です。本作業、タスクの状態変更、コメント、他者の呼び出しを行わず、セットアップの完了を待って停止してください。' --custom-env-file "$project_work/$role.env" --custom-args "$custom_args" --output json) || die "初期化用のエージェントを作れませんでした: $name"
 			id=$(project_result_id "$result") || die 'エージェント作成の応答が不正です。'
 			created_agents=$((created_agents+1))
 			records=$(jq -c --arg role "$role" --arg id "$id" '.[$role].id=$id' <<<"$records")
@@ -162,7 +163,7 @@ prepare_project() (
 		template_apply "$project_work/values.json" "$project_work/$role.filtered" >"$project_work/$role.rendered" || die "指示を展開できませんでした: $role"
 		template_body "$project_work/$role.rendered" >"$project_work/$role.body"
 		if [[ $(jq length <<<"$link_repositories") != 0 ]]; then
-			printf '\n### 紐付け専用のリポジトリ\n\n%s\n\n既存 issue の紐付けコメントと Assignees の同期だけを許可する。コード作業、PR、定期処理の対象にはしない。\n' "$(jq -r '.link_repositories' <<<"$values")" >>"$project_work/$role.body"
+			printf '\n### 紐付け専用のリポジトリ\n\n%s\n\n既存の GitHub の issue の紐付けコメントと Assignees の同期だけを許可する。コード作業、PR、定期処理の対象にはしない。\n' "$(jq -r '.link_repositories' <<<"$values")" >>"$project_work/$role.body"
 		fi
 		[[ -s $project_work/$role.body ]] || die '指示の本文がありません。'
 		for field in name description model thinking_level skills role max_concurrent_tasks; do
@@ -179,14 +180,15 @@ prepare_project() (
 		current=$(mc agent get "$id" --output json) || die 'エージェントを読めませんでした。'
 		result=$(mc agent env get "$id" --output json) || die '環境変数を読めませんでした。'
 		jq -e '(.custom_env // {}) | type=="object" and all(.[]; type=="string")' >/dev/null <<<"$result" || die '環境変数の応答が不正です。'
-		jq --slurpfile desired "$project_work/$role.env" '(.custom_env // {} | del(.SQUAD_KIT_GH_DEPENDABOT_MERGE,.CLAUDE_CONFIG_DIR,.ENABLE_CLAUDEAI_MCP_SERVERS,.CLAUDE_CODE_SHELL,.CLAUDE_CODE_AUTO_COMPACT_WINDOW)) + $desired[0]' <<<"$result" >"$project_work/env.json"
+		jq --slurpfile desired "$project_work/$role.env" '(.custom_env // {} | del(.SQUAD_KIT_GH_DEPENDABOT_MERGE,.CLAUDE_CONFIG_DIR,.ENABLE_CLAUDEAI_MCP_SERVERS,.CLAUDE_CODE_SHELL,.CLAUDE_CODE_AUTO_COMPACT_WINDOW,.CLAUDE_ENV_FILE)) + $desired[0]' <<<"$result" >"$project_work/env.json"
 		if [[ $(jq -Sc '.custom_env // {}' <<<"$result") != "$(jq -Sc . "$project_work/env.json")" ]]; then
 			mc agent env set "$id" --custom-env-file "$project_work/env.json" --output json >/dev/null || die '環境変数を反映できませんでした。'
 		fi
 		value=$(template_field "$project_work/$role.rendered" description)
-		desired=$(jq -c --arg role "$role" --arg description "$value" --argjson mcp "$(project_mcp "$role")" --rawfile instructions "$project_work/$role.body" '.[$role] | del(.id,.name) | .+{description:$description,instructions:($instructions|sub("\n+$";"")),mcp_config:$mcp}' <<<"$records")
-		if ! jq -e --argjson desired "$desired" '. as $current | all($desired|to_entries[]; $current[.key]==.value)' >/dev/null <<<"$current"; then
-			mc agent update "$id" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --description "$value" --instructions "$(cat "$project_work/$role.body")" --mcp-config "$(project_mcp "$role")" --output json >/dev/null || die "本指示を反映できませんでした: $name"
+		custom_args=$(project_desired_args "$model" <<<"$(jq -c '.custom_args // []' <<<"$current")") || die '追加の引数の応答が不正です。'
+		desired=$(jq -c --arg role "$role" --arg description "$value" --argjson mcp "$(project_mcp "$role")" --argjson args "$custom_args" --rawfile instructions "$project_work/$role.body" '.[$role] | del(.id,.name) | .+{description:$description,instructions:($instructions|sub("\n+$";"")),mcp_config:$mcp,custom_args:$args}' <<<"$records")
+		if ! jq -e --argjson desired "$desired" '.custom_args=(.custom_args // []) | . as $current | all($desired|to_entries[]; $current[.key]==.value)' >/dev/null <<<"$current"; then
+			mc agent update "$id" --runtime-id "$runtime" --model "$model" --thinking-level "$thinking" --max-concurrent-tasks "$max" --description "$value" --instructions "$(cat "$project_work/$role.body")" --mcp-config "$(project_mcp "$role")" --custom-args "$custom_args" --output json >/dev/null || die "本指示を反映できませんでした: $name"
 		fi
 		desired=$(cat "$project_work/$role.skills")
 		if [[ $(jq -r '[.skills[]?.id] | sort | join(",")' <<<"$current") != "$desired" ]]; then
@@ -223,7 +225,7 @@ project_completion() {
 	project_webhook_completion
 	project_issue_completion
 	ui_line out done '次にすること:'
-	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
+	printf '%s\n' '表示したタスクを対象のプロジェクトで開き、担当と本文に沿って作業してください。'
 	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if dependabot_webhook_active; then
 		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
@@ -255,7 +257,7 @@ prepare_project_issues() {
 # 1 件の失敗では止めず、完了の表示のために結果と理由をためる。
 queue_project_issue() {
 	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result reason
-	# 失敗の理由は issue と完了の表示に入るので、色を付けずに受け取り、印の「エラー:」も外す。
+	# 失敗の理由はタスクと完了の表示に入るので、色を付けずに受け取り、印の「エラー:」も外す。
 	if result=$(ui_color_err=no; ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
 		setup_issue_rows=$(jq -c --argjson rows "$result" '.+$rows' <<<"$setup_issue_rows")
 	else
@@ -274,7 +276,7 @@ record_project_issue_failure() {
 
 project_issue_completion() {
 	local row action
-	printf '%s\n' '起票した issue:'
+	printf '%s\n' '起票したタスク:'
 	# タイトルに \ やタブがあっても元の文字のまま出すため、行ごとに JSON から取り出す。
 	while IFS= read -r row; do
 		printf '  %s %s（' "$(jq -r '.identifier' <<<"$row")" "$(jq -r '.title' <<<"$row")"
@@ -283,7 +285,7 @@ project_issue_completion() {
 		printf '）\n'
 	done < <(jq -c '.[]' <<<"${setup_issue_rows:-[]}")
 	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
-		printf '%s\n' '起票できなかった issue:'
+		printf '%s\n' '起票できなかったタスク:'
 		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"
 	fi
 }
@@ -347,12 +349,27 @@ project_role() {
 	runtime=$(jq -r --arg role "$1" '.[$role].runtime_id' <<<"$records")
 	max=$(jq -r --arg role "$1" '.[$role].max_concurrent_tasks' <<<"$records")
 }
+project_desired_args() {
+	jq -c --arg model "$1" '
+		def managed: test("^(allow_login_shell|features[.]shell_snapshot)[[:space:]]*=");
+		if type=="array" and all(.[]; type=="string") then . else error("引数は文字列の配列が必要です") end |
+		. as $args |
+		reduce range(0; length) as $i ({args:[],skip:false};
+			if .skip then .skip=false
+			elif (($args[$i]=="-c" or $args[$i]=="--config") and (($args[$i+1] // "") | managed)) then .skip=true
+			elif ($args[$i] | startswith("--config=") and (ltrimstr("--config=") | managed)) then .
+			elif ($args[$i]=="--enable" and $args[$i+1]=="shell_snapshot") then .skip=true
+			elif $args[$i]=="--enable=shell_snapshot" then .
+			else .args+=[$args[$i]] end) |
+		.args + (if ($model|startswith("gpt-")) then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end)'
+}
+
 project_desired_env() {
 	local use_claude=false
 	if uses_runtime claude; then use_claude=true; fi
 	jq -n --arg a "$allowed_repos_file" --arg z "$project_shell_dir" --arg h "$agent_home/git-hooks" --arg c "$agent_home/claude" --arg role "$1" --arg model "$2" --argjson use_claude "$use_claude" '
 		{SQUAD_KIT_ALLOWED_REPOS:$a,ZDOTDIR:$z,BASH_ENV:($z+"/env.sh"),GIT_CONFIG_COUNT:"1",GIT_CONFIG_KEY_0:"core.hooksPath",GIT_CONFIG_VALUE_0:$h} |
-		if ($model|startswith("claude-")) then .+{CLAUDE_CONFIG_DIR:$c,ENABLE_CLAUDEAI_MCP_SERVERS:"false",CLAUDE_CODE_SHELL:"/bin/zsh",CLAUDE_CODE_AUTO_COMPACT_WINDOW:"150000"} else . end |
+		if ($model|startswith("claude-")) then .+{CLAUDE_CONFIG_DIR:$c,ENABLE_CLAUDEAI_MCP_SERVERS:"false",CLAUDE_CODE_SHELL:"/bin/zsh",CLAUDE_CODE_AUTO_COMPACT_WINDOW:"150000",CLAUDE_ENV_FILE:($z+"/env.sh")} else . end |
 		if $role=="usage-monitor" and $use_claude then .+{CLAUDE_CONFIG_DIR:$c} else . end |
 		if $role=="dependabot-merger" then .+{SQUAD_KIT_GH_DEPENDABOT_MERGE:"1"} else . end'
 }

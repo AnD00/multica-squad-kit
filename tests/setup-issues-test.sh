@@ -133,7 +133,7 @@ while IFS= read -r kind; do
  .metadata.repository=="example/repo" and (.labels|length)==1 and
  (.description|contains("/blob/v9.8.7/manual.md#")) and
  ([.title,.description]|all(.[]; contains("{{")|not)) and
- (if $kind=="repository-rules" then .status=="backlog" and (.description|contains("二つの issue を終えてから")) else .status=="todo" end)
+ (if $kind=="repository-rules" then .status=="backlog" and (.description|contains("二つのタスクを終えてから")) else .status=="todo" end)
  ' "$TEST_DB/issues.json" >/dev/null
 done < <(jq -r 'keys[]' common/setup-issues.json)
 jq -es '.[0].event=="issue create" and .[1].event=="issue metadata set:squad_kit_targets" and
@@ -191,7 +191,7 @@ for status in done cancelled; do
  assert_count 1
  jq -e --arg status "$status" '.[0].status==$status and (.[0].labels|length)==1' "$TEST_DB/issues.json" >/dev/null
 done
-echo 'PASS setup issues: 印のない完了・取り下げ済みの issue も開き直さない'
+echo 'PASS setup issues: 印のない完了・取り下げ済みのタスクも開き直さない'
 
 for failure in 'issue create' 'issue metadata set:squad_kit_targets' 'issue metadata set:repository' 'issue metadata set:squad_kit_task' 'issue label add' 'issue status'; do
  new_case "fail-${failure//[ :]/-}"
@@ -203,7 +203,7 @@ for failure in 'issue create' 'issue metadata set:squad_kit_targets' 'issue meta
  jq -e '.[0] | .status=="todo" and .metadata.repository=="example/repo" and .metadata.squad_kit_task=="dependabot-filter" and (.labels|length)==1' "$TEST_DB/issues.json" >/dev/null
  [[ $(jq -s '[.[]|select(.event=="issue create")]|length' "$TEST_DB/writes") == 1 ]]
 done
-echo 'PASS setup issues: 作成・各印・ラベル・状態の途中停止後も同じ issue を仕上げる'
+echo 'PASS setup issues: 作成・各印・ラベル・状態の途中停止後も同じタスクを仕上げる'
 
 new_case partial-targets
 seed partial backlog '' '[]' '外した役のエージェントを消すか決める'
@@ -256,7 +256,7 @@ for failure in 'issue get' 'issue update' 'issue metadata set:squad_kit_targets'
  run removed-roles '["役 A","役 B"]' actor
  [[ ! -s $TEST_DB/writes ]]
 done
-echo 'PASS setup issues: 採用の本文の取得・追記・印の更新で止まっても同じ issue を仕上げ、本文更新前に対象を起票済みにせず、再実行で追記を重ねない'
+echo 'PASS setup issues: 採用の本文の取得・追記・印の更新で止まっても同じタスクを仕上げ、本文更新前に対象を起票済みにせず、再実行で追記を重ねない'
 
 for failure in 'issue list' 'label list'; do
  new_case "read-${failure// /-}"

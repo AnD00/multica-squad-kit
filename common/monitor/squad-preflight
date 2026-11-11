@@ -1,0 +1,39 @@
+#!/bin/sh
+# multica-squad-kit-managed
+# 関所と見張りが、このスクリプトと同じディレクトリから選ばれるか確かめる。
+# BASH_ENV による PATH の修復を受けず、呼び出し元の PATH を確かめる。
+set -eu
+
+if [ "$#" -ne 0 ]; then
+	echo '使い方: squad-preflight' >&2
+	exit 2
+fi
+
+bin_dir=$(CDPATH= cd "$(dirname "$0")" && pwd)
+set -- \
+	squad-dependabot-merge \
+	squad-dispatch-pick \
+	squad-pr-link \
+	squad-pr-link-lib \
+	squad-pr-watch \
+	squad-review-wait \
+	squad-usage-check \
+	squad-usage-lib \
+	squad-usage-read
+status=0
+for cmd in gh "$@"; do
+	actual=$(command -v "$cmd") || actual='見つからない'
+	if [ "$actual" = "$bin_dir/$cmd" ]; then continue; fi
+	printf 'squad-preflight: %s が使えません。実際の解決先: %s（期待: %s/%s）\n' \
+		"$cmd" "$actual" "$bin_dir" "$cmd" >&2
+	if [ "$cmd" = gh ]; then
+		echo '直し方: 動いているタスクがないときに、同じプロジェクトでセットアップを流し直してください。直らなければ、エージェントの custom_env の CLAUDE_ENV_FILE（Claude）か custom_args（Codex）を確かめてください。' >&2
+	else
+		echo '直し方: 見張りが欠けたか、別の同じ名前のものが先にあります。動いているタスクがないときに、同じプロジェクトでセットアップを流し直して、見張りを置き直してください。' >&2
+	fi
+	status=1
+done
+if [ "$status" -eq 0 ]; then
+	echo 'squad-preflight: 関所の gh と、すべての見張りが使えます。'
+fi
+exit "$status"

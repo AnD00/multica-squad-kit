@@ -165,10 +165,10 @@ grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 �
 for index in $(seq 0 3); do grep -qF "オートパイロット $index/3" "$test_dir/err"; done
 echo 'PASS progress: 選んだオートパイロットの件数に合わせ、0から設定中の位置を表示する'
 
-for message in '表示した issue を対象のプロジェクトで開き' 'skeleton/' 'Dependabot のイベントフィルター' '人間が行う Webhook の登録' 'CLAUDE_CONFIG_DIR=' 'CODEX_HOME='; do grep -qF "$message" "$test_dir/out"; done
+for message in '表示したタスクを対象のプロジェクトで開き' 'skeleton/' 'Dependabot のイベントフィルター' '人間が行う Webhook の登録' 'CLAUDE_CONFIG_DIR=' 'CODEX_HOME='; do grep -qF "$message" "$test_dir/out"; done
 ! grep -qF 'Multica の画面で、スクワッド' "$test_dir/out"
 ! grep -qF '選んだ各リポジトリに Dependabot の Webhook を登録してください' "$test_dir/out"
-echo 'PASS completion: 作成件数と起票された issue・ひな形・残る Webhook の手順・ログインを案内し、自動の作業を手で頼まない'
+echo 'PASS completion: 作成件数と起票されたタスク・ひな形・残る Webhook の手順・ログインを案内し、自動の作業を手で頼まない'
 TEST_WEBHOOK=false run
 grep -qF 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。' "$test_dir/out"
 ! grep -qF '人間が行う Webhook の登録' "$test_dir/out" || exit 1
@@ -380,7 +380,7 @@ cat >>"$TEST_PACKAGE/common/autopilots.md" <<'WEBHOOK'
 - トリガー: `webhook`
 
 ```text
-{{repository}} の issue のイベントを扱う。
+{{repository}} の GitHub の issue のイベントを扱う。
 ```
 WEBHOOK
 reset_db

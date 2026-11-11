@@ -93,6 +93,10 @@ cmp "$root/common/codex/config.toml" "$TEMPLATE_AGENT_HOME/codex/config.toml"
 grep -qx 'daemon start' "$test_dir/calls"
 grep -qx 'https://example.test' "$test_dir/started-server"
 echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し、専用環境で一つのデーモンを起動する'
+for file in squad-pr-link squad-pr-link-lib; do
+ [[ $(PATH="$TEMPLATE_AGENT_HOME/bin:$PATH" command -v "$file") == "$TEMPLATE_AGENT_HOME/bin/$file" ]]
+done
+echo 'PASS host: 新しい導入で PR の紐付けコマンドと共有関数を bin に置き、名前で解決できる'
 set_mode busy
 agent_env
 run
@@ -201,11 +205,20 @@ done
 set_mode running
 agent_env
 printf "# multica-squad-kit-managed\nchanged\n" >"$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
+for file in squad-pr-link squad-pr-link-lib; do
+ printf '# multica-squad-kit-managed\nold\n' >"$TEMPLATE_AGENT_HOME/bin/$file"
+ chmod 644 "$TEMPLATE_AGENT_HOME/bin/$file"
+done
 run
 for file in bin/gh git-hooks/pre-push codex/config.toml allowed-repos claude/credentials.json codex/auth.json; do cmp "$TEMPLATE_AGENT_HOME/$file" "$test_dir/original/$file"; done
 cmp "$root/common/monitor/squad-pr-watch" "$TEMPLATE_AGENT_HOME/bin/squad-pr-watch"
 grep -q '印のない既存' "$test_dir/err"
 echo 'PASS host: 印のない同居環境の関所・設定・資格情報・共有許可ファイルを変えず、専用の見張りだけ更新する'
+for file in squad-pr-link squad-pr-link-lib; do
+ cmp "$root/common/monitor/$file" "$TEMPLATE_AGENT_HOME/bin/$file"
+ [[ -x $TEMPLATE_AGENT_HOME/bin/$file ]]
+done
+echo 'PASS host: 流し直しで印のある PR の紐付けコマンドと共有関数を原本に更新し、実行権限を付ける'
 
 for display in "使用する gh の関所: $TEMPLATE_AGENT_HOME/bin/gh" "使用する git push の関所: $TEMPLATE_AGENT_HOME/git-hooks/pre-push" "使用する Codex の設定: $TEMPLATE_AGENT_HOME/codex/config.toml"; do grep -qxF "$display" "$test_dir/err"; done
 echo 'PASS host: 印のない既存を保持する場合も、使用する三つの実ファイルを明示する'
@@ -347,3 +360,50 @@ done
 if /bin/bash "$test_dir/project.sh" "$root" project-new >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new ]]
 echo 'PASS host: 空の選択や後ろの不正な値で前の許可を壊さず、空の許可ファイルも作らない'
+
+# 本物の gh が PATH の先でも、起動時と Claude の順の両方を確かめる。
+export TEST_GUARD_CALLS="$test_dir/guard-calls"
+: >"$TEST_GUARD_CALLS"
+PATH="$test_dir/bin:$TEMPLATE_AGENT_HOME/bin:$PATH" /bin/bash "$test_dir/project.sh" "$root" project-a example/one example/two >"$test_dir/out" 2>"$test_dir/err"
+[[ $(grep -c '^許可の確認:' "$test_dir/err") == 2 ]]
+[[ $(wc -l <"$TEST_GUARD_CALLS" | tr -d ' ') == 4 ]]
+for repo in one two; do
+ [[ $(grep -c "repos/example/$repo/git/refs" "$TEST_GUARD_CALLS") == 2 ]]
+done
+echo 'PASS host: 本物の gh が先でも起動時と Claude の順で確認し、許可の通信は各リポジトリ・シェルにつき 1 回に保つ'
+
+for target in allowed-repos.d/project-a template/shell/project-a/.zshenv template/shell/project-a/env.sh; do
+ cp "$TEMPLATE_AGENT_HOME/$target" "$test_dir/before-${target##*/}"
+done
+assert_previous_project() {
+ for target in allowed-repos.d/project-a template/shell/project-a/.zshenv template/shell/project-a/env.sh; do
+  cmp "$test_dir/before-${target##*/}" "$TEMPLATE_AGENT_HOME/$target"
+ done
+ [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new && ! -e $TEMPLATE_AGENT_HOME/template/shell/project-new ]]
+ [[ ! -s $TEST_GUARD_CALLS ]]
+ grep -q '従来の許可とシェル起動ファイルを保って停止' "$test_dir/err"
+}
+mkdir -p "$test_dir/package/lib" "$test_dir/package/common"
+cp "$root/lib/host.sh" "$root/lib/ui.sh" "$test_dir/package/lib/"
+cp -R "$root/common/shell" "$test_dir/package/common/"
+# .zshenv は起動時に直せても、env.sh がコマンド直前に戻さなければ止める。
+head -n 2 "$root/common/shell/env.sh" >"$test_dir/package/common/shell/env.sh"
+for id in project-a project-new; do
+ : >"$TEST_GUARD_CALLS"
+ if PATH="$test_dir/bin:$TEMPLATE_AGENT_HOME/bin:$PATH" /bin/bash "$test_dir/project.sh" "$test_dir/package" "$id" example/changed >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+ grep -q 'Claude の実行の順で gh が関所を選びません' "$test_dir/err"
+ grep -q 'ひな形の env.sh' "$test_dir/err"
+ assert_previous_project
+done
+echo 'PASS host: env.sh が PATH を戻さなければ Claude の順で通信前に止まり、既存の許可・起動ファイルを保ち新規にも書かない'
+
+# 関所以外に gh がない PATH でも、ほかのホストの本物を探しに行かない。
+mkdir "$test_dir/no-gh-bin"
+for tool in tr cat; do ln -s "$(command -v "$tool")" "$test_dir/no-gh-bin/$tool"; done
+for id in project-a project-new; do
+ : >"$TEST_GUARD_CALLS"
+ if PATH="$TEMPLATE_AGENT_HOME/bin:$test_dir/no-gh-bin" /bin/bash "$test_dir/project.sh" "$root" "$id" example/changed >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
+ grep -q '本物の gh が関所の外の PATH に見つかりません' "$test_dir/err"
+ assert_previous_project
+done
+echo 'PASS host: 関所の外に gh がなければ理由を出し、従来の許可・起動ファイルを保って止まる'
