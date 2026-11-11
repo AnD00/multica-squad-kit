@@ -380,7 +380,7 @@ cat >>"$TEST_PACKAGE/common/autopilots.md" <<'WEBHOOK'
 - トリガー: `webhook`
 
 ```text
-{{repository}} の issue のイベントを扱う。
+{{repository}} の GitHub の issue のイベントを扱う。
 ```
 WEBHOOK
 reset_db

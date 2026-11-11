@@ -23,7 +23,7 @@
 
 1. このリポジトリだけを checkout し、未コミット・未 push の作業を捨てず、クリーンな手元を main の最新にする。AGENTS.md とプロジェクトの検証のスキルで、対象モジュール・依存管理・監査のコマンドを確かめて実行する。言語や監査ツールを決め打ちしない。手順が不足していれば成功にせず、人間へ不足を返す
 2. 見つかった脆弱性ごとに ID と別名、重大度、影響するモジュール、到達性の判定をまとめる。判定は「module のみ」「import 済み」「呼び出しあり」の順に上がる。道具が到達性を返さなければ「未確認」として根拠を添え、未確認を安全と読み替えない
-3. ID と別名のそれぞれで multica issue search <ID> --include-closed --output json を実行する。このプロジェクトの、タイトルにその ID か別名があり、metadata の repository が {{repository}} のタスクだけから、いちばん新しく作られたものを比べる相手にする。必要なら issue get で metadata を確認する。別のリポジトリと、repository がないものを同じタスクとみなさない。本文やコメントで触れただけのものは除く。done / cancelled も除かない
+3. ID と別名のそれぞれで multica issue search <ID> --include-closed --output json を実行する。このプロジェクトの、タイトルにその ID か別名があり、metadata の repository が {{repository}} のタスクだけから、いちばん新しく作られたものを比べる相手にする。必要なら multica issue get で metadata を確認する。別のリポジトリと、repository がないものを同じタスクとみなさない。本文やコメントで触れただけのものは除く。done / cancelled も除かない
 4. 既存の本文の「判定:」と「影響するモジュール:」を読む。判定の行がない古い本文では文章から読み、読めないときだけモジュールだけを比べる。既存がなければ新しいタスクを作る。到達性の判定が上がったか影響モジュールが増えたときも、新しいタスクを作り、前の identifier と変わった前提を書く。それ以外は重複を作らない。前のタスクは開き直さず状態を変えない
 5. 新しいタスクのタイトルに ID、本文に対象リポジトリ {{repository}}、ID と別名、重大度（高 / 中 / 低）、判定: <判定>、影響するモジュール: <モジュール>、直し方を記す。--project {{project_id}} と --assignee-id {{squad_id}} と --status backlog を指定して作る。作成したタスクの実 ID を取り、multica issue metadata set <作成したタスク> --key repository --value {{repository}} --type string で作業先を書き、ラベル「運用」を付けてから todo にする。metadata の書き込みに失敗したら backlog のまま止まり、失敗を返す。本文は作業ディレクトリの UTF-8 ファイルから渡す。書き込む GitHub のリポジトリは {{repository}} だけ
 6. このチェックのタスクに、調べたモジュール、作ったタスクの identifier（なければ「なし」）、作らなかった脆弱性と既存の identifier を書く。担当はオートパイロットの担当のまま、運用ラベルを付け、結果を書けば終わるチェックだけ done にする。新しいタスクを todo にした時点でスクワッドに届くので、結果ではリーダーをメンションしない。不足で人間を待つ場合は done にせず squad-handoff に従う
