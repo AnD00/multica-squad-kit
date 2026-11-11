@@ -5,6 +5,9 @@
 #
 #   squad-pr-watch conflicts <タスク>
 #     古いコンフリクトの規則を消し、呼び出した orchestrator 自身を起こす規則を作る。
+#   squad-pr-watch conflicts-check <タスク>
+#     今の head と mergeable を読み、「コンフリクト: <値> head: <SHA>」の 1 行を必ず標準出力に出す。
+#     値は MERGEABLE・CONFLICTING・未確認のどれか。読めないときも「未確認」で、0 で終わる。
 #   squad-pr-watch ci <タスク> <見張り役の ID> <きっかけのコメント>
 #     CI が終わるたびに見張り役を起こす規則を作る。有効な規則があれば何もしない。
 #   squad-pr-watch ci-check <タスク> <リーダーの ID> <見張り役の ID>
@@ -15,7 +18,7 @@
 set -euo pipefail
 
 usage() {
-	echo '使い方: squad-pr-watch conflicts <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
+	echo '使い方: squad-pr-watch conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
 	exit 2
 }
 
@@ -55,6 +58,78 @@ EOF
 	multica issue wakeup create "$issue" --until-pr conflicts --instruction-file "$instruction" --output json
 	rm -f "$instruction"
 	trap - EXIT
+}
+
+# 結果は、どの場合も標準出力の 1 行にする。値は MERGEABLE・CONFLICTING・未確認のどれか。
+# 「なし」の語は使わない。読み違えを防ぐため、失敗でも終了コード 0 で終える。
+conflicts_check_line() {
+	local value=$1 head=$2 reason=${3:-}
+	printf 'コンフリクト: %s head: %s' "$value" "$head"
+	if [[ -n $reason ]]; then
+		printf ' 理由: %s' "$reason"
+	fi
+	printf '\n'
+}
+
+conflicts_check() {
+	local issue=$1 cmd task pr_url pr head new state mergeable start now remain wait
+	# mergeable は push の直後に UNKNOWN になりやすい。10 秒おきに、最初の読み取りから 60 秒まで読み直す。
+	local interval=10 limit=60
+	head=不明
+	for cmd in jq multica gh; do
+		if ! command -v "$cmd" >/dev/null 2>&1; then
+			conflicts_check_line 未確認 不明 "${cmd} が見つからない"
+			return 0
+		fi
+	done
+	if ! task=$(multica issue get "$issue" --output json) || ! pr_url=$(jq -r '.metadata.pr_url // empty' <<<"$task"); then
+		conflicts_check_line 未確認 不明 'タスクを読めない'
+		return 0
+	fi
+	if [[ -z $pr_url ]]; then
+		conflicts_check_line 未確認 不明 'metadata に pr_url がない'
+		return 0
+	fi
+	start=$(date +%s)
+	while :; do
+		if ! pr=$(gh pr view "$pr_url" --json state,headRefOid,mergeable) \
+			|| ! new=$(jq -r '.headRefOid // empty' <<<"$pr") || [[ -z $new ]]; then
+			conflicts_check_line 未確認 "$head" 'gh で PR を読めない'
+			return 0
+		fi
+		head=$new
+		state=$(jq -r '.state // empty' <<<"$pr")
+		case $state in
+		MERGED | CLOSED)
+			conflicts_check_line 未確認 "$head" 'PR がマージ済みか閉じている'
+			return 0
+			;;
+		esac
+		mergeable=$(jq -r '.mergeable // empty' <<<"$pr")
+		case $mergeable in
+		MERGEABLE | CONFLICTING)
+			conflicts_check_line "$mergeable" "$head"
+			return 0
+			;;
+		UNKNOWN) ;;
+		*)
+			conflicts_check_line 未確認 "$head" "mergeable が想定外の値 ${mergeable:-空}"
+			return 0
+			;;
+		esac
+		# 新しい読み取りは、60 秒までしか始めない。待ちは、残り時間を超えない。
+		now=$(date +%s)
+		remain=$((limit - (now - start)))
+		if ((remain <= 0)); then
+			break
+		fi
+		wait=$interval
+		if ((remain < wait)); then
+			wait=$remain
+		fi
+		sleep "$wait"
+	done
+	conflicts_check_line 未確認 "$head" "mergeable が ${limit} 秒たっても UNKNOWN"
 }
 
 ci() {
@@ -261,6 +336,10 @@ conflicts)
 	(($# == 2)) || usage
 	require_commands jq multica
 	conflicts "$2"
+	;;
+conflicts-check)
+	(($# == 2)) || usage
+	conflicts_check "$2"
 	;;
 ci)
 	(($# == 4)) || usage
