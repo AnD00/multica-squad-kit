@@ -10,7 +10,7 @@ trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_di
 kit="$test_dir/kit"
 fixtures="$test_dir/fixtures with spaces"
 mkdir -p "$kit/tests" "$fixtures"
-cp "$root/tests/run.sh" "$root/tests/run-one.sh" "$root/tests/run-hook.sh" "$kit/tests/"
+cp "$root/tests/run.sh" "$root/tests/run-one.sh" "$root/tests/run-hook.sh" "$root/tests/stop-session.py" "$kit/tests/"
 for name in project project-followup squad-dispatch-pick squad-dependabot-merge; do
 	printf ':\n' >"$kit/tests/$name-test.sh"
 done
@@ -72,9 +72,14 @@ done
 # HOME の設定からバージョンを決める python3 の shim でも、空の HOME のテストから動く。
 mkdir -p "$test_dir/shim" "$test_dir/real python" "$test_dir/real-home"
 touch "$test_dir/real-home/.tool-versions"
+# 走らせ役は python3 -c で新しいセッションやグループを作るので、実体を尋ねる -c と -I は、shim を通さない本物の python3 へ渡す。
+TEST_RUNNER_SYSTEM_PYTHON=$(command -v python3)
+export TEST_RUNNER_SYSTEM_PYTHON
 cat >"$test_dir/real python/python3" <<'STUB'
 #!/usr/bin/env bash
-if [[ ${1:-} == -c ]]; then printf '%s\n' "$0"; else printf 'REAL %s\n' "$*"; fi
+if [[ ${1:-} == -c && ${2:-} == 'import sys; print(sys.executable)' ]]; then printf '%s\n' "$0"
+elif [[ ${1:-} == -c || ${1:-} == -I ]]; then exec "$TEST_RUNNER_SYSTEM_PYTHON" "$@"
+else printf 'REAL %s\n' "$*"; fi
 STUB
 cat >"$test_dir/shim/python3" <<'STUB'
 #!/usr/bin/env bash
@@ -191,6 +196,77 @@ for invalid in '' 0 -1 invalid 1.5; do
 	[[ ! -s $test_dir/out ]]
 done
 echo 'PASS runner: 並列数が正の整数でなければテストを流さず 2 で終わる'
+
+# 時間の上限。別のプロセスグループで子を起こして眠るファイルを、短い上限で止める。
+cat >"$fixtures/sleeper.sh" <<'FIXTURE'
+#!/usr/bin/env bash
+set -euo pipefail
+echo 'PASS fixture: before timeout'
+python3 -c 'import os, sys; os.setpgrp(); os.execvp(sys.argv[1], sys.argv[1:])' sleep 60 &
+printf '%s\n' "$!" >"$TEST_RUNNER_STATE/child.pid"
+printf '%s\n' "$$" >"$TEST_RUNNER_STATE/test.pid"
+sleep 60
+FIXTURE
+# TERM を無視するファイルは、5 秒の猶予のあと KILL で止める。
+sed 's/^set -euo pipefail$/set -euo pipefail\ntrap "" TERM/' "$fixtures/sleeper.sh" >"$fixtures/stubborn.sh"
+pid_gone() {
+	local pid=$1 attempt
+	for ((attempt=0; attempt<50; attempt++)); do
+		kill -0 "$pid" 2>/dev/null || return 0
+		sleep 0.1
+	done
+	return 1
+}
+for name in sleeper stubborn; do
+	rm -rf -- "$TEST_RUNNER_STATE"
+	mkdir -p "$TEST_RUNNER_STATE"
+	SQUAD_KIT_TEST_TIMEOUT=2 GITHUB_ACTIONS=true run_suite 1 2 "$fixtures/$name.sh" "$fixtures/pass.sh"
+	grep -qxF "done TIMEOUT $fixtures/$name.sh 2s" "$test_dir/out"
+	grep -qxF "==== FAIL $fixtures/$name.sh（時間切れ: 2 秒で止めた）" "$test_dir/out"
+	grep -qxF '直前に通ったケース: PASS fixture: before timeout' "$test_dir/out"
+	grep -qF "::error file=$fixtures/$name.sh," "$test_dir/out"
+	grep -qF "時間切れ%3A 2 秒で止めた" "$test_dir/out"
+	grep -qxF "FAIL suite: 1 本が失敗: $fixtures/$name.sh" "$test_dir/out"
+	grep -qxF 'PASS fixture: after failure' "$test_dir/out"
+	# テストと、別のグループで起こした子の両方が、残っていない。
+	pid_gone "$(cat "$TEST_RUNNER_STATE/test.pid")"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
+done
+echo 'PASS runner: 上限を超えたファイルを、別のグループの子ごと止めて時間切れの失敗にし、ほかのファイルは流す'
+
+# 上限の中で終わるファイルは、上限を設ける前と同じ結果と出力になる。
+SQUAD_KIT_TEST_TIMEOUT=2 run_suite 0 1 "$fixtures/pass.sh"
+grep -qE "^done PASS $fixtures/pass.sh [0-9]+s$" "$test_dir/out"
+grep -qE "^==== PASS $fixtures/pass.sh（[0-9]+ 秒）$" "$test_dir/out"
+! grep -qF '時間切れ' "$test_dir/out"
+grep -qxF 'PASS suite: すべてのテスト（1 本、並列 1）' "$test_dir/out"
+echo 'PASS runner: 上限の中で終わるファイルは、時間切れの表示なしで今までと同じ結果になる'
+
+for invalid in '' 0 -1 invalid 1.5; do
+	SQUAD_KIT_TEST_TIMEOUT="$invalid" run_suite 2 1 "$fixtures/pass.sh"
+	grep -qF 'SQUAD_KIT_TEST_TIMEOUT は正の整数（秒）にしてください' "$test_dir/err"
+	[[ ! -s $test_dir/out ]]
+done
+echo 'PASS runner: 上限が正の整数でなければテストを流さず 2 で終わる'
+
+# 割り込まれたときも、別のセッションで動いているテストとその子を残さない。
+rm -rf -- "$TEST_RUNNER_STATE"
+mkdir -p "$TEST_RUNNER_STATE"
+SQUAD_KIT_TEST_JOBS=1 bash "$kit/tests/run.sh" "$fixtures/sleeper.sh" >"$test_dir/out" 2>"$test_dir/err" &
+suite_pid=$!
+for ((attempt=0; attempt<200; attempt++)); do
+	[[ -s $TEST_RUNNER_STATE/child.pid && -s $TEST_RUNNER_STATE/test.pid ]] && break
+	sleep 0.1
+done
+[[ -s $TEST_RUNNER_STATE/child.pid && -s $TEST_RUNNER_STATE/test.pid ]]
+kill -TERM "$suite_pid"
+result=0
+wait "$suite_pid" || result=$?
+[[ $result == 143 ]]
+pid_gone "$(cat "$TEST_RUNNER_STATE/test.pid")"
+pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
+[[ -z $(find "$kit/tmp" -name 'test-run.*' -type d -print 2>/dev/null) ]]
+echo 'PASS runner: 割り込まれたら、動いているテストとその子もセッションごと止めて終わる'
 
 rm "$kit/tests/project-test.sh"
 run_suite 2 1 "$fixtures/pass.sh"

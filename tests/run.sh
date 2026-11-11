@@ -12,6 +12,10 @@
 # 補助の run-one.sh と run-hook.sh は、テストとして拾われないよう -test.sh で
 # 終えない。
 #
+# 時間の上限: テスト 1 本ごとに SQUAD_KIT_TEST_TIMEOUT 秒（なければ 300 秒。正の整数で
+# なければ 2 で終わる）の上限を設ける。上限を超えたファイルは、run-one.sh がテストの
+# セッションごと止め、時間切れの失敗として出す。手元でも CI でも同じ上限が効く。
+#
 # シャード: SQUAD_KIT_TEST_SHARD=k/N（1 ≦ k ≦ N の正の整数）なら、選んだファイルを
 # N 個に分け、k 番目だけを流す。重みの大きい順に、それまでの重みの合計がいちばん
 # 小さいシャード（同じなら番号の小さいほう）へ入れるので、同じ一覧からは毎回同じ分け
@@ -63,6 +67,17 @@ if [[ ${SQUAD_KIT_TEST_SHARD+x} ]]; then
 		exit 2
 	fi
 fi
+if [[ ${SQUAD_KIT_TEST_TIMEOUT+x} ]]; then
+	timeout_seconds=$SQUAD_KIT_TEST_TIMEOUT
+else
+	timeout_seconds=300
+fi
+if [[ ! $timeout_seconds =~ ^[0-9]+$ || ! $timeout_seconds =~ [1-9] ]]; then
+	echo 'SQUAD_KIT_TEST_TIMEOUT は正の整数（秒）にしてください' >&2
+	exit 2
+fi
+while [[ $timeout_seconds == 0* ]]; do timeout_seconds=${timeout_seconds#0}; done
+export SQUAD_KIT_TEST_TIMEOUT=$timeout_seconds
 default_weight=30
 weights_file=tests/test-weights
 if [[ ! -f $weights_file ]]; then
@@ -117,11 +132,17 @@ fi
 worker_pid=
 cleanup() {
 	if [[ -n $worker_pid ]]; then
-		# 専用のグループにいる xargs と、その子として起こしたテストを止める。
-		kill -TERM -- "-$worker_pid" 2>/dev/null || :
-		kill -KILL -- "-$worker_pid" 2>/dev/null || :
+		# 専用のグループにいる xargs と run-one.sh を止める。グループを作る前なら、プロセスに直接送る。
+		kill -TERM -- "-$worker_pid" 2>/dev/null || kill -TERM -- "$worker_pid" 2>/dev/null || :
+		kill -KILL -- "-$worker_pid" 2>/dev/null || kill -KILL -- "$worker_pid" 2>/dev/null || :
 		wait "$worker_pid" 2>/dev/null || :
 	fi
+	# テストは run-one.sh が別のセッションで起こしたので、動いているものをセッションごと止める。
+	for session_file in "$run_dir"/*/session; do
+		[[ -f $session_file ]] || continue
+		read -r session <"$session_file" || continue
+		[[ $session =~ ^[0-9]+$ ]] && { python3 -I "$root/tests/stop-session.py" "$session" KILL 2>/dev/null || :; }
+	done
 	rm -rf -- "$run_dir"
 }
 trap cleanup EXIT
@@ -160,10 +181,11 @@ for ((i=0; i<${#ordered[@]}; i++)); do
 	printf '%s\0%s\0' "$i" "${ordered[$i]}" >>"$run_dir/queue"
 done
 # bash 3.2 でも使える xargs。割り込み時に子も止められる専用のグループで起こす。
-set -m
-xargs -0 -n 2 -P "$jobs" bash "$root/tests/run-one.sh" "$root" "$run_dir" <"$run_dir/queue" &
+# グループは、set -m ではなく子が自分で作る。set -m は親と子の両方が setpgid を呼び、
+# 負荷が高いと子の側が失敗して、標準エラーに警告を出すため。
+python3 -c 'import os, sys; os.setpgrp(); os.execvp(sys.argv[1], sys.argv[1:])' \
+	xargs -0 -n 2 -P "$jobs" bash "$root/tests/run-one.sh" "$root" "$run_dir" <"$run_dir/queue" &
 worker_pid=$!
-set +m
 launch_status=0
 wait "$worker_pid" || launch_status=$?
 worker_pid=
@@ -197,13 +219,16 @@ fi
 for outcome in PASS FAIL; do
 	for i in "${report_order[@]}"; do
 		test=${ordered[$i]}
-		status=missing elapsed=0
-		if [[ -f $run_dir/$i/result ]]; then read -r status elapsed <"$run_dir/$i/result" || status=missing; fi
+		status=missing elapsed=0 limit=
+		if [[ -f $run_dir/$i/result ]]; then read -r status elapsed limit <"$run_dir/$i/result" || status=missing; fi
 		actual=FAIL
 		if [[ $status == 0 ]]; then actual=PASS; fi
 		[[ $actual == "$outcome" ]] || continue
 		if [[ $actual == PASS ]]; then
 			printf '==== PASS %s（%s 秒）\n' "$test" "$elapsed"
+		elif [[ -n $limit ]]; then
+			failed+=("$test")
+			printf '==== FAIL %s（時間切れ: %s 秒で止めた）\n' "$test" "$limit"
 		else
 			failed+=("$test")
 			printf '==== FAIL %s（終了コード %s、%s 秒）\n' "$test" "$status" "$elapsed"
@@ -221,6 +246,7 @@ for outcome in PASS FAIL; do
 			previous=$(awk '/^PASS / {last=$0} END {print last}' "$run_dir/$i/log" 2>/dev/null || :)
 			printf '直前に通ったケース: %s\n' "${previous:-なし}"
 			if [[ $status == missing ]]; then echo '結果の記録なし: 起こせなかったか途中で止まりました'; fi
+			if [[ -n $limit ]]; then command="時間切れ: $limit 秒で止めた"; fi
 			if [[ ${GITHUB_ACTIONS:-} == true ]]; then
 				printf '::error file=%s,line=%s::%s\n' "$(annotation_escape "$file")" "$line" "$(annotation_escape "$test: $command / 直前に通ったケース: ${previous:-なし}")"
 			fi
