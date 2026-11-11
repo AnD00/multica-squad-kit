@@ -73,6 +73,10 @@ deny('replace-instructions')
 (ext / 'agents/qa.md').write_text('replace')
 deny('replace-agent')
 (ext / 'agents/qa.md').unlink()
+for reserved in ('claude-principal', 'codex-principal'):
+    (ext / 'agents' / (reserved + '.md')).write_text('replace')
+    deny('replace-' + reserved)
+    (ext / 'agents' / (reserved + '.md')).unlink()
 (ext / 'monitor/squad-pr-watch').write_text('replace')
 deny('replace-monitor')
 (ext / 'monitor/squad-pr-watch').unlink()
@@ -105,6 +109,49 @@ save_extension_inventory
 jq -e '.roles==[] and .autopilots==""' "$extension_inventory" >/dev/null
 SH
 echo 'PASS extensions: tmp のない原本で拡張なしを選んでも、消した役とオートパイロットを停止・切り離しの管理対象に残す'
+
+# 以前の拡張が原本の役と同名のキーを使っていたとき、外しても原本の役を登録から消さず、登録の前に止める。
+for stale in claude-principal codex-principal; do
+	stale_out=$test_dir/stale-${stale}.out
+	if /bin/bash -s -- "$root" "$test_dir" "$stale" >"$stale_out" 2>&1 <<'SH'
+set -euo pipefail
+die() { printf '%s\n' "$*" >&2; exit 1; }
+root=$1; test_dir=$2; stale=$3
+source "$root/lib/render.sh"
+source "$root/lib/extensions.sh"
+kit_root=$root
+state_root=$test_dir/state-stale
+workspace_id=ws-a; project_key=demo; member_key=membera
+mkdir -p "$state_root/$workspace_id"
+printf '{"roles":["%s"],"autopilots":""}\n' "$stale" >"$state_root/ws-a/demo-membera.extensions.json"
+load_extension_inventory
+printf '%s\n' "登録対象から外れた役: ${extension_disabled_roles:-}"
+SH
+	then
+		cat "$stale_out" >&2
+		echo "FAIL extensions: 以前の拡張の ${stale} が原本の役と衝突しても止まらない" >&2
+		exit 1
+	fi
+	grep -q "以前の拡張の役のキー「${stale}」が原本の役と同じです" "$stale_out"
+	! grep -q '登録対象から外れた役' "$stale_out"
+done
+# 原本の役と衝突しない以前の拡張のキーは、今までどおり外れた役として扱う。
+/bin/bash -s -- "$root" "$test_dir" <<'SH'
+set -euo pipefail
+die() { printf '%s\n' "$*" >&2; exit 1; }
+root=$1; test_dir=$2
+source "$root/lib/render.sh"
+source "$root/lib/extensions.sh"
+kit_root=$root
+state_root=$test_dir/state-stale-ok
+workspace_id=ws-a; project_key=demo; member_key=membera
+mkdir -p "$state_root/$workspace_id"
+printf '%s\n' '{"roles":["helper"],"autopilots":""}' >"$state_root/ws-a/demo-membera.extensions.json"
+load_extension_inventory
+[[ " $extension_disabled_roles " == *' helper '* && " $extension_disabled_roles " != *' claude-principal '* && " $extension_disabled_roles " != *' codex-principal '* ]]
+for principal in claude-principal codex-principal; do [[ " $template_roles " == *" $principal "* ]]; done
+SH
+echo 'PASS extensions: 以前の拡張のキーが原本の最上位の役と同名なら、登録の前に止め、衝突しないキーは外れた役として扱う'
 
 source "$root/lib/autopilots.sh"
 cat >"$test_dir/webhook.md" <<'WEBHOOK'

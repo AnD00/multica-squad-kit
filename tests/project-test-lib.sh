@@ -169,7 +169,7 @@ prepare_project
 DRIVER
 export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package"
 export TEST_DB="$test_dir/db" TEMPLATE_AGENT_HOME="$test_dir/host"
-export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=17
 reset_db() {
  rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
  mkdir -p "$TEST_DB/projects" "$TEST_DB/agents" "$TEST_DB/skills" "$TEST_DB/env" "$TEMPLATE_AGENT_HOME/bin" "$TEMPLATE_AGENT_HOME/git-hooks"
@@ -186,7 +186,7 @@ deny() { if run; then echo 'unexpected success'; exit 1; fi; [[ -s $test_dir/err
 assert_no_final() {
  ! jq -es 'any(.[]; .[0:2]==["agent","update"] or .[0:3]==["agent","skills","set"] or .[0:2]==["skill","import"])' "$TEST_DB/calls" >/dev/null
 }
-# 初回の登録を終えた全15役の状態を、あとの試験の出発点として控える。
+# 初回の登録を終えた全17役の状態を、あとの試験の出発点として控える。
 make_completed() {
  reset_db
  run

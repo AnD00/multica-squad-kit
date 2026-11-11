@@ -123,7 +123,7 @@ old_skill() {
 }
 new_case initial
 run
-jq -e 'length==4' "$TEST_DB/labels.json" >/dev/null
+jq -e 'length==5 and any(.[]; .name=="重要" and .color=="#dc2626")' "$TEST_DB/labels.json" >/dev/null
 jq -e '.id=="skill-a" and (.files|length)==2' "$TEST_DB/skill.json" >/dev/null
 [[ $(grep -c '^skill import$' "$TEST_DB/writes") == 1 ]]
 cp "$TEST_DB/labels.json" "$test_dir/good-labels.json"
@@ -160,7 +160,7 @@ jq '.[0].color="#000000" | .[0].description="old" | .+[{id:"keep-id",name:"unrel
 cp "$test_dir/good-skill.json" "$TEST_DB/skill.json"
 run
 [[ $(grep -c '^label update$' "$TEST_DB/writes") == 1 ]]
-jq -e 'length==5 and any(.[]; .id=="keep-id" and .description=="keep")' "$TEST_DB/labels.json" >/dev/null
+jq -e 'length==6 and any(.[]; .id=="keep-id" and .description=="keep")' "$TEST_DB/labels.json" >/dev/null
 echo 'PASS workspace: 差のあるラベルだけを更新し、無関係のラベルを保持する'
 for failure in 'label list' 'skill list' 'skill get' 'workspace member'; do
  name=${failure// /-}; new_case "fail-$name"; old_skill; echo admin >"$TEST_DB/role"

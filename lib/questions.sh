@@ -254,9 +254,14 @@ role_choice_note() {
 	if [[ $1 == claude || $1 == codex ]] && jq -e --arg key "$1" 'index($key)==null' >/dev/null <<<"$runtimes"; then printf '（使うランタイムにないため外れます）'; fi
 }
 
-# リーダーのエージェントは、ほかの役と同じ見出しで名前を出す。
+# リーダーと、使うランタイムの最上位の役は、ほかの役と同じ見出しで名前を出す。
 role_fixed_text() {
+	local runtime
 	printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: %s-orchestrator-%s' "$project_key" "$member_key"
+	for runtime in claude codex; do
+		jq -e --arg runtime "$runtime" 'index($runtime)!=null' >/dev/null <<<"${runtimes:-[\"claude\",\"codex\"]}" || continue
+		printf '\n%s の最上位のレビュー（%s-principal）: 重要なタスクの設計と PR を見直します。外せません。\n  エージェント: %s-%s-principal-%s' "$(if [[ $runtime == claude ]]; then printf Claude; else printf Codex; fi)" "$runtime" "$project_key" "$runtime" "$member_key"
+	done
 }
 
 pick_runtimes() {
@@ -430,7 +435,7 @@ confirmation_plan() {
 	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern i choice excluded_shown=no
 	# 表示の予定だけに、選ばなかったランタイムの系統を足す。保存する答えは変えない。
 	local excluded_roles=$excluded_roles
-	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer"] | unique' <<<"$excluded_roles")
+	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer","\($runtime)-principal"] | unique' <<<"$excluded_roles")
 	agents=$(question_list エージェント agent list)
 	skills=$(question_list スキル skill list)
 	autopilots=$(mc autopilot list --output json) || die 'オートパイロットを取得できませんでした。'
