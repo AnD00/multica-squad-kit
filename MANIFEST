@@ -87,10 +87,10 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 bbad056d147f7f1ff8783c13fcb87e64d5e0804b71ad1370a94ddbddbcf79f61  ./skeleton/project.md
 f13b9d6f1d3d251a28f825e23de024d5a81bd817a10ea7f2ccace772b91aea78  ./skeleton/verify-repository.md
 fff380133c6e70add548354e8fe4018643788c5e891aa82e8b18aee038f32507  ./tests/agent-templates-test.sh
-79e73b4fadf882baca4314b1eb52cbdd618c2a1a3e3fbb93351c4f57f4d36d81  ./tests/capture-cli-fixtures-test.sh
+7610a07353a5879d81ee4bd54d5d0a2e5cfe6ac406fbb5f4e168bfded94eb4ca  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
 7915f34f30cd4712d3265f354edf354c00bf495e0faa26f36f3f375e4900825b  ./tests/capture-cli-fixtures.sh
-ba7e2285cb44d324069486a41a4c4fcf450b0d2b222a6c769be5472fd03efefc  ./tests/capture-gh-fixtures.py
+292592a829c52cac9f3d439a44d23384822841ee22e93f32581430faa3bc338d  ./tests/capture-gh-fixtures.py
 c8a083d46d9d7358cb8f9195d27c3f41b3977192cd40c7229b1fb60e3e23a264  ./tests/capture-usage-fixtures.py
 652723d0d604daa3599abccdf863468790297df334e55ab242ae548fd0c741e4  ./tests/check-content.py
 eab6275704d44524226c91d5ff54c88966a541e4133cc2568ee8aa1c3e5f2d64  ./tests/check-content.sh

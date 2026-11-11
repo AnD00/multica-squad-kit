@@ -53,7 +53,8 @@ def main():
     version = subprocess.check_output(["gh", "--version"], text=True).splitlines()[0]
     selected, coverage = {}, {}
     for name, entry in entries.items():
-        if entry.get("capture") != "external":
+        # 外部で採取する約束には Codex も含まれる。この採取は gh の読み取りだけを扱う。
+        if entry.get("capture") != "external" or entry["command"][0] != "gh":
             continue
         command = commands[name]
         if not read_only(command):

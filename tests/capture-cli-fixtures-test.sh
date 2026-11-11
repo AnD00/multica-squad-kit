@@ -5,6 +5,7 @@ cd "$root"
 python3 - <<'PY'
 import copy
 import json
+import os
 import runpy
 import subprocess
 import sys
@@ -135,6 +136,31 @@ original={'body':'PRIVATE_BODY','commit':{'message':'PRIVATE_MESSAGE'},'user':{'
 masked=gh['redact'](original,{})
 assert structure(masked)==structure(original) and 'PRIVATE_' not in json.dumps(masked)
 print('PASS GitHub capture: 書き込みのオプションを拒み、自由文・login・URL を匿名化する')
+
+# 約束に gh 以外の外部採取（Codex）があっても、保存した応答から最後まで採取できる。
+with tempfile.TemporaryDirectory(dir='tmp', prefix='gh-capture-main.') as directory:
+    work = Path(directory)
+    (work / 'bin').mkdir()
+    (work / 'responses').mkdir()
+    (work / 'output').mkdir()
+    stub = work / 'bin' / 'gh'
+    stub.write_text('#!/bin/sh\necho "gh version 0.0.0 (fixture)"\n')
+    stub.chmod(0o755)
+    sources = json.loads((fixtures / 'GH-CAPTURE.json').read_text())['sources']
+    gh_names = {name for name, entry in entries.items() if entry.get('capture') == 'external' and entry['command'][0] == 'gh'}
+    assert gh_names == set(sources) and 'codex-rate-limits' in entries
+    assert entries['codex-rate-limits'].get('capture') == 'external'
+    (work / 'sources.json').write_text(json.dumps(sources))
+    for name in sources:
+        saved = json.loads((fixtures / f'{name}.json').read_text())
+        (work / 'responses' / f'{name}.raw').write_text(json.dumps(saved[0] if saved else []))
+    result = subprocess.run(['python3', 'tests/capture-gh-fixtures.py', '--sources', str(work / 'sources.json'),
+                             '--response-dir', str(work / 'responses'), '--output-dir', str(work / 'output')],
+                            capture_output=True, text=True, env=dict(os.environ, PATH=f"{work / 'bin'}:{os.environ['PATH']}"))
+    assert result.returncode == 0, result.stderr
+    assert sorted(p.name for p in (work / 'output').iterdir()) == sorted([f'{name}.json' for name in sources] + ['GH-CAPTURE.json'])
+    assert set(json.loads((work / 'output' / 'GH-CAPTURE.json').read_text())['sources']) == set(sources)
+print('PASS GitHub capture: Codex の約束があっても、gh の約束だけを最後まで採取する')
 
 usage = runpy.run_path('tests/capture-usage-fixtures.py')
 for name in ('codex-rate-limits', 'claude-usage'):
