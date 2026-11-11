@@ -28,6 +28,9 @@ mv "$test_dir/package/MANIFEST" "$test_dir/MANIFEST.saved"
 env -u NO_COLOR TERM=xterm-256color python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- /bin/bash "$test_dir/package/setup.sh" </dev/null || true
 ! grep -qF "$esc" "$test_dir/err"
 tr -d '\r' <"$test_dir/err" | grep -qE '^エラー: 原本のファイルが不足しているか改変されています。MANIFEST がありません。'
+# 不足・改変で止まる文は、clone でも配布物でも当てはまる「取り直して」にする。
+tr -d '\r' <"$test_dir/err" | grep -qxF 'エラー: 原本のファイルが不足しているか改変されています。MANIFEST がありません。 原本を取り直して、流してください。'
+! grep -qF 'clone' "$test_dir/err"
 mv "$test_dir/MANIFEST.saved" "$test_dir/package/MANIFEST"
 echo 'PASS marks: MANIFEST の確認より前の die は、端末でも制御文字を出さず印だけを付ける'
 
