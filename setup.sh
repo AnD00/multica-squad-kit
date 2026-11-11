@@ -90,6 +90,7 @@ source "$root/lib/installation.sh"
 source "$root/lib/squad.sh"
 source "$root/lib/autopilots.sh"
 source "$root/lib/extensions.sh"
+source "$root/lib/version.sh"
 setup_cleanup_enabled=yes
 setup_cleanup() {
 	local result=$?
@@ -103,6 +104,7 @@ check_tools
 choose_extension
 choose_server
 check_login
+check_update
 ask_questions
 resolve_link_repositories
 load_extension_inventory
@@ -115,3 +117,4 @@ prepare_workspace
 printf '%s\n' 'プロジェクトの設定を始めます。' >&2
 prepare_project
 save_extension_inventory
+record_installed_version

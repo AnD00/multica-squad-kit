@@ -73,6 +73,7 @@ af59cb0214f207efade15807d56aa76ba39b451f769d814b54cc8c580a123f2d  ./lib/render.s
 9a6e78b8a9fe9a957e119c63ea1b7d91c94be51250e49ab4bdd334eca1cb6ce5  ./lib/setup-issues.sh
 fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
 16a853f062651f4e81566b9da19cc45dbd3c7c612708fa49eba6a0cbe5b2f17b  ./lib/ui.sh
+4fdf756fed80c26936e3b63339e1d8c83a3adce5aab087fb9e6ec626baaedf45  ./lib/version.sh
 2acbe40057c86b3059cf53669db57e2b7e6f0afa11bca7695fef880734f7a610  ./lib/webhooks.sh
 6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
 c560dae4529c83b97c2ce7b616d2a9e56c275a279834667fef464100302dc046  ./manual.md
@@ -80,7 +81,7 @@ c560dae4529c83b97c2ce7b616d2a9e56c275a279834667fef464100302dc046  ./manual.md
 4fd73c29ca4528cab7d56c1a2d6be4e102a16307b146dc5a8e36c76e192699c8  ./scripts/check.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 e539cf5fdc449f9261f86c4a8231aa78e80e137cf3b7edf769ec61fd212b0446  ./scripts/release.sh
-43eb8c33607d0af1419a78fe4a0247aeb72dfa6420a3717ce26236be92bbe31a  ./setup.sh
+7432af759bcb67e9bbb95b80ef17b1ade46b50564d83c2b6acb9655bea7d90ae  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
 813658fb296b853b8b45077b49a4d02defcec11a572638cd0b0246116a47a6a7  ./skeleton/.agents/rules/docs.md
 8ed1c017bd52bb79fe34cd2d9065f522259cc3743b3bf88d961aede7684f1c24  ./skeleton/.agents/rules/tests.md
@@ -123,12 +124,13 @@ f595df0fd3f7f57e9a366d1ab45deb008a7ac8bde791c238d90ad8725f73685f  ./tests/role-c
 95737260b4ead2219f5599907d5f5ad99231f3bc73d48fa8600dacd07e2d42a2  ./tests/run-one.sh
 e74d3d6be110378b66a9c8b203a2b715d336ae1fa22c0c252258ac1a58a06e9b  ./tests/run.sh
 65f2d2493898925999557f13a559e7d94eedbf3cfd25ea92abc804b99d88bb47  ./tests/runtime-selection-test.sh
-69b9634924a06f08eefee158b3c374672a9997da1500cbe42f44aedbfdf5020f  ./tests/setup-fixture.sh
+494a4fd2570f30a870899f32b13a6cddf220d591b14c45e74456b71ac51efd7d  ./tests/setup-fixture.sh
 8f358f5ae0c9878451cc7a87999a485e427f085223b2a31c7851d3ddea981205  ./tests/setup-issues-test.sh
 0697d4d8059faa2eef957d7f590d1183852dd9840ed455acecf0f46a000de5e4  ./tests/setup-runtime-cli.py
 b6f2c6ad1fed098f681777d0ef8e1122948e931a27d54847007cbae7997c6752  ./tests/setup-runtimes-test.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 23cb3c10da47ec4a9d2e568da8c6aeb2a74b1244278d8093e0b16c74338ffb8f  ./tests/setup-test.sh
+3b2c6fb9fc33ab7b9b43a5497d1acb43c4e887529f1bb427a3df8af5e190656f  ./tests/setup-version-test.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
 da1625d729e7ada713594da2054632fc3f60be2a7d49d68accc35aecae109b75  ./tests/squad-dependabot-merge-test.sh
 56507e33a9685912c081f11102165adef736dc5a031f885afbf07b6faca3bb45  ./tests/squad-dispatch-pick-test.sh
@@ -148,7 +150,7 @@ d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-con
 fed6d2880cbdd02752bf5d377de7f0ad1912765a6a92436eedb5d77999c59632  ./tests/vm-wsl-cli.py
 e45a4621e54abb773ee81a439afc0ba097ffcf13bf6d80b5941d98389f34e571  ./tests/vm-wsl-test.ps1
 45cfa8b10d7ae240677ae76844ce23d11f41b8b9bf974e7659c702ea6fdf9736  ./tests/vm-wsl-test.sh
-ad23881201b6c86fc46e0874951cf5475cf560122867b4c6d7d46d9eec2e99e3  ./tests/webhook-gh.py
+fd3cd06021c35f13239e1bd31cc7ac40d7c1c5640c923f8a263a3da4899b69c0  ./tests/webhook-gh.py
 55b016d8cf7fc3249410fa650b71f31983e020fc522fec97fb554112e88f348c  ./tests/webhooks-test.sh
 33fba080cbe6db9f6605cf839fafb6400d81910271b5506d7d33c2fcba787e36  ./tests/workspace-test.sh
 3b4d3e63c617e70c331860494104a94ba14ee0af4ba224234ba3bd98a5544f3f  ./vm/guest/provision.sh
