@@ -26,6 +26,11 @@ squad_cli_contracts() {
           "nullable": false
         },
         {
+          "path": "identifier",
+          "class": "required",
+          "nullable": false
+        },
+        {
           "path": "status",
           "class": "required",
           "nullable": false
@@ -53,14 +58,17 @@ squad_cli_contracts() {
         {
           "path": "metadata.ci_watch_thread",
           "class": "optional",
-          "nullable": true,
-          "default": null
+          "nullable": true
         },
         {
           "path": "metadata.pr_url",
           "class": "optional",
-          "nullable": true,
-          "default": null
+          "nullable": true
+        },
+        {
+          "path": "metadata.repository",
+          "class": "optional",
+          "nullable": true
         }
       ],
       "samples": [
@@ -87,6 +95,14 @@ squad_cli_contracts() {
         {
           "name": "pr_url-absent",
           "where": ".metadata | has(\"pr_url\") | not"
+        },
+        {
+          "name": "repository-present",
+          "where": ".metadata | has(\"repository\")"
+        },
+        {
+          "name": "repository-absent",
+          "where": ".metadata | has(\"repository\") | not"
         }
       ]
     },
@@ -139,8 +155,7 @@ squad_cli_contracts() {
             "path": "source_task_id",
             "class": "conditional",
             "nullable": false,
-            "when": ".author_type == \"agent\" or .author_type == \"system\"",
-            "default": null
+            "when": ".author_type == \"agent\" or .author_type == \"system\""
           }
         ]
       },
@@ -211,8 +226,7 @@ squad_cli_contracts() {
             "path": "trigger_comment_id",
             "class": "conditional",
             "nullable": false,
-            "when": ".kind == \"comment\"",
-            "default": null
+            "when": ".kind == \"comment\""
           }
         ]
       },
@@ -280,15 +294,13 @@ squad_cli_contracts() {
             "path": "condition.type",
             "class": "conditional",
             "nullable": false,
-            "when": ".condition != null",
-            "default": null
+            "when": ".condition != null"
           },
           {
             "path": "condition.event",
             "class": "conditional",
             "nullable": false,
-            "when": ".condition.type == \"pull_request\"",
-            "default": null
+            "when": ".condition.type == \"pull_request\""
           }
         ]
       },
@@ -344,10 +356,14 @@ squad_cli_contracts() {
       "shape": "object",
       "fields": [
         {
+          "path": "repository",
+          "class": "optional",
+          "nullable": true
+        },
+        {
           "path": "pr_url",
           "class": "optional",
-          "nullable": true,
-          "default": null
+          "nullable": true
         }
       ],
       "samples": [
@@ -358,6 +374,14 @@ squad_cli_contracts() {
         {
           "name": "pr-absent",
           "where": "has(\"pr_url\") | not"
+        },
+        {
+          "name": "repository-present",
+          "where": "has(\"repository\")"
+        },
+        {
+          "name": "repository-absent",
+          "where": "has(\"repository\") | not"
         }
       ]
     },
@@ -413,7 +437,7 @@ squad_cli_contracts() {
           {
             "path": "project_id",
             "class": "required",
-            "nullable": false
+            "nullable": true
           }
         ]
       }
@@ -709,43 +733,37 @@ squad_cli_contracts() {
             "path": "name",
             "class": "conditional",
             "nullable": false,
-            "when": ".__typename == \"CheckRun\"",
-            "default": null
+            "when": ".__typename == \"CheckRun\""
           },
           {
             "path": "status",
             "class": "conditional",
             "nullable": false,
-            "when": ".__typename == \"CheckRun\"",
-            "default": null
+            "when": ".__typename == \"CheckRun\""
           },
           {
             "path": "workflowName",
             "class": "conditional",
             "nullable": false,
-            "when": ".__typename == \"CheckRun\"",
-            "default": null
+            "when": ".__typename == \"CheckRun\""
           },
           {
             "path": "conclusion",
             "class": "conditional",
             "nullable": true,
-            "when": ".__typename == \"CheckRun\"",
-            "default": null
+            "when": ".__typename == \"CheckRun\""
           },
           {
             "path": "context",
             "class": "conditional",
             "nullable": false,
-            "when": ".__typename == \"StatusContext\"",
-            "default": null
+            "when": ".__typename == \"StatusContext\""
           },
           {
             "path": "state",
             "class": "conditional",
             "nullable": false,
-            "when": ".__typename == \"StatusContext\"",
-            "default": null
+            "when": ".__typename == \"StatusContext\""
           }
         ]
       }
@@ -773,6 +791,7 @@ squad_cli_normalize() {
 	program=$(cat <<'PY'
 import copy
 import json
+import os
 import subprocess
 import sys
 
@@ -809,7 +828,6 @@ def normalize(value, fields, index):
     if not isinstance(value, dict):
         report("の形が不正です", "object", value, index)
         return value
-    defaults = []
     tree = {}
     for field in fields:
         path = field["path"].split(".")
@@ -823,15 +841,7 @@ def normalize(value, fields, index):
             report("に欄がありません", field["path"], value, index, when)
         elif required and actual is None and not field["nullable"]:
             report("の欄が null です", field["path"], value, index, when)
-        elif actual is missing and not required:
-            defaults.append((path, field["default"]))
-    result = copy.deepcopy(value)
-    for path, default in defaults:
-        parent = get(result, path[:-1])
-        # null 可の親そのものが null の場合は維持する。子の読み取りも null になる。
-        if isinstance(parent, dict):
-            parent[path[-1]] = copy.deepcopy(default)
-    return project(result, tree)
+    return project(value, tree)
 
 try:
     value = json.load(sys.stdin)
@@ -855,6 +865,9 @@ try:
     if errors:
         print("\n".join(errors), file=sys.stderr)
         sys.exit(1)
+    # テストだけで使う。検証は省かず、射影の前後で呼び出し元の動作を比べる。
+    if os.environ.get("SQUAD_CLI_TEST_KEEP_FIELDS") == "1":
+        result = value
     print(json.dumps(result, ensure_ascii=False))
 except (ValueError, TypeError, KeyError) as error:
     print(f"CLI の出力を確かめられません: {name}（{error}）", file=sys.stderr)

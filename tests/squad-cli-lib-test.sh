@@ -56,11 +56,11 @@ def active(value, field):
     return field['class'] == 'required' or (
         field['class'] == 'conditional' and matches(value, field['when']))
 
-def normalize(name, response):
+def normalize(name, response, keep=False):
     version = versions[1 if entries[name]['command'][0] == 'gh' else 0]
     return subprocess.run(['bash', '-c', 'source "$1"; squad_cli_normalize "$2" "$3"',
                            'bash', str(library), name, version], input=json.dumps(response),
-                          capture_output=True, text=True)
+                          capture_output=True, text=True, env=dict(os.environ, SQUAD_CLI_TEST_KEEP_FIELDS="1" if keep else "0"))
 
 def success(name, response):
     result = normalize(name, response)
@@ -71,6 +71,8 @@ def failure(name, response, field):
     result = normalize(name, response)
     assert result.returncode == 1 and result.stdout == '', (name, field, result)
     assert name in result.stderr and field['path'] in result.stderr, result.stderr
+    kept = normalize(name, response, keep=True)
+    assert kept.returncode == 1 and kept.stdout == '' and field['path'] in kept.stderr
     assert versions[1 if entries[name]['command'][0] == 'gh' else 0] in result.stderr
     if field['class'] == 'conditional':
         assert field['when'] in result.stderr, result.stderr
@@ -103,6 +105,8 @@ for name, entry in entries.items():
                 assert not all(present) or unavailable, (name, field, '非該当の形が必要です')
     for response in responses:
         normalized = success(name, response)
+        kept = normalize(name, response, keep=True)
+        assert kept.returncode == 0 and json.loads(kept.stdout) == response
         counts['responses'] += 1
         for prefix, item, fields in scopes(response, entry):
             normalized_item = get(normalized, prefix)
@@ -146,7 +150,7 @@ for name, entry in entries.items():
                 if not active(item, field) and get(item, path) is missing:
                     parent = get(normalized_item, path[:-1])
                     if parent is not None:
-                        assert get(normalized_item, path) == field['default'], (name, field)
+                        assert get(normalized_item, path) is missing, (name, field)
         counts['minimal'] += 1
     if entry['shape'] == 'array':
         assert success(name, []) == []

@@ -44,11 +44,17 @@ def assert_case_keys(original, candidate, fields, allow_required_deletion=False,
 
 def assert_fixture_response(original, candidate, entry, allow_required_deletion=False):
     def items(before, after, fields):
-        for index, value in enumerate(after):
+        for value in after:
             if not before:
                 raise AssertionError("空の見本から要素を作れません")
-            assert_case_keys(before[min(index, len(before) - 1)], value, fields,
-                             allow_required_deletion)
+            for original in before:
+                try:
+                    assert_case_keys(original, value, fields, allow_required_deletion)
+                    break
+                except AssertionError:
+                    pass
+            else:
+                raise AssertionError("見本に合う要素の形がありません")
 
     if entry["shape"] == "array":
         items(original, candidate, entry["items"]["fields"])

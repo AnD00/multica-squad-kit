@@ -32,7 +32,7 @@ require_commands() {
 
 
 conflicts() {
-	local issue=$1 rules ids id instruction
+	local issue=$1 rules ids id instruction response
 	# CI など、ほかの条件の規則は残す。無効になった古い規則も消してから入れ直す。
 	rules=$(squad_cli_read issue-wakeups "$issue")
 	ids=$(jq -r '.[] | select(.condition.type == "pull_request" and .condition.event == "conflicts") | .id' <<<"$rules")
@@ -53,13 +53,14 @@ PR のコンフリクトの見張りで起きました。
 そうでなければ、何もせずに終えてください。作業中のコンフリクトは、次にマージに回すときに入れ直す見張りが拾います。
 EOF
 	# --agent-id を省くと、呼び出した orchestrator 自身を起こす。既定の mode は once。
-	squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr conflicts
+	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr conflicts)
+	jq '{id}' <<<"$response"
 	rm -f "$instruction"
 	trap - EXIT
 }
 
 ci() {
-	local issue=$1 monitor=$2 trigger=$3 id rules paused old old_id instruction task thread status
+	local issue=$1 monitor=$2 trigger=$3 id rules paused old old_id instruction task thread status response
 	id=$monitor
 	rules=$(squad_cli_read issue-wakeups "$issue" | jq --arg id "$id" '
 		[.[] | select(.agent_id == $id and .mode == "continuous"
@@ -105,8 +106,9 @@ PR の CI が終わりました。あなたの指示に従い、「このプロ�
 判定と失敗の知らせはスクリプトが行います。スクリプトが 0 で終わったら、標準出力をそのまま最後の返答にしてください。
 EOF
 	printf '記録のスレッド: %s（0 以外で終わったときの返信先）\n' "$thread" >>"$instruction"
-	squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr checks --mode continuous --agent-id "$id" \
-		--max-fires 200 --parent "$thread"
+	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr checks --mode continuous --agent-id "$id" \
+		--max-fires 200 --parent "$thread")
+	jq '{id}' <<<"$response"
 	rm -f "$instruction"
 	trap - EXIT
 }

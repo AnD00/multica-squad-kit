@@ -4,11 +4,18 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 
 script="$root/common/monitor/squad-review-wait"
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/review-wait-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+source "$root/tests/cli-mode-test-lib.sh"
+cli_test_wrap_monitor "$script" "$test_dir"
 export REVIEW_WAIT_TEST_DIR="$test_dir"
 export REVIEW_WAIT_TEST_ROOT="$root"
 source "$root/common/monitor/squad-cli-lib"
@@ -23,6 +30,7 @@ cat >"$test_dir/bin/multica" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$REVIEW_WAIT_TEST_DIR
+python3 "$REVIEW_WAIT_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
 if [[ -f $dir/fail && "${1-} ${2-} ${3-}" == "$(<"$dir/fail")" ]]; then
 	echo 'CLI mock failure' >&2

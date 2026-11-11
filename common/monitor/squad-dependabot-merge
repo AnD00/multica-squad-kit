@@ -7,6 +7,7 @@
 # macOS の bash 3.2 でも動くよう、連想配列は使わない。
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/squad-pr-link-lib"
+source "$(dirname "${BASH_SOURCE[0]}")/squad-cli-lib"
 
 RUN_SECONDS=14400
 
@@ -329,7 +330,7 @@ advance() {
 # 既存の担当・状態は、人間が変えていることがあるので触らない。
 escalation_label() {
 	local id=$1 label=$2 labels
-	labels=$(multica issue label list "$id" --output json)
+	labels=$(squad_cli_read issue-labels "$id")
 	if [[ $(jq -r --arg label "$label" 'any(.[]; .id == $label)' <<<"$labels") != true ]]; then
 		if multica issue label add "$id" "$label" --output json >/dev/null; then
 			:
@@ -346,7 +347,7 @@ escalation_label() {
 # 失敗しても issue は人間に渡せるので止めず、次に同じ PR を回すときに補う。
 link_pull_request() {
 	local id=$1 identifier=$2 url=$3 metadata
-	if metadata=$(multica issue metadata list "$id" --output json) && jq -e 'type == "object"' <<<"$metadata" >/dev/null; then
+	if metadata=$(squad_cli_read issue-metadata "$id") && jq -e 'type == "object"' <<<"$metadata" >/dev/null; then
 		if pr_link_pull_request "$id" "$url" "$metadata"; then return; fi
 	fi
 	echo "issue ${identifier} に PR を紐付けられませんでした。次に同じ PR を回すときに補います。急ぐときは issue の画面で ${url} を紐付けてください。" >&2
@@ -355,9 +356,9 @@ link_pull_request() {
 escalate() {
 	(($# == 4)) || usage
 	local number=$1 source=$2 assignee=$4 search matches issue label member member_id member_name pr title body id identifier
-	local project=$PROJECT search_limit=1000
+	local project=$PROJECT search_limit=1000 labels members
 	[[ $number =~ ^[1-9][0-9]*$ && $3 == --assignee && -n $assignee && -f $source && -r $source && -s $source ]] || usage
-	search=$(multica issue search "$REPO#$number" --include-closed --limit "$search_limit" --output json)
+	search=$(squad_cli_read issue-search "$REPO#$number" --limit "$search_limit")
 	matches=$(jq -ce --arg suffix "（${REPO}#${number}）" --arg project "$project" '
 		if (.issues | type) != "array" then error("issue の検索結果を確認できません")
 		else [.issues[] | select(.project_id == $project and (.title | endswith($suffix)))] | sort_by(.created_at, .id) end' <<<"$search")
@@ -366,9 +367,10 @@ escalate() {
 		echo 'issue の検索結果が上限に達しました。重複がないと確認できないため作成しません。' >&2
 		return 1
 	fi
-	label=$(multica label list --output json | jq -er '[.[] | select(.name == "運用" and (.resource_type // "issue") == "issue")]
+	labels=$(squad_cli_read label-list)
+	label=$(jq -er '[.[] | select(.name == "運用" and .resource_type == "issue")]
 		| if length == 1 then .[0].id else error("運用ラベルを一意に見つけられません") end
-		| select(type == "string" and length > 0)')
+		| select(type == "string" and length > 0)' <<<"$labels")
 	if [[ $(jq length <<<"$matches") != 0 ]]; then
 		id=$(jq -er '.[0].id | select(type == "string" and length > 0)' <<<"$matches")
 		identifier=$(jq -er '.[0].identifier | select(type == "string" and length > 0)' <<<"$matches")
@@ -378,9 +380,10 @@ escalate() {
 		return
 	fi
 	# 名前のあいまいな解決でスクワッドやエージェントを担当にしない。
-	member=$(multica workspace member list --output json | jq -ce --arg assignee "$assignee" '
+	members=$(squad_cli_read member-list)
+	member=$(jq -ce --arg assignee "$assignee" '
 		[.[] | select(.name == $assignee or .email == $assignee)]
-		| if length == 1 then .[0] else error("担当のメンバーを一意に見つけられません") end')
+		| if length == 1 then .[0] else error("担当のメンバーを一意に見つけられません") end' <<<"$members")
 	member_id=$(jq -er '.user_id | select(type == "string" and test("^[A-Za-z0-9-]+$"))' <<<"$member")
 	member_name=$(jq -er '.name | select(type == "string" and length > 0)' <<<"$member")
 	pr=$(gh pr view "$number" --repo "$REPO" --json title,state,author)
@@ -396,8 +399,8 @@ escalate() {
 		printf '[@%s](mention://member/%s)\n\nPR: https://github.com/%s/pull/%s\n\n' "$member_name" "$member_id" "$REPO" "$number"
 		cat "$source"
 	} >"$body"
-	issue=$(multica issue create --title "Dependabot の PR を確認する: ${title}（${REPO}#${number}）" \
-		--description-file "$body" --project "$project" --assignee-id "$member_id" --status in_review --output json)
+	issue=$(squad_cli_read issue-create "Dependabot の PR を確認する: ${title}（${REPO}#${number}）" "$body" \
+		--project "$project" --assignee-id "$member_id" --status in_review)
 	id=$(jq -er '.id | select(type == "string" and length > 0)' <<<"$issue")
 	identifier=$(jq -er '.identifier | select(type == "string" and length > 0)' <<<"$issue")
 	escalation_label "$id" "$label"

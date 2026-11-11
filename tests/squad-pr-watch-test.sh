@@ -4,11 +4,18 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 
 script="$root/common/monitor/squad-pr-watch"
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/pr-watch-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+source "$root/tests/cli-mode-test-lib.sh"
+cli_test_wrap_monitor "$script" "$test_dir"
 export PR_WATCH_TEST_DIR="$test_dir"
 export PR_WATCH_TEST_ROOT="$root"
 source "$root/common/monitor/squad-cli-lib"
@@ -24,6 +31,7 @@ cat >"$test_dir/bin/multica" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$PR_WATCH_TEST_DIR
+python3 "$PR_WATCH_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
 if [[ -f $dir/fail && "${1-} ${2-} ${3-}" == "$(<"$dir/fail")" ]]; then
 	echo 'CLI mock failure' >&2
@@ -91,6 +99,7 @@ EOF
 cat >"$test_dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
+python3 "$PR_WATCH_TEST_ROOT/tests/cli-test-trace.py" "$PR_WATCH_TEST_DIR" gh "$@"
 if [[ ${1-} == --version ]]; then echo 'gh fixture-version'; exit 0; fi
 [[ "${1-} ${2-} ${3-}" == 'pr view test-pr' ]] || exit 1
 if [[ -f $PR_WATCH_TEST_DIR/fail-gh ]]; then echo 'gh mock failure' >&2; exit 1; fi

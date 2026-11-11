@@ -3,6 +3,7 @@
 # PR を作った直後に呼ぶ。紐付けに失敗しても、役は止まらずに引き継ぐ。
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/squad-pr-link-lib"
+source "$(dirname "${BASH_SOURCE[0]}")/squad-cli-lib"
 
 if [[ $# != 2 || -z $1 || ! $2 =~ ^https://github\.com/[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+/pull/[0-9]+$ ]]; then
 	echo '使い方: squad-pr-link <タスク> <PR の URL (https://github.com/OWNER/REPO/pull/番号)>' >&2
@@ -13,16 +14,26 @@ warn() {
 	printf 'タスク %s に PR %s を紐付けられませんでした（%s）。課題の画面の PR の欄で、この URL を指定して紐付けてください。\n' "$identifier" "$url" "$1" >&2
 }
 
-if ! issue=$(multica issue get "$task" --output json 2>/dev/null) ||
-	! jq -e 'type == "object" and (.id | type == "string" and length > 0)
-		and (.identifier | type == "string" and length > 0)
-		and ((.metadata // {}) | type == "object")' <<<"$issue" >/dev/null 2>&1; then
+mkdir -p tmp
+diagnostic=$(mktemp tmp/pr-link-read.XXXXXX)
+trap "$(printf 'rm -f -- %q' "$diagnostic")" EXIT
+if ! issue=$(squad_cli_read issue-get "$task" 2>"$diagnostic"); then
+	# CLI 自体の診断には認証情報が含まれ得る。約束の欄の診断だけを返す。
+	sed -n '/^CLI の出力/p' "$diagnostic" >&2
+	warn 'タスクを読めない'
+	exit 1
+fi
+rm -f "$diagnostic"
+trap - EXIT
+if ! jq -e '(.id | type == "string" and length > 0)
+	and (.identifier | type == "string" and length > 0)
+	and (.metadata | type == "object")' <<<"$issue" >/dev/null; then
 	warn 'タスクを読めない'
 	exit 1
 fi
 id=$(jq -r '.id' <<<"$issue")
 identifier=$(jq -r '.identifier' <<<"$issue")
-metadata=$(jq -c '.metadata // {}' <<<"$issue")
+metadata=$(jq -c '.metadata' <<<"$issue")
 if ! pr_link_pull_request "$id" "$url" "$metadata"; then
 	warn "$PR_LINK_REASON"
 	exit 1

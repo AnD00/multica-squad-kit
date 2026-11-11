@@ -10,7 +10,7 @@ pr_link_pull_request() {
 	local interval=10 timeout=120
 	local timeout_reason='サーバーが PR を見つけられない（120 秒待った）'
 	PR_LINK_REASON=''
-	repository=$(jq -r '.repository // empty' <<<"$metadata") || return 1
+	repository=$(jq -r '.repository | select(. != null)' <<<"$metadata") || return 1
 	url_repository=${url#https://github.com/}
 	url_repository=${url_repository%/pull/*}
 	if [[ -n $repository && $(printf '%s' "$repository" | tr '[:upper:]' '[:lower:]') != "$(printf '%s' "$url_repository" | tr '[:upper:]' '[:lower:]')" ]]; then

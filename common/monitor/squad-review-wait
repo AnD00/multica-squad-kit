@@ -114,7 +114,7 @@ unwatch() {
 }
 
 watch() {
-	local issue=$1 parent=$2 id ids='' instruction
+	local issue=$1 parent=$2 id ids='' instruction response
 	shift 2
 	# ID の誤りでは前の見張りを失わないよう、消す前に全員を確かめる。
 	for id in "$@"; do
@@ -133,8 +133,9 @@ watch() {
 	# --agent-id を省き、呼び出した orchestrator 自身を起こす。mode は once、期限の扱いは end。
 	while IFS= read -r id; do
 		[[ -n $id ]] || continue
-		squad_cli_read issue-wakeup-create "$issue" "$instruction" --event task.failed,task.cancelled --filter-agent-id "$id" \
-			--expires-in "${REVIEW_WAIT_LIMIT_MINUTES}m" --parent "$parent"
+		response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --event task.failed,task.cancelled --filter-agent-id "$id" \
+			--expires-in "${REVIEW_WAIT_LIMIT_MINUTES}m" --parent "$parent") || return 1
+		jq '{id}' <<<"$response"
 	done <<<"$ids"
 	# 上限で役の数だけ起きないよう、時刻の規則は 1 つだけにする。
 	# 登録からコメントまでの時間差で空振りしないよう、上限用の判定を指示する。
@@ -142,8 +143,9 @@ watch() {
 		printf '%s\n' "$WATCH_MARK"
 		printf '`squad-review-wait status %s --timeout` を実行し、あなたの指示の「返事の待ちの見張りで起きたとき」に従ってください。\n' "$issue"
 	} >"$instruction"
-	squad_cli_read issue-wakeup-create "$issue" "$instruction" --kind at --after "${REVIEW_WAIT_LIMIT_MINUTES}m" \
-		--parent "$parent"
+	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --kind at --after "${REVIEW_WAIT_LIMIT_MINUTES}m" \
+		--parent "$parent") || return 1
+	jq '{id}' <<<"$response"
 	rm -f "$instruction"
 	trap - EXIT
 }

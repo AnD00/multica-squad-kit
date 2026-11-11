@@ -30,8 +30,12 @@ bash tests/capture-cli-fixtures.sh --write-samples tmp/採取した応答 <タ�
 
 見張りは `squad-cli-lib` を source し、`squad_cli_read <読み取りの名前> <引数>...` で呼ぶ。引数は約束のコマンドの `{引数}` の順で渡す。その後には `--limit` などを追加できる。`--compact` と JSON の出力指定の上書きは拒否する。
 
-`squad_cli_normalize <読み取りの名前> [<CLI の版>]` は、標準入力の JSON だけを検証・整形する。版を省くと実物の CLI から読む。必須・条件付きの欠落と null の不一致は、すべて標準エラーに書き、出力を返さず失敗する。正常な省略には既定値を入れ、約束外の欄を除いて返す。null 可の親が null なら、その値を維持する。
+`squad_cli_normalize <読み取りの名前> [<CLI の版>]` は、標準入力の JSON だけを検証・整形する。版を省くと実物の CLI から読む。必須・条件付きの欠落と null の不一致は、すべて標準エラーに書き、出力を返さず失敗する。省略された鍵は補わず、約束外の欄を除いて返す。null 可の親が null なら、その値を維持する。
 
 書き込みも `squad_cli_read` を通せる。応答の検証が失敗しても書き込み自体は済んでいることがあるので、投稿を繰り返さない。
 
 見張りのテストで実物の見本からケースを作るときは、`tests/cli-fixture-lib.py` の `assert_fixture_response` に原本・ケース・その読み取りの約束を渡す。新しい鍵の追加と、必須の鍵の削除を拒否する。`allow_required_deletion=True` は、欠落時の失敗を確かめるケースだけに使う。
+
+段階的な追加採取として、2026-11-11 に同じ CLI の版から、`repository` のないタスクの `issue-get` と `issue-metadata` を追加した。この採取の 2 応答で共通の対応表を使い、ID は `fixture-supplement-id-` で始まる。同じ採取の中の同一性・比較順を保ち、先の採取の ID とは比較しない。`CAPTURE.json` の追加した `repository` の形の件数は、保存済み見本と追加応答で数え、その範囲を `scope` に残した。
+
+`SQUAD_CLI_TEST_KEEP_FIELDS=1` はテストだけの切り替えで、必須・条件付きの検証は行い、約束外の欄を除かずに返す。見張りのテストは整形の前後で動作を比べる。

@@ -4,18 +4,30 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
+if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
+	source "$root/tests/cli-mode-test-lib.sh"
+	cli_test_compare_modes "$0" "$@"
+	exit $?
+fi
 
 script="$root/common/monitor/squad-dependabot-merge"
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/dependabot-merge-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+source "$root/tests/cli-mode-test-lib.sh"
+cli_test_wrap_monitor "$script" "$test_dir"
 export DEPENDABOT_MERGE_TEST_DIR="$test_dir"
+export DEPENDABOT_MERGE_TEST_ROOT="$root"
+source "$root/common/monitor/squad-cli-lib"
+squad_cli_contracts >"$test_dir/contracts.json"
+cli_fixture() { python3 "$root/tests/multica-fixture.py" "$test_dir" base "$@"; }
 mkdir -p "$test_dir/bin"
 export PATH="$test_dir/bin:$PATH"
 cat >"$test_dir/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
+python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" gh "$@"
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/calls.jsonl"
 if [[ -f $dir/fail && $* == *"$(<"$dir/fail")"* ]]; then
 	echo 'CLI mock failure' >&2
@@ -847,6 +859,9 @@ cat >"$test_dir/bin/multica" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
+python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" multica "$@"
+if [[ ${1-} == version ]]; then echo 'multica fixture-version'; exit 0; fi
+emit() { python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/multica-fixture.py" "$dir" emit "$@"; }
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/multica-calls.jsonl"
 args=("$@")
 value() {
@@ -866,24 +881,24 @@ fi
 case "$1 $2" in
 'issue search')
 	[[ $4 == --include-closed && $(value --limit) == 1000 && $(value --output) == json ]]
-	cat "$dir/search.json"
+	emit issue-search "$dir/search.json"
 	;;
-'label list') cat "$dir/labels.json" ;;
-'workspace member') [[ $3 == list ]]; cat "$dir/members.json" ;;
+'label list') emit label-list "$dir/labels.json" ;;
+'workspace member') [[ $3 == list ]]; emit member-list "$dir/members.json" ;;
 'issue create')
 	cat "$(value --description-file)" >"$dir/created-body.md"
-	jq -n --arg title "$(value --title)" --arg project "$(value --project)" \
-		--arg assignee "$(value --assignee-id)" --arg status "$(value --status)" '{
+	jq --slurpfile base "$dir/create-prototype.json" -n --arg title "$(value --title)" --arg project "$(value --project)" \
+		--arg assignee "$(value --assignee-id)" --arg status "$(value --status)" '$base[0] + {
 		id:"issue-a", identifier:"TEST-9000", title:$title,
 		project_id:$project, assignee_id:$assignee, assignee_type:"member", status:$status
 	}' >"$dir/created.json"
-	jq -n --argjson issue "$(<"$dir/created.json")" '{issues:[$issue]}' >"$dir/search.json"
-	printf '{}\n' >"$dir/metadata.json"
-	cat "$dir/created.json"
+	jq --slurpfile base "$dir/search-prototype.json" --argjson issue "$(<"$dir/created.json")" -n '$base[0].issues[0] as $item | $base[0] + {issues:[$item + {id:$issue.id,identifier:$issue.identifier,title:$issue.title,project_id:$issue.project_id,assignee_id:$issue.assignee_id,assignee_type:$issue.assignee_type,status:$issue.status}]}'  >"$dir/search.json"
+	python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/multica-fixture.py" "$dir" base issue-metadata | jq 'del(.repository,.pr_url)' >"$dir/metadata.json"
+	if [[ -f $dir/create-response.json ]]; then emit issue-create "$dir/create-response.json"; else emit issue-create "$dir/created.json"; fi
 	;;
 'issue metadata')
 	case $3 in
-	list) [[ $(value --output) == json ]]; cat "$dir/metadata.json" ;;
+	list) [[ $(value --output) == json ]]; emit issue-metadata "$dir/metadata.json" ;;
 	set)
 		[[ $(value --type) == string ]]
 		jq --arg key "$(value --key)" --arg value "$(value --value)" '.[$key] = $value' "$dir/metadata.json" >"$dir/metadata.next"
@@ -894,8 +909,8 @@ case "$1 $2" in
 	;;
 'issue label')
 	case $3 in
-	list) cat "$dir/issue-labels.json" ;;
-	add) jq -n --arg id "$5" '[{id:$id, name:"運用"}]' >"$dir/issue-labels.json"; echo '{}' ;;
+	list) emit issue-labels "$dir/issue-labels.json" ;;
+	add) jq --slurpfile base "$dir/label-prototype.json" -n --arg id "$5" '[$base[0] + {id:$id, name:"運用"}]' >"$dir/issue-labels.json"; echo '{}' ;;
 	*) exit 1 ;;
 	esac
 	;;
@@ -909,6 +924,7 @@ cat >"$test_dir/bin/curl" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$DEPENDABOT_MERGE_TEST_DIR
+python3 "$DEPENDABOT_MERGE_TEST_ROOT/tests/cli-test-trace.py" "$dir" curl "$@"
 jq -cn --args '$ARGS.positional' -- "$@" >>"$dir/curl-calls.jsonl"
 cat >"$dir/curl-config"
 printf '%s' "$(<"$dir/curl-status")"
@@ -929,11 +945,15 @@ escalate_fixture() {
 	rm -f "$test_dir/multica-fail" "$test_dir/created.json" "$test_dir/created-body.md"
 	: >"$test_dir/multica-calls.jsonl"
 	: >"$test_dir/description-files"
-	printf '{"issues":[]}\n' >"$test_dir/search.json"
-	printf '[{"id":"label-a","name":"運用","resource_type":"issue"}]\n' >"$test_dir/labels.json"
+	rm -f "$test_dir/allow-missing-fields" "$test_dir/create-response.json"
+	cli_fixture issue-create >"$test_dir/create-prototype.json"
+	cli_fixture issue-search >"$test_dir/search-prototype.json"
+	cli_fixture label-list >"$test_dir/label-prototype.json"
+	cli_fixture issue-search | jq '.issues=[]' >"$test_dir/search.json"
+	cli_fixture label-list | jq '[. + {id:"label-a",name:"運用",resource_type:"issue"}]' >"$test_dir/labels.json"
 	printf '[]\n' >"$test_dir/issue-labels.json"
-	printf '[{"name":"Owner Name","email":"owner@example.test","user_id":"member-a","id":"membership-a"}]\n' >"$test_dir/members.json"
-	printf '{}\n' >"$test_dir/metadata.json"
+	cli_fixture member-list | jq '[. + {name:"Owner Name",email:"owner@example.test",user_id:"member-a",id:"membership-a"}]' >"$test_dir/members.json"
+	cli_fixture issue-metadata | jq 'del(.repository,.pr_url)' >"$test_dir/metadata.json"
 	printf '200' >"$test_dir/curl-status"
 	: >"$test_dir/curl-calls.jsonl"
 	rm -f "$test_dir/curl-config"
@@ -1003,14 +1023,18 @@ done
 echo 'PASS escalate: 紐付けに失敗しても issue を返して警告し、次の回に同じ issue へ補う'
 
 escalate_fixture
-jq -n '{issues:[range(1;26) | {id:(tostring), identifier:("TEST-"+tostring),
-	 title:"別の PR（example/template#10）", description:"example/template#1 に言及"}]}' >"$test_dir/search.json"
+cli_fixture issue-search | jq '.issues[0] as $base | .issues = [range(1;26) | $base + {id:(tostring), identifier:("TEST-"+tostring),
+	 title:"別の PR（example/template#10）", description:"example/template#1 に言及"}]' >"$test_dir/search.json"
 run_escalate 'TEST-9000 created'
 echo 'PASS escalate: 本文だけの言及や似た PR 番号は同じ issue と取り違えない（既定の 20 件以上も検索）'
 
-for invalid in '[]' '[{"name":"Owner Name","user_id":"member-a"},{"name":"Owner Name","user_id":"member-b"}]' '[{"name":"Owner Name","id":"membership-a"}]'; do
+for invalid in unknown duplicate missing-id; do
 	escalate_fixture
-	printf '%s\n' "$invalid" >"$test_dir/members.json"
+	case $invalid in
+	unknown) printf '[]' >"$test_dir/members.json" ;;
+	duplicate) jq '.[0] as $base | . + [$base + {user_id:"member-b"}]' "$test_dir/members.json" >"$test_dir/edit.json"; mv "$test_dir/edit.json" "$test_dir/members.json" ;;
+	missing-id) touch "$test_dir/allow-missing-fields"; jq 'map(del(.user_id))' "$test_dir/members.json" >"$test_dir/edit.json"; mv "$test_dir/edit.json" "$test_dir/members.json" ;;
+	esac
 	if bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 	[[ ! -s $test_dir/output ]]
 	no_issue_writes
@@ -1021,7 +1045,7 @@ for target in labels search pr; do
 	escalate_fixture
 	case $target in
 	labels) printf '[]\n' >"$test_dir/labels.json" ;;
-	search) printf '{"wrong":[]}\n' >"$test_dir/search.json" ;;
+	search) touch "$test_dir/allow-missing-fields"; printf '{}'  >"$test_dir/search.json" ;;
 	pr) edit_pr '.author.login = "human"' ;;
 	esac
 	if bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
@@ -1029,7 +1053,7 @@ for target in labels search pr; do
 	no_issue_writes
 done
 escalate_fixture
-jq -n '{issues:[range(0;1000) | {title:"別の issue"}]}' >"$test_dir/search.json"
+cli_fixture issue-search | jq '.issues[0] as $base | .issues = [range(0;1000) | $base + {title:"別の issue"}]' >"$test_dir/search.json"
 if bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 grep -q '検索結果が上限' "$test_dir/error"
 no_issue_writes
@@ -1088,3 +1112,66 @@ reject_target example/template '' list
 reject_target invalid-repo project-a list
 reject_target example/template project-a unknown
 echo 'PASS 引数の検査: 対象やコマンドが欠けているときは、CLI を呼ばず使い方を返す'
+
+existing_escalation() {
+ cli_fixture issue-search | jq '.issues[0] as $base | .issues=[$base + {
+  id:"issue-a",identifier:"TEST-9000",project_id:"project-a",title:"確認（example/template#1）"}]' >"$test_dir/search.json"
+ cli_fixture issue-labels | jq '[. + {id:"label-a"}]' >"$test_dir/issue-labels.json"
+}
+for repository in absent same other; do
+ for linked in absent value null empty; do
+  escalate_fixture
+  existing_escalation
+  jq --arg repository "$repository" --arg linked "$linked" '
+   (if $repository == "same" then .repository="example/template"
+    elif $repository == "other" then .repository="other/service" else del(.repository) end)
+   | if $linked == "value" then .pr_url="https://github.com/example/template/pull/1"
+     elif $linked == "null" then .pr_url=null
+     elif $linked == "empty" then .pr_url="" else del(.pr_url) end' \
+   "$test_dir/metadata.json" >"$test_dir/next.json"
+  mv "$test_dir/next.json" "$test_dir/metadata.json"
+  bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"
+  [[ $(<"$test_dir/output") == 'TEST-9000 exists' ]]
+  if [[ $repository != other && $linked == absent ]]; then
+   [[ $(jq -s length "$test_dir/curl-calls.jsonl") == 1 && ! -s $test_dir/error ]]
+   jq -e '.pr_url=="https://github.com/example/template/pull/1"' "$test_dir/metadata.json" >/dev/null
+  else
+   [[ ! -s $test_dir/curl-calls.jsonl ]]
+   jq -se 'all(.[]; .[0:3] != ["issue","metadata","set"])' "$test_dir/multica-calls.jsonl" >/dev/null
+   if [[ $repository == other ]]; then grep -F '紐付けられませんでした' "$test_dir/error" >/dev/null; else [[ ! -s $test_dir/error ]]; fi
+  fi
+ done
+done
+echo 'PASS presence: Dependabot も metadata の鍵を保ち、初回だけ紐付け、別リポジトリは拒否する'
+
+escalate_fixture
+existing_escalation
+jq '.issues[0].project_id=null' "$test_dir/search.json" >"$test_dir/edit.json"
+mv "$test_dir/edit.json" "$test_dir/search.json"
+run_escalate 'TEST-9000 created'
+echo 'PASS project_id: プロジェクトのない検索結果を受け入れ、対象プロジェクトの issue と取り違えない'
+
+for defect in resource-type search-project member-email issue-label-id create-id create-identifier; do
+ escalate_fixture
+ touch "$test_dir/allow-missing-fields"
+ case $defect in
+ resource-type) reading=label-list; field=resource_type; source=labels; filter='map(del(.resource_type))' ;;
+ search-project) existing_escalation; reading=issue-search; field=project_id; source=search; filter='del(.issues[0].project_id)' ;;
+ member-email) reading=member-list; field=email; source=members; filter='map(del(.email))' ;;
+ issue-label-id) existing_escalation; reading=issue-labels; field=id; source=issue-labels; filter='map(del(.id))' ;;
+ create-id|create-identifier)
+  reading=issue-create; field=id; [[ $defect != create-identifier ]] || field=identifier
+  source=create-response; cp "$test_dir/create-prototype.json" "$test_dir/create-response.json"; filter="del(.$field)" ;;
+ esac
+ jq "$filter" "$test_dir/$source.json" >"$test_dir/edit.json"
+ mv "$test_dir/edit.json" "$test_dir/$source.json"
+ status=0
+ bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error" || status=$?
+ [[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/curl-calls.jsonl ]]
+ grep -F "$reading の $field" "$test_dir/error" >/dev/null
+ if [[ $reading == issue-create ]]; then
+  jq -se '[.[] | select(.[0:2]==["issue","create"])] | length==1' "$test_dir/multica-calls.jsonl" >/dev/null
+  jq -se 'all(.[]; .[0:3] != ["issue","label","add"])' "$test_dir/multica-calls.jsonl" >/dev/null
+ else no_issue_writes; fi
+ echo "PASS contract: $reading の $field の欠落を欄名で返し、後続を書かない"
+done

@@ -6,11 +6,11 @@
     },
     {
       "name": "unassigned",
-      "count": 1
+      "count": 2
     },
     {
       "name": "ci_watch_thread-present",
-      "count": 4
+      "count": 5
     },
     {
       "name": "ci_watch_thread-absent",
@@ -18,11 +18,21 @@
     },
     {
       "name": "pr_url-present",
-      "count": 4
+      "count": 5
     },
     {
       "name": "pr_url-absent",
       "count": 1
+    },
+    {
+      "name": "repository-present",
+      "count": 2,
+      "scope": "保存済み見本と2026-11-11の追加採取"
+    },
+    {
+      "name": "repository-absent",
+      "count": 2,
+      "scope": "保存済み見本と2026-11-11の追加採取"
     }
   ],
   "issue-comments": [
@@ -68,11 +78,21 @@
   "issue-metadata": [
     {
       "name": "pr-present",
-      "count": 4
+      "count": 5
     },
     {
       "name": "pr-absent",
       "count": 1
+    },
+    {
+      "name": "repository-present",
+      "count": 2,
+      "scope": "保存済み見本と2026-11-11の追加採取"
+    },
+    {
+      "name": "repository-absent",
+      "count": 1,
+      "scope": "保存済み見本と2026-11-11の追加採取"
     }
   ],
   "issue-search": [
