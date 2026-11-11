@@ -37,11 +37,14 @@ bash tests/run.sh                            # 並べて流す
 SQUAD_KIT_TEST_JOBS=4 bash tests/run.sh      # 並列数を 4 にする
 SQUAD_KIT_TEST_JOBS=1 bash tests/run.sh      # 1 本ずつ流す
 bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
+SQUAD_KIT_TEST_SHARD=2/4 bash tests/run.sh   # 4 つに分けた 2 つ目だけ流す
 ```
 
 並列数は、指定しなければ論理 CPU の数になる。  
 1 本ずつ流しても、起こす順と出力は並べたときと同じで、途中で失敗しても最後まで流す。  
 並べたときだけ失敗するかを確かめるときに使う。
+
+CI は、テストをシャードごとのジョブに分けて流す。
 
 失敗したファイルのログは最後にまとめて出て、失敗した場所と直前に通ったケースが添えられる。  
 流している間の出力を見たいときは、`bash tests/project-test.sh` のようにファイルを直接流す。
@@ -60,6 +63,8 @@ bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
   - Git の名前とメールが要るときは、`git -c user.name=… -c user.email=…` で渡す
 - 原本の `tmp/` 以外のファイルを書き換えない。
   - 決まった名前のファイルを共有の場所に作らず、プロセスを名前で止めない
+- テストのファイルを足したら、`tests/test-weights` に重み（macOS の CI での秒数の目安）を書く。
+  - 重みのないファイルがあると `tests/test-runner-test.sh` が失敗する。分けたファイルを足したときと、CI の秒数が目安から 2 倍以上ずれたときは、`tests/run.sh` の `==== PASS` の行の秒数を写して直す
 - CLI の出力のデータは実物から取る。取り方とバージョンの記録は [CLI の実物の見本](tests/fixtures/cli/README.md)に従い、CLI のバージョンを上げたら取り直す
 - 見張りが読む欄は、先に `common/monitor/squad-cli-lib` の約束に必須・条件付き・省略可能の分類を書く。`// 既定値` や `--compact` で欄の欠けを隠さない
 - 見張りのテストは、整形の前と後で同じ動作になることを確かめる。終了コード・標準出力・CLI のコマンドと引数を比べる

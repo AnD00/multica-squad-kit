@@ -14,6 +14,7 @@ cp "$root/tests/run.sh" "$root/tests/run-one.sh" "$root/tests/run-hook.sh" "$kit
 for name in project project-followup squad-dispatch-pick squad-dependabot-merge; do
 	printf ':\n' >"$kit/tests/$name-test.sh"
 done
+printf '# 小さな原本の重み\ntests/project-test.sh 10\n\ntests/squad-dependabot-merge-test.sh 40\n' >"$kit/tests/test-weights"
 export TEST_RUNNER_KIT="$kit" TEST_RUNNER_STATE="$test_dir/state"
 cat >"$fixtures/a.sh" <<'FIXTURE'
 #!/usr/bin/env bash
@@ -191,9 +192,10 @@ echo 'PASS runner: 並列数が正の整数でなければテストを流さず 
 
 rm "$kit/tests/project-test.sh"
 run_suite 2 1 "$fixtures/pass.sh"
-grep -qxF '起こす順の一覧にあるファイルがありません: tests/project-test.sh' "$test_dir/err"
+grep -qxF '重みの一覧にあるファイルがありません: tests/project-test.sh' "$test_dir/err"
 [[ ! -s $test_dir/out ]]
-echo 'PASS runner: 起こす順の一覧が古ければテストを流さず 2 で終わる'
+printf ':\n' >"$kit/tests/project-test.sh"
+echo 'PASS runner: 重みの一覧が古ければテストを流さず 2 で終わる'
 
 # 標準エラーを err に向けた中で止まったときも、失敗の後始末が err へ書き足し続けず、元の標準エラーへ出して終わる。
 mkdir -p "$fixtures/trap/tests"
@@ -215,3 +217,99 @@ for file in "$root"/tests/*.sh; do
 	! grep "^trap 'test_exit=" "$file" | grep -qF '>&2'
 done
 echo 'PASS runner: 標準エラーを err に向けた中で止まっても、失敗の後始末は元の標準エラーへ出して終わる'
+
+# 重みと分け方。重みの一覧と流す順は、小さな原本のコピーで確かめる。
+rm -f "$kit"/tests/*-test.sh
+printf '# 重み\ntests/a-test.sh 50\ntests/b-test.sh 40\ntests/c-test.sh 30\ntests/d-test.sh 20\n tests/e-test.sh   20 \n\n# 一覧にない f・g・h は 30 秒\n' >"$kit/tests/test-weights"
+all_tests=(tests/a-test.sh tests/b-test.sh tests/c-test.sh tests/d-test.sh tests/e-test.sh tests/f-test.sh tests/g-test.sh tests/h-test.sh)
+# 1 本ずつ流し、テストが起こされた順を記録する。
+for name in a b c d e f g h; do
+	printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s" >>"$TEST_RUNNER_ORDER"\necho "PASS fixture: %s"\n' "$name" "$name" >"$kit/tests/$name-test.sh"
+done
+export TEST_RUNNER_ORDER="$test_dir/order"
+shard_suite() {
+	local expected=$1 shard=$2 result=0
+	shift 2
+	: >"$TEST_RUNNER_ORDER"
+	SQUAD_KIT_TEST_SHARD="$shard" SQUAD_KIT_TEST_JOBS=1 bash "$kit/tests/run.sh" "$@" >"$test_dir/out" 2>"$test_dir/err" || result=$?
+	[[ $result == "$expected" ]]
+}
+# 重みの大きい順、同じ重みは名前の順に、1 本ずつ起こす。f・g・h は 30 秒の扱い。
+SQUAD_KIT_TEST_JOBS=1 bash "$kit/tests/run.sh" >"$test_dir/out" 2>"$test_dir/err"
+[[ $(tr '\n' ' ' <"$TEST_RUNNER_ORDER") == 'a b c f g h d e ' ]]
+grep -qxF 'PASS suite: すべてのテスト（8 本、並列 1）' "$test_dir/out"
+echo 'PASS runner: 重みの大きい順、同じ重みは名前の順に起こし、一覧にないファイルは 30 秒として扱う'
+
+# どのシャードの分け方でも、各ファイルがちょうど 1 つのシャードに入り、合わせると選んだ全部になる。
+for count in 1 2 3 4 5 6; do
+	: >"$test_dir/union"
+	for ((index=1; index<=count; index++)); do
+		shard_suite 0 "$index/$count"
+		ran=$(wc -l <"$TEST_RUNNER_ORDER" | tr -d ' ')
+		grep -qxF "PASS suite: すべてのテスト（${ran} 本、並列 1、シャード ${index}/${count}）" "$test_dir/out"
+		cat "$TEST_RUNNER_ORDER" >>"$test_dir/union"
+		# シャードの中の起こす順も、重みの大きい順。
+		shard_order=$(tr '\n' ' ' <"$TEST_RUNNER_ORDER")
+		expected_order=$(for name in a b c f g h d e; do grep -qx "$name" "$TEST_RUNNER_ORDER" && printf '%s ' "$name"; done; true)
+		[[ $shard_order == "$expected_order" ]]
+	done
+	[[ $(sort "$test_dir/union" | tr '\n' ' ') == 'a b c d e f g h ' ]]
+done
+echo 'PASS runner: N を 1〜6 にしたとき、各シャードのファイルが重ならず、合わせると選んだ全部になる'
+
+# 分け方は重みの合計がいちばん小さいシャードへ入れる決まりで、同じ合計なら番号の小さいほうへ入れる。
+shard_suite 0 1/3 "${all_tests[@]}"
+[[ $(tr '\n' ' ' <"$TEST_RUNNER_ORDER") == 'a h ' ]]
+shard_suite 0 2/3 "${all_tests[@]}"
+[[ $(tr '\n' ' ' <"$TEST_RUNNER_ORDER") == 'b g e ' ]]
+shard_suite 0 3/3 "${all_tests[@]}"
+[[ $(tr '\n' ' ' <"$TEST_RUNNER_ORDER") == 'c f d ' ]]
+echo 'PASS runner: 重みの大きい順に、合計がいちばん小さい（同じなら番号の小さい）シャードへ入れる'
+
+# 引数でファイルを選んだときは、選んだファイルを分ける。
+shard_suite 0 2/2 tests/c-test.sh tests/a-test.sh tests/b-test.sh
+[[ $(tr '\n' ' ' <"$TEST_RUNNER_ORDER") == 'b c ' ]]
+shard_suite 0 1/2 tests/c-test.sh tests/a-test.sh tests/b-test.sh
+[[ $(tr '\n' ' ' <"$TEST_RUNNER_ORDER") == 'a ' ]]
+echo 'PASS runner: 引数でファイルを選んだときは、選んだファイルを分ける'
+
+# 流すファイルがないシャードは、0 本と書いて 0 で終わる。
+shard_suite 0 3/3 tests/a-test.sh
+[[ ! -s $TEST_RUNNER_ORDER ]]
+grep -qxF 'PASS suite: すべてのテスト（0 本、並列 1、シャード 3/3）' "$test_dir/out"
+echo 'PASS runner: 流すファイルがないシャードは 0 本と書いて 0 で終わる'
+
+# 指定が正しくなければ、テストを流さず 2 で終わる。
+for invalid in '' 0 0/2 3/2 1/0 1 2/ /2 a/b 1/2/3 -1/2 1.5/2 ' 1/2' '1/2 ' 1234567/1234568; do
+	shard_suite 2 "$invalid"
+	grep -qF 'SQUAD_KIT_TEST_SHARD は k/N の形' "$test_dir/err"
+	[[ ! -s $test_dir/out && ! -s $TEST_RUNNER_ORDER ]]
+done
+echo 'PASS runner: シャードの指定が k/N（1 ≦ k ≦ N の正の整数）でなければテストを流さず 2 で終わる'
+
+# 重みの一覧の誤りは、テストを流さず 2 で終わる。
+for bad in 'tests/a-test.sh' 'tests/a-test.sh abc' 'tests/a-test.sh -5' 'tests/a-test.sh 1.5' 'tests/a-test.sh 1 2' 'tests/a-test.sh 1234567890' $'tests/a-test.sh 5\ntests/a-test.sh 6'; do
+	printf '%b\n' "$bad" >"$kit/tests/test-weights"
+	run_suite 2 1 tests/a-test.sh
+	grep -qE '重みの一覧(の行が正しくありません|に同じファイルが 2 回あります)' "$test_dir/err"
+	[[ ! -s $test_dir/out ]]
+done
+rm "$kit/tests/test-weights"
+run_suite 2 1 tests/a-test.sh
+grep -qxF '重みの一覧がありません: tests/test-weights' "$test_dir/err"
+echo 'PASS runner: 重みの一覧がないか書き方が正しくなければ、テストを流さず 2 で終わる'
+
+# 本物の重みの一覧は、すべてのテストに重みがあり、存在しないファイルがない。
+weighted=$(grep -vE '^[[:space:]]*(#|$)' "$root/tests/test-weights" | awk '{print $1}' | LC_ALL=C sort)
+[[ -z $(printf '%s\n' "$weighted" | uniq -d) ]]
+actual=$(cd "$root" && ls tests/*-test.sh | LC_ALL=C sort)
+if [[ $weighted != "$actual" ]]; then
+	diff <(printf '%s\n' "$weighted") <(printf '%s\n' "$actual") >&2 || :
+	echo 'tests/test-weights が tests/*-test.sh と一致しません（重みのないファイルは追記し、なくなったファイルは消す）' >&2
+	false
+fi
+while read -r name seconds extra; do
+	case $name in ''|'#'*) continue ;; esac
+	[[ -f $root/$name && -z $extra && $seconds =~ ^[0-9]+$ ]]
+done <"$root/tests/test-weights"
+echo 'PASS runner: 重みの一覧の名前が tests/*-test.sh と一致し、重複や存在しないファイルがない'
