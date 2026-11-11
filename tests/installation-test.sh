@@ -91,7 +91,7 @@ for change in '.squads[0].leader_id="other"' '.squads[0].instructions="old"' '.r
  run
  grep -q 'スクワッド DEMO-OWNER: 要確認' "$test_dir/out"
 done
-echo 'PASS installation: スクワッドの進行役・指示・役・選んだ人間を確認し、手動の専門家を保つ'
+echo 'PASS installation: スクワッドのリーダー・指示・役・選んだ人間を確認し、手動の専門家を保つ'
 
 for role in usage-monitor dependabot-merger planner; do
  new_case "roster-$role"
@@ -129,13 +129,13 @@ printf '%s\n' 'label list' >"$TEST_DB/fail-read"
 if run; then exit 1; fi
 [[ $(grep -c 'ラベル .*: 要確認' "$test_dir/out") == 4 ]]
 grep -q 'ランタイム codex: 一致' "$test_dir/out"
-grep -qF '起票できなかった issue:' "$test_dir/out"
+grep -qF '起票できなかったタスク:' "$test_dir/out"
 
 new_case issue-failed
 edit '.runtime_status.codex="offline"'
 printf '%s\n' '導入の確認で要確認になった項目を直す' >"$TEST_DB/fail-issue"
 if run; then exit 1; fi
-grep -qF '起票できなかった issue:' "$test_dir/out"
+grep -qF '起票できなかったタスク:' "$test_dir/out"
 echo 'PASS installation: 要確認の起票の失敗は表示して失敗を返す'
 
 new_case credentials

@@ -92,7 +92,7 @@ register_dependabot_webhook() (
 
 prepare_project_webhooks() {
 	local repo row reason
-	# Webhook を使わない答えなら、登録を試みず、登録とフィルターの issue も起票しない。
+	# Webhook を使わない答えなら、登録を試みず、登録とフィルターのタスクも起票しない。
 	if [[ " $enabled " == *' dependabot-merger '* ]] && ! dependabot_webhook_active; then
 		prepare_project_webhook_leftovers
 		return 0

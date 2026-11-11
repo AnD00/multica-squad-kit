@@ -41,9 +41,9 @@ grep -qxF "  ISSUE-1 一つ目（$(paint $success 新規)）" "$test_dir/screen"
 grep -qxF "  ISSUE-2 C:\work の設定（$(paint $success 既存)）" "$test_dir/screen"
 # 件数、見出し、失敗した起票、案内の本文は、端末の既定の色のまま。
 grep -qxF '今回作った件数: エージェント 1 件、スクワッド 1 件、オートパイロット 2 件' "$test_dir/screen"
-grep -qxF '起票できなかった issue:' "$test_dir/screen"
+grep -qxF '起票できなかったタスク:' "$test_dir/screen"
 grep -qxF '  三つ目: 起票できません。' "$test_dir/screen"
-grep -qxF '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。' "$test_dir/screen"
+grep -qxF '表示したタスクを対象のプロジェクトで開き、担当と本文に沿って作業してください。' "$test_dir/screen"
 echo 'PASS completion color: 端末では結果の語と完了の案内の行に種類の色が付き、括弧の補足と理由は既定の色のまま'
 
 # 色を付けない条件では、制御文字を出さず、文字は同じ。

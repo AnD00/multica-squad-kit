@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
 # 実装・修正を回す側を、その場で読んだ使用率から選ぶ（macOS・Linux 用）。
-# 0: 選択、2: 両方とも上限、1: 使い方などの誤り。Multica には書き込まない。
+# 0: 選択、2: 両方とも使用上限、1: 使い方などの誤り。Multica には書き込まない。
 set -euo pipefail
 
 dispatch_pick_main() (

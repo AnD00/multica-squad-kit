@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Multica のエージェントの実行で、gh の書き込みを、ワークスペースに紐付いたリポジトリだけに絞る関所。
-# エージェントはホストの人の gh の認証で動き、その人が書けるリポジトリのすべてに issue や PR を作れるため。
+# エージェントはホストの人の gh の認証で動き、その人が書けるリポジトリのすべてに GitHub の issue や PR を作れるため。
 # multica-squad-kit-managed
 # setup.sh が ~/.multica-agent/bin/gh に写し、デーモンの PATH の先頭に置く。
 # 許すリポジトリは SQUAD_KIT_ALLOWED_REPOS のファイルから読む。未設定ならホストの既定のファイルを使う。
@@ -256,7 +256,7 @@ issue | pr | release | label | secret | variable | workflow | run | cache | rule
 	*)
 		parse_args "${@:3}"
 		check_repo "$(target_repo)" "gh ${group} ${sub}"
-		# issue edit は複数の URL を受け付ける。すべての操作対象を検査する。
+		# `gh issue edit` は複数の URL を受け付ける。すべての操作対象を検査する。
 		if [[ $group == issue || $group == pr ]]; then
 			for arg in "${POSITIONAL[@]+${POSITIONAL[@]}}"; do
 				[[ $arg != *://* ]] || check_repo "$(repo_of "$arg")" "gh ${group} ${sub}"
@@ -265,13 +265,13 @@ issue | pr | release | label | secret | variable | workflow | run | cache | rule
 		if [[ $group == issue && $sub == develop ]]; then
 			for ((index=0; index<${#OPTIONS[@]}; index+=2)); do
 				if [[ ${OPTIONS[index]} == --branch-repo ]]; then
-					check_repo "$(repo_of "${OPTIONS[index+1]}")" "issue のブランチの作成"
+					check_repo "$(repo_of "${OPTIONS[index+1]}")" "GitHub の issue のブランチの作成"
 				fi
 			done
 		fi
 		if [[ $group == issue && $sub == transfer ]]; then
-			[[ ${#POSITIONAL[@]} == 2 ]] || deny "issue の転送先を判定できないので止めた"
-			check_repo "$(repo_of "${POSITIONAL[1]}")" "issue の転送"
+			[[ ${#POSITIONAL[@]} == 2 ]] || deny "GitHub の issue の転送先を判定できないので止めた"
+			check_repo "$(repo_of "${POSITIONAL[1]}")" "GitHub の issue の転送"
 		fi
 		if [[ $group == pr && $sub == merge ]]; then
 			check_pr_merge "$(target_repo)"

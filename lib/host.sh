@@ -24,13 +24,13 @@ host_shared_file() {
 	host_install "$src" "$dst" "$executable"
 }
 
-# 見本を採取した版を、配布するライブラリ自身に持たせる。
+# 見本を採取したバージョンを、配布するライブラリ自身に持たせる。
 host_cli_library() (
 	local generated version quoted content result=0 fixture_root=${kit_root:-$root}
 	mkdir -p "$root/tmp" || die 'CLI のライブラリの作業場所を作れませんでした。'
 	generated=$(mktemp "$root/tmp/cli-library.XXXXXX") || die 'CLI のライブラリの一時ファイルを作れませんでした。'
 	trap 'rm -f -- "$generated"' EXIT
-	IFS= read -r version <"$fixture_root/tests/fixtures/cli/VERSION" || die 'CLI の見本の版を読めませんでした。'
+	IFS= read -r version <"$fixture_root/tests/fixtures/cli/VERSION" || die 'CLI の見本のバージョンを読めませんでした。'
 	printf -v quoted '%q' "$version"
 	content=$(cat "$root/common/monitor/squad-cli-lib") || die 'CLI のライブラリを読めませんでした。'
 	printf '%s\n' "${content//'{{SQUAD_CLI_VERIFIED_VERSION}}'/$quoted}" >"$generated"
@@ -228,7 +228,7 @@ if ! printf 'refs/heads/template-permission-check 111111111111111111111111111111
 fi
 CHECK
 	while IFS= read -r repo; do
-		# zsh では .zshenv と env.sh を別々の段で確かめる。
+		# zsh では .zshenv と env.sh を別々の手順で確かめる。
 		for shell in /bin/zsh /bin/bash; do
 			for mode in allow deny; do
 				if ! (cd "$probe/repository" && PATH="$probe_path" ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" "$shell" -c '[[ $(command -v gh) == "$1" ]]' -- "$agent_home/bin/gh"); then

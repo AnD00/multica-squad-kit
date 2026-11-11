@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 版を上げる PR のマージのあとに、VERSION の版の注釈付きのタグと Release を出す。
+# バージョンを上げる PR のマージのあとに、VERSION のバージョンの注釈付きのタグと Release を出す。
 # 設計は docs/release.md。bash 3.2 で動かす。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -10,7 +10,7 @@ ui_init
 usage() {
 	cat <<'USAGE'
 使い方: bash scripts/release.sh
-原本のリポジトリのルートの main で流す。VERSION の版のタグと Release を、確認のあとに出す。
+原本のリポジトリのルートの main で流す。VERSION のバージョンのタグと Release を、確認のあとに出す。
 USAGE
 }
 stop() {
@@ -117,17 +117,17 @@ fi
 commit_version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || commit_version=
 [[ $commit_version == "$version" ]] || stop "$version のタグが指すコミットの VERSION（${commit_version:-空}）が、タグの名前と違います。"
 
-# 7: CHANGELOG.md の先頭の版
+# 7: CHANGELOG.md の先頭のバージョン
 changelog=$(git show "$commit:CHANGELOG.md" 2>/dev/null) || stop 'CHANGELOG.md を読めません。'
 top_version=$(printf '%s\n' "$changelog" | awk '/^## / {print $2; exit}')
-[[ $top_version == "$version" ]] || stop "VERSION（${version}）と CHANGELOG.md の先頭の版（${top_version:-なし}）が違います。"
+[[ $top_version == "$version" ]] || stop "VERSION（${version}）と CHANGELOG.md の先頭のバージョン（${top_version:-なし}）が違います。"
 
-# 8: その版の節。次の ## の見出しの前までで、前後の空行を除いたものが Release の本文になる。
+# 8: そのバージョンの節。次の ## の見出しの前までで、前後の空行を除いたものが Release の本文になる。
 notes=$(printf '%s\n' "$changelog" | awk -v heading="## $version" '$0 == heading {found = 1; next} found && /^## / {exit} found')
 [[ -n $(printf '%s' "$notes" | tr -d '[:space:]') ]] || stop "CHANGELOG.md の $version の節が空です。"
 notes=$(printf '%s\n' "$notes" | awk 'NF {if (started) for (; blank > 0; blank--) print ""; started = 1; blank = 0; print; next} started {blank++}')
 
-# 両方ある版は、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
+# 両方あるバージョンは、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
 if [[ $action == published ]]; then
 	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"
 	exit 0
@@ -136,7 +136,7 @@ fi
 # 確認: 中身を標準出力に出し、問いを標準エラー出力に出して、標準入力の答えを読む。
 [[ -t 0 ]] || stop '標準入力が端末でないため、確認を求められません。端末から流してください。'
 printf 'リポジトリ: %s\n' "$repo"
-printf '出す版: %s\n' "$version"
+printf '出すバージョン: %s\n' "$version"
 printf 'タグを付けるコミット: %s %s\n' "$commit" "$(git log -1 --format=%s "$commit")"
 if [[ $action == release ]]; then
 	printf 'すること: すでにあるタグのまま、Release だけを作る\n'

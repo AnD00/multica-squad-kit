@@ -101,7 +101,7 @@ grep -qx 'daemon start' "$test_dir/calls"
 grep -qx 'https://example.test' "$test_dir/started-server"
 echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し、専用環境で一つのデーモンを起動する'
 (
- # 原本の VERSION を変えずに、版を取り直したセットアップを再現する。
+ # 原本の VERSION を変えずに、バージョンを取り直したセットアップを再現する。
  source "$root/lib/host.sh"
  mkdir -p "$test_dir/version-kit/common/monitor" "$test_dir/version-kit/tests/fixtures/cli"
  cp "$root/common/monitor/squad-cli-lib" "$test_dir/version-kit/common/monitor/"
@@ -113,7 +113,7 @@ echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し
  actual_version=$(bash -c 'source "$1"; printf "%s\n" "$SQUAD_CLI_VERIFIED_VERSION"' -- "$agent_home/bin/squad-cli-lib")
  [[ $actual_version == "multica fixture-next (captured 'version')" ]]
  [[ -z $(find "$root/tmp" -type f -print) ]]
- # 拡張を足した作業用コピーには tests がない。採取版は原本から読む。
+ # 拡張を足した作業用コピーには tests がない。採取バージョンは原本から読む。
  kit_root=$root
  mkdir -p "$test_dir/combined/common/monitor"
  cp "$root/common/monitor/squad-cli-lib" "$test_dir/combined/common/monitor/"
@@ -123,7 +123,7 @@ echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し
 )
 run
 [[ $(bash -c 'source "$1"; printf "%s\n" "$SQUAD_CLI_VERIFIED_VERSION"' -- "$TEMPLATE_AGENT_HOME/bin/squad-cli-lib") == "$expected_version" ]]
-echo 'PASS host: 見本の版を取り直すとライブラリの採取版も更新し、先頭行の値をそのまま保持する'
+echo 'PASS host: 見本のバージョンを取り直すとライブラリの採取バージョンも更新し、先頭行の値をそのまま保持する'
 for file in squad-pr-link squad-pr-link-lib; do
  [[ $(PATH="$TEMPLATE_AGENT_HOME/bin:$PATH" command -v "$file") == "$TEMPLATE_AGENT_HOME/bin/$file" ]]
 done

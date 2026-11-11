@@ -642,7 +642,7 @@ if python3 "$root/tests/review-wait-fixture.py" emit issue-wakeups "$test_dir/in
 [[ ! -s $test_dir/output && $(<"$test_dir/error") == *'見本とケースの鍵が違います'* ]]
 echo 'PASS fixture: 入れ子に手書きの鍵を足したケースを拒否する'
 
-# 回の進行役をリーダーとするスクワッドを選び、報告する役の実行の種類は問わない。
+# 回の役をリーダーとするスクワッドを選び、報告する役の実行の種類は問わない。
 cp "$test_dir/agents.base.json" "$test_dir/agents.json"
 reset_calls
 jq '. + [.[0] + {id:"archived-squad",archived_at:"2026-01-01T00:00:00Z"}, .[0] + {id:"other-squad",leader_id:"other-leader"}]' \
@@ -651,7 +651,7 @@ build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
 MULTICA_AGENT_ID="$a" MULTICA_TASK_ID=member-run bash "$script" report test-issue trigger "$test_dir/result.md"
 assert_jq -s 'length == 2 and (.[1].body | startswith("[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n"))
  and (.[1].body | contains("mention://agent/") | not)' "$test_dir/posted.jsonl"
-echo 'PASS report: 回を書いた進行役の有効なスクワッドだけをメンションし、エージェントのメンションを含まない'
+echo 'PASS report: 回を書いたリーダーの有効なスクワッドだけをメンションし、エージェントのメンションを含まない'
 
 # スクワッドを決められなければ、結果を /note で投稿する前に止める。
 for selection in none archived other-leader duplicate missing-name cli; do
@@ -687,7 +687,7 @@ build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:claimed:10
 check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない' --timeout
 echo 'PASS status: 記録がある回は、返事・知らせ・上限の有無を問わず次へ回し済み'
 
-# 同じ issue に別の実行として 2 回呼ぶ。最初の記録の実行だけが進む。
+# 同じタスクに別の実行として 2 回呼ぶ。最初の記録の実行だけが進む。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:8 >"$test_dir/comments.json"

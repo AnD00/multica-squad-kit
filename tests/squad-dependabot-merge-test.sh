@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/squad-dependabot-merge-test.sh。
-# gh と multica を差し替え、実際の PR・issue には書き込まない。
+# gh と multica を差し替え、実際の PR・タスクには書き込まない。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
@@ -401,7 +401,7 @@ done
 echo 'PASS advance: CI・実行全体の上限後でもマージ可能なら merged、未完了なら上限ごとの結果'
 
 advance_fixture
-# ハッシュがないときは同じ版の rebase も再確認する。
+# ハッシュがないときは同じバージョンの rebase も再確認する。
 add_pr 2 dependabot/go_modules/api/example "$(metadata patch)"
 head2=$(printf '%040d' 2)
 edit_pr ".headRefOid = \"$head2\""
@@ -410,14 +410,14 @@ no_writes
 reviewed=$head2
 run_advance merged
 jq -se --arg head "$head2" 'any(.[]; .[0:2] == ["pr","merge"] and .[-1] == $head)' "$test_dir/calls.jsonl" >/dev/null
-# 同じ更新の種類の中で新しい版になった場合も、取り違えない。
+# 同じ更新の種類の中で新しいバージョンになった場合も、取り違えない。
 add_pr 3 dependabot/go_modules/api/example "$(metadata patch | sed 's/1.2.3/1.2.4/')"
 head3=$(printf '%040d' 3)
 edit_pr ".headRefOid = \"$head3\""
 : >"$test_dir/calls.jsonl"
 run_advance changed
 no_writes
-echo 'PASS advance: ハッシュのない rebase は同じ版でも changed、確認済み head に替えてからマージ'
+echo 'PASS advance: ハッシュのない rebase は同じバージョンでも changed、確認済み head に替えてからマージ'
 
 advance_fixture
 add_pr 1 dependabot/docker/debian "$(metadata '')"
@@ -790,7 +790,7 @@ edit_pr ".headRefOid = \"$reviewed\""
 printf '{"check_runs":[]}\n' >"$test_dir/checks.json"
 run_advance changed
 no_writes
-echo 'PASS advance: CI 待ちの間に版が変わった場合も changed'
+echo 'PASS advance: CI 待ちの間にバージョンが変わった場合も changed'
 
 for branch in dependabot/go_modules/api/example dependabot/npm_and_yarn/e2e/example \
 	dependabot/github_actions/example dependabot/docker/debian dependabot/docker_compose/debian; do
@@ -798,7 +798,7 @@ for branch in dependabot/go_modules/api/example dependabot/npm_and_yarn/e2e/exam
 		advance_fixture
 		edit_pr ".headRefName = \"$branch\""
 		add_pr 2 "$branch" "$(metadata patch)"
-		# 名前と版は同じでも、未確認の依存差分と通常コードを加えた head。
+		# 名前とバージョンは同じでも、未確認の依存差分と通常コードを加えた head。
 		jq '. + {files:[{filename:"api/go.sum",patch:"+unreviewed checksum"},
 			{filename:"viewer/auth.go",patch:"-validateToken()"}]}' "$test_dir/$head2.json" >"$test_dir/edit.json"
 		mv "$test_dir/edit.json" "$test_dir/$head2.json"
@@ -813,7 +813,7 @@ for branch in dependabot/go_modules/api/example dependabot/npm_and_yarn/e2e/exam
 		if [[ $timing == waiting ]]; then [[ $(<"$test_dir/now") == 200010 ]]; fi
 	done
 done
-echo 'PASS advance: 全 ecosystem で同じ名前・版の未確認差分も、開始時・CI 待ち中に changed'
+echo 'PASS advance: 全 ecosystem で同じ名前・バージョンの未確認差分も、開始時・CI 待ち中に changed'
 
 for initial_kind in patch minor; do
 	for timing in before waiting; do
@@ -998,19 +998,19 @@ jq -se 'length == 1 and (.[0] | index("https://multica.example.test/api/issues/i
 	and index("X-Workspace-ID: workspace-a") != null and all(.[]; contains("mat_test-token") | not))' "$test_dir/curl-calls.jsonl" >/dev/null
 [[ $(<"$test_dir/curl-config") == 'header = "Authorization: Bearer mat_test-token"' ]]
 jq -e '.pr_url == "https://github.com/example/template/pull/1"' "$test_dir/metadata.json" >/dev/null
-echo 'PASS escalate: 作った issue に PR を API で紐付け、トークンは引数に出さず、metadata の pr_url に残す'
+echo 'PASS escalate: 作ったタスクに PR を API で紐付け、トークンは引数に出さず、metadata の pr_url に残す'
 
 : >"$test_dir/multica-calls.jsonl"
 run_escalate 'TEST-9000 exists'
 no_issue_writes
-# 人間が閉じた issue も返し、担当・状態・タイトルは変更しない。
-jq '.issues[0].status = "done" | .issues[0].title = "以前の版（example/template#1）"' "$test_dir/search.json" >"$test_dir/edit.json"
+# 人間が閉じた タスクも返し、担当・状態・タイトルは変更しない。
+jq '.issues[0].status = "done" | .issues[0].title = "以前のバージョン（example/template#1）"' "$test_dir/search.json" >"$test_dir/edit.json"
 mv "$test_dir/edit.json" "$test_dir/search.json"
 run_escalate 'TEST-9000 exists'
 no_issue_writes
 [[ $(wc -l <"$test_dir/curl-calls.jsonl") -eq 1 ]]
-echo 'PASS escalate: 再実行・閉じた issue・タイトルが変わった issue も重複作成しない'
-echo 'PASS escalate: 紐付け済みの issue は、人間が外した紐付けも戻さない'
+echo 'PASS escalate: 再実行・閉じたタスク・タイトルが変わった タスクも重複作成しない'
+echo 'PASS escalate: 紐付け済みのタスクは、人間が外した紐付けも戻さない'
 
 for failure in status env metadata; do
 	escalate_fixture
@@ -1031,13 +1031,13 @@ for failure in status env metadata; do
 	[[ $(wc -l <"$test_dir/curl-calls.jsonl") -eq 1 ]]
 	jq -e '.pr_url == "https://github.com/example/template/pull/1"' "$test_dir/metadata.json" >/dev/null
 done
-echo 'PASS escalate: 紐付けに失敗しても issue を返して警告し、次の回に同じ issue へ補う'
+echo 'PASS escalate: 紐付けに失敗してもタスクを返して警告し、次の回に同じタスクへ補う'
 
 escalate_fixture
 cli_fixture issue-search | jq '.issues[0] as $base | .issues = [range(1;26) | $base + {id:(tostring), identifier:("TEST-"+tostring),
 	 title:"別の PR（example/template#10）", description:"example/template#1 に言及"}]' >"$test_dir/search.json"
 run_escalate 'TEST-9000 created'
-echo 'PASS escalate: 本文だけの言及や似た PR 番号は同じ issue と取り違えない（既定の 20 件以上も検索）'
+echo 'PASS escalate: 本文だけの言及や似た PR 番号は同じタスクと取り違えない（既定の 20 件以上も検索）'
 
 for invalid in unknown duplicate missing-id; do
 	escalate_fixture
@@ -1064,7 +1064,7 @@ for target in labels search pr; do
 	no_issue_writes
 done
 escalate_fixture
-cli_fixture issue-search | jq '.issues[0] as $base | .issues = [range(0;1000) | $base + {title:"別の issue"}]' >"$test_dir/search.json"
+cli_fixture issue-search | jq '.issues[0] as $base | .issues = [range(0;1000) | $base + {title:"別のタスク"}]' >"$test_dir/search.json"
 if bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 grep -q '検索結果が上限' "$test_dir/error"
 no_issue_writes
@@ -1085,15 +1085,15 @@ escalate_fixture
 printf 'issue label add\n' >"$test_dir/multica-fail"
 if bash "$script" example/template project-a escalate 1 "$test_dir/escalation.md" --assignee 'Owner Name' >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 [[ ! -s $test_dir/output && -f $test_dir/created.json ]]
-grep -q '同じ issue に補います' "$test_dir/error"
+grep -q '同じタスクに補います' "$test_dir/error"
 while IFS= read -r file; do [[ ! -e $file ]]; done <"$test_dir/description-files"
 rm "$test_dir/multica-fail"
 run_escalate 'TEST-9000 exists'
 jq -se '[.[] | select(.[0:2] == ["issue","create"])] | length == 1' "$test_dir/multica-calls.jsonl" >/dev/null
 jq -e '.[0].name == "運用"' "$test_dir/issue-labels.json" >/dev/null
-echo 'PASS escalate: ラベル付与の失敗後も新規作成せず、同じ issue にラベルを補う'
+echo 'PASS escalate: ラベル付与の失敗後も新規作成せず、同じタスクにラベルを補う'
 
-# 同じリポジトリと PR でも、別プロジェクトの issue では抑止しない。
+# 同じリポジトリと PR でも、別プロジェクトのタスクでは抑止しない。
 escalate_fixture
 run_escalate 'TEST-9000 created'
 : >"$test_dir/multica-calls.jsonl"
@@ -1101,7 +1101,7 @@ bash "$script" example/template project-b escalate 1 "$test_dir/escalation.md" -
 [[ $(<"$test_dir/output") == 'TEST-9000 created' && ! -s $test_dir/error ]]
 jq -e '.project_id == "project-b"' "$test_dir/created.json" >/dev/null
 jq -se '[.[] | select(.[0:2] == ["issue","create"])] | length == 1' "$test_dir/multica-calls.jsonl" >/dev/null
-echo 'PASS 引数のプロジェクト: 指定したプロジェクトへ作り、別プロジェクトの同じ PR の issue は再利用しない'
+echo 'PASS 引数のプロジェクト: 指定したプロジェクトへ作り、別プロジェクトの同じ PR のタスクは再利用しない'
 
 reset_fixture
 bash "$script" another/service project-b list >"$test_dir/output" 2>"$test_dir/error"
@@ -1160,7 +1160,7 @@ existing_escalation
 jq '.issues[0].project_id=null' "$test_dir/search.json" >"$test_dir/edit.json"
 mv "$test_dir/edit.json" "$test_dir/search.json"
 run_escalate 'TEST-9000 created'
-echo 'PASS project_id: プロジェクトのない検索結果を受け入れ、対象プロジェクトの issue と取り違えない'
+echo 'PASS project_id: プロジェクトのない検索結果を受け入れ、対象プロジェクトのタスクと取り違えない'
 
 for defect in resource-type search-project member-email issue-label-id create-id create-identifier; do
  escalate_fixture

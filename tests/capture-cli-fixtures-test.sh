@@ -100,7 +100,7 @@ with tempfile.TemporaryDirectory(dir='tmp', prefix='capture-test.') as directory
     assert coverage['agent-get'][0]['count'] == len(responses['agent-get'])
     assert coverage['member-list'][0]['count'] == len(responses['member-list'][0])
     assert not any(capture['UUID'].search(p.read_text()) for p in output.iterdir())
-print('PASS capture IDs: ファイル間の同一性・比較順と、版・件数の記録を保存する')
+print('PASS capture IDs: ファイル間の同一性・比較順と、バージョン・件数の記録を保存する')
 
 # 実物から取り込んだ配布見本自体にも、UUID を残さない。
 assert not any(capture['UUID'].search(p.read_text()) for p in fixtures.glob('*.json'))

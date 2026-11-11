@@ -61,7 +61,7 @@ mkdir "$test_dir/reason-work"
 /bin/bash "$test_dir/reason-driver" "$root" "$test_dir/reason-work" >"$test_dir/out" 2>"$test_dir/err"
 [[ $(cat "$test_dir/out") == '起票に失敗しました。権限を確認してください。' ]]
 ! grep -qF "$esc" "$test_dir/out" "$test_dir/reason-work/issue-error"
-echo 'PASS marks: 起票の失敗の理由は色なしで受け取り、「エラー:」を外して issue と完了の表示に渡す'
+echo 'PASS marks: 起票の失敗の理由は色なしで受け取り、「エラー:」を外してタスクと完了の表示に渡す'
 
 # 注意の文は、種類が警告のときだけ行ごとに印と色を付ける。説明の種類では印も色も付けない。
 cat >"$test_dir/notice-driver" <<'DRIVER'

@@ -7,7 +7,7 @@
 #     古いコンフリクトの規則を消し、呼び出した orchestrator 自身を起こす規則を作る。
 #   squad-pr-watch ci <タスク> <見張り役の ID> <きっかけのコメント>
 #     CI が終わるたびに見張り役を起こす規則を作る。有効な規則があれば何もしない。
-#   squad-pr-watch ci-check <タスク> <進行役の ID> <見張り役の ID>
+#   squad-pr-watch ci-check <タスク> <リーダーの ID> <見張り役の ID>
 #     今の head で確定した CI の失敗があれば、ほかの役の作業中は保留し、それ以外は一度だけ知らせる。
 #     0 で終わるときは、記録のスレッドに残す /note と 1 行を標準出力に出す。
 #   squad-pr-watch ci-held <タスク> <きっかけのコメント>
@@ -16,7 +16,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
 
 usage() {
-	echo '使い方: squad-pr-watch conflicts <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <進行役の ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
+	echo '使い方: squad-pr-watch conflicts <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
 	exit 2
 }
 
@@ -49,7 +49,7 @@ conflicts() {
 	cat >"$instruction" <<'EOF'
 PR のコンフリクトの見張りで起きました。
 タスクの状態とコメントを読み、in_review で、最後に人間を呼んだのがマージを待つためかを確かめてください。
-マージ待ちで、レビューと E2E の返事を待つ回の途中でなければ、進行役の「実装・修正の振り分け」に従い、有効な修正の役を選んでください。選んだ役にタスクの metadata の pr_url を書いて、main とのコンフリクトの解消を頼み、タスクを in_progress にしてください。
+マージ待ちで、レビューと E2E の返事を待つ回の途中でなければ、リーダーの「実装・修正の振り分け」に従い、有効な修正の役を選んでください。選んだ役にタスクの metadata の pr_url を書いて、main とのコンフリクトの解消を頼み、タスクを in_progress にしてください。
 そうでなければ、何もせずに終えてください。作業中のコンフリクトは、次にマージに回すときに入れ直す見張りが拾います。
 EOF
 	# --agent-id を省くと、呼び出した orchestrator 自身を起こす。既定の mode は once。
@@ -102,7 +102,7 @@ ci() {
 	instruction=$(mktemp tmp/pr-watch-ci.XXXXXX)
 	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
 	cat >"$instruction" <<'EOF'
-PR の CI が終わりました。あなたの指示に従い、「このプロジェクトの値」から進行役と見張り役の ID を渡して squad-pr-watch ci-check で今の head の CI を確かめてください。
+PR の CI が終わりました。あなたの指示に従い、「このプロジェクトの値」からリーダーと見張り役の ID を渡して squad-pr-watch ci-check で今の head の CI を確かめてください。
 判定と失敗の知らせはスクリプトが行います。スクリプトが 0 で終わったら、標準出力をそのまま最後の返答にしてください。
 EOF
 	printf '記録のスレッド: %s（0 以外で終わったときの返信先）\n' "$thread" >>"$instruction"
@@ -129,9 +129,10 @@ ci_failures() {
 
 ci_handled() {
 	jq -e --arg prefix "head: ${2}"$'\nCI の失敗を検出しました。' \
-		--arg received "/note"$'\n'"CI ${2}: 保留した失敗を進行役が引き継ぎで受けた" '
+		--arg received "/note"$'\n'"CI ${2}: 保留した失敗を" '
 		any(.[]; .author_type == "agent" and
-			((.content | startswith($prefix)) or (.content | rtrimstr("\n")) == $received))
+			((.content | startswith($prefix)) or
+			 (.content | rtrimstr("\n") | startswith($received) and endswith("が引き継ぎで受けた"))))
 	' <<<"$1" >/dev/null
 }
 
@@ -190,7 +191,7 @@ ci_check() {
 	runs=$(squad_cli_read issue-runs "$issue")
 	# 引き継ぎ後も run は短時間 running のまま残る。引き継ぎ済みの run では
 	# 保留しない。取得の確認より後に確定した失敗も、通常の通知で拾えるようにする。
-	# 引き継ぎは、担当のスクワッドへのメンション（今の形式）か、進行役へのエージェントのメンション。
+	# 引き継ぎは、担当のスクワッドへのメンション（今の形式）か、リーダーへのエージェントのメンション。
 	squad=$(jq -r 'select(.assignee_type == "squad") | .assignee_id | select(. != null)' <<<"$task")
 	handoffs=$(jq -cn --arg agent "mention://agent/${id})" --arg squad "$squad" \
 		'[$agent] + if $squad != "" then ["mention://squad/" + $squad + ")"] else [] end')
@@ -231,7 +232,7 @@ ci_check() {
 	multica issue comment add "$issue" --parent "$thread" --content-file "$body" --output table >/dev/null
 	rm -f "$body"
 	trap - EXIT
-	ci_record "CI ${short}: 失敗を進行役に知らせた"
+	ci_record "CI ${short}: 失敗をリーダーに知らせた"
 }
 
 ci_held() {
@@ -257,7 +258,7 @@ ci_held() {
 	fi
 	# 見張り役の保留コメントより先に引き継ぎが届くことがある。
 	# 保留の投稿を待たず、GitHub で確定した今の head の失敗を拾う。
-	received="CI ${short}: 保留した失敗を進行役が引き継ぎで受けた"
+	received="CI ${short}: 保留した失敗をリーダーが引き継ぎで受けた"
 	mkdir -p tmp
 	body=$(mktemp tmp/pr-watch-ci-held.XXXXXX)
 	trap "$(printf 'rm -f -- %q' "$body")" EXIT

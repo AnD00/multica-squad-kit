@@ -310,7 +310,7 @@ echo 1 >"$test_dir/status"
 run_pick 0 codex-implementer implement 大きな
 assert_line 'Codex: codex が見つからない'
 assert_line 'Claude は 5 時間の枠が 80% 以上'
-echo 'PASS 部分的な読み取り: 30 分ちょうどは有効、読めた側が上限なら代わりの決まりより優先して除く'
+echo 'PASS 部分的な読み取り: 30 分ちょうどは有効、読めた側が使用上限なら代わりの決まりより優先して除く'
 
 fixtures
 mkfifo "$test_dir/timeout-fifo"

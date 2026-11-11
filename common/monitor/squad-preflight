@@ -50,7 +50,7 @@ fi
 version=$(multica version 2>/dev/null) || version=
 version=${version%%$'\n'*}
 if [[ -n $version && $version != "$SQUAD_CLI_VERIFIED_VERSION" ]]; then
-	printf 'squad-preflight: CLI の版が見本と違います（ホスト: %s、見本: %s）。\n' \
+	printf 'squad-preflight: CLI のバージョンが見本と違います（ホスト: %s、見本: %s）。\n' \
 		"$version" "$SQUAD_CLI_VERIFIED_VERSION"
 fi
 check_reading() {

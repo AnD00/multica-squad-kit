@@ -17,7 +17,7 @@ check_tools() {
 		missing=1
 	fi
 	if ! python3 -c 'import tomllib; from zoneinfo import ZoneInfo; ZoneInfo("UTC"); ZoneInfo("Asia/Tokyo")' >/dev/null 2>&1; then
-		ui_error 'TOML と時刻の確認に Python 3.11 以上（tomllib）とタイムゾーンデータが必要です。macOS では brew install python、Ubuntu 24.04 では sudo apt-get install python3 tzdata を実行し、python3 の版と PATH を確認してください。'
+		ui_error 'TOML と時刻の確認に Python 3.11 以上（tomllib）とタイムゾーンデータが必要です。macOS では brew install python、Ubuntu 24.04 では sudo apt-get install python3 tzdata を実行し、python3 のバージョンと PATH を確認してください。'
 		missing=1
 	fi
 	[[ $missing == 0 ]] || die 'manual.md の「受け取る人の準備」に従って道具を入れてから流し直してください。'
@@ -26,7 +26,7 @@ check_tools() {
 	fi
 }
 
-# 保存済みの答えに選択がない場合は、前の版と同じく両方を使う。
+# 保存済みの答えに選択がない場合は、前のバージョンと同じく両方を使う。
 uses_runtime() {
 	jq -e --arg runtime "$1" 'index($runtime)!=null' >/dev/null <<<"${runtimes:-[\"claude\",\"codex\"]}"
 }

@@ -11,7 +11,7 @@ if [[ $# != 2 || -z $1 || ! $2 =~ ^https://github\.com/[A-Za-z0-9_-]+/[A-Za-z0-9
 fi
 task=$1 url=$2 identifier=$1
 warn() {
-	printf 'タスク %s に PR %s を紐付けられませんでした（%s）。課題の画面の PR の欄で、この URL を指定して紐付けてください。\n' "$identifier" "$url" "$1" >&2
+	printf 'タスク %s に PR %s を紐付けられませんでした（%s）。タスクの画面の PR の欄で、この URL を指定して紐付けてください。\n' "$identifier" "$url" "$1" >&2
 }
 
 mkdir -p tmp

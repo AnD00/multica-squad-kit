@@ -70,7 +70,7 @@ for cmd in gh "${monitors[@]}"; do
 	chmod +x "$guard_bin/$cmd"
 done
 
-# 本物のセットアップの関数で、採取版を埋めたライブラリを作る。
+# 本物のセットアップの関数で、採取バージョンを埋めたライブラリを作る。
 source "$root/lib/host.sh"
 agent_home="$test_dir/installed"
 mkdir -p "$agent_home/bin"
@@ -151,14 +151,14 @@ for pair in squad-list:id agent-get:name issue-get:metadata issue-comments:sourc
 	grep -qF "$(head -n 1 "$test_dir/version")" "$test_dir/err"
 done
 reset_responses
-echo 'PASS preflight: 6種類の必須・条件付きの欠落で、欄名・CLIの版を出して終了1'
+echo 'PASS preflight: 6種類の必須・条件付きの欠落で、欄名・CLIのバージョンを出して終了1'
 
 echo 'multica fixture-upgrade' >"$test_dir/version"
 run_preflight 0 "$guard_bin:$test_dir/tools" fixture-issue
-grep -qF 'CLI の版が見本と違います' "$test_dir/out"
+grep -qF 'CLI のバージョンが見本と違います' "$test_dir/out"
 grep -qF "$(head -n 1 "$root/tests/fixtures/cli/VERSION")" "$test_dir/out"
 head -n 1 "$root/tests/fixtures/cli/VERSION" >"$test_dir/version"
-echo 'PASS preflight: 採取時と違う版は知らせるだけで、欄が正しければ成功する'
+echo 'PASS preflight: 採取時と違うバージョンは知らせるだけで、欄が正しければ成功する'
 
 echo squad-list >"$test_dir/cli-fail"
 run_preflight 1 "$guard_bin:$test_dir/tools"

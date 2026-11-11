@@ -58,8 +58,8 @@ for test in "${selected[@]}"; do
 done
 mkdir -p "$root/tmp"
 run_dir=$(mktemp -d "$root/tmp/test-run.XXXXXX")
-# 版を管理する道具（asdf・pyenv・mise など）の python3 は、HOME の設定から版を決める shim のことがある。
-# 空の HOME ではその shim が版を決められないので、本物の HOME で実体を引き、PATH の先頭から呼ばせる。
+# バージョンを管理する道具（asdf・pyenv・mise など）の python3 は、HOME の設定からバージョンを決める shim のことがある。
+# 空の HOME ではその shim がバージョンを決められないので、本物の HOME で実体を引き、PATH の先頭から呼ばせる。
 if real_python=$(python3 -c 'import sys; print(sys.executable)' 2>/dev/null) && [[ -n $real_python && -x $real_python ]]; then
 	mkdir -p "$run_dir/bin"
 	# スクリプトで包むと、#! に python3 のパスを書くテストのスタブが動かないので、実体へのリンクにする。

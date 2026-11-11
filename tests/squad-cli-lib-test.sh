@@ -204,7 +204,7 @@ assert len(lines) == 2 and 'id' in lines[0] and 'null' in lines[1], lines
 assert original[1]['id'] in lines[1]
 print('PASS contract: ケースの鍵、全要素の検証、複数の欠落の診断')
 
-# CLI を stub に替えて、読み取り・追加オプション・版・失敗時の境界を通す。
+# CLI を stub に替えて、読み取り・追加オプション・バージョン・失敗時の境界を通す。
 bin_dir = work / 'bin'
 bin_dir.mkdir()
 stub = '''#!/usr/bin/env python3
@@ -250,7 +250,7 @@ assert result.returncode == 1 and 'id' in result.stderr and 'fixture-version' no
 result = read('issue-get', 'task')
 assert result.returncode == 19 and result.stdout == ''
 assert read('unknown-reading').returncode == 1
-print('PASS CLI: 引数・版・正常な省略・JSON の出力指定・失敗の伝播')
+print('PASS CLI: 引数・バージョン・正常な省略・JSON の出力指定・失敗の伝播')
 # 後のページも検証する。失敗したときは先頭ページの部分的な成功を出さない。
 def stream(name, pages):
     return subprocess.run(['bash','-c','source "$1"; squad_cli_normalize "$2" fixture-version',
@@ -280,7 +280,7 @@ for field in entries['gh-statuses']['items']['fields']:
         changed = [copy.deepcopy(status)]
         mutate(changed, [0] + field['path'].split('.'), delete=True)
         failure('gh-statuses', changed, field)
-print('PASS unavailable Status: id・context・state を一つずつ消し、欄名・版と終了1を確認する')
+print('PASS unavailable Status: id・context・state を一つずつ消し、欄名・バージョンと終了1を確認する')
 
 # 実物にない非 null の secondary は、同じ枠の型を持つ primary の値から作る。
 entry = entries['codex-rate-limits']

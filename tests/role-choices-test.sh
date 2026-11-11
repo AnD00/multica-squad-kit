@@ -22,8 +22,8 @@ text() { role_choice_text "$(choice "$1")" '  ' "$(role_choice_note "$1")"; }
 test "$(jq length <<<"$role_choices")" = 12
 test "$(text planner)" = "$(printf '要件定義: 要望をまとめて人間と合意する。\n  エージェント: shop-planner-owner\n  ほかに変わること: 要件は人間に補ってもらう')"
 test "$(text security-reviewer)" = "$(printf 'セキュリティ: 危険な実装を確認する。\n  エージェント: shop-security-reviewer-owner\n  オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one、週 1 回の依存ライブラリの脆弱性チェック shop example/three\n  ほかに変わること: 返事を待つ役の一覧から外れる')"
-test "$(text ci-monitor)" = "$(printf 'PR の CI の見張り: CIの結果を知らせる。\n  エージェント: shop-ci-monitor-owner\n  見張り: 進行役が PR ごとに置く CI の見張り')"
-test "$(text usage-monitor)" = "$(printf '使用上限の見張り: AIの残量を見張る。\n  エージェント: shop-usage-monitor-owner\n  オートパイロット: 使用上限の見張り shop-owner')"
+test "$(text ci-monitor)" = "$(printf 'PR の CI の見張り: CIの結果を知らせる。\n  エージェント: shop-ci-monitor-owner\n  見張り: リーダーが PR ごとに置く CI の見張り')"
+test "$(text usage-monitor)" = "$(printf '使用上限の見張り: AI の使用上限を見張る。\n  エージェント: shop-usage-monitor-owner\n  オートパイロット: 使用上限の見張り shop-owner')"
 test "$(text claude)" = "$(printf 'Claude の実装・修正: 新規実装と指摘の修正を行う。\n  エージェント: shop-claude-implementer-owner、shop-claude-fixer-owner\n  ほかに変わること: 振り分け先から外れる')"
 # 外せる項目の見出しは、あるものだけを出す。
 for key in $(jq -r '.[].key' <<<"$role_choices"); do
@@ -42,6 +42,6 @@ test -z "$(role_choice_note claude)"
 test -z "$(role_choice_note planner)"
 echo 'PASS role-choices: 使わないランタイムの系統だけ、1行目に外れる注意が付く'
 
-# 進行役のエージェント名を、外せない役として出す。
-test "$(role_fixed_text)" = "$(printf '進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: shop-orchestrator-owner')"
-echo 'PASS role-choices: 進行役のエージェント名を出す'
+# リーダーのエージェント名を、外せない役として出す。
+test "$(role_fixed_text)" = "$(printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: shop-orchestrator-owner')"
+echo 'PASS role-choices: リーダーのエージェント名を出す'

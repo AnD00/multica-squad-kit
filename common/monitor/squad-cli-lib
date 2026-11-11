@@ -1401,7 +1401,7 @@ squad_cli_contracts() {
 SQUAD_CLI_CONTRACTS
 }
 
-# JSON の応答を検証・整形する。第 2 引数は、テストなどで固定する CLI の版。
+# JSON の応答を検証・整形する。第 2 引数は、テストなどで固定する CLI のバージョン。
 # 入力の検証がすべて済むまで標準出力には何も返さない。
 squad_cli_normalize() {
 	local name=$1 entry version=${2-} program
@@ -1613,7 +1613,7 @@ squad_cli_read() {
 	fi
 }
 
-# 回を書いた進行役をリーダーとする、有効なスクワッドを 1 つだけ返す。
+# 回を書いた役をリーダーとする、有効なスクワッドを 1 つだけ返す。
 # review-wait と PR の見張りで、同じ選び方を使う。
 # 候補が 0 件・複数なら 2、CLI・欄の検証の失敗なら 1 を返す。
 squad_cli_squad_for_leader() {
