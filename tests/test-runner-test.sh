@@ -16,6 +16,8 @@ for name in project project-followup squad-dispatch-pick squad-dependabot-merge;
 done
 printf '# 小さな原本の重み\ntests/project-test.sh 10\n\ntests/squad-dependabot-merge-test.sh 40\n' >"$kit/tests/test-weights"
 export TEST_RUNNER_KIT="$kit" TEST_RUNNER_STATE="$test_dir/state"
+# CI のシャードの指定が、ここで流す小さな走らせ役へ漏れないようにする（シャードの指定は各ケースで渡す）。
+unset SQUAD_KIT_TEST_SHARD
 cat >"$fixtures/a.sh" <<'FIXTURE'
 #!/usr/bin/env bash
 set -euo pipefail

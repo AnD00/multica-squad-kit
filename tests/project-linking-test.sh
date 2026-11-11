@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/project-linking-test.sh で実行する。
-# 他プロジェクトの issue の紐付け
+# 他プロジェクトのタスクの紐付け
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/project-test-lib.sh"

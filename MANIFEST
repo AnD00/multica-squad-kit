@@ -161,7 +161,7 @@ a97a851f9e9ec9ba479ac3bce177d15311d07e95f078415dd0c06991f9d6ab28  ./tests/projec
 0ede5be3584c23850f56e531bd17059e7eaf608a3a08b1c1801978e2a49b51b1  ./tests/project-followup-test.sh
 ad3f0567db03199fadfa2e3062a0cc238f8fb2cde65f7c3593e572140260f357  ./tests/project-issues-fixture.py
 69b8f4e368c0126de7ab034bc303826ad10699b97a79024017aea93bb5d6d268  ./tests/project-issues-test.sh
-0d9f240a35c1168b4581039bf8fc34e946ac652d6b27d1ba4ad7a306bdcdf5cd  ./tests/project-linking-test.sh
+e2141527ff9e7280bce9dd9dd161bec702edca9d55658c078e487cae802c9ab2  ./tests/project-linking-test.sh
 9cd03baf4a3cd8ef53f93828851e05c6d4d7b3993eaf6bfafe87a788e925a6e9  ./tests/project-runtimes-test.sh
 c2ceb8dd3561ee8adeaca790ebc1594cb1ad442522bb2a39334276306999f1ad  ./tests/project-select-test.sh
 17ba25340c191ab5398c47f5c258fe6babc2c7972b09cc134b3222091d6cae95  ./tests/project-test-lib.sh
@@ -203,7 +203,7 @@ dbb47e71981eda667956964f42941d77135bb0b34bae0fbed72395c8538e9664  ./tests/squad-
 9cc2fdf2c57c8ddb598e99c6a32db59af12c0af2daa8c20064c4f1d8649d5d71  ./tests/squad-usage-check-test.sh
 ae219749b643f6f28eca7191963efe8f153da3fbdca9fbc9f9a4c8b9233b922f  ./tests/squad-usage-read-test.sh
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
-5217e488c2ea7dd926eaf1f8efcdd643925fe46bc363a7474dc5c43480ee82a1  ./tests/test-runner-test.sh
+d103940f18b86ac56c54aa0bdc8cb9b61d47ae92c458832b08d42409d04b148f  ./tests/test-runner-test.sh
 0720a4357567196fdda5ecdcc816c79a5bbdb9813c1a4299319d99323ad83555  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
