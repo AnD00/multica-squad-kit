@@ -26,6 +26,11 @@ printf 'payload\n' >"$work/payload.txt"
 g -C "$work" add -A
 g -C "$work" commit -q -m main
 g clone -q --bare "$work" "$origin"
+# ホストの push の関所は、この一時リポジトリへの push の間だけ外す。
+push_tag() (
+	unset GIT_CONFIG_COUNT GIT_CONFIG_KEY_0 GIT_CONFIG_VALUE_0
+	g -C "$work" push -q "$origin" "refs/tags/$1"
+)
 fresh() { rm -rf -- "$test_dir/kit"; g clone -q "$origin" "$test_dir/kit"; }
 run() { (cd "$test_dir" && /bin/bash "$test_dir/kit/setup.sh" "$@" </dev/null >"$test_dir/out" 2>"$test_dir/err"); }
 head_is() { [[ $(git -C "$test_dir/kit" rev-parse HEAD) == $(git -C "$test_dir/kit" rev-parse "$1^{commit}") ]]; }
@@ -36,7 +41,7 @@ fresh
 g -C "$work" checkout -q --detach main
 stub_release v1.11.0
 g -C "$work" checkout -q main
-g -C "$work" push -q "$origin" refs/tags/v1.11.0
+push_tag v1.11.0
 run --extension ext
 grep -qxF "STUB v1.11.0|v1.11.0|--extension $test_dir/ext" "$test_dir/out"
 grep -qF '最新のタグ v1.11.0 を取り出しました' "$test_dir/err"
@@ -80,7 +85,7 @@ grep -qF 'MANIFEST がありません' "$test_dir/err"
 echo 'PASS setup-tag: .git のない原本（ZIP）は、展開した版のまま検査に進む'
 
 g -C "$work" tag v1.12.0 main
-g -C "$work" push -q "$origin" refs/tags/v1.12.0
+push_tag v1.12.0
 fresh
 if run; then exit 1; fi
 grep -qF 'MANIFEST がありません' "$test_dir/err"
