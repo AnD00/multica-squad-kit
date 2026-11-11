@@ -93,7 +93,7 @@ jq -e '.issues|length==5 and any(.[];.metadata.squad_kit_task=="squad-trial")' "
 grep -qF 'プロジェクトの設定が終わりました' "$test_dir/out"
 grep -qF '今回作った件数:' "$test_dir/out"
 grep -qF '起票できなかったタスク:' "$test_dir/out"
-grep -qF 'example/one の Dependabot の Webhook のフィルターを設定する: issue を作れませんでした。' "$test_dir/out"
+grep -qF 'example/one の Dependabot の Webhook のフィルターを設定する: タスクを作れませんでした。' "$test_dir/out"
 [[ $(grep -c '（新規）' "$test_dir/out") == 5 ]]
 rm "$TEST_DB/fail-issue"
 run

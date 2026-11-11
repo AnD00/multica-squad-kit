@@ -183,7 +183,7 @@ PY
   if /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"; then exit 1; fi
   grep -qF 'プロジェクトの設定が終わりました' "$scenario_dir/out"
   grep -qF '起票できなかったタスク:' "$scenario_dir/out"
-  grep -qF 'スクワッドの動きを試す: issue を作れませんでした。' "$scenario_dir/out"
+  grep -qF 'スクワッドの動きを試す: タスクを作れませんでした。' "$scenario_dir/out"
   jq -e '.issues|length==3' "$scenario_dir/db.json" >/dev/null
   rm "$scenario_dir/fail-issue"
   /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
