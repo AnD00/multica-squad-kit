@@ -7,10 +7,10 @@
 この文書は、作業の順に次の章で詳しく書く。
 
 1. [受け取る人の準備](#受け取る人の準備): 道具、ログイン、GitHub 連携をそろえる
-2. [原本を取る](#原本を取る): clone して `bash setup.sh` を流す。セットアップが最新のタグを取り出す
+2. [原本を取る](#原本を取る): 1 行のコマンドで、配布物を確かめて取り、セットアップを流す
 3. [初めて導入する](#初めて導入する): 質問に答え、最後の確認で `yes` と答える
 4. [導入後に自動で行うことと、起票するタスク](#導入後に自動で行うことと起票するタスク): 完了の表示を確かめ、起票されたタスクを片付ける
-5. [更新と、途中で止まったあとの再実行](#更新と途中で止まったあとの再実行): 同じ clone で流し直す。止まったときもここを見る
+5. [更新と、途中で止まったあとの再実行](#更新と途中で止まったあとの再実行): 同じ 1 行のコマンドを流し直す。止まったときもここを見る
 
 ZIP で導入済みなら [導入済みの配布物を入れ直す](#導入済みの配布物を入れ直す)、ホストのホームをエージェントに読ませたくないなら [閉じ込めて動かす](#閉じ込めて動かす) を先に読む。
 
@@ -25,12 +25,13 @@ macOS は標準の bash 3.2 と zsh、Linux の自動テストは Ubuntu 24.04 �
 | --- | --- |
 | `multica` | サーバーへのログイン、設定の登録、デーモンとランタイム |
 | `jq` | CLI の応答と質問の答えを読む |
-| `gh` | ホストの関所と、エージェントの GitHub 操作 |
+| `gh`（2.102.0 以上） | ホストの関所と、エージェントの GitHub 操作。配布物の取得と証明の確かめ |
 | Python 3.11 以上（`python3` と標準の `tomllib`・`zoneinfo`）、タイムゾーンデータ | 既存の Codex 設定を TOML として読み、使用上限のリセット時刻を読む |
 | `claude` と `codex` の一方または両方 | エージェントのランタイム。使うものだけを入れる（[片方だけのランタイムで動かす](#片方だけのランタイムで動かす)） |
 
 不足した道具はスクリプトの案内に従って入れる。  
-`multica`、`jq`、`gh`、Python は Homebrew なら次で入れられる。
+`multica`、`jq`、`gh`、Python は Homebrew なら次で入れられる。  
+Homebrew の `gh` は 2.102.0 以上である。
 
 Claude Code と Codex CLI は、利用する組織の手順で導入する。  
 `python3` が古い場合は PATH を確認する。
@@ -43,15 +44,33 @@ brew install multica-ai/tap/multica jq gh python
 ```
 
 Linux は Homebrew を使わずに導入できる。  
-Ubuntu 24.04 では次で道具をそろえる。
+Ubuntu 24.04 では次で道具をそろえる。  
+`gh` は、Ubuntu の標準の apt のものが 2.45.0 で、配布物の証明を確かめる `gh attestation` を持たない。  
+そのため、GitHub の公式の apt のリポジトリから入れる。
 
-他のディストリビューションでは同等のパッケージを使い、Python が 3.11 以上であることを確認する。
+他のディストリビューションでは同等のパッケージを使い、Python が 3.11 以上、`gh` が 2.102.0 以上であることを確認する。
 
 ```bash
 sudo apt-get update
-sudo apt-get install bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps
+sudo apt-get install bash zsh git jq zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg
+sudo chmod 0644 /etc/apt/keyrings/githubcli-archive-keyring.gpg
+sudo tee /etc/apt/sources.list.d/github-cli.sources >/dev/null <<EOF
+Types: deb
+URIs: https://cli.github.com/packages
+Suites: stable
+Components: main
+Architectures: $(dpkg --print-architecture)
+Signed-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+EOF
+sudo apt-get update
+sudo apt-get install gh
+gh --version
 python3 -c 'import tomllib; from zoneinfo import ZoneInfo; print(ZoneInfo("Asia/Tokyo"))'
 ```
+
+`gh --version` の 1 行目が `gh version 2.102.0` 以上であることを確かめる。
 
 Multica は [公式 CLI 導入手順の Linux 向けバイナリ](https://github.com/multica-ai/multica/blob/main/CLI_INSTALL.md#option-b-download-from-github-releases-macoslinux-no-homebrew) から導入できる。  
 Claude Code と Codex も Linux 向けのものを使う。  
@@ -184,22 +203,31 @@ Codex を使わないときは、Codex の設定ファイルを置かず、確�
 
 ## 原本を取る
 
-公開リポジトリを clone し、`bash setup.sh` を流す。  
-更新するときも同じ clone で流し直す。
+[README のクイックスタート](README.md#クイックスタート) の 1 行のコマンドを貼って流す。  
+原本は clone せず、Release の配布物を確かめてから取る。  
+更新するときも同じ 1 行のコマンドを流し直す。
 
-```bash
-git clone https://github.com/AnD00/multica-squad-kit.git
-cd multica-squad-kit
-bash setup.sh
-```
+コマンドは、最新のバージョンを読んで画面に出し、そのバージョンの入口のスクリプト（`install.sh`）を取ってくる。  
+入口の証明を確かめてから入口を流し、入口が次を順に行う。
 
-clone した原本で流すと、セットアップは最初に `origin` からタグを取り、最新のリリースのタグ（`vX.Y.Z` の形のもの）を取り出して、そのバージョンの `setup.sh` で流し直す。  
-`VERSION` から共通スキルやタスクのリンクのタグを決めるので、手元の中身をタグにそろえて、バージョンの混ざった導入を防ぐ。
+1. 配布物と `SHA256SUMS` を取り、両方の証明と、`SHA256SUMS` の行と配布物の照合を確かめる
+2. 配布物の中の一覧を確かめる。展開先の外へ書くもの、リンク、決まった置き場の外のものがあれば止まる
+3. 新しい空のディレクトリへ展開し、展開した `setup.sh` を流す
+4. 終わったら、成否によらず一時の置き場を消す
 
-- すでに最新のタグと同じコミットなら、取り出さずにそのまま流す
-- 原本に未コミットの変更があるときと、`origin` からタグを取れないときは、何も変更せずに止まる
-- ZIP を展開した原本は `.git` がないので、展開したバージョンのまま流す
-- 取り出してあるバージョンのまま流すときは、`bash setup.sh --no-checkout` とする。古いタグで流し直すときや、リリース前のバージョンを確かめるときに使う
+確かめのどこかで失敗したら、その先は流れず、セットアップも始まらない。  
+入口の証明の確かめと配布物の確かめは、どちらも `gh attestation verify` で、リポジトリ、発行のワークフロー、タグ、GitHub の用意した環境で作られたことの 4 つをそろえて確かめる。
+
+- `gh` は 2.102.0 以上が要る。古いか読めないときは、必要なバージョンを出して何も取らずに止まる。入れ方は [受け取る人の準備](#受け取る人の準備) にある
+- `gh` のログイン（`gh auth login`）が要る。配布物の取得と証明の確かめが、GitHub の API を使うため
+- 特定のバージョンを入れるときは、コマンドの先頭の `V=` のあとにタグを書く（例: `V=v1.8.0;`）。省くと最新のバージョンを使い、そのバージョンを画面に出す
+- macOS の zsh と Linux の bash のどちらに貼っても同じに動く
+
+中身を見てから流したいときと、入口のスクリプトを使いたくないときは、[README の手動の手順](README.md#手動の手順) を使う。  
+取得、証明、チェックサム、一覧、展開、閲覧、実行を 1 つずつ流し、読んだファイルと流すファイルが同じになる。
+
+展開した `VERSION` が、指定したバージョンと違うときも止まる。  
+共通スキルやタスクのリンクのタグは、展開した `VERSION` から決まるので、バージョンの混ざった導入にならない。
 
 起動時に、拡張のディレクトリを聞く。  
 拡張を使わないときは Enter。
@@ -210,24 +238,26 @@ clone した原本で流すと、セットアップは最初に `origin` から�
 拡張のディレクトリは、起動時の引数でも渡せる。  
 拡張を毎回別の一時フォルダに組み立てるプロジェクトでは、組み立てたスクリプトから、そのパスを引数にして流す。
 
+1 行のコマンドの末尾の `"$V"` のあとに、`--extension <拡張のディレクトリ>` を足す。  
+手動の手順では、最後の `bash "$W/multica-squad-kit-$V/setup.sh"` の末尾に足す。
+
 ```bash
-bash setup.sh --extension <拡張のディレクトリ>
-bash setup.sh --extension=<拡張のディレクトリ>
+... && bash "$D/install.sh" "$V" --extension <拡張のディレクトリ>
 ```
 
 - 引数で渡すと、拡張のディレクトリの質問を出さない。渡したディレクトリは、質問で答えたときと同じく、存在、形式、`kit-version` の一致を確かめ、合わないときは何も登録せずに止まる
-- 相対パスは、`setup.sh` を流したディレクトリから見る
+- 相対パスは、コマンドを流したディレクトリから見る
 - ワークスペースの選択と、最後の答えの一覧の確認（`yes`）は、引数があっても人が入れる
-- 引数で渡せるのは、拡張のディレクトリと、タグを取り出さない `--no-checkout` だけである。ほかの答えは保存済みの答えが既定になるので、Enter で進める
+- 引数で渡せるのは、拡張のディレクトリだけである。ほかの答えは保存済みの答えが既定になるので、Enter で進める
 
 ## 初めて導入する
 
-「原本を取る」のコマンドで clone して実行する。  
+「原本を取る」の 1 行のコマンドを実行する。  
 テストを流す必要はない。
 
 最初に macOS、MANIFEST のファイル一覧とハッシュを確認する。  
 ファイルの欠落・改変・余分なファイル・シンボリックリンクがあれば、登録やホストの変更を始めずに止まる。  
-欠損した原本は直して通そうとせず、clone し直して流す。
+欠損した原本は直して通そうとせず、1 行のコマンドを流し直して、原本を取り直す。
 
 ### 質問への答え方
 
@@ -818,10 +848,22 @@ Webhook だけのプロジェクトの拡張は、セットアップが Webhook 
 GitHub で原本のリポジトリの Watch を「Custom」にし、「Releases」を選んでおく。  
 通知が来たら、Release の本文で変更を確かめ、各ホストとプロジェクトで次の手順を流す。
 
-同じ clone で、同じサーバー・ワークスペース・プロジェクトと、同じ二つの区別で `bash setup.sh` を流す。  
-セットアップが新しいタグを取ってきて取り出す（[原本を取る](#原本を取る)）。  
-v1.7.0 以前のバージョンを取り出している clone では、そのセットアップはタグを取り出さないので、一度だけ `git checkout main && git pull` をしてから流す。  
-拡張のディレクトリのほかに、引数で質問を省略するモードはない（[原本を取る](#原本を取る)）。
+「原本を取る」の 1 行のコマンドを、もう一度流す（[原本を取る](#原本を取る)）。  
+最新のバージョンを読んで入れるので、バージョンを選ぶ必要はない。  
+同じサーバー・ワークスペース・プロジェクトと、同じ二つの区別で答える。  
+拡張のディレクトリのほかに、引数で質問を省略するモードはない。
+
+セットアップは、道具とログインを確かめたあと、質問の前に、最新のバージョンを読んで知らせる。  
+導入済みのバージョンより新しいバージョンがあるときの表示は、次のとおりである。
+
+| 表示 | 意味と次にすること |
+| --- | --- |
+| 「導入済みのバージョンは X です。この実行で最新のバージョン Y に更新します。」 | 今流しているのが最新である。そのまま進める |
+| 警告「新しいバージョン Y があります。今流しているのは X です。…」 | 今流しているのは古い。止めて、1 行のコマンドで最新のバージョンを取り直して流す |
+| 警告「最新のバージョンを確かめられませんでした。導入は続けます。」 | ネットワークや `gh` のログインを確かめる。導入は止まらないので、最新かは Release の画面で確かめる |
+
+導入済みのバージョンは、セットアップが最後まで終わったときだけ、`~/.multica-agent/template/version` に記録する。  
+途中で止まったあとに流し直しても、導入済みのバージョンは前の完了のままである。
 
 ワークスペース以外の前回の答えは質問の既定になるが、現在の一覧を読み直して名前で登録先を探す。  
 ワークスペースは毎回番号で選び直す。
@@ -843,9 +885,9 @@ v1.7.0 以前のバージョンを取り出している clone では、そのセ
 | リポジトリを増減する | 足した分は紐付け・許可・オートパイロット・Webhook を用意する。外した分は許可から消し、オートパイロットを一時停止して名前を表示する。紐付け・オートパイロット・履歴は消さない。どちらも「OWNER/REPO の増減を説明と検証スキルに反映する」を起票する |
 | 共有ホスト | 印のある関所と設定は合わせ、印のない既存のものは保持する。見張りはそのホストで流し直すまで更新されない |
 
-共通スキルは、取り出したタグの URL から更新する。  
+共通スキルは、流した配布物のバージョンのタグの URL から更新する。  
 更新できる人が古いタグを流すと、中身もそのタグへ戻る。  
-使うタグを確認してから流す。
+使うバージョンを確認してから流す。
 
 共通スキルの取り込みと更新は、トークンなしの GitHub の REST を使う。  
 一回につき REST 4 回と raw のファイル取得を使い、同じ出口 IP の認証なし REST の上限は一時間に 60 回で、他用途とも共有する。
@@ -868,8 +910,8 @@ v1.7.0 以前のバージョンを取り出している clone では、そのセ
 
 | 表示・状態 | 確認と再開 |
 | --- | --- |
-| 対象外の OS、MANIFEST の異常 | macOS または Linux（WSL 2 を含む）で、原本を clone し直して流す。登録前に止まっている |
-| 未コミットの変更がある、`origin` からタグを取れない | 変更を退避するか捨てる。ネットワークと `git remote -v` の `origin` を確かめる。今のバージョンのまま流すなら `--no-checkout` を付ける。何も変更せずに止まっている |
+| 対象外の OS、MANIFEST の異常 | macOS または Linux（WSL 2 を含む）で、1 行のコマンドを流し直して、原本を取り直す。登録前に止まっている |
+| 入口の確かめで止まった（`gh` のバージョン、ログイン、証明の確かめ、配布物の取得、チェックサム、一覧、展開、`VERSION` の不一致） | 別の配布物を取ってこない。表示された理由を読み、Release の画面で、そのバージョンの配布物があることを確かめる。`gh --version` が 2.102.0 以上であることと、`gh auth status` を確かめて、1 行のコマンドを流し直す。セットアップは始まっていないので、何も変更していない |
 | 道具・ログイン・リポジトリが不足 | 表示された道具、接続先、ログイン、管理者の GitHub 連携を済ませ、同じ質問で再実行する |
 | 使うランタイムがオンラインにならない | 選んだランタイムのコマンドとエージェント用のログインを確かめる。使わないなら「使うランタイム」で外して再実行する |
 | 拡張の役が、使うランタイムにないモデルを使う | 登録前に止まっている。拡張の役の front matter を、[FORMAT](common/agents/FORMAT) のランタイムの印でモデルを分ける形に直す |
@@ -892,7 +934,7 @@ ZIP で導入済みの場合は、人が配置ファイルと保存済み回答�
 1. 実行中の仕事がないことと、片付ける対象が ZIP で導入したファイルであることを確かめる。
 2. ZIP の置いた関所・見張り・シェル設定を消す。
 3. 対象プロジェクトの保存済み回答も消す。既定の保存先は `~/.multica-agent/template/answers/<workspace-id>/<project-key>.json` である。`<workspace-id>` は `multica workspace list --output json` で確認するワークスペースの ID、`<project-key>` は導入時に選んだ「プロジェクトの区別」に置き換える。保存先を変えていた場合は、変更先の同じファイルを対象にする。別のワークスペースやプロジェクトの回答は消さない。
-4. 原本を clone し、`bash setup.sh` で質問に答え直す。
+4. 「原本を取る」の 1 行のコマンドを流し、質問に答え直す。
 
 保存済み回答の形式が合わないと、「保存済みの答えが不正です。内容を確認してください。」と表示して止まる。  
 配置ファイルだけでなく、対象の回答も片付けてから入れ直す。
@@ -919,21 +961,49 @@ WSL では、Windows のドライブと実行ファイルも使えない。
 中のエージェントは、インターネットに出られ、ホストで待ち受けるサービスにも届く。  
 ホストで開いているサービスに気を付ける。
 
-作業コピーは、VM の中で「原本を取る」と同じ手順で clone する。  
-ホスト側の clone は、VM を作るスクリプトを使うためだけに使う。
+中のセットアップは、VM の中で「原本を取る」の 1 行のコマンドを流して入れる。  
+ホストでは、VM を作るスクリプトを使うためだけに、原本を手動の手順で展開する。
 
 ### VM を作る
 
-Mac は、Lima 1.0.0 以上（`limactl`）を入れて、原本の clone で次を流す。
+Mac は、Lima 1.0.0 以上（`limactl`）を入れる。  
+[README の手動の手順](README.md#手動の手順)の 1 から 6 で原本を展開し、展開した `multica-squad-kit-<バージョン>` のディレクトリに移って、次を流す。
 
 ```bash
 bash vm/lima.sh create
 ```
 
-Windows は、WSL 2.6.1 以上にして、PowerShell で次を流す。  
+Windows は、WSL 2.6.1 以上にして、PowerShell で原本を展開する。  
+手動の手順と同じ確かめを、次の PowerShell で行う。  
+`gh` は 2.102.0 以上、`tar` は Windows 標準のものを使う。
+
+```powershell
+$V = gh release view --repo AnD00/multica-squad-kit --json tagName --jq .tagName
+$D = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP "multica-squad-kit-$([guid]::NewGuid())")).FullName
+gh release download $V --repo AnD00/multica-squad-kit --pattern "multica-squad-kit-$V.tar.gz" --pattern SHA256SUMS --dir $D
+gh attestation verify "$D\SHA256SUMS" --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref "refs/tags/$V" --deny-self-hosted-runners
+gh attestation verify "$D\multica-squad-kit-$V.tar.gz" --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref "refs/tags/$V" --deny-self-hosted-runners
+```
+
+どちらかの `gh attestation verify` が失敗したら、そこで止める。  
+続けて、配布物のチェックサムが `SHA256SUMS` の行と合うことを確かめる。  
+合わなければ、そこで止める。
+
+```powershell
+$line = @(Get-Content "$D\SHA256SUMS" | Where-Object { $_.EndsWith(" multica-squad-kit-$V.tar.gz") })
+if ($line.Count -ne 1) { throw "SHA256SUMS の配布物の行が 1 行ではありません" }
+$hash = (Get-FileHash "$D\multica-squad-kit-$V.tar.gz" -Algorithm SHA256).Hash.ToLower()
+if (-not $line[0].StartsWith("$hash ")) { throw "チェックサムが合いません" }
+```
+
+配布物の一覧を出し、`multica-squad-kit-<バージョン>/` の下のファイルとディレクトリだけであることを目で確かめてから、新しい空のディレクトリへ展開し、展開したディレクトリで次を流す。  
 WSL の VM の名前の既定は `multica-squad` である。
 
 ```powershell
+tar -tvzf "$D\multica-squad-kit-$V.tar.gz"
+$W = (New-Item -ItemType Directory -Path (Join-Path $env:TEMP "multica-squad-kit-$([guid]::NewGuid())")).FullName
+tar -xzf "$D\multica-squad-kit-$V.tar.gz" -C $W
+Set-Location "$W\multica-squad-kit-$V"
 powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 create
 ```
 
@@ -996,7 +1066,7 @@ Lima はポートを転送するので、Multica や Codex のブラウザのロ
 
 ### セットアップを流す
 
-中で、「原本を取る」の手順で clone し、`bash setup.sh` を流す。  
+中で、「原本を取る」の 1 行のコマンドを流す。  
 そのあとは、ホストと同じ質問に答える。
 
 セットアップが終わると、中のデーモンは、VM の起動時に systemd の `multica-squad-daemon.service` が起動する。  
