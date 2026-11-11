@@ -150,8 +150,8 @@ ea6e7dda6b1549434f4ba0da2574167b32702ceafd607d24c5a1fdb1cc0db195  ./tests/gh-tes
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
 41dccb97d9b032aca33eee4ce3580ec3908075e5484160e04d457112c54db833  ./tests/guard-check-test.sh
 3cb82e8f002781ce8c1c3766b91c3eb49f03147cc40c0f2cba55cb82f7e6eaf6  ./tests/host-test.sh
-5d4e82296574008c721adfd4acd68ea338f7b92fa67fc06dc17df474626bbf47  ./tests/install-command-test.sh
-3aa70e09921828549782e68b7467339531dfc3a421b9c07c8870645590eff114  ./tests/install-test.sh
+92a7e11db54a89ff81599c2383fdf3e6bfa673058c35f74c52389b0922ec8946  ./tests/install-command-test.sh
+75613607387b2673bb5b47c17acdfd721308274a943b221999f29c04d8709a97  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 fa25281d67ca68f32dc67d4f5962d5baa143b3f5433fc93dda2fb0838cbbd371  ./tests/installation-test.sh
 b07bac540574fc897e6967a373c67d30f4e50a80a21c110d9d4b2bb0ed001fac  ./tests/link-scope-questions-test.sh
@@ -179,7 +179,7 @@ e74d3d6be110378b66a9c8b203a2b715d336ae1fa22c0c252258ac1a58a06e9b  ./tests/run.sh
 ddb5795be2b1c549c7fe5cc39b832b83c06abc57f563d7321d1e1896a2248f08  ./tests/setup-runtimes-test.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 23cb3c10da47ec4a9d2e568da8c6aeb2a74b1244278d8093e0b16c74338ffb8f  ./tests/setup-test.sh
-f1e92ea6d30077ef57582886d517057b3545446ce267c47220c66487439b3911  ./tests/setup-version-test.sh
+7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
 a71f08ee51416c89e6dc1d7a9a5628ca28086b064d2ba595bd3099e654cf1521  ./tests/squad-cli-lib-test.sh
 912ccc3347086a38da55839134a102a7848481fcf472757eca27253eb4b9f343  ./tests/squad-dependabot-merge-test.sh
