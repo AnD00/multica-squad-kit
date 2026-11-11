@@ -94,20 +94,22 @@ answers = json.loads((scenario / 'answers/ws-a/demo.json').read_text())
 runtimes = db['runtimes']
 assert answers['schema'] == 1 and answers['runtimes'] == runtimes
 assert answers['excluded_roles'] == []
-roles = set('orchestrator planner designer qa claude-implementer claude-fixer codex-implementer codex-fixer code-reviewer ux-reviewer security-reviewer performance-reviewer ci-monitor usage-monitor dependabot-merger'.split())
+roles = set('orchestrator planner designer qa claude-implementer claude-fixer codex-implementer codex-fixer claude-principal codex-principal code-reviewer ux-reviewer security-reviewer performance-reviewer ci-monitor usage-monitor dependabot-merger'.split())
 for runtime in ('claude', 'codex'):
     if runtime not in runtimes:
-        roles -= {runtime + '-implementer', runtime + '-fixer'}
+        roles -= {runtime + '-implementer', runtime + '-fixer', runtime + '-principal'}
 agents = {a['name'].removeprefix('demo-').removesuffix('-owner'): a for a in db['agents']}
 assert set(agents) == roles
 monitors = {'ci-monitor', 'usage-monitor', 'dependabot-merger'}
-claude_roles = {'orchestrator', 'planner', 'designer', 'qa', 'claude-implementer', 'claude-fixer'}
+claude_roles = {'orchestrator', 'planner', 'designer', 'qa', 'claude-implementer', 'claude-fixer', 'claude-principal'}
 medium = {'orchestrator', 'planner', 'qa', 'ux-reviewer', 'performance-reviewer'}
 for role, agent in agents.items():
     provider = runtimes[0] if len(runtimes) == 1 else ('claude' if role in claude_roles else 'codex')
     model = 'gpt-6.1-sol'
     if provider == 'claude':
         model = 'claude-opus-5-5' if role in {'planner', 'designer'} else 'claude-sonnet-5-5'
+    if role.endswith('-principal'):
+        model = 'claude-fable-5-2' if provider == 'claude' else 'gpt-6-astra'
     assert agent['model'] == model and agent['runtime_id'] == 'runtime-' + provider, role
     assert agent['thinking_level'] == ('low' if role in {'ci-monitor', 'usage-monitor'} else 'medium' if role in medium else 'high'), role
     assert agent['max_concurrent_tasks'] == (1 if role in monitors else 6), role
@@ -137,7 +139,7 @@ for pilot in db['autopilots']:
 assert len(db['github_hooks']) == 1
 assert '配信 成功（HTTP 200）' in (scenario / 'out').read_text()
 display = (scenario / 'out').read_text()
-assert display.count(': 一致') == 5 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
+assert display.count(': 一致') == 6 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
 assert ': 要確認' not in display
 assert display.index('導入の確認:') < display.index('Webhook の登録:') < display.index('起票したタスク:')
 issues = {i['metadata']['squad_kit_task']: i for i in db['issues']}

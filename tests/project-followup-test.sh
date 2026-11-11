@@ -154,7 +154,7 @@ no_autopilot_writes() { ! jq -es 'any(.[]; .[0]=="autopilot" and (.[1]=="create"
 reset_db
 run
 jq -e '.leader_id=="agent-orchestrator" and (.instructions|contains("agent-orchestrator")) and .description=="Keep description"' "$TEST_DB/squad.json" >/dev/null
-jq -e 'length==16 and any(.[]; .member_id=="person-b" and .member_type=="member") and any(.[]; .member_id=="other-agent" and .role=="keep") and any(.[]; .member_id=="extra-person" and .role=="manual expertise") and all(.[]; .member_id!="agent-ci-monitor" and .member_id!="agent-usage-monitor" and .member_id!="agent-dependabot-merger")' "$TEST_DB/roster.json" >/dev/null
+jq -e 'length==18 and any(.[]; .member_id=="person-b" and .member_type=="member") and any(.[]; .member_id=="other-agent" and .role=="keep") and any(.[]; .member_id=="extra-person" and .role=="manual expertise") and all(.[]; .member_id!="agent-ci-monitor" and .member_id!="agent-usage-monitor" and .member_id!="agent-dependabot-merger")' "$TEST_DB/roster.json" >/dev/null
 echo 'PASS followup: 作成済みの器へ指示と有効な12役・選んだ人間を合わせ、見張りを入れず、手で加えたメンバーを保つ'
 jq -e 'length==3 and all(.[]; .project_id=="project-a") and any(.[]; .title=="使用上限の見張り demo-owner" and .execution_mode=="run_only") and any(.[]; .assignee_id=="agent-security-reviewer" and .execution_mode=="create_issue") and any(.[]; .assignee_id=="agent-dependabot-merger" and .execution_mode=="run_only")' "$TEST_DB/autopilots.json" >/dev/null
 [[ $(jq -sr '[.[][] | select(.kind=="schedule" and .timezone=="Asia/Tokyo")]|length' "$TEST_DB"/triggers-*.json) == 3 ]]
@@ -237,7 +237,7 @@ echo 'PASS followup: スクワッド更新の失敗を返し、再実行で続�
 reset_db
 TEST_FAIL='squad member add' deny; no_autopilot_writes
 run
-[[ $(jq length "$TEST_DB/roster.json") == 16 ]]
+[[ $(jq length "$TEST_DB/roster.json") == 18 ]]
 echo 'PASS followup: メンバー追加の失敗後も、再実行で重複なく名簿がそろう'
 reset_db
 TEST_FAIL='autopilot trigger-add' deny
@@ -251,7 +251,7 @@ echo 'PASS followup: 不正なオートパイロット一覧を未作成と扱�
 reset_db
 export TEST_EXCLUDED='["planner","designer","claude-implementer","claude-fixer","code-reviewer","ux-reviewer","security-reviewer","performance-reviewer","qa","ci-monitor","usage-monitor","dependabot-merger"]'
 run
-jq -e 'length==7 and any(.[]; .member_id=="agent-codex-implementer")' "$TEST_DB/roster.json" >/dev/null
+jq -e 'length==9 and any(.[]; .member_id=="agent-codex-implementer")' "$TEST_DB/roster.json" >/dev/null
 [[ $(jq length "$TEST_DB/autopilots.json") == 0 ]]
 grep -qF 'この役の Webhook の登録は不要' "$test_dir/out"
 echo 'PASS followup: 最小構成は3役と選んだ人間で、外した役のオートパイロットを作らない'

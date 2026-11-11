@@ -170,7 +170,7 @@ prepare_project
 DRIVER
 export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package"
 export TEST_DB="$test_dir/db" TEMPLATE_AGENT_HOME="$test_dir/host"
-export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=17
 reset_db() {
  rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
  mkdir -p "$TEST_DB/projects" "$TEST_DB/agents" "$TEST_DB/skills" "$TEST_DB/env" "$TEMPLATE_AGENT_HOME/bin" "$TEMPLATE_AGENT_HOME/git-hooks"
@@ -190,15 +190,15 @@ assert_no_final() {
 reset_db
 run
 grep -qx "followup after agents" "$test_dir/out"
-for index in $(seq 0 15); do grep -qF "エージェント $index/15（ID の準備" "$test_dir/err"; done
+for index in $(seq 0 17); do grep -qF "エージェント $index/17（ID の準備" "$test_dir/err"; done
 for phase in 設定 公開; do
- for index in $(seq 0 15); do grep -qF "エージェントの$phase $index/15" "$test_dir/err"; done
+ for index in $(seq 0 17); do grep -qF "エージェントの$phase $index/17" "$test_dir/err"; done
 done
-[[ $(grep -c '^エージェント [0-9]*/15（ID の準備' "$test_dir/err") == 16 ]]
+[[ $(grep -c '^エージェント [0-9]*/17（ID の準備' "$test_dir/err") == 18 ]]
 echo 'PASS progress: 15役のID準備・指示設定・公開を0から順に表示し、未公開のID準備を全体完了と表示しない'
 
-grep -qF "今回作った件数: エージェント 15 件、スクワッド 1 件、オートパイロット 0 件" "$test_dir/out"
-[[ $(jq -s 'length' "$TEST_DB"/agents/*.json) == 16 ]]
+grep -qF "今回作った件数: エージェント 17 件、スクワッド 1 件、オートパイロット 0 件" "$test_dir/out"
+[[ $(jq -s 'length' "$TEST_DB"/agents/*.json) == 18 ]]
 jq -es 'all(.[]|select(.name|startswith("demo-")); .permission_mode=="public_to" and (.instructions|contains("squad-a")) and (.instructions|contains("agent-demo-orchestrator-owner")) and (.instructions|contains("{{")|not))' "$TEST_DB"/agents/*.json >/dev/null
 printf 'example/project\nexample/second\nexample/third\n' >"$test_dir/expected-repos"
 cmp "$test_dir/expected-repos" "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a"
@@ -364,20 +364,20 @@ assert_no_final
 echo 'PASS project: スクワッド作成に失敗しても仮 ID を使わず、本指示・スキル・公開は反映しない'
 reset_db
 TEST_FAIL='agent create' deny
-grep -qF 'エージェント 0/15（ID の準備）' "$test_dir/err"
-! grep -qF 'エージェント 1/15（ID の準備' "$test_dir/err"
+grep -qF 'エージェント 0/17（ID の準備）' "$test_dir/err"
+! grep -qF 'エージェント 1/17（ID の準備' "$test_dir/err"
 [[ ! -f $TEST_DB/squad.json ]]
 assert_no_final
 echo 'PASS project: エージェント作成の失敗を成功扱いにせず、後続へ進まない'
 
 reset_db
-export TEST_EXCLUDED='["planner","designer","claude-implementer","claude-fixer","code-reviewer","ux-reviewer","security-reviewer","performance-reviewer","qa","ci-monitor","usage-monitor","dependabot-merger"]' TEST_ROLE_COUNT=3
+export TEST_EXCLUDED='["planner","designer","claude-implementer","claude-fixer","code-reviewer","ux-reviewer","security-reviewer","performance-reviewer","qa","ci-monitor","usage-monitor","dependabot-merger"]' TEST_ROLE_COUNT=5
 run
-[[ $(find "$TEST_DB/agents" -name 'agent-demo-*.json' | wc -l | tr -d ' ') == 3 ]]
+[[ $(find "$TEST_DB/agents" -name 'agent-demo-*.json' | wc -l | tr -d ' ') == 5 ]]
 ! jq -es 'any(.[]|select(.name|startswith("demo-")); .instructions|contains("demo-planner-owner"))' "$TEST_DB"/agents/*.json >/dev/null
-grep -qF 'エージェント 3/3（ID の準備' "$test_dir/err"
-grep -qF 'エージェントの公開 3/3' "$test_dir/err"
-echo 'PASS project: 最小構成では有効な3役だけを作り、外した役への参照がない'
+grep -qF 'エージェント 5/5（ID の準備' "$test_dir/err"
+grep -qF 'エージェントの公開 5/5' "$test_dir/err"
+echo 'PASS project: 最小構成では有効な5役だけを作り、外した役への参照がない'
 jq '.owner_id="another"' "$TEST_DB/agents/agent-demo-codex-fixer-owner.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/agents/agent-demo-codex-fixer-owner.json"
 : >"$TEST_DB/calls"
 deny
@@ -405,7 +405,7 @@ TEST_EXCLUDED='["unknown-role"]' deny
 echo 'PASS project: 未知の役を外す指定は書き込みより前に拒否する'
 
 reset_db
-export TEST_EXCLUDED='["codex-implementer","codex-fixer"]' TEST_ROLE_COUNT=13
+export TEST_EXCLUDED='["codex-implementer","codex-fixer"]' TEST_ROLE_COUNT=15
 run
 for role in code-reviewer ux-reviewer security-reviewer performance-reviewer; do
  jq -e '.model=="claude-sonnet-5-5" and .runtime_id=="runtime-claude"' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
@@ -436,7 +436,7 @@ TEST_RECHECK=yes TEST_RECHECK_AFTER_GUARD=yes TEST_GUARD_MARKER="$TEST_DB/guard-
 grep -q '別プロジェクトに紐付いたため許可できません: example/third' "$test_dir/err"
 echo 'PASS project: 関所の確認の通信中に他プロジェクトへ移った選択も、許可更新直前の再確認で拒否する'
 
-export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=17
 rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
 cp -R "$test_dir/completed/db" "$TEST_DB"
 cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"
@@ -474,7 +474,7 @@ run
 echo 'PASS squad: 表記の違う既存スクワッドの ID と名前を維持し、そのメンションを指示に入れる'
 
 # 同じエージェントを両方から片方へ移し、以前のランタイムの環境を残さない。
-export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=17
 rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
 cp -R "$test_dir/completed/db" "$TEST_DB"
 cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"
@@ -487,7 +487,7 @@ for selected in claude codex; do
  if [[ $selected == claude ]]; then absent=codex; expected=claude-sonnet-5-5; else absent=claude; expected=gpt-6.1-sol; fi
  : >"$TEST_DB/calls"
  run
- grep -qF 'エージェント 13 件の既存設定' "$test_dir/err"
+ grep -qF 'エージェント 14 件の既存設定' "$test_dir/err"
  grep -qF '今回作った件数: エージェント 0 件' "$test_dir/out"
  ! jq -es --arg prefix "agent-demo-$absent-" 'any(.[]; .[0]=="agent" and (.[2] // ""|startswith($prefix)))' "$TEST_DB/calls" >/dev/null
  for role in orchestrator planner designer qa code-reviewer security-reviewer ux-reviewer performance-reviewer ci-monitor usage-monitor dependabot-merger; do
@@ -499,6 +499,7 @@ for selected in claude codex; do
   if [[ $role == orchestrator ]]; then role_args='["--keep","value"]'; fi
   jq -e --arg selected "$selected" --argjson prefix "$role_args" '.custom_args==($prefix+(if $selected=="codex" then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end))' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
  done
+ jq -e --arg selected "$selected" --arg model "$(if [[ $selected == claude ]]; then echo claude-fable-5-2; else echo gpt-6-astra; fi)" '.model==$model and .runtime_id==("runtime-"+$selected) and .thinking_level=="high"' "$TEST_DB/agents/agent-demo-$selected-principal-owner.json" >/dev/null
  jq -e '.EXTRA=="keep"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
  if [[ $selected == codex ]]; then
   for role in orchestrator usage-monitor ci-monitor; do
