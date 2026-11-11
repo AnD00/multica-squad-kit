@@ -17,7 +17,7 @@ mkdir -p "$test_dir/monitor" "$test_dir/bin"
 cp "$root/common/monitor/squad-dispatch-pick" "$test_dir/monitor/"
 script=$test_dir/monitor/squad-dispatch-pick
 export DISPATCH_TEST_DIR=$test_dir
-for cmd in python3 bash dirname mkdir mktemp jq cat rm sed grep seq head; do
+for cmd in python3 bash dirname mkdir mktemp jq cat rm sed grep seq head ps tr; do
 	ln -s "$(command -v "$cmd")" "$test_dir/bin/$cmd"
 done
 cat >"$test_dir/bin/date" <<'MOCK'
@@ -215,6 +215,8 @@ if [[ -e "$DISPATCH_TEST_DIR/hang" ]]; then
 	# 子も壁時計では終わらず、読み取りのプロセスグループと一緒に止まる。
 	cat "$DISPATCH_TEST_DIR/timeout-hold" >/dev/null &
 	printf '%s\n' "$$" "$!" >"$DISPATCH_TEST_DIR/pids"
+	# 読み取りが自分のグループの先頭で、子も同じグループにいることを、時間切れの前に控える。
+	printf '%s\n' "$(ps -o pgid= -p "$$" | tr -d ' ')" "$(ps -o pgid= -p "$!" | tr -d ' ')" >"$DISPATCH_TEST_DIR/pgids"
 	printf 'ready\n' >"$DISPATCH_TEST_DIR/timeout-fifo"
 	wait
 fi
@@ -318,6 +320,9 @@ mkfifo "$test_dir/timeout-hold"
 touch "$test_dir/hang"
 run_pick 0 codex-implementer implement 小さな
 assert_line '使用率の読み取りが 90 秒で終わらなかった'
+reader_pid_recorded=$(sed -n 1p "$test_dir/pids")
+[[ $(sed -n 1p "$test_dir/pgids") == "$reader_pid_recorded" && $(sed -n 2p "$test_dir/pgids") == "$reader_pid_recorded" ]] \
+	|| { echo 'FAIL: 読み取りとその子が、読み取り自身のプロセスグループにいない' >&2; exit 1; }
 [[ $(wc -l <"$test_dir/timeout-ticks" | tr -d ' ') == 90 ]]
 while IFS= read -r pid; do
 	state=$(ps -o stat= -p "$pid" || true)
