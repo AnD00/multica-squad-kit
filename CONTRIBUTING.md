@@ -36,7 +36,7 @@ CI も同じコマンドを流す。
 bash tests/run.sh                            # 並べて流す
 SQUAD_KIT_TEST_JOBS=4 bash tests/run.sh      # 並列数を 4 にする
 SQUAD_KIT_TEST_JOBS=1 bash tests/run.sh      # 1 本ずつ流す
-bash tests/run.sh tests/project-test.sh      # 選んだファイルだけ流す
+bash tests/run.sh tests/project-create-test.sh   # 選んだファイルだけ流す
 SQUAD_KIT_TEST_SHARD=2/4 bash tests/run.sh   # 4 つに分けた 2 つ目だけ流す
 ```
 
@@ -47,7 +47,7 @@ SQUAD_KIT_TEST_SHARD=2/4 bash tests/run.sh   # 4 つに分けた 2 つ目だけ�
 CI は、テストをシャードごとのジョブに分けて流す。
 
 失敗したファイルのログは最後にまとめて出て、失敗した場所と直前に通ったケースが添えられる。  
-流している間の出力を見たいときは、`bash tests/project-test.sh` のようにファイルを直接流す。
+流している間の出力を見たいときは、`bash tests/project-create-test.sh` のようにファイルを直接流す。
 
 仕組みは、`tests/run.sh` の冒頭のコメントを参照する。
 

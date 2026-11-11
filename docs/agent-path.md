@@ -144,7 +144,7 @@ custom_env と custom_args は、エージェントの次の実行から効く�
 | --- | --- |
 | `tests/squad-preflight-test.sh`（新規） | すべて使えるとき 0 で終わること。`gh` が関所より後ろのとき、見張りが 1 つ欠けたときに、使えないものと直し方を出して 1 で終わること。確かめる見張りの一覧と `common/monitor/` の照らし合わせ |
 | `tests/shell-test.sh` | Claude Code のコマンドの組み立てをまねて、関所のない PATH を書き戻すスナップショットのあとに `env.sh` を読むと、`gh` が関所に、見張りが名前で解決すること。zsh と bash の両方 |
-| `tests/project-test.sh` | Claude のモデルの役にだけ `CLAUDE_ENV_FILE` が付くこと。Codex のモデルの役にだけ custom_args の 2 組が付き、ほかの引数を残すこと。既存の上書きを除いて重ねないこと。ランタイムを変えたときに付け外しすること。流し直しで変わらなければ書かないこと |
+| `tests/project-create-test.sh`・`tests/project-runtimes-test.sh` | Claude のモデルの役にだけ `CLAUDE_ENV_FILE` が付くこと。Codex のモデルの役にだけ custom_args の 2 組が付き、ほかの引数を残すこと。既存の上書きを除いて重ねないこと。ランタイムを変えたときに付け外しすること。流し直しで変わらなければ書かないこと |
 | `tests/agent-templates-test.sh` | リーダーと 3 つの見張りの指示、共通スキルに、確認の手順があること |
 
 実機では、認証済みのデーモンとランタイムで、次を確かめる。スタブでは、Claude Code と Codex の実際のコマンドの組み立てを確かめきれないため。

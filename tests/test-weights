@@ -1,12 +1,11 @@
 # ファイル 秒（macOS の CI での目安）
 # 追記と更新の決まりは CONTRIBUTING.md の「テストを書く決まり」を参照する。
-tests/project-test.sh 349
-tests/setup-runtimes-test.sh 332
 tests/squad-dependabot-merge-advance-ci-wait-test.sh 277
 tests/squad-dependabot-merge-advance-request-test.sh 238
 tests/squad-dependabot-merge-advance-diff-test.sh 236
 tests/squad-pr-watch-ci-test.sh 210
 tests/squad-dependabot-merge-escalate-test.sh 190
+tests/setup-runtimes-both-test.sh 182
 tests/project-followup-test.sh 155
 tests/squad-dependabot-merge-list-test.sh 142
 tests/squad-cli-lib-test.sh 133
@@ -17,16 +16,24 @@ tests/webhooks-test.sh 84
 tests/installation-test.sh 83
 tests/questions-ui-test.sh 83
 tests/squad-pr-watch-register-test.sh 79
+tests/setup-runtimes-codex-test.sh 76
+tests/setup-runtimes-claude-test.sh 74
 tests/squad-usage-check-test.sh 73
 tests/release-test.sh 70
+tests/project-failure-test.sh 70
 tests/squad-dependabot-merge-advance-gh-test.sh 67
+tests/project-create-test.sh 67
 tests/squad-pr-link-test.sh 66
 tests/squad-review-wait-contract-test.sh 66
+tests/project-environment-test.sh 63
 tests/squad-review-wait-status-test.sh 60
+tests/project-linking-test.sh 56
 tests/vm-guest-test.sh 54
+tests/project-select-test.sh 54
 tests/squad-usage-read-test.sh 51
 tests/squad-dispatch-pick-test.sh 45
 tests/host-test.sh 40
+tests/project-runtimes-test.sh 39
 tests/squad-preflight-test.sh 37
 tests/setup-issues-test.sh 31
 tests/project-issues-test.sh 29
