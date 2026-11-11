@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# install.sh の確かめ（gh のバージョン、証明、チェックサム、一覧、--verify、引数）と、取得・展開・セットアップの流し・片付けを、
-# スタブの gh と一時の置き場で確かめる。本物の GitHub には触れない。展開した setup.sh はスタブで、受けた引数を残す。
+# install.sh の確かめ（gh のバージョン、証明、チェックサム、一覧、--verify、引数、バージョンの省略、標準入力からの実行）と、
+# 取得・展開・セットアップの流し・片付けを、スタブの gh と一時の置き場で確かめる。本物の GitHub には触れない。展開した setup.sh はスタブで、受けた引数を残す。
 # 表示の部品は lib/ui.sh と同じかも照らす。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -17,6 +17,7 @@ default_gh_out=$'gh version 2.102.0 (2026-01-01)\nhttps://github.com/cli/cli/rel
 
 # スタブの gh は、--version で GH_VERSION_OUT を出し、呼び方を GH_LOG に 1 行で残す。
 # attestation verify は、GH_FAIL_ON に名前を渡したファイルの確かめだけが失敗する。
+# release view は、GH_LATEST の最新のタグを出す（GH_LATEST_FAIL で失敗）。
 # release download は、--pattern のファイルを GH_ASSETS から --dir へ写す（GH_DOWNLOAD_FAIL で失敗、GH_DOWNLOAD_EMPTY で何も写さず成功）。
 mkdir -p "$test_dir/bin"
 cat >"$test_dir/bin/gh" <<'STUB'
@@ -28,6 +29,14 @@ if [[ ${1:-} == --version ]]; then
 	exit 0
 fi
 echo "$*" >>"$GH_LOG"
+if [[ ${1:-} == release && ${2:-} == view ]]; then
+	[[ -z ${GH_LATEST_FAIL:-} ]] || {
+		echo 'stub: no release' >&2
+		exit 1
+	}
+	printf '%s\n' "$GH_LATEST"
+	exit 0
+fi
 if [[ ${1:-} == release && ${2:-} == download ]]; then
 	[[ -z ${GH_DOWNLOAD_FAIL:-} ]] || {
 		echo 'stub: release not found' >&2
@@ -188,23 +197,45 @@ write_sums() {
 }
 
 gh_out=$default_gh_out
-# run_install <引数...>: 終了コードを rc に置く。gh と tar の呼び方は $case_dir/gh.log と tar.log、展開した setup.sh のスタブの記録は setup.log に残る。
-# 一時の置き場は $case_dir/tmp の下に作らせる。標準入力は INSTALL_STDIN のファイル（なければ空）。
+# stub_env: スタブの gh・tar・uname と setup.sh のスタブを使う環境の指定を、配列 envs に置く。
+# 一時の置き場は $case_dir/tmp の下に作らせる。
 # 実行環境の BASH_ENV が PATH の先頭へ本物の gh を戻すことがあるので、外して、スタブを先に選ばせる。
-run_install() {
-	rc=0
+stub_env() {
+	mkdir -p "$case_dir/tmp"
+	envs=(env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" GH_LOG="$case_dir/gh.log" GH_ASSETS="$assets"
+		GH_VERSION_OUT="$gh_out" GH_VERSION_FAIL="${GH_VERSION_FAIL:-}" GH_FAIL_ON="${GH_FAIL_ON:-}"
+		GH_DOWNLOAD_FAIL="${GH_DOWNLOAD_FAIL:-}" GH_DOWNLOAD_EMPTY="${GH_DOWNLOAD_EMPTY:-}"
+		GH_LATEST="${GH_LATEST-$version}" GH_LATEST_FAIL="${GH_LATEST_FAIL:-}"
+		TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" PLANT="${PLANT:-}"
+		SETUP_LOG="$case_dir/setup.log" SETUP_EXIT="${SETUP_EXIT:-0}" SETUP_READ="${SETUP_READ:-}"
+		SETUP_SLEEP="${SETUP_SLEEP:-}" SETUP_STARTED="${SETUP_STARTED:-}"
+		FAKE_UNAME="${FAKE_UNAME:-}" REAL_UNAME="$real_uname")
+}
+# reset_logs: gh と tar の記録と、setup.sh のスタブの記録を空にする。
+reset_logs() {
 	: >"$case_dir/gh.log"
 	: >"$case_dir/tar.log"
 	rm -f "$case_dir/setup.log"
-	mkdir -p "$case_dir/tmp"
-	(cd "$case_dir" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" GH_LOG="$case_dir/gh.log" GH_ASSETS="$assets" \
-		GH_VERSION_OUT="$gh_out" GH_VERSION_FAIL="${GH_VERSION_FAIL:-}" GH_FAIL_ON="${GH_FAIL_ON:-}" \
-		GH_DOWNLOAD_FAIL="${GH_DOWNLOAD_FAIL:-}" GH_DOWNLOAD_EMPTY="${GH_DOWNLOAD_EMPTY:-}" \
-		TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" PLANT="${PLANT:-}" \
-		SETUP_LOG="$case_dir/setup.log" SETUP_EXIT="${SETUP_EXIT:-0}" SETUP_READ="${SETUP_READ:-}" \
-		SETUP_SLEEP="${SETUP_SLEEP:-}" SETUP_STARTED="${SETUP_STARTED:-}" \
-		FAKE_UNAME="${FAKE_UNAME:-}" REAL_UNAME="$real_uname" bash "$root/install.sh" "$@") \
+}
+# run_install <引数...>: 終了コードを rc に置く。gh と tar の呼び方は $case_dir/gh.log と tar.log、展開した setup.sh のスタブの記録は setup.log に残る。
+# 標準入力は INSTALL_STDIN のファイル（なければ空）。ファイルとして流す（bash install.sh）。
+run_install() {
+	rc=0
+	reset_logs
+	stub_env
+	(cd "$case_dir" && "${envs[@]}" bash "$root/install.sh" "$@") \
 		>"$case_dir/out" 2>"$case_dir/err" <"${INSTALL_STDIN:-/dev/null}" || rc=$?
+}
+# run_stdin <tty|notty> <引数...>: 入口を標準入力から流す（bash -s -- の引数、cat install.sh | bash と同じ）。終了コードを rc に置く。
+# tty は端末（/dev/tty）を使え、TTY_ANSWERS のファイルの中身が端末から読まれる。notty は端末を使えない。
+run_stdin() {
+	local tty_mode=$1
+	shift
+	rc=0
+	reset_logs
+	stub_env
+	(cd "$case_dir" && python3 -I "$root/tests/stdin-tty-run.py" "$tty_mode" "${INSTALL_SCRIPT:-$root/install.sh}" "${TTY_ANSWERS:-/dev/null}" \
+		"$case_dir/out" "$case_dir/err" -- "${envs[@]}" bash -s -- "$@") || rc=$?
 }
 # tar_extracts: 展開した回数。
 tar_extracts() { grep -c '^-xzf ' "$case_dir/tar.log" || true; }
@@ -417,7 +448,7 @@ expect_stop 1 '配布物の一覧を読めません'
 
 # 引数の誤り: 2 で終わり、使い方を出し、gh は呼ばない。
 new_case args
-for args in "" "--verify" "--verify $version" "--verify $version $assets extra" "$version --bogus" "--bogus" "$version --extension" "$version --extension a --extension b" "$version stray"; do
+for args in "--verify" "--verify $version" "--verify $version $assets extra" "$version --bogus" "--bogus" "$version --extension" "$version --extension a --extension b" "$version stray"; do
 	# shellcheck disable=SC2086
 	run_install $args
 	[[ $rc == 2 ]] || {
@@ -437,6 +468,8 @@ for bad in 1.6.0 v1.6 v1.6.0.1 v1.6.x 'v1.6.0 ' vv1.6.0; do
 	run_install --verify "$bad" "$assets"
 	[[ $rc == 2 ]]
 done
+run_install ''
+[[ $rc == 2 ]]
 run_install --verify "$version" ''
 [[ $rc == 2 ]]
 run_install "$version" --extension ''
@@ -545,6 +578,104 @@ new_case readonly-dir readonly-dir
 run_install "$version"
 [[ $rc == 0 ]]
 [[ -z $(ls -A "$case_dir/tmp") ]]
+
+# バージョンの省略: 最新を gh release view で 1 回だけ読み、使うバージョンとして出して、そのバージョンで取る。読み直さない。
+new_case latest
+run_install
+[[ $rc == 0 ]]
+[[ ! -s $case_dir/err ]]
+grep -qxF "使うバージョン: $version" "$case_dir/out"
+grep -qF "取得します: $version" "$case_dir/out"
+dl_dir=$(sed -n 's/.* --dir //p' "$case_dir/gh.log")
+{
+	echo '--version'
+	echo "release view --repo $repo_name --json tagName --jq .tagName"
+	echo "release download $version --repo $repo_name --pattern $asset --pattern SHA256SUMS --dir $dl_dir"
+	expected_call "$dl_dir/SHA256SUMS"
+	expected_call "$dl_dir/$asset"
+} >"$case_dir/expected.log"
+cmp "$case_dir/gh.log" "$case_dir/expected.log"
+[[ $(grep -c '^release view ' "$case_dir/gh.log") == 1 ]]
+[[ $(cat "$case_dir/setup.log") == "args:
+pwd:$case_dir" ]]
+[[ -z $(ls -A "$case_dir/tmp") ]]
+# 版を渡したときは、最新を読まない。
+run_install "$version"
+[[ $rc == 0 ]]
+! grep -q '^release view ' "$case_dir/gh.log"
+! grep -q '使うバージョン' "$case_dir/out"
+# 版を省いても、--extension は setup.sh へ渡る。
+run_install --extension ext
+[[ $rc == 0 ]]
+[[ $(cat "$case_dir/setup.log") == "args:--extension ext
+pwd:$case_dir" ]]
+# 最新を読めない、vX.Y.Z の形でない: 何も取らず、確かめも流しもせずに 1 で止まる。
+GH_LATEST_FAIL=1 run_install
+expect_stop 1 '最新のバージョンを読めませんでした'
+grep -qF 'stub: no release' "$case_dir/err"
+grep -qF 'gh auth status' "$case_dir/err"
+! grep -q '^release download ' "$case_dir/gh.log"
+not_run 0
+for bad_latest in '' latest v1.6 1.6.0 v1.6.0-rc1 'v1.6.0 x'; do
+	GH_LATEST=$bad_latest run_install
+	expect_stop 1 '最新の Release のバージョンが vX.Y.Z の形ではありません'
+	! grep -q '^release download ' "$case_dir/gh.log"
+	not_run 0
+done
+# --verify は、バージョンを省けない（最新を読まない）。
+run_install --verify
+[[ $rc == 2 ]]
+! grep -q '^release view ' "$case_dir/gh.log"
+
+# 標準入力から流す（cat install.sh | bash -s -- と同じ）: 端末から答えを読み、入口の残りを子のプロセスに読ませない。
+new_case stdin
+printf 'yes\n' >"$case_dir/answers"
+TTY_ANSWERS="$case_dir/answers" SETUP_READ=1 run_stdin tty
+[[ $rc == 0 ]]
+[[ ! -s $case_dir/err ]]
+grep -qxF "使うバージョン: $version" "$case_dir/out"
+grep -qxF 'stdin:yes' "$case_dir/setup.log"
+[[ $(grep -c '^release view ' "$case_dir/gh.log") == 1 ]]
+[[ $(sed -n 's/^args://p' "$case_dir/setup.log") == '' && $(grep -c '^release download ' "$case_dir/gh.log") == 1 ]]
+[[ -z $(ls -A "$case_dir/tmp") ]]
+# bash -s -- のあとの引数（版と拡張）が届く。
+TTY_ANSWERS="$case_dir/answers" SETUP_READ=1 run_stdin tty "$version" --extension ext
+[[ $rc == 0 ]]
+! grep -q '^release view ' "$case_dir/gh.log"
+grep -qxF 'args:--extension ext' "$case_dir/setup.log"
+grep -qxF 'stdin:yes' "$case_dir/setup.log"
+# 引数の誤りと --help は、標準入力から流しても同じ（端末は要らない）。
+run_stdin notty --bogus
+[[ $rc == 2 ]]
+grep -qF '使い方:' "$case_dir/err"
+run_stdin notty --help
+[[ $rc == 0 ]]
+grep -qF '使い方:' "$case_dir/out"
+# setup.sh の終了コードで終わり、一時の置き場を消す。
+SETUP_EXIT=7 run_stdin tty
+[[ $rc == 7 && -z $(ls -A "$case_dir/tmp") ]]
+# 端末を開けないときは、取得の前に、ファイルに取ってから流すことを出して 1 で止まる。
+run_stdin notty
+expect_stop 1 '端末（/dev/tty）を開けません'
+grep -qF 'bash install.sh' "$case_dir/err"
+[[ $(cat "$case_dir/gh.log") == '--version' ]]
+not_run 0
+# --verify は、セットアップを流さないので、端末がなくても確かめられる。
+run_stdin notty --verify "$version" "$assets"
+[[ $rc == 0 ]]
+grep -qF '展開も実行もしていません' "$case_dir/out"
+# ファイルとして流すときは、端末を確かめず、標準入力をそのまま setup.sh へ渡す（上の「質問に答えられるよう」と同じ）。
+# 最後の行（main の呼び出し）が欠けた入口は、何も取らず、何も流さない。
+sed '$d' "$root/install.sh" >"$case_dir/truncated.sh"
+[[ $(tail -n 1 "$root/install.sh") == 'main "$@"' && $(wc -l <"$case_dir/truncated.sh") -eq $(($(wc -l <"$root/install.sh") - 1)) ]]
+TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/truncated.sh" run_stdin tty
+[[ $rc == 0 && ! -s $case_dir/out && ! -s $case_dir/err && ! -s $case_dir/gh.log ]]
+not_run 0
+# 途中で切れた入口（関数の途中まで）は、構文の誤りで止まり、何も取らない。
+head -n "$(($(grep -n '^main() {' "$root/install.sh" | cut -d: -f1) + 3))" "$root/install.sh" >"$case_dir/cut.sh"
+TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/cut.sh" run_stdin tty
+[[ $rc != 0 && ! -s $case_dir/gh.log ]]
+not_run 0
 
 # 取得できない: gh の出した理由と gh auth status の確認を出して 1 で止まる。確かめも展開も流しもしない。取り直さない。
 new_case fetch-fail
@@ -660,4 +791,4 @@ new_case ui
 gh_out=garbage run_install --verify "$version" "$assets"
 grep -q '^エラー: ' "$case_dir/err"
 ! grep -q $'\033' "$case_dir/err"
-echo 'PASS install: gh のバージョン・証明・チェックサム・一覧・--verify・引数・取得・展開・setup.sh の流し・片付けを、スタブの gh と一時の置き場で確かめた。表示の部品は lib/ui.sh と揃っている'
+echo 'PASS install: gh のバージョン・証明・チェックサム・一覧・--verify・引数・バージョンの省略・標準入力からの実行・取得・展開・setup.sh の流し・片付けを、スタブの gh と一時の置き場で確かめた。表示の部品は lib/ui.sh と揃っている'

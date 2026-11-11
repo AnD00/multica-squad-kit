@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 # clone せずに導入・更新する入口。Release の配布物を確かめてから展開し、セットアップを流す。
-# 設計は docs/install.md の「入口のスクリプト」。1 ファイルで動き、原本のほかのファイルを読まない。bash 3.2 で動かす。
+# 設計は docs/install.md の「入口のスクリプト」「標準入力から流すとき」。1 ファイルで動き、原本のほかのファイルを読まない。bash 3.2 で動かす。
+# curl ... | bash のように標準入力から流されても動くよう、処理はすべて関数に入れ、最後の行の main だけで流し始める。
 set -euo pipefail
+
+# 標準入力から流されているか。ファイルとして流すと BASH_SOURCE[0] にパスが入る。関数の中では見分けられないので、関数の外で決める。
+if [[ -z ${BASH_SOURCE[0]-} ]]; then from_stdin=yes; else from_stdin=no; fi
 
 repo=AnD00/multica-squad-kit
 signer_workflow=$repo/.github/workflows/release-assets.yml
@@ -59,10 +63,11 @@ ui_init
 usage() {
 	cat <<'USAGE'
 使い方:
-  bash install.sh <バージョン> [--extension <拡張のディレクトリ>]
+  bash install.sh [<バージョン>] [--extension <拡張のディレクトリ>]
   bash install.sh --verify <バージョン> <置き場>
   bash install.sh --help
-<バージョン> は vX.Y.Z の形で渡す。
+<バージョン> は vX.Y.Z の形で渡す。省いたときは、最新の Release のバージョンを使う。
+標準入力から流すときは、bash -s -- のあとに引数を渡す。セットアップの質問には、端末（/dev/tty）から答える。
 --verify は、置き場にある配布物と SHA256SUMS を確かめるだけで、展開も実行もしない。
 USAGE
 }
@@ -197,6 +202,8 @@ verify_assets() {
 	check_listing "$dir/$asset" "$version"
 }
 
+version_re='^v[0-9]+\.[0-9]+\.[0-9]+$'
+
 # 一時の置き場。取得、展開、セットアップの流しのすべてを、この下に置く。
 work_dir=
 cleanup() {
@@ -228,6 +235,32 @@ check_extracted() {
 	[[ -f $top/setup.sh ]] || stop "展開したものに setup.sh がありません。"
 }
 
+# check_tty: 標準入力から流されているときは、セットアップの質問に端末から答えられるか、取得の前に確かめる。
+check_tty() {
+	[[ $from_stdin == yes ]] || return 0
+	{ : </dev/tty; } 2>/dev/null || stop "端末（/dev/tty）を開けません。セットアップの質問に答えられないので、何も取らずに止まります。入口をファイルに取ってから bash install.sh で流してください。"
+}
+
+# latest_version: 最新の Release のバージョンを 1 回だけ読み、vX.Y.Z の形かを確かめて出す。
+latest_version() {
+	local result
+	result=$(gh release view --repo "$repo" --json tagName --jq .tagName </dev/null) \
+		|| stop "最新のバージョンを読めませんでした。gh のログインは gh auth status で確かめられます。バージョンを指定して流すこともできます。"
+	[[ $result =~ $version_re ]] || stop "最新の Release のバージョンが vX.Y.Z の形ではありません: $result"
+	printf '%s\n' "$result"
+}
+
+# run_setup <setup.sh> [引数...]: セットアップを子のプロセスとして流す。標準入力から流されているときは、標準入力が入口の残りなので、質問を端末から読ませる。
+run_setup() {
+	local setup=$1
+	shift
+	if [[ $from_stdin == yes ]]; then
+		bash "$setup" "$@" </dev/tty
+	else
+		bash "$setup" "$@"
+	fi
+}
+
 # install_release <バージョン> [拡張のディレクトリ]: 取得、確かめ、展開、確かめ、セットアップの順に行う。
 # セットアップが終わったときはその終了コードで、止まったときは 1 で終わる。
 install_release() {
@@ -247,57 +280,73 @@ install_release() {
 	check_extracted "$work_dir/src" "$version"
 	echo "セットアップを流します。"
 	if [[ -n $extension ]]; then
-		bash "$work_dir/src/multica-squad-kit-$version/setup.sh" --extension "$extension" || setup_rc=$?
+		run_setup "$work_dir/src/multica-squad-kit-$version/setup.sh" --extension "$extension" || setup_rc=$?
 	else
-		bash "$work_dir/src/multica-squad-kit-$version/setup.sh" || setup_rc=$?
+		run_setup "$work_dir/src/multica-squad-kit-$version/setup.sh" || setup_rc=$?
 	fi
 	exit "$setup_rc"
 }
 
-# 引数を読む。
+# parse_args <引数...>: 引数を読んで、mode・version・have_version・place・extension を決める。バージョンは最初の引数にだけ置ける。
 mode=install
 version=
+have_version=no
 place=
 extension=
-case ${1-} in
---help | -h)
-	[[ $# -eq 1 ]] || usage_error '--help に、ほかの引数は付けられません。'
-	usage
-	exit 0
-	;;
---verify)
-	[[ $# -eq 3 ]] || usage_error '--verify は、バージョンと置き場の 2 つを渡してください。'
-	mode=verify
-	version=$2
-	place=$3
-	[[ -n $place ]] || usage_error '置き場が空です。'
-	;;
-'') usage_error 'バージョンを渡してください。' ;;
--*) usage_error "知らない指定です: $1" ;;
-*)
-	version=$1
-	shift
-	while [[ $# -gt 0 ]]; do
-		case $1 in
-		--extension)
-			[[ $# -ge 2 && -z $extension ]] || usage_error '--extension は、拡張のディレクトリを 1 つだけ渡してください。'
-			[[ -n $2 ]] || usage_error '拡張のディレクトリが空です。'
-			extension=$2
-			shift 2
-			;;
-		*) usage_error "知らない指定です: $1" ;;
-		esac
-	done
-	;;
-esac
-version_re='^v[0-9]+\.[0-9]+\.[0-9]+$'
-[[ $version =~ $version_re ]] || usage_error "バージョンは vX.Y.Z の形で渡してください: $version"
+parse_args() {
+	case ${1-} in
+	--help | -h)
+		[[ $# -eq 1 ]] || usage_error '--help に、ほかの引数は付けられません。'
+		usage
+		exit 0
+		;;
+	--verify)
+		[[ $# -eq 3 ]] || usage_error '--verify は、バージョンと置き場の 2 つを渡してください。'
+		mode=verify
+		version=$2
+		have_version=yes
+		place=$3
+		[[ -n $place ]] || usage_error '置き場が空です。'
+		;;
+	*)
+		if [[ $# -gt 0 && $1 != -* ]]; then
+			version=$1
+			have_version=yes
+			shift
+		fi
+		while [[ $# -gt 0 ]]; do
+			case $1 in
+			--extension)
+				[[ $# -ge 2 && -z $extension ]] || usage_error '--extension は、拡張のディレクトリを 1 つだけ渡してください。'
+				[[ -n $2 ]] || usage_error '拡張のディレクトリが空です。'
+				extension=$2
+				shift 2
+				;;
+			*) usage_error "知らない指定です: $1" ;;
+			esac
+		done
+		;;
+	esac
+	if [[ $have_version == yes ]]; then
+		[[ $version =~ $version_re ]] || usage_error "バージョンは vX.Y.Z の形で渡してください: $version"
+	fi
+}
 
-check_tools
-check_gh_version
-if [[ $mode == verify ]]; then
-	verify_assets "$version" "$place"
-	ui_line out success "確かめが通りました: ${version}（SHA256SUMS と配布物の証明、チェックサム、一覧）。展開も実行もしていません。"
-	exit 0
-fi
-install_release "$version" "$extension"
+main() {
+	parse_args "$@"
+	check_tools
+	check_gh_version
+	if [[ $mode == verify ]]; then
+		verify_assets "$version" "$place"
+		ui_line out success "確かめが通りました: ${version}（SHA256SUMS と配布物の証明、チェックサム、一覧）。展開も実行もしていません。"
+		exit 0
+	fi
+	check_tty
+	if [[ $have_version == no ]]; then
+		version=$(latest_version)
+		echo "使うバージョン: $version"
+	fi
+	install_release "$version" "$extension"
+}
+
+main "$@"
