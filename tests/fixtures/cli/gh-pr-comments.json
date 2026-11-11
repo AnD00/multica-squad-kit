@@ -1,0 +1,50 @@
+[
+  [
+    {
+      "url": "https://example.invalid/fixture",
+      "html_url": "https://example.invalid/fixture",
+      "issue_url": "https://example.invalid/fixture",
+      "id": 517202238,
+      "node_id": "MDEyOklzc3VlQ29tbWVudDUxNzIwMjIzOA==",
+      "user": {
+        "login": "fixture-user",
+        "id": 1130014,
+        "node_id": "MDQ6VXNlcjExMzAwMTQ=",
+        "avatar_url": "https://example.invalid/fixture",
+        "gravatar_id": "",
+        "url": "https://example.invalid/fixture",
+        "html_url": "https://example.invalid/fixture",
+        "followers_url": "https://example.invalid/fixture",
+        "following_url": "https://example.invalid/fixture",
+        "gists_url": "https://example.invalid/fixture",
+        "starred_url": "https://example.invalid/fixture",
+        "subscriptions_url": "https://example.invalid/fixture",
+        "organizations_url": "https://example.invalid/fixture",
+        "repos_url": "https://example.invalid/fixture",
+        "events_url": "https://example.invalid/fixture",
+        "received_events_url": "https://example.invalid/fixture",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "created_at": "2019-08-01T09:18:52Z",
+      "updated_at": "2019-08-01T09:18:52Z",
+      "body": "fixture",
+      "author_association": "CONTRIBUTOR",
+      "reactions": {
+        "url": "https://example.invalid/fixture",
+        "total_count": 0,
+        "+1": 0,
+        "-1": 0,
+        "laugh": 0,
+        "hooray": 0,
+        "confused": 0,
+        "heart": 0,
+        "rocket": 0,
+        "eyes": 0
+      },
+      "performed_via_github_app": null,
+      "minimized": null
+    }
+  ]
+]

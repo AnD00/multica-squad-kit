@@ -100,6 +100,15 @@ dispatch_error_reason() {
 	'codex app-server の応答に週の枠がない') echo 'codex の応答に週の枠がない' ;;
 	'codex app-server の使用率・リセット時刻・利用可否を読めなかった')
 		echo 'codex の使用率・リセット時刻・利用可否を読めなかった' ;;
+	'CLI の出力に欄がありません: codex-rate-limits '*|'CLI の出力の欄が null です: codex-rate-limits '*)
+		# CLI の値や要素名は出さず、宣言した欄名だけを代わりの決まりの理由に残す。
+		local field fields=
+		for field in ordinaryUsageAllowed rateLimitsByLimitId rateLimits.rateLimitReachedType \
+			primary secondary primary.windowDurationMins primary.usedPercent primary.resetsAt \
+			secondary.windowDurationMins secondary.usedPercent secondary.resetsAt; do
+			if [[ $1 == *"${field}（"* ]]; then fields+="${fields:+、}$field"; fi
+		done
+		echo "codex の使用量の欄を読めなかった（${fields:-不明}）" ;;
 	*) echo '使用率の読み取りに失敗した' ;;
 	esac
 }

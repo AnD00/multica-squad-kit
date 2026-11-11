@@ -7,6 +7,7 @@
 # macOS の bash 3.2 でも動くよう、連想配列は使わない。
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/squad-pr-link-lib"
+source "$(dirname "${BASH_SOURCE[0]}")/squad-cli-lib"
 
 RUN_SECONDS=14400
 
@@ -91,18 +92,20 @@ ecosystem_of() {
 }
 
 required_checks() {
-	gh api "repos/$REPO/rules/branches/main" --paginate | jq -se 'add
+	local rules
+	rules=$(squad_cli_read gh-branch-rules "repos/$REPO/rules/branches/main") || return 1
+	jq -e ' .
 		| [.[] | select(.type == "required_status_checks") | .parameters.required_status_checks[]
 			| {context, integration_id}] | unique
 		| if all(.[]; (.context | type) == "string" and (.context | length) > 0) then .
-		  else error("必須チェックの名前を確認できません") end'
+		  else error("必須チェックの名前を確認できません") end' <<<"$rules"
 }
 
 list_prs() {
-	local prs required numbers number pr eligible head message ecosystem files kind checks statuses ci results='[]'
+	local prs required numbers number pr eligible head message ecosystem files kind checks statuses ci commit current_head results='[]'
 	# REST の dependabot[bot] は、gh pr view の app/dependabot と同じ作者。
 	# 検索の件数上限に頼らず、開いている PR の全ページを読む。
-	prs=$(gh api "repos/$REPO/pulls?state=open&per_page=100" --paginate | jq -s 'add
+	prs=$(squad_cli_read gh-dependabot-pulls "repos/$REPO/pulls?state=open&per_page=100" | jq ' .
 		| [.[] | select(.state == "open" and .user.type == "Bot" and .user.login == "dependabot[bot]")]
 		| sort_by(.number)')
 	if [[ $(jq length <<<"$prs") == 0 ]]; then
@@ -112,25 +115,27 @@ list_prs() {
 	required=$(required_checks)
 	numbers=$(jq -r '.[].number' <<<"$prs")
 	while IFS= read -r number; do
-		pr=$(gh pr view "$number" --repo "$REPO" --json number,title,author,state,headRefOid,headRefName,mergeable)
+		pr=$(squad_cli_read gh-dependabot-pr "$number" "$REPO")
 		# 一覧を取ったあとに閉じた PR は扱わない。
 		eligible=$(jq -r '.state == "OPEN" and .author.is_bot == true and .author.login == "app/dependabot"' <<<"$pr")
 		[[ $eligible == true ]] || continue
 		head=$(jq -er '.headRefOid | select(test("^[a-fA-F0-9]{40}$"))' <<<"$pr")
-		message=$(gh api "repos/$REPO/commits/$head" | jq -er '.commit.message | select(type == "string")')
+		commit=$(squad_cli_read gh-commit "repos/$REPO/commits/$head")
+		message=$(jq -er '.commit.message | select(type == "string")' <<<"$commit")
 		ecosystem=$(ecosystem_of "$(jq -r .headRefName <<<"$pr")")
 		files='[]'
 		if [[ $ecosystem == docker || $ecosystem == docker-compose ]]; then
-			files=$(gh api "repos/$REPO/pulls/$number/files?per_page=100" --paginate | jq -s add)
+			files=$(squad_cli_read gh-pr-files "repos/$REPO/pulls/$number/files?per_page=100")
 			# files は PR 番号の API なので、取得中に head が変わったら分類しない。
-			[[ $(gh pr view "$number" --repo "$REPO" --json headRefOid --jq .headRefOid) == "$head" ]] || {
+			current_head=$(read_head "$number") || return 1
+			[[ $current_head == "$head" ]] || {
 				echo "PR #${number} の head が変わりました。list をやり直してください。" >&2
 				return 1
 			}
 		fi
 		kind=$(update_type "$message" "$ecosystem" "$files")
-		checks=$(gh api "repos/$REPO/commits/$head/check-runs?filter=latest&per_page=100" --paginate | jq -s '[.[].check_runs[]]')
-		statuses=$(gh api "repos/$REPO/commits/$head/statuses?per_page=100" --paginate | jq -s add)
+		checks=$(squad_cli_read gh-check-runs "repos/$REPO/commits/$head/check-runs?filter=latest&per_page=100" | jq .check_runs)
+		statuses=$(squad_cli_read gh-statuses "repos/$REPO/commits/$head/statuses?per_page=100")
 		ci=$(required_ci "$required" "$checks" "$statuses")
 		results=$(jq --argjson pr "$pr" --arg ecosystem "$ecosystem" --arg kind "$kind" --arg ci "$ci" '. + [{
 			number: $pr.number, title: $pr.title, head_sha: $pr.headRefOid,
@@ -141,10 +146,18 @@ list_prs() {
 }
 
 read_commit() {
-	gh api "repos/$REPO/commits/$1" --paginate | jq -se '{
-		message: (.[0].commit.message | select(type == "string")),
-		committed_at: (.[0].commit.committer.date | fromdateiso8601), files: [.[].files[]?]
-	}'
+	local response
+	response=$(squad_cli_read gh-commit "repos/$REPO/commits/$1") || return 1
+	jq -e '{
+		message: (.commit.message | select(type == "string")),
+		committed_at: (.commit.committer.date | fromdateiso8601)
+	}' <<<"$response"
+}
+
+read_head() {
+	local response
+	response=$(squad_cli_read gh-pr-head "$1" "$REPO") || return 1
+	jq -er '.headRefOid' <<<"$response"
 }
 
 outcome() { printf '%s\n%s\n' "$1" "$2"; }
@@ -152,12 +165,13 @@ outcome() { printf '%s\n%s\n' "$1" "$2"; }
 # PR 番号から取る差分が、指定した head のものかも確かめる。
 # 文脈は残し、rebase で変わる blob のハッシュと hunk の行番号だけを除く。
 # 戻り値: 0 はハッシュを出力、1 は差分を取得できない、2 はバイナリを含みハッシュで比べられない、
-# 3 は取得中に head が変わった（または確かめられない）。
+# 3 は取得中に head が変わった。4 は head の読み取りが失敗した。
 pr_diff_hash() {
-	local number=$1 head=$2 diff normalized binary_lines
-	diff=$(gh api "repos/$REPO/pulls/$number" -H 'Accept: application/vnd.github.diff') || return 1
+	local number=$1 head=$2 diff normalized binary_lines current_head
+	diff=$(gh api "repos/$REPO/pulls/$number" -H 'Accept: application/vnd.github.diff' 2>/dev/null) || return 1
 	[[ $diff == 'diff --git '* ]] || return 1
-	[[ $(gh pr view "$number" --repo "$REPO" --json headRefOid --jq .headRefOid) == "$head" ]] || return 3
+	current_head=$(read_head "$number") || return 4
+	[[ $current_head == "$head" ]] || return 3
 	# バイナリは本文が差分に含まれず、blob の ID も消すので、内容が変わっても同じハッシュになる。
 	# grep -q は最初の一致で終わり、後ろが大きいと printf が SIGPIPE で落ちて pipefail が効くため、-c で最後まで読む。
 	binary_lines=$(printf '%s\n' "$diff" | grep -Ec '^(Binary files .* differ|GIT binary patch)$' || true)
@@ -167,10 +181,11 @@ pr_diff_hash() {
 }
 
 read_requests() {
-	local number=$1 run_start=$2 viewer comments
-	viewer=$(gh api user --jq .login)
+	local number=$1 run_start=$2 viewer comments account
+	account=$(squad_cli_read gh-viewer) || return 1
+	viewer=$(jq -er .login <<<"$account") || return 1
 	[[ -n $viewer ]] || { echo 'コメントの作者を確認できません。' >&2; return 1; }
-	comments=$(gh api "repos/$REPO/issues/$number/comments?per_page=100" --paginate | jq -s add)
+	comments=$(squad_cli_read gh-pr-comments "repos/$REPO/issues/$number/comments?per_page=100") || return 1
 	jq -c --arg viewer "$viewer" --argjson start "$run_start" '
 		[.[] | select(.user.login == $viewer and (.created_at | fromdateiso8601) >= $start
 			and ((.body | split("\n")[0]) == "@dependabot rebase"
@@ -183,7 +198,7 @@ read_requests() {
 advance() {
 	local number=${1:-} reviewed='' run_deadline='' retry=false arg now deadline call_deadline run_start ci_start
 	local pr head ecosystem commit message files kind required checks statuses ci mergeable merge_state
-	local requests request requested_head requested_at request_count retry_used retry_request body result pause reviewed_hash diff_hash diff_status
+	local requests request requested_head requested_at request_count retry_used retry_request body result pause reviewed_hash diff_hash diff_status current_head
 	[[ $number =~ ^[1-9][0-9]*$ ]] || usage
 	shift
 	while (($#)); do
@@ -201,7 +216,7 @@ advance() {
 	call_deadline=$((now + 300))
 	while :; do
 		requests=''
-		pr=$(gh pr view "$number" --repo "$REPO" --json number,author,state,isDraft,baseRefName,headRefOid,headRefName,mergeable,mergeStateStatus)
+		pr=$(squad_cli_read gh-dependabot-pr "$number" "$REPO")
 		if [[ $(jq -r '.state == "OPEN" and .author.is_bot == true and .author.login == "app/dependabot"
 			and .baseRefName == "main" and .isDraft == false' <<<"$pr") != true ]]; then
 			echo 'main 向けの、開いている Dependabot の通常の PR だけを進められます。' >&2
@@ -217,7 +232,9 @@ advance() {
 			if [[ -z $reviewed_hash ]]; then
 				outcome changed '確認済みの差分のハッシュがありません。この head の PR の差分を確認し直してください。'; return
 			fi
-			if ! diff_hash=$(pr_diff_hash "$number" "$head" 2>/dev/null); then
+			if diff_hash=$(pr_diff_hash "$number" "$head"); then :; else
+				diff_status=$?
+				((diff_status != 4)) || return 1
 				outcome changed '差分を取得できない、バイナリを含む、または取得中に head が変わりました。確認し直してください。'; return
 			fi
 			if [[ $diff_hash != "$reviewed_hash" ]]; then
@@ -230,8 +247,9 @@ advance() {
 		message=$(jq -r .message <<<"$commit")
 		files='[]'
 		if [[ $ecosystem == docker || $ecosystem == docker-compose ]]; then
-			files=$(gh api "repos/$REPO/pulls/$number/files?per_page=100" --paginate | jq -s add)
-			if [[ $(gh pr view "$number" --repo "$REPO" --json headRefOid --jq .headRefOid) != "$head" ]]; then
+			files=$(squad_cli_read gh-pr-files "repos/$REPO/pulls/$number/files?per_page=100")
+			current_head=$(read_head "$number") || return 1
+			if [[ $current_head != "$head" ]]; then
 				outcome changed '差分の取得中に head が変わりました。確認し直してください。'; return
 			fi
 		fi
@@ -243,8 +261,8 @@ advance() {
 		mergeable=$(jq -r .mergeable <<<"$pr")
 		merge_state=$(jq -r .mergeStateStatus <<<"$pr")
 		required=$(required_checks)
-		checks=$(gh api "repos/$REPO/commits/$head/check-runs?filter=latest&per_page=100" --paginate | jq -s '[.[].check_runs[]]')
-		statuses=$(gh api "repos/$REPO/commits/$head/statuses?per_page=100" --paginate | jq -s add)
+		checks=$(squad_cli_read gh-check-runs "repos/$REPO/commits/$head/check-runs?filter=latest&per_page=100" | jq .check_runs)
+		statuses=$(squad_cli_read gh-statuses "repos/$REPO/commits/$head/statuses?per_page=100")
 		ci=$(required_ci "$required" "$checks" "$statuses")
 		if [[ $ci == failure ]]; then outcome ci-failed '追従後の必須 CI に失敗があります。'; return; fi
 		if [[ $ci == success && $mergeable == MERGEABLE && $merge_state != BEHIND && $merge_state != UNKNOWN && $merge_state != null ]]; then
@@ -287,7 +305,8 @@ advance() {
 			if ((request_count >= 3)); then outcome behind-limit 'この実行で 3 回依頼しても main に追いつけませんでした。'; return; fi
 			if ((now >= run_deadline)); then outcome run-timeout '実行全体の締め切りに達しました。'; return; fi
 			# head が安定したまま比べられない差分は、ハッシュなしで依頼する。反映後は必ず確認し直す。
-			if diff_hash=$(pr_diff_hash "$number" "$head" 2>/dev/null); then diff_status=0; else diff_status=$?; fi
+			if diff_hash=$(pr_diff_hash "$number" "$head"); then diff_status=0; else diff_status=$?; fi
+			((diff_status != 4)) || return 1
 			if ((diff_status == 3)); then
 				outcome changed '取得中に head が変わりました。確認し直してください。'; return
 			fi
@@ -329,7 +348,7 @@ advance() {
 # 既存の担当・状態は、人間が変えていることがあるので触らない。
 escalation_label() {
 	local id=$1 label=$2 labels
-	labels=$(multica issue label list "$id" --output json)
+	labels=$(squad_cli_read issue-labels "$id")
 	if [[ $(jq -r --arg label "$label" 'any(.[]; .id == $label)' <<<"$labels") != true ]]; then
 		if multica issue label add "$id" "$label" --output json >/dev/null; then
 			:
@@ -346,7 +365,7 @@ escalation_label() {
 # 失敗してもタスクは人間に渡せるので止めず、次に同じ PR を回すときに補う。
 link_pull_request() {
 	local id=$1 identifier=$2 url=$3 metadata
-	if metadata=$(multica issue metadata list "$id" --output json) && jq -e 'type == "object"' <<<"$metadata" >/dev/null; then
+	if metadata=$(squad_cli_read issue-metadata "$id") && jq -e 'type == "object"' <<<"$metadata" >/dev/null; then
 		if pr_link_pull_request "$id" "$url" "$metadata"; then return; fi
 	fi
 	echo "タスク ${identifier} に PR を紐付けられませんでした。次に同じ PR を回すときに補います。急ぐときはタスクの画面で ${url} を紐付けてください。" >&2
@@ -355,9 +374,9 @@ link_pull_request() {
 escalate() {
 	(($# == 4)) || usage
 	local number=$1 source=$2 assignee=$4 search matches issue label member member_id member_name pr title body id identifier
-	local project=$PROJECT search_limit=1000
+	local project=$PROJECT search_limit=1000 labels members
 	[[ $number =~ ^[1-9][0-9]*$ && $3 == --assignee && -n $assignee && -f $source && -r $source && -s $source ]] || usage
-	search=$(multica issue search "$REPO#$number" --include-closed --limit "$search_limit" --output json)
+	search=$(squad_cli_read issue-search "$REPO#$number" --limit "$search_limit")
 	matches=$(jq -ce --arg suffix "（${REPO}#${number}）" --arg project "$project" '
 		if (.issues | type) != "array" then error("タスクの検索結果を確認できません")
 		else [.issues[] | select(.project_id == $project and (.title | endswith($suffix)))] | sort_by(.created_at, .id) end' <<<"$search")
@@ -366,9 +385,10 @@ escalate() {
 		echo 'タスクの検索結果が上限に達しました。重複がないと確認できないため作成しません。' >&2
 		return 1
 	fi
-	label=$(multica label list --output json | jq -er '[.[] | select(.name == "運用" and (.resource_type // "issue") == "issue")]
+	labels=$(squad_cli_read label-list)
+	label=$(jq -er '[.[] | select(.name == "運用" and .resource_type == "issue")]
 		| if length == 1 then .[0].id else error("運用ラベルを一意に見つけられません") end
-		| select(type == "string" and length > 0)')
+		| select(type == "string" and length > 0)' <<<"$labels")
 	if [[ $(jq length <<<"$matches") != 0 ]]; then
 		id=$(jq -er '.[0].id | select(type == "string" and length > 0)' <<<"$matches")
 		identifier=$(jq -er '.[0].identifier | select(type == "string" and length > 0)' <<<"$matches")
@@ -378,12 +398,13 @@ escalate() {
 		return
 	fi
 	# 名前のあいまいな解決でスクワッドやエージェントを担当にしない。
-	member=$(multica workspace member list --output json | jq -ce --arg assignee "$assignee" '
+	members=$(squad_cli_read member-list)
+	member=$(jq -ce --arg assignee "$assignee" '
 		[.[] | select(.name == $assignee or .email == $assignee)]
-		| if length == 1 then .[0] else error("担当のメンバーを一意に見つけられません") end')
+		| if length == 1 then .[0] else error("担当のメンバーを一意に見つけられません") end' <<<"$members")
 	member_id=$(jq -er '.user_id | select(type == "string" and test("^[A-Za-z0-9-]+$"))' <<<"$member")
 	member_name=$(jq -er '.name | select(type == "string" and length > 0)' <<<"$member")
-	pr=$(gh pr view "$number" --repo "$REPO" --json title,state,author)
+	pr=$(squad_cli_read gh-dependabot-pr "$number" "$REPO")
 	if [[ $(jq -r '.state == "OPEN" and .author.is_bot == true and .author.login == "app/dependabot"' <<<"$pr") != true ]]; then
 		echo '開いている Dependabot の PR だけを人間に回せます。' >&2
 		return 1
@@ -396,8 +417,8 @@ escalate() {
 		printf '[@%s](mention://member/%s)\n\nPR: https://github.com/%s/pull/%s\n\n' "$member_name" "$member_id" "$REPO" "$number"
 		cat "$source"
 	} >"$body"
-	issue=$(multica issue create --title "Dependabot の PR を確認する: ${title}（${REPO}#${number}）" \
-		--description-file "$body" --project "$project" --assignee-id "$member_id" --status in_review --output json)
+	issue=$(squad_cli_read issue-create "Dependabot の PR を確認する: ${title}（${REPO}#${number}）" "$body" \
+		--project "$project" --assignee-id "$member_id" --status in_review)
 	id=$(jq -er '.id | select(type == "string" and length > 0)' <<<"$issue")
 	identifier=$(jq -er '.identifier | select(type == "string" and length > 0)' <<<"$issue")
 	escalation_label "$id" "$label"

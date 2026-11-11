@@ -1,0 +1,14 @@
+[
+  [
+    {
+      "avatar_url": "https://example.invalid/avatar",
+      "created_at": "2026-11-10T03:30:23Z",
+      "email": "fixture@example.invalid",
+      "id": "fixture-id-000032",
+      "name": "Fixture Person",
+      "role": "owner",
+      "user_id": "fixture-id-000034",
+      "workspace_id": "fixture-id-000041"
+    }
+  ]
+]
