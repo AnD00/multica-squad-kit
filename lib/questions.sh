@@ -179,7 +179,7 @@ pick_numbers() {
 pick_project() {
 	local projects=$1 previous=$2 default matches index
 	default=$(jq -r '.project_name // empty' <<<"$previous")
-	question_begin 'プロジェクト' 'タスク（issue）を入れる場所です。今あるものを番号で選ぶか、新しい名前を入力すると作ります。' '1、または Demo Project のような新しい名前'
+	question_begin 'プロジェクト' 'タスクを入れる場所です。今あるものを番号で選ぶか、新しい名前を入力すると作ります。' '1、または Demo Project のような新しい名前'
 	question_items=$(jq '[.[].title]' <<<"$projects")
 	if [[ $(jq length <<<"$projects") == 0 ]]; then question_notice='まだプロジェクトがありません。新しい名前を入れると作ります。'; question_example='Demo Project のような新しい名前'; fi
 	while :; do
@@ -212,11 +212,11 @@ autopilot_title() {
 	esac
 }
 
-# 外せる項目と、その項目に含まれる役の対応。進行役は含めない。
+# 外せる項目と、その項目に含まれる役の対応。リーダーは含めない。
 # roles はエージェントの役、autopilots は一緒に外れるオートパイロットの種類、watch はオートパイロットではない見張りである。
 role_choices='[
  {"key":"planner","roles":["planner"],"title":"要件定義","purpose":"要望をまとめて人間と合意する","changes":"要件は人間に補ってもらう"},
- {"key":"designer","roles":["designer"],"title":"設計","purpose":"設計と実装の段を作る","changes":"設計は人間に補ってもらう"},
+ {"key":"designer","roles":["designer"],"title":"設計","purpose":"設計と実装のフェーズを作る","changes":"設計は人間に補ってもらう"},
  {"key":"claude","roles":["claude-implementer","claude-fixer"],"title":"Claude の実装・修正","purpose":"新規実装と指摘の修正を行う","changes":"振り分け先から外れる"},
  {"key":"codex","roles":["codex-implementer","codex-fixer"],"title":"Codex の実装・修正","purpose":"新規実装と指摘の修正を行う","changes":"振り分け先から外れる。レビューの4役はClaudeのモデルになる"},
  {"key":"code-reviewer","roles":["code-reviewer"],"title":"コードレビュー","purpose":"正しさとテストを確認する","changes":"返事を待つ役の一覧から外れる"},
@@ -224,8 +224,8 @@ role_choices='[
  {"key":"ux-reviewer","roles":["ux-reviewer"],"title":"UX","purpose":"画面の使いやすさを確認する","changes":"返事を待つ役の一覧から外れる"},
  {"key":"performance-reviewer","roles":["performance-reviewer"],"title":"パフォーマンス","purpose":"遅さや負荷を確認する","changes":"返事を待つ役の一覧から外れる"},
  {"key":"qa","roles":["qa"],"title":"QA","purpose":"動作とE2Eを確認する","changes":"返事を待つ役の一覧から外れる"},
- {"key":"ci-monitor","roles":["ci-monitor"],"title":"PR の CI の見張り","purpose":"CIの結果を知らせる","watch":"進行役が PR ごとに置く CI の見張り"},
- {"key":"usage-monitor","roles":["usage-monitor"],"title":"使用上限の見張り","purpose":"AIの残量を見張る","autopilots":["usage-monitor"]},
+ {"key":"ci-monitor","roles":["ci-monitor"],"title":"PR の CI の見張り","purpose":"CIの結果を知らせる","watch":"リーダーが PR ごとに置く CI の見張り"},
+ {"key":"usage-monitor","roles":["usage-monitor"],"title":"使用上限の見張り","purpose":"AI の使用上限を見張る","autopilots":["usage-monitor"]},
  {"key":"dependabot-merger","roles":["dependabot-merger"],"title":"Dependabot の PR","purpose":"更新を週次で扱う","autopilots":["dependabot-merger"],"changes":"Webhook を使うかを聞かず、GitHub への Webhook の登録をしない"}
 ]'
 
@@ -254,9 +254,9 @@ role_choice_note() {
 	if [[ $1 == claude || $1 == codex ]] && jq -e --arg key "$1" 'index($key)==null' >/dev/null <<<"$runtimes"; then printf '（使うランタイムにないため外れます）'; fi
 }
 
-# 進行役のエージェントは、ほかの役と同じ見出しで名前を出す。
+# リーダーのエージェントは、ほかの役と同じ見出しで名前を出す。
 role_fixed_text() {
-	printf '進行役（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: %s-orchestrator-%s' "$project_key" "$member_key"
+	printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: %s-orchestrator-%s' "$project_key" "$member_key"
 }
 
 pick_runtimes() {
@@ -292,12 +292,12 @@ pick_dependabot_webhook() {
 		question_skip 'Dependabot の PR の Webhook' 'Dependabot の役を外したので聞きません。'
 		return 0
 	fi
-	question_begin 'Dependabot の PR の Webhook' 'Dependabot の PR を、週次のスケジュールに加えて Webhook でも起動するかを選びます。使うときは、リポジトリごとに GitHub へ Webhook を登録し、登録やフィルターの設定を issue で頼みます。' '1（使わない）、2（使う）'
+	question_begin 'Dependabot の PR の Webhook' 'Dependabot の PR を、週次のスケジュールに加えて Webhook でも起動するかを選びます。使うときは、リポジトリごとに GitHub へ Webhook を登録し、登録やフィルターの設定をタスクで頼みます。' '1（使わない）、2（使う）'
 	if jq -e '.dependabot_webhook==true' >/dev/null <<<"$1"; then default=2; fi
-	question_items='["使わない（週次のスケジュールだけで扱う。Webhook の登録と issue の起票をしない）","使う（リポジトリごとに Webhook を登録し、イベントフィルターの設定を起票する）"]'
-	# この項目のない前の答えは使わないと読むが、前の版は聞かずに登録していたことを知らせる。
+	question_items='["使わない（週次のスケジュールだけで扱う。Webhook の登録とタスクの起票をしない）","使う（リポジトリごとに Webhook を登録し、イベントフィルターの設定を起票する）"]'
+	# この項目のない前の答えは使わないと読むが、前のバージョンは聞かずに登録していたことを知らせる。
 	if [[ -f $2 ]] && ! jq -e 'has("dependabot_webhook")' "$2" >/dev/null 2>&1; then
-		question_notice='前の答えにはこの項目がありません。前の版は聞かずに Webhook を登録していました。使わないを選ぶと、残っている Webhook のトリガーを外すよう起票します。'
+		question_notice='前の答えにはこの項目がありません。前のバージョンは聞かずに Webhook を登録していました。使わないを選ぶと、残っている Webhook のトリガーを外すよう起票します。'
 		question_notice_kind=warning
 	fi
 	while :; do
@@ -378,7 +378,7 @@ ask_questions() {
 	pick_numbers "$default" yes
 	member_ids=$(jq -nc --argjson members "$members" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $members[$i-1].user_id]|unique')
 	pick_runtimes "$saved"
-	question_begin '外す役' '要らない役を番号で選びます。進行役は必須で、実装・修正は少なくとも一系統を残します。' '5 7、または 5,7（0なら何も外さない）'
+	question_begin '外す役' '要らない役を番号で選びます。リーダーは必須で、実装・修正は少なくとも一系統を残します。' '5 7、または 5,7（0なら何も外さない）'
 	question_items='[]'
 	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
 		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
@@ -481,7 +481,7 @@ confirmation_plan() {
 		done
 	done < <(jq -r '.[].repository' <<<"$repositories")
 	if [[ $(jq length <<<"${link_repositories:-[]}") != 0 ]]; then
-		printf '紐付け専用のリポジトリ（既存 issue のコメントと Assignees の同期だけ。コード作業・定期処理は追加しない）:\n'
+		printf '紐付け専用のリポジトリ（既存の GitHub の issue のコメントと Assignees の同期だけ。コード作業・定期処理は追加しない）:\n'
 		jq -r '.[]|"  "+.' <<<"$link_repositories"
 	fi
 	if ! jq -e 'index("usage-monitor")!=null' >/dev/null <<<"$excluded_roles"; then

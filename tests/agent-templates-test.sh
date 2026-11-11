@@ -107,7 +107,7 @@ for dir in "$test_dir/"*/; do
 		fi
 	done
 done
-echo 'PASS preflight templates: 共通スキルと全構成の進行・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
+echo 'PASS preflight templates: 共通スキルと全構成のリーダー・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
 
 for runtime in claude codex; do
 	if [[ $runtime == claude ]]; then expected=claude-sonnet-5-5; else expected=gpt-6.1-sol; fi
@@ -219,10 +219,10 @@ grep -qF '呼ぶ前に metadata の `pr_url` を書かない' "$test_dir/pr-link
 grep -qF '終了コードが 0 なら、metadata の `pr_url` はスクリプトが書いたので、`branch` だけを置く' "$test_dir/pr-link-procedure"
 grep -qF '0 以外なら、止まらずに `branch` と `pr_url` を自分で置く' "$test_dir/pr-link-procedure"
 grep -qF 'コマンドが見つからないとき（終了コード 127）も同じに扱う' "$test_dir/pr-link-procedure"
-grep -qF '失敗したときは、引き継ぎのコメントに「PR をタスクに紐付けられなかったので、課題の画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
+grep -qF '失敗したときは、引き継ぎのコメントに「PR をタスクに紐付けられなかったので、タスクの画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
 grep -qF 'スクリプトを呼ぶのは PR を作った直後の 1 回だけにする' "$test_dir/pr-link-procedure"
 grep -qF 'タスクの識別子・作業番号・進行の記録は Multica 側に置き、PR の本文やコミットメッセージへ持ち出さない' "$test_dir/pr-link-procedure"
-! grep -qF 'PR とタスクは、課題の画面で URL を指定して紐付ける' "$test_dir/pr-link-procedure"
+! grep -qF 'PR とタスクは、タスクの画面で URL を指定して紐付ける' "$test_dir/pr-link-procedure"
 echo 'PASS templates: 全構成で PR 作成直後に紐付けを呼び、成功と失敗の metadata・引き継ぎ・識別子の扱いを保つ'
 
 for heading in 本文の書き方 'PR を作る・実装を積む' 'PR の本文の置き場所と順序' 引き継ぐとき 'レビューと E2E の返事を返す' 'PR にレビューやテストの結果を書く'; do
@@ -246,7 +246,7 @@ for role in code-reviewer performance-reviewer security-reviewer ux-reviewer qa;
 	grep -qF '3 行以内' "$test_dir/all/$role"
 done
 grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/designer"
-grep -qF '実装の一覧は、課題のコメントに' "$test_dir/all/designer"
+grep -qF '実装の一覧は、タスクのコメントに' "$test_dir/all/designer"
 echo 'PASS templates: 役の指示と共通スキルが、本文の書き方・PR の本文の置き場所・引き継ぎの順序を同じ見出しで参照する'
 
 # 記入が足りないときの案内は、更新で届く共通スキルだけで読める。
@@ -255,7 +255,7 @@ grep -qx '## 記入が足りずに止まるとき' "$test_dir/unfilled-stop"
 for phrase in 'squad_kit_task=project-instructions' 'squad_kit_task=repository-change' 見つからなかった 'その実行で受け取った' 推測で検証しない '未記入や未実行は成功にしない'; do
 	grep -qF "$phrase" "$test_dir/unfilled-stop"
 done
-echo 'PASS templates: 共通スキルに未記入の再確認・記入の issue の印・見つからないときの報告・検証の制約がある'
+echo 'PASS templates: 共通スキルに未記入の再確認・記入のタスクの印・見つからないときの報告・検証の制約がある'
 
 verify_skill="$root/skeleton/.agents/skills/verify/SKILL.md"
 for phrase in 推測して実行せず '未記入や未実行は成功にしません' 'squad-handoff の「記入が足りずに止まるとき」'; do

@@ -139,7 +139,7 @@ jq -e '.issues|length==0' "$TEST_DB/db.json" >/dev/null
 [[ $(grep -c 'Webhook の登録:\|警告:' "$test_dir/out") == 0 ]]
 echo 'PASS webhooks: Webhook を使わない答えなら、Dependabot の役を残しても GitHub を読まず、登録も起票もしない'
 
-# 前の実行のトリガーが残っていれば、消さずに警告して外す issue を起票する。読めないリポジトリは警告だけ。
+# 前の実行のトリガーが残っていれば、消さずに警告して外すタスクを起票する。読めないリポジトリは警告だけ。
 new_case leftover
 edit '.triggers.one+=[{id:"webhook-one",kind:"webhook",enabled:true}] | .autopilots|=map(select(.id!="two"))'
 cp "$TEST_DB/db.json" "$test_dir/leftover-before.json"
@@ -152,7 +152,7 @@ grep -qxF '警告: example/two: 前の実行で作った Webhook のトリガー
 TEST_WEBHOOK=false run
 jq -e '.issues|length==1' "$TEST_DB/db.json" >/dev/null
 no_leak
-echo 'PASS webhooks: Webhook を使わない答えでも、残ったトリガーは消さずに警告して外す issue を一度だけ起票し、読めなければ警告する'
+echo 'PASS webhooks: Webhook を使わない答えでも、残ったトリガーは消さずに警告して外すタスクを一度だけ起票し、読めなければ警告する'
 
 for failure in can-write trigger secrets signed missing-url admin hooks create deliveries ping; do
  new_case "$failure"
@@ -200,7 +200,7 @@ new_case issue-failed
 edit '.webhook_cases["example/one"].admin=false'
 printf '%s\n' 'example/one に Dependabot の Webhook を登録する' >"$TEST_DB/fail-issue"
 if run; then exit 1; fi
-grep -qF '起票できなかった issue:' "$test_dir/out"
+grep -qF '起票できなかったタスク:' "$test_dir/out"
 grep -q 'example/two:.*配信 成功' "$test_dir/out"
 no_leak
 echo 'PASS webhooks: 代わりの起票が失敗してもほかの登録と完了の表示へ進み、失敗を返す'

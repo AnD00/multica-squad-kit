@@ -152,7 +152,7 @@ for status in none completed failed cancelled; do
 	reset_fixture
 	jq -n --arg status "$status" '[{agent_id: "orchestrator", status: "running"}, {agent_id: "monitor", status: "running"}]
 		+ if $status == "none" then [] else [{agent_id: "fixer", status: $status}] end' >"$test_dir/runs.json"
-	check_ci $'/note\nCI abcdef0: 失敗を進行役に知らせた'
+	check_ci $'/note\nCI abcdef0: 失敗をリーダーに知らせた'
 	assert_jq -s 'length == 1 and (.[0].body | startswith("head: abcdef0\nCI の失敗を検出しました。\n"))
 		and (.[0].body | contains("[@demo-orchestrator-test](mention://agent/orchestrator)"))
 		and (.[0].body | contains("- CI / test\n- external\n"))
@@ -169,9 +169,37 @@ hold_fixture
 check_held $'CI / test\nexternal'
 check_held '' next-handoff
 check_ci $'/note\nCI abcdef0: 失敗は知らせ済み'
-assert_jq -s 'length == 1 and .[0].body == "/note\nCI abcdef0: 保留した失敗を進行役が引き継ぎで受けた\n"
+assert_jq -s 'length == 1 and .[0].body == "/note\nCI abcdef0: 保留した失敗をリーダーが引き継ぎで受けた\n"
 	and (.[0].args | index("--parent") as $i | .[$i+1] == "handoff-comment")' "$test_dir/posted.jsonl"
 echo 'PASS ci-held: 許可された起点へ無通知で記録し、別スレッドの次の取得と見張りでも重複しない'
+
+# 更新前後の記録は、どちらも同じ SHA の失敗を取得済みとして扱う。
+for wording in old new; do
+	reset_fixture
+	jq -n --arg wording "$wording" '
+		(if $wording == "old" then "\u9032\u884c\u5f79" else "リーダー" end) as $role
+		| [{author_type: "agent", test_thread: "previous-handoff",
+			content: ("/note\nCI abcdef0: 保留した失敗を" + $role + "が引き継ぎで受けた\n")}]' >"$test_dir/comments.json"
+	check_held ''
+	check_ci $'/note\nCI abcdef0: 失敗は知らせ済み'
+	[[ ! -s $test_dir/posted.jsonl ]]
+done
+echo 'PASS 取得記録: 新旧の文が別スレッドにあっても、取得と見張りで同じ失敗を重ねて知らせない'
+
+# 前後の文による照合でも、エージェントの /note と同じ SHA が必要。
+for fixture in member other-head no-note other-prefix other-suffix; do
+	reset_fixture
+	jq -n --arg fixture "$fixture" '
+		[{author_type: "agent", content: "/note\nCI abcdef0: 保留した失敗をリーダーが引き継ぎで受けた\n"}]
+		| if $fixture == "member" then .[0].author_type = "member"
+		  elif $fixture == "other-head" then .[0].content |= sub("abcdef0"; "1234567")
+		  elif $fixture == "no-note" then .[0].content |= ltrimstr("/note\n")
+		  elif $fixture == "other-prefix" then .[0].content |= sub("保留した失敗を"; "失敗を")
+		  else .[0].content |= sub("が引き継ぎで受けた"; "が確認する") end' >"$test_dir/comments.json"
+	check_ci $'/note\nCI abcdef0: 失敗をリーダーに知らせた'
+	assert_jq -s 'length == 1 and (.[0].body | startswith("head: abcdef0\n"))' "$test_dir/posted.jsonl"
+done
+echo 'PASS 取得記録の条件: 作者・SHA・印・前後の文が違えば、今の失敗を知らせる'
 
 # 保留の判定後、最終投稿前に引き継ぎが届く順序を再現する。
 # 引き継いだ役の run がまだ running でも、保留記録なしで失敗を拾う。
@@ -210,7 +238,7 @@ for handoff in mention squad-mention review-report; do
 	mv "$test_dir/updated.json" "$test_dir/pr.json"
 	check_held ''
 	mv "$test_dir/failed-pr.json" "$test_dir/pr.json"
-	check_ci $'/note\nCI abcdef0: 失敗を進行役に知らせた'
+	check_ci $'/note\nCI abcdef0: 失敗をリーダーに知らせた'
 	assert_jq -s 'length == 1 and (.[0].body | startswith("head: abcdef0\n"))' "$test_dir/posted.jsonl"
 	check_held ''
 done
@@ -296,13 +324,13 @@ assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] =
 assert_jq -s 'all(.[]; .[0:2] != ["agent", "list"])' "$test_dir/calls.jsonl"
 reset_fixture
 (cd "$test_dir" && bash "$script" conflicts test-issue) >"$test_dir/output"
-assert_jq -s 'length == 1 and (.[0].body | contains("進行役の「実装・修正の振り分け」に従い、有効な修正の役を選んでください"))
+assert_jq -s 'length == 1 and (.[0].body | contains("リーダーの「実装・修正の振り分け」に従い、有効な修正の役を選んでください"))
 	and (.[0].body | contains("squad-dispatch-pick") | not)' "$test_dir/wakeups.jsonl"
-echo 'PASS 登録: 見張り役 ID を渡し、コンフリクト通知は進行役の振り分けを参照する'
+echo 'PASS 登録: 見張り役 ID を渡し、コンフリクト通知はリーダーの振り分けを参照する'
 
-# 通知の参照先を実際に展開した進行役からたどり、残る系統の修正役だけへ進める。
+# 通知の参照先を実際に展開したリーダーからたどり、残る系統の修正役だけへ進める。
 source "$root/lib/render.sh"
-section=$(jq -sr '.[0].body | capture("進行役の「(?<section>[^」]+)」").section' "$test_dir/wakeups.jsonl")
+section=$(jq -sr '.[0].body | capture("リーダーの「(?<section>[^」]+)」").section' "$test_dir/wakeups.jsonl")
 for family in claude codex; do
 	enabled="orchestrator $family-implementer $family-fixer"
 	template_filter "$enabled" "$root/common/agents/orchestrator.md" >"$test_dir/orchestrator-filtered"

@@ -528,7 +528,7 @@ done
 echo 'PASS extension runtimes: 選ばなかったランタイムのモデルを、全エージェントの作成前に拒否する'
 rm "$test_dir/extension/agents/helper.md"
 
-# 他プロジェクトの issue の紐付けを許し、コード作業の対象は増やさない。
+# 他プロジェクトの GitHub の issue の紐付けを許し、コード作業の対象は増やさない。
 reset_db
 export TEST_REPOSITORIES='[{"url":"https://github.com/example/project","repository":"example/project"}]'
 export TEST_REGISTERED_REPOSITORIES='[{"url":"https://github.com/example/project"},{"url":"git@github.com:EXAMPLE/LINKED.git"}]'
@@ -553,7 +553,7 @@ if SQUAD_KIT_ALLOWED_REPOS="$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a" "$TE
 : >"$TEST_DB/calls"; run
 ! jq -es 'any(.[]; .[0:2]==["agent","update"] or .[0:2]==["project","update"] or .[0:3]==["project","resource","add"])' "$TEST_DB/calls" >/dev/null
 cmp "$test_dir/other-before" "$TEST_DB/projects/other.json"
-echo 'PASS linking: 別プロジェクトの既存 issue のコメントと Assignees を許し、登録・指示のコード作業先・検証の節を増やさず、再実行で設定を保つ'
+echo 'PASS linking: 別プロジェクトの既存の GitHub の issue のコメントと Assignees を許し、登録・指示のコード作業先・検証の節を増やさず、再実行で設定を保つ'
 
 # 既存許可を変更する直前にも登録を読み直す。失敗したら前の許可を残す。
 rm "$TEST_DB/repo-read"

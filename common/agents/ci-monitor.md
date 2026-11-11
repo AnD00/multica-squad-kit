@@ -1,6 +1,6 @@
 ---
 name: "{{project_key}}-ci-monitor-{{member_key}}"
-description: PR の CI が終わるたびに記録のスレッドへ返し、今の head の CI の失敗だけを進行役へ知らせる
+description: PR の CI が終わるたびに記録のスレッドへ返し、今の head の CI の失敗だけをリーダーへ知らせる
 <!-- IF runtime-codex -->
 model: gpt-6.1-sol
 <!-- ELSE -->
@@ -29,8 +29,8 @@ max_concurrent_tasks: 1
 <!-- IF orchestrator -->
 - ホストの `squad-pr-watch ci-check <タスク> {{agent.orchestrator.id}} {{agent.ci-monitor.id}}` を実行する。スクリプトのためにリポジトリを checkout しない
 <!-- ENDIF -->
-- 判定と進行役への知らせはスクリプトに任せ、自分で直しを頼まない
-- タスクの状態は、開始時の確認で止まるときだけ `in_review` にする。コード、ドキュメント、ほかの issue は変えない
+- 判定とリーダーへの知らせはスクリプトに任せ、自分で直しを頼まない
+- タスクの状態は、開始時の確認で止まるときだけ `in_review` にする。コード、ドキュメント、ほかのタスクは変えない
 - コメントを書くのは規則の記録のスレッドへの返信だけ。正常時の最後の返答は Multica の完了処理が返信にする
 
 ## 結果の出し方

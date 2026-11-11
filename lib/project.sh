@@ -39,7 +39,7 @@ prepare_project() (
 		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || continue
 		if ! jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles"; then enabled+=" $role"; fi
 	done
-	[[ " $enabled " == *' orchestrator '* ]] || die '進行の役は必須です。'
+	[[ " $enabled " == *' orchestrator '* ]] || die 'リーダーは必須です。'
 	for role in claude codex; do
 		if [[ " $enabled " == *" $role-implementer "* ]]; then
 			[[ " $enabled " == *" $role-fixer "* ]] || die '実装と修正は系統ごとに選んでください。'
@@ -163,7 +163,7 @@ prepare_project() (
 		template_apply "$project_work/values.json" "$project_work/$role.filtered" >"$project_work/$role.rendered" || die "指示を展開できませんでした: $role"
 		template_body "$project_work/$role.rendered" >"$project_work/$role.body"
 		if [[ $(jq length <<<"$link_repositories") != 0 ]]; then
-			printf '\n### 紐付け専用のリポジトリ\n\n%s\n\n既存 issue の紐付けコメントと Assignees の同期だけを許可する。コード作業、PR、定期処理の対象にはしない。\n' "$(jq -r '.link_repositories' <<<"$values")" >>"$project_work/$role.body"
+			printf '\n### 紐付け専用のリポジトリ\n\n%s\n\n既存の GitHub の issue の紐付けコメントと Assignees の同期だけを許可する。コード作業、PR、定期処理の対象にはしない。\n' "$(jq -r '.link_repositories' <<<"$values")" >>"$project_work/$role.body"
 		fi
 		[[ -s $project_work/$role.body ]] || die '指示の本文がありません。'
 		for field in name description model thinking_level skills role max_concurrent_tasks; do
@@ -225,7 +225,7 @@ project_completion() {
 	project_webhook_completion
 	project_issue_completion
 	ui_line out done '次にすること:'
-	printf '%s\n' '表示した issue を対象のプロジェクトで開き、担当と本文に沿って作業してください。'
+	printf '%s\n' '表示したタスクを対象のプロジェクトで開き、担当と本文に沿って作業してください。'
 	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if dependabot_webhook_active; then
 		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
@@ -257,7 +257,7 @@ prepare_project_issues() {
 # 1 件の失敗では止めず、完了の表示のために結果と理由をためる。
 queue_project_issue() {
 	local kind=$1 targets=$2 assignee=$3 repo=${4:-} result reason
-	# 失敗の理由は issue と完了の表示に入るので、色を付けずに受け取り、印の「エラー:」も外す。
+	# 失敗の理由はタスクと完了の表示に入るので、色を付けずに受け取り、印の「エラー:」も外す。
 	if result=$(ui_color_err=no; ensure_setup_issue "$kind" "$targets" "$assignee" "$repo" 2>"$project_work/issue-error"); then
 		setup_issue_rows=$(jq -c --argjson rows "$result" '.+$rows' <<<"$setup_issue_rows")
 	else
@@ -276,7 +276,7 @@ record_project_issue_failure() {
 
 project_issue_completion() {
 	local row action
-	printf '%s\n' '起票した issue:'
+	printf '%s\n' '起票したタスク:'
 	# タイトルに \ やタブがあっても元の文字のまま出すため、行ごとに JSON から取り出す。
 	while IFS= read -r row; do
 		printf '  %s %s（' "$(jq -r '.identifier' <<<"$row")" "$(jq -r '.title' <<<"$row")"
@@ -285,7 +285,7 @@ project_issue_completion() {
 		printf '）\n'
 	done < <(jq -c '.[]' <<<"${setup_issue_rows:-[]}")
 	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
-		printf '%s\n' '起票できなかった issue:'
+		printf '%s\n' '起票できなかったタスク:'
 		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"
 	fi
 }

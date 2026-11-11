@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
 # 振り分けに使う使用率を、その場で読んで JSON にする（macOS・Linux 用）。
-# issue や見張りの状態ファイルには触れない。両方を読めたら 0、片方でも読めなければ 1。
+# タスクや見張りの状態ファイルには触れない。両方を読めたら 0、片方でも読めなければ 1。
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/squad-usage-lib"
 

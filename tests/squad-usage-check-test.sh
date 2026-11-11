@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-usage-check-test.sh で実行する。
-# 実際の使用量の取得と issue 作成は行わず、出力と状態の変化を CLI のモックで確かめる。
+# 実際の使用量の取得とタスクの作成は行わず、出力と状態の変化を CLI のモックで確かめる。
 set -euo pipefail
 unset USAGE_CHECK_RUNTIMES
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -164,7 +164,7 @@ multica() {
 	esac
 }
 
-# 警告・上限到達・取得エラーのどの場合も、作成時点でプロジェクトを渡す。
+# 警告・使用上限到達・取得エラーのどの場合も、作成時点でプロジェクトを渡す。
 for level in warn limited error; do
 	state='{}'
 	: >"$test_dir/calls.jsonl"
@@ -177,7 +177,7 @@ for level in warn limited error; do
 		and ([.[] | select(.[0:3] == ["issue", "label", "add"])] | length) == 1
 	' "$test_dir/calls.jsonl" >/dev/null
 	jq -e --arg level "$level" '."test-key" == {level: $level, issue: "test-issue"}' "$STATE_FILE" >/dev/null
-	echo "PASS $level: issue の作成時にプロジェクトと担当を渡し、状態を保存"
+	echo "PASS $level: タスクの作成時にプロジェクトと担当を渡し、状態を保存"
 done
 
 # 本体も別の作業ディレクトリから動かし、80% の警告と保存済みのキーを確かめる。
@@ -239,7 +239,7 @@ echo 'PASS 記録の分離: プロジェクト・メンバーごとに通知し�
 	rm "$test_dir/fail-comment"
 	(cd "$test_dir" && bash "$script")
 	(cd "$test_dir" && bash "$script")
-	jq -se 'length == 1 and (.[0].body | contains("上限に達した"))' "$test_dir/comments.jsonl" >/dev/null
+	jq -se 'length == 1 and (.[0].body | contains("使用上限に達した"))' "$test_dir/comments.jsonl" >/dev/null
 	jq -e '."claude:Current session".level == "limited"' "$state_file" >/dev/null
 	echo '{"is_error":false,"result":"Current session: 0% used · resets Oct 27 at 12:29pm (Asia/Tokyo)"}' >"$test_dir/claude.json"
 	(cd "$test_dir" && bash "$script")
@@ -250,7 +250,7 @@ echo 'PASS 記録の分離: プロジェクト・メンバーごとに通知し�
 )
 echo 'PASS 通知の失敗と復旧: 状態を進めず、再実行で一度通知し、ほかの組み合わせの記録を保つ'
 
-echo 'PASS 本体: 別の作業ディレクトリから共通関数を読み、80% で警告し、同じ状態では issue を増やさない'
+echo 'PASS 本体: 別の作業ディレクトリから共通関数を読み、80% で警告し、同じ状態ではタスクを増やさない'
 
 # 片方だけの PATH で本体を動かす。使わない側の警告を復旧扱いにしない。
 for selected in claude codex; do
@@ -313,7 +313,7 @@ for project in unset empty; do
 	else
 		if USAGE_CHECK_PROJECT='' USAGE_CHECK_ASSIGNEE="$USAGE_CHECK_ASSIGNEE" bash "$script" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 	fi
-	grep -q 'USAGE_CHECK_PROJECT に、作る issue を入れるプロジェクトの ID を渡す' "$test_dir/err"
+	grep -q 'USAGE_CHECK_PROJECT に、作るタスクを入れるプロジェクトの ID を渡す' "$test_dir/err"
 	echo "PASS $project: プロジェクトがなければ実行前にエラー"
 done
 

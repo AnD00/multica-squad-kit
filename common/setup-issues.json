@@ -3,25 +3,25 @@
     "title": "{{repository}} の Dependabot の Webhook のフィルターを設定する",
     "assignee": "actor",
     "label": "運用",
-    "body": "Multica の週次の確認の Webhook のトリガーで、受け取る PR のアクションと対象のリポジトリ、Dependabot の PR へのイベントフィルターを設定してください。トリガーがなければ、先に Webhook の登録の issue を済ませてください。GitHub の配信履歴と Multica の実行履歴で、対象だけが動くことを確かめてください。\n\n手順: [Dependabot のイベントフィルター]({{manual_url}}#dependabot-のイベントフィルター)"
+    "body": "Multica の週次の確認の Webhook のトリガーで、受け取る PR のアクションと対象のリポジトリ、Dependabot の PR へのイベントフィルターを設定してください。トリガーがなければ、先に Webhook の登録のタスクを済ませてください。GitHub の配信履歴と Multica の実行履歴で、対象だけが動くことを確かめてください。\n\n手順: [Dependabot のイベントフィルター]({{manual_url}}#dependabot-のイベントフィルター)"
   },
   "dependabot-webhook": {
     "title": "{{repository}} に Dependabot の Webhook を登録する",
     "assignee": "actor",
     "label": "運用",
-    "body": "リポジトリの管理者に Dependabot の Webhook の登録を頼んでください。管理者の権限と gh の admin:repo_hook の範囲を持つ人が、同じ答えでセットアップを流し直せば、自動で登録と ping の確認が行われます。画面で登録する場合も、配信履歴を確かめてください。Webhook の URL は認証情報なので、issue やログに貼らないでください。\n\n手順: [人間が行う Webhook の登録]({{manual_url}}#人間が行う-webhook-の登録)"
+    "body": "リポジトリの管理者に Dependabot の Webhook の登録を頼んでください。管理者の権限と gh の admin:repo_hook の範囲を持つ人が、同じ答えでセットアップを流し直せば、自動で登録と ping の確認が行われます。画面で登録する場合も、配信履歴を確かめてください。Webhook の URL は認証情報なので、タスクやログに貼らないでください。\n\n手順: [人間が行う Webhook の登録]({{manual_url}}#人間が行う-webhook-の登録)"
   },
   "dependabot-webhook-removal": {
     "title": "{{repository}} の Dependabot の Webhook を外す",
     "assignee": "actor",
     "label": "運用",
-    "body": "セットアップで Dependabot の PR の Webhook を使わないと答えましたが、前の実行で作った Webhook のトリガーが残っています。セットアップはトリガーと GitHub の Webhook を消しません。週次のスケジュールだけで扱うなら、オートパイロットを編集できる人が Webhook のトリガーを外し、リポジトリの管理者が GitHub の Webhook を消してください。Webhook を続けて使うなら、使うと答えてセットアップを流し直してください。Webhook の URL は認証情報なので、issue やログに貼らないでください。\n\n手順: [Dependabot の Webhook を外す]({{manual_url}}#dependabot-の-webhook-を外す)"
+    "body": "セットアップで Dependabot の PR の Webhook を使わないと答えましたが、前の実行で作った Webhook のトリガーが残っています。セットアップはトリガーと GitHub の Webhook を消しません。週次のスケジュールだけで扱うなら、オートパイロットを編集できる人が Webhook のトリガーを外し、リポジトリの管理者が GitHub の Webhook を消してください。Webhook を続けて使うなら、使うと答えてセットアップを流し直してください。Webhook の URL は認証情報なので、タスクやログに貼らないでください。\n\n手順: [Dependabot の Webhook を外す]({{manual_url}}#dependabot-の-webhook-を外す)"
   },
   "repository-rules": {
     "title": "{{repository}} に AGENTS.md と作業別のルールを置く",
     "assignee": "squad",
     "label": "指示の改善",
-    "body": "ひな形を参考に、対象のリポジトリに AGENTS.md と作業別のルールを置いてください。既存のファイルを丸ごと上書きせず、必要な内容を取り入れてください。\n\n「プロジェクトの説明と検証スキルを記入する」と「スクワッドの動きを試す」の二つの issue を終えてから、この issue を todo にしてください。\n\n手順: [プロジェクトのひな形を記入する]({{manual_url}}#プロジェクトのひな形を記入する)"
+    "body": "ひな形を参考に、対象のリポジトリに AGENTS.md と作業別のルールを置いてください。既存のファイルを丸ごと上書きせず、必要な内容を取り入れてください。\n\n「プロジェクトの説明と検証スキルを記入する」と「スクワッドの動きを試す」の二つのタスクを終えてから、このタスクを todo にしてください。\n\n手順: [プロジェクトのひな形を記入する]({{manual_url}}#プロジェクトのひな形を記入する)"
   },
   "project-instructions": {
     "title": "プロジェクトの説明と検証スキルを記入する",
@@ -33,7 +33,7 @@
     "title": "スクワッドの動きを試す",
     "assignee": "actor",
     "label": "検証",
-    "body": "専用の検証用リポジトリと小さな issue を使い、選んだ役への引き継ぎ、結果、担当と状態の扱いを確かめてください。通常のランタイムで、許可していないリポジトリへの gh の書き込みと git push が関所で拒否されることも確かめてください。関所を迂回しないでください。\n\n手順: [スクワッドの動きを試す]({{manual_url}}#スクワッドの動きを試す)"
+    "body": "専用の検証用リポジトリと小さなタスクを使い、選んだ役への引き継ぎ、結果、担当と状態の扱いを確かめてください。通常のランタイムで、許可していないリポジトリへの gh の書き込みと git push が関所で拒否されることも確かめてください。関所を迂回しないでください。\n\n手順: [スクワッドの動きを試す]({{manual_url}}#スクワッドの動きを試す)"
   },
   "handoff-skill-update": {
     "title": "共通スキル squad-handoff を更新する",
