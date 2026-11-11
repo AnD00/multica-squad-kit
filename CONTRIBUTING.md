@@ -10,12 +10,34 @@
 PR を出す前に、原本のルートで次を流す。
 
 ```bash
-bash tests/run.sh
 bash scripts/check.sh
 bash scripts/manifest.sh
+bash tests/run.sh tests/webhooks-test.sh     # 関連テスト。選び方は下に書く
+npx markdownlint-cli2 '**/*.md' '#tmp/**'    # Markdown を変えたとき
 SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh
-npx markdownlint-cli2 '**/*.md' '#tmp/**'
 ```
+
+手元では、変更の大きさによらず、構文の確認、MANIFEST の作り直し、関連テスト、Markdown を変えたときの markdownlint を流す。  
+テストの全件は、PR の CI が macOS と Ubuntu で流す。
+
+関連テストは、変えたテストのファイルと、変えたファイルの名前（パスの最後の部分）を含むテストのファイルである。  
+`MANIFEST` は、作り直すと毎回変わるので、変えたファイルに数えない。  
+`README.md`、`manual.md`、`CONTRIBUTING.md` を変えたときは、`tests/doc-lines-test.sh` も流す。  
+関連テストが 1 本も選べないときは、選べなかったことを PR の確認に書き、CI で確かめる。
+
+次のどれかに当たるときは、関連テストの代わりに、手元で `bash tests/run.sh` の全件を流す。
+
+| 条件 | 当たるファイル |
+| --- | --- |
+| テストの仕組み | `tests/run.sh`、`tests/run-one.sh`、`tests/run-hook.sh` |
+| 多くのテストが共有するスタブと補助 | `tests/` の直下で、名前に `fixture` か `lib` を含み、`-test.sh` で終わらないファイル。`tests/fixtures/` の下のすべて |
+| 多くのテストが読む共通の部品 | `setup.sh`、`lib/ui.sh`、`lib/check.sh`、`lib/project.sh`、`lib/render.sh`、`common/monitor/squad-cli-lib` |
+| CI の定義 | `.github/workflows/` の下のすべて |
+| 数と自信 | 関連テストが 10 本を超えるとき。または、選び方に自信が持てないとき（名前を含まずに読み込まれるファイルを変えたときなど） |
+
+手元で流さなかった全件は、PR の確認に「CI で確かめる」と書く。  
+エージェントは、検証スキルの同じ条件に従う。  
+条件を変えるときは、検証スキルとそろえる。
 
 ## 原本と正本
 
@@ -30,7 +52,8 @@ npx markdownlint-cli2 '**/*.md' '#tmp/**'
 
 `bash tests/run.sh` は、`tests/*-test.sh` を並べて流す。  
 すべて通れば 0、1 本でも失敗すれば 1 で終わる。  
-CI も同じコマンドを流す。
+手元では、[変更の進め方](#変更の進め方)に従って関連テストを選んで流す。  
+全件は CI が流す。
 
 ```bash
 bash tests/run.sh                            # 並べて流す
