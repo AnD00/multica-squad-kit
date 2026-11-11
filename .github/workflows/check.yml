@@ -36,7 +36,7 @@ jobs:
         run: |
           missing=()
           for p in bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps; do
-            dpkg -s "$p" >/dev/null 2>&1 || missing+=("$p")
+            [ "$(dpkg-query -W -f='${db:Status-Status}' "$p" 2>/dev/null)" = installed ] || missing+=("$p")
           done
           [ "${#missing[@]}" -eq 0 ] && { echo "nothing to install"; exit 0; }
           echo "missing: ${missing[*]}"
