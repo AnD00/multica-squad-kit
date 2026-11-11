@@ -149,6 +149,29 @@ for scenario in all runtime-claude-only runtime-codex-only; do
 done
 echo 'PASS templates: 使用上限の役とオートパイロットに、選択したランタイムの値・環境・停止時の案内だけを残す'
 
+# コンフリクトの状態の確認と規則の入れ直しは別の節で、状態は確認の行に従う。PR の状態の書き方は共通スキルが決める。
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews minimum runtime-claude-only runtime-codex-only; do
+	file="$test_dir/$scenario/orchestrator"
+	check_section=$(awk '/^### コンフリクトの状態の確認$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$file")
+	rearm_section=$(awk '/^### コンフリクトの規則の入れ直し$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$file")
+	grep -qF 'squad-pr-watch conflicts-check <タスク>' <<<"$check_section"
+	if grep -qF 'squad-pr-watch conflicts <タスク>' <<<"$check_section"; then exit 1; fi
+	grep -qF 'squad-pr-watch conflicts <タスク>' <<<"$rearm_section"
+	if grep -qF 'squad-pr-watch conflicts-check' <<<"$rearm_section"; then exit 1; fi
+	grep -qF '`CONFLICTING` なら' <<<"$check_section"
+	grep -qF '`MERGEABLE` なら' <<<"$check_section"
+	grep -qF '「未確認」なら' <<<"$check_section"
+	grep -qF '「なし」とは書かない' <<<"$check_section"
+	grep -qF '`in_progress`' <<<"$check_section"
+done
+state_skill="$root/common/skills/squad-handoff/SKILL.md"
+grep -qxF '## PR の状態を書く' "$state_skill"
+state_section=$(awk '/^## PR の状態を書く$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$state_skill")
+grep -qF 'コンフリクト:' <<<"$state_section"
+grep -qF '未確認' <<<"$state_section"
+grep -qF '「なし」' <<<"$state_section"
+echo 'PASS templates: リーダーの指示は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
+
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
 	grep -qx 'model: gpt-6.1-sol' "$test_dir/all/$role"

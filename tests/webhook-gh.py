@@ -1,5 +1,6 @@
 """Offline GitHub webhook API. Persist IDs, never the credential URL or input body."""
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -27,7 +28,10 @@ def fail():
     sys.exit(71)
 
 hooks = db.setdefault('github_hooks', [])
-if len(parts) == 3:
+if endpoint == 'repos/AnD00/multica-squad-kit/releases/latest':
+    # 更新の知らせ。既定は、流している原本と同じ最新のバージョン。
+    result = dict(tag_name=os.environ.get('TEST_LATEST_TAG') or (Path(__file__).resolve().parent.parent / 'VERSION').read_text().strip())
+elif len(parts) == 3:
     if settings.get('deny_repository'):
         fail()
     result = dict(permissions=dict(admin=settings.get('admin', True)))

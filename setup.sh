@@ -58,7 +58,7 @@ use_latest_tag() {
 }
 use_latest_tag
 cd "$root"
-damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を clone し直して、流してください。"; }
+damaged() { die "原本のファイルが不足しているか改変されています。$* 原本を取り直して、流してください。"; }
 [[ -f MANIFEST && ! -L MANIFEST ]] || damaged 'MANIFEST がありません。'
 listed=''
 while IFS= read -r line || [[ -n $line ]]; do
@@ -90,6 +90,7 @@ source "$root/lib/installation.sh"
 source "$root/lib/squad.sh"
 source "$root/lib/autopilots.sh"
 source "$root/lib/extensions.sh"
+source "$root/lib/version.sh"
 setup_cleanup_enabled=yes
 setup_cleanup() {
 	local result=$?
@@ -103,6 +104,7 @@ check_tools
 choose_extension
 choose_server
 check_login
+check_update
 ask_questions
 resolve_link_repositories
 load_extension_inventory
@@ -115,3 +117,4 @@ prepare_workspace
 printf '%s\n' 'プロジェクトの設定を始めます。' >&2
 prepare_project
 save_extension_inventory
+record_installed_version

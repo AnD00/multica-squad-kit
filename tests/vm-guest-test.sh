@@ -247,7 +247,7 @@ elif name == 'usermod':
 elif name == 'apt-get':
     assert args == ['update'] or args[:2] == ['install', '-y'], args
 elif name == 'curl':
-    assert args[:2] == ['-fsSL', 'https://download.docker.com/linux/ubuntu/gpg'], args
+    assert args[:2] == ['-fsSL', 'https://download.docker.com/linux/ubuntu/gpg'] or args[:2] == ['-fsSL', 'https://cli.github.com/packages/githubcli-archive-keyring.gpg'], args
     Path(args[args.index('-o') + 1]).write_text('test repository key\n')
 elif name == 'dpkg':
     assert args == ['--print-architecture'], args
@@ -385,8 +385,14 @@ for name in ('provision.sh', 'start-daemon', 'record-server', 'verify.sh'):
 calls = [json.loads(line) for line in (base / 'guest-calls.jsonl').read_text().splitlines()]
 commands = [' '.join([item['command']] + item['args']) for item in calls]
 packages = [item['args'][2:] for item in calls if item['command'] == 'apt-get' and item['args'][0] == 'install']
-assert {'bash', 'zsh', 'git', 'jq', 'gh', 'zip', 'unzip', 'python3', 'tzdata', 'libdigest-sha-perl', 'coreutils', 'findutils', 'procps', 'uidmap', 'dbus-user-session', 'apparmor'} <= set(packages[0])
-assert {'docker-ce', 'docker-ce-rootless-extras', 'docker-buildx-plugin', 'docker-compose-plugin'} <= set(packages[1])
+assert {'bash', 'zsh', 'git', 'jq', 'zip', 'unzip', 'python3', 'tzdata', 'libdigest-sha-perl', 'coreutils', 'findutils', 'procps', 'ca-certificates', 'curl', 'uidmap', 'dbus-user-session', 'apparmor'} <= set(packages[0])
+# gh は Ubuntu の標準の apt からは入れず、公式のリポジトリの鍵と sources を置いたあとの 2 回目の導入で入れる。
+assert 'gh' not in packages[0] and packages[1] == ['gh'], packages
+assert {'docker-ce', 'docker-ce-rootless-extras', 'docker-buildx-plugin', 'docker-compose-plugin'} <= set(packages[2])
+gh_key = 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o ' + str(root) + '/etc/apt/keyrings/githubcli-archive-keyring.gpg'
+install_gh = [index for index, command in enumerate(commands) if command == 'apt-get install -y gh']
+assert len(install_gh) == 1 and commands.index('apt-get install -y gh') > commands.index(gh_key) + 1
+assert commands[commands.index(gh_key) + 1] == 'apt-get update', commands
 assert commands.index('systemctl disable --now docker.service docker.socket') < commands.index('dockerd-rootless-setuptool.sh install')
 assert commands.index('loginctl enable-linger vm-user') < commands.index('systemctl start user@1000.service') < commands.index('dockerd-rootless-setuptool.sh install')
 assert 'systemctl --user enable --now docker.service' in commands
@@ -417,18 +423,30 @@ assert not any(item['command'] in ('multica', 'sudo') for item in calls)
 sources = (root / 'etc/apt/sources.list.d/docker.sources').read_text()
 assert 'URIs: https://download.docker.com/linux/ubuntu\n' in sources
 assert 'Architectures: arm64\n' in sources and 'Suites: noble\n' in sources
+assert (root / 'etc/apt/keyrings/githubcli-archive-keyring.gpg').read_text() == 'test repository key\n'
+assert (root / 'etc/apt/keyrings/githubcli-archive-keyring.gpg').stat().st_mode & 0o777 == 0o644
+gh_sources = (root / 'etc/apt/sources.list.d/github-cli.sources').read_text()
+assert gh_sources == '''Types: deb
+URIs: https://cli.github.com/packages
+Suites: stable
+Components: main
+Architectures: arm64
+Signed-By: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+''', gh_sources
 PY
 cp "$guest_root/etc/wsl.conf" "$test_dir/first-wsl.conf"
+cp "$guest_root/etc/apt/sources.list.d/github-cli.sources" "$test_dir/first-gh-sources"
 cp "$guest_root/etc/systemd/system/multica-squad-daemon.service" "$test_dir/first-unit"
 cp "$guest_root/etc/systemd/system/multica-squad-record-server.service" "$test_dir/first-record-service"
 cp "$guest_root/etc/systemd/system/multica-squad-record-server.timer" "$test_dir/first-record-timer"
 provision_script=$guest_root/usr/local/lib/multica-squad-vm/provision.sh provision wsl vm-user
 cmp "$test_dir/first-wsl.conf" "$guest_root/etc/wsl.conf"
+cmp "$test_dir/first-gh-sources" "$guest_root/etc/apt/sources.list.d/github-cli.sources"
 cmp "$test_dir/first-unit" "$guest_root/etc/systemd/system/multica-squad-daemon.service"
 cmp "$test_dir/first-record-service" "$guest_root/etc/systemd/system/multica-squad-record-server.service"
 cmp "$test_dir/first-record-timer" "$guest_root/etc/systemd/system/multica-squad-record-server.timer"
 [[ $(grep -c '^vm-user:' "$guest_root/etc/subuid") == 1 ]]
-echo 'PASS vm guest: WSL の使う人・道具・rootless Docker・linger・unit と記録の timer・閉じ込め設定を作り、配置済みから再実行しても同じになる'
+echo 'PASS vm guest: WSL の使う人・道具・gh の公式の apt のリポジトリ・rootless Docker・linger・unit と記録の timer・閉じ込め設定を作り、配置済みから再実行しても同じになる'
 
 reset_guest
 guest_state '{"user_exists":true,"groups":"vm-user sudo"}'
@@ -449,7 +467,7 @@ for state in '{"user_exists":true,"groups":"vm-user sudo"}' '{"user_exists":true
  [[ -s $test_dir/err ]]
  ! grep -q '"command": "dockerd-rootless-setuptool.sh"' "$test_dir/guest-calls.jsonl"
 done
-for failure in 'apt-get update' 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o ROOT/etc/apt/keyrings/docker.asc' 'systemctl start user@1000.service' 'dockerd-rootless-setuptool.sh install' 'docker context use rootless'; do
+for failure in 'apt-get update' 'curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o ROOT/etc/apt/keyrings/githubcli-archive-keyring.gpg' 'apt-get install -y gh' 'curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o ROOT/etc/apt/keyrings/docker.asc' 'systemctl start user@1000.service' 'dockerd-rootless-setuptool.sh install' 'docker context use rootless'; do
  reset_guest
  failure=${failure/ROOT/$guest_root}
  guest_state "{\"fail\":\"$failure\"}"

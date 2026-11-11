@@ -1013,6 +1013,41 @@ squad_cli_contracts() {
         }
       ]
     },
+    "gh-pr-mergeable": {
+      "command": [
+        "gh",
+        "pr",
+        "view",
+        "{pr}",
+        "--json",
+        "state,headRefOid,mergeable"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "fields": [
+        {
+          "path": "state",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "headRefOid",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "mergeable",
+          "class": "required",
+          "nullable": false
+        }
+      ],
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ]
+    },
     "gh-commit": {
       "command": [
         "gh",
@@ -1404,19 +1439,23 @@ SQUAD_CLI_CONTRACTS
 # JSON の応答を検証・整形する。第 2 引数は、テストなどで固定する CLI のバージョン。
 # 入力の検証がすべて済むまで標準出力には何も返さない。
 squad_cli_normalize() {
-	local name=$1 entry version=${2-} program
+	local name=$1 entry
 	entry=$(squad_cli_contracts | jq -ce --arg name "$name" '.entries[$name] | select(. != null)') || {
 		echo "CLI の読み取りが約束にありません: $name" >&2
 		return 1
 	}
 	if [[ $# == 1 ]]; then
-		case $(jq -r '.command[0]' <<<"$entry") in
-		gh) version=$(gh --version 2>/dev/null) || version= ;;
-		codex) version=$(codex --version 2>/dev/null) || version= ;;
-		*) version=$(multica version 2>/dev/null) || version= ;;
-		esac
-		version=${version%%$'\n'*}
+		squad_cli_check_entry "$name" "$entry"
+	else
+		squad_cli_check_entry "$name" "$entry" "$2"
 	fi
+}
+
+# 取り出した約束の項目で、標準入力の JSON を検証・整形する。
+# 第 3 引数のバージョンを省くと、欄が欠けて失敗するメッセージを作るときだけ、実物の CLI から読む。
+squad_cli_check_entry() {
+	local name=$1 entry=$2 version=${3-} mode=fixed program
+	(($# >= 3)) || mode=read
 	program=$(cat <<'PY'
 import copy
 import json
@@ -1424,9 +1463,23 @@ import os
 import subprocess
 import sys
 
-name, entry, version = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3]
+name, entry, version, mode = sys.argv[1], json.loads(sys.argv[2]), sys.argv[3], sys.argv[4]
 errors = []
 missing = object()
+
+def cli_version():
+    global version, mode
+    if mode == "read":
+        mode = "fixed"
+        command = {"gh": ["gh", "--version"], "codex": ["codex", "--version"]}.get(
+            (entry.get("command") or [None])[0], ["multica", "version"])
+        try:
+            result = subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True,
+                                    text=True, errors="replace")
+            version = result.stdout.split("\n")[0] if result.returncode == 0 else ""
+        except OSError:
+            version = ""
+    return version
 
 def get(value, path):
     for key in path:
@@ -1445,7 +1498,7 @@ def matches(value, expression):
 def report(reason, field, value, index, when=None):
     identity = value.get("id", index) if isinstance(value, dict) else index
     context = (when + " のとき、" if when else "") + "要素 " + str(identity)
-    suffix = "（" + version + "）" if version else ""
+    suffix = "（" + cli_version() + "）" if cli_version() else ""
     errors.append(f"CLI の出力{reason}: {name} の {field}（{context}）{suffix}")
 
 def project(value, tree):
@@ -1537,7 +1590,7 @@ except (ValueError, TypeError, KeyError) as error:
     sys.exit(1)
 PY
 	) || return 1
-	python3 -c "$program" "$name" "$entry" "$version"
+	python3 -c "$program" "$name" "$entry" "$version" "$mode"
 }
 
 # Codex: app-server の account/rateLimits/read を呼び、応答の .result を 1 行の JSON で出す。
@@ -1579,25 +1632,29 @@ squad_cli_read() {
 	local name=$1 entry token raw status
 	local -a command=()
 	shift
-	entry=$(squad_cli_contracts | jq -ce --arg name "$name" '.entries[$name] | select(. != null)') || {
-		echo "CLI の読み取りが約束にありません: $name" >&2
-		return 1
-	}
-	# app-server は CLI の位置引数でなく、初期化後の JSON-RPC で問い合わせる。
-	if [[ $name == codex-rate-limits ]]; then
-		(($# == 0)) || { echo 'Codex の使用量の読み取りに追加の引数は渡せません' >&2; return 1; }
-		command=(squad_cli_codex_usage)
-	else
-	while IFS= read -r token; do
-		if [[ $token == \{*\} ]]; then
-			(($# > 0)) || { echo "CLI の読み取りの引数が足りません: $name の $token" >&2; return 1; }
-			command+=("$1")
-			shift
-		else
-			command+=("$token")
+	# 約束の項目（1 行目）と、そのコマンド（2 行目以降）を、1 回の jq でまとめて取り出す。
+	{
+		IFS= read -r entry
+		if [[ -z $entry ]]; then
+			echo "CLI の読み取りが約束にありません: $name" >&2
+			return 1
 		fi
-	done < <(jq -r '.command[]' <<<"$entry")
-	fi
+		# app-server は CLI の位置引数でなく、初期化後の JSON-RPC で問い合わせる。
+		if [[ $name == codex-rate-limits ]]; then
+			(($# == 0)) || { echo 'Codex の使用量の読み取りに追加の引数は渡せません' >&2; return 1; }
+			command=(squad_cli_codex_usage)
+		else
+		while IFS= read -r token; do
+			if [[ $token == \{*\} ]]; then
+				(($# > 0)) || { echo "CLI の読み取りの引数が足りません: $name の $token" >&2; return 1; }
+				command+=("$1")
+				shift
+			else
+				command+=("$token")
+			fi
+		done
+		fi
+	} < <(squad_cli_contracts | jq -rc --arg name "$name" '.entries[$name] | select(. != null) | ., .command[]')
 	for token in "$@"; do
 		case $token in
 		--compact|--compact=*|--output|--output=*|--json|--json=*)
@@ -1606,7 +1663,7 @@ squad_cli_read() {
 		esac
 	done
 	if raw=$("${command[@]}" "$@"); then
-		printf '%s\n' "$raw" | squad_cli_normalize "$name"
+		printf '%s\n' "$raw" | squad_cli_check_entry "$name" "$entry"
 	else
 		status=$?
 		return "$status"
