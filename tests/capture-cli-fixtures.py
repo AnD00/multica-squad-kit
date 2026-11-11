@@ -15,7 +15,27 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+UUID = re.compile(r'[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}', re.I)
 
+
+def uuid_aliases(value):
+    """全見本で共通の対応表を作り、ID の同一性と文字列の比較順を保つ。"""
+    ids = set()
+
+    def collect(item):
+        if isinstance(item, dict):
+            for child in item.values():
+                collect(child)
+        elif isinstance(item, list):
+            for child in item:
+                collect(child)
+        elif isinstance(item, str):
+            ids.update(UUID.findall(item))
+
+    collect(value)
+    width = max(6, len(str(len(ids))))
+    return {value: f'fixture-id-{index:0{width}d}'
+            for index, value in enumerate(sorted(ids), 1)}
 
 
 def command_json(command):
@@ -85,13 +105,16 @@ def select_samples(responses, entry):
     return selected, coverage, missing
 
 
-def redact(value, reading="", path=(), person=False):
-    """指定された個人の値・自由文・作業パスだけを、鍵・型を保って置き換える。"""
+def redact(value, reading="", path=(), person=False, id_aliases=None):
+    """個人の値・自由文・作業パス・UUID を、鍵・型を保って置き換える。"""
+    if id_aliases is None:
+        id_aliases = uuid_aliases(value)
     if isinstance(value, dict):
         person = person or "email" in value or "user_id" in value
-        return {k: redact(v, reading, path + (k,), person) for k, v in value.items()}
+        return {k: redact(v, reading, path + (k,), person, id_aliases)
+                for k, v in value.items()}
     if isinstance(value, list):
-        return [redact(item, reading, path, person) for item in value]
+        return [redact(item, reading, path, person, id_aliases) for item in value]
     if not isinstance(value, str) or value == "":
         return value
     key = path[-1] if path else ""
@@ -111,7 +134,8 @@ def redact(value, reading="", path=(), person=False):
     } or any(part in {"mcp_config", "custom_args", "source_context"} for part in path):
         return "fixture"
     # 自由文以外でも、値がメールアドレスなら個人の値として置き換える。
-    return re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "fixture@example.invalid", value)
+    value = re.sub(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}", "fixture@example.invalid", value)
+    return UUID.sub(lambda match: id_aliases[match.group()], value)
 
 
 def capture(issue_ids, entries, write_samples):
@@ -162,7 +186,7 @@ def main():
     missing = []
     for name, entry in entries.items():
         selected, coverage[name], absent = select_samples(responses[name], entry)
-        fixtures[name] = redact(selected, name)
+        fixtures[name] = selected
         missing.extend(f"{name}: {shape}" for shape in absent)
         for record in coverage[name]:
             if "unavailable" in record:
@@ -171,6 +195,9 @@ def main():
         for shape in missing:
             print(f"見本の形がありません: {shape}", file=sys.stderr)
         return 1
+    aliases = uuid_aliases(fixtures)
+    fixtures = {name: redact(value, name, id_aliases=aliases)
+                for name, value in fixtures.items()}
     versions = []
     for command in (["multica", "version"], ["gh", "--version"]):
         result = subprocess.run(command, check=True, capture_output=True, text=True)

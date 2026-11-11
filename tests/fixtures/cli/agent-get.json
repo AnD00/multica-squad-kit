@@ -10,11 +10,11 @@
     "description": "fixture",
     "disabled_runtime_skills": [],
     "has_custom_env": true,
-    "id": "59236a15-34f6-4e14-bcf7-5fb23ed51f3a",
+    "id": "fixture-id-000028",
     "instructions": "fixture",
     "invocation_targets": [
       {
-        "target_id": "f7d02290-356c-4abc-9e49-6b857942fcd7",
+        "target_id": "fixture-id-000041",
         "target_type": "workspace"
       }
     ],
@@ -23,18 +23,18 @@
     "mcp_config_redacted": false,
     "model": "gpt-6.1-sol",
     "name": "squadkit-security-reviewer-and00",
-    "owner_id": "b06c3fc0-ed23-4a26-a995-833272ad427e",
+    "owner_id": "fixture-id-000034",
     "permission_mode": "public_to",
     "runtime_bound": true,
     "runtime_config": {},
-    "runtime_id": "833ea557-3c8d-4eed-87c1-89897a539949",
+    "runtime_id": "fixture-id-000029",
     "runtime_mode": "local",
     "service_tier": "",
     "skills": [
       {
         "description": "fixture",
         "enabled": true,
-        "id": "3fb57e29-ff72-48c0-9306-7b606ed66f51",
+        "id": "fixture-id-000027",
         "name": "squad-handoff"
       }
     ],
@@ -42,6 +42,6 @@
     "thinking_level": "high",
     "updated_at": "2026-11-10T23:51:01Z",
     "visibility": "workspace",
-    "workspace_id": "f7d02290-356c-4abc-9e49-6b857942fcd7"
+    "workspace_id": "fixture-id-000041"
   }
 ]

@@ -5,32 +5,32 @@
       "archived_by": null,
       "avatar_url": null,
       "created_at": "2026-11-10T07:08:39Z",
-      "creator_id": "b06c3fc0-ed23-4a26-a995-833272ad427e",
+      "creator_id": "fixture-id-000034",
       "description": "",
-      "id": "b185c499-5f1d-4690-8442-8015d5f6c34f",
+      "id": "fixture-id-000035",
       "instructions": "fixture",
-      "leader_id": "f479c2c0-20cb-40fc-9cb0-bcc078ce9c26",
+      "leader_id": "fixture-id-000040",
       "member_count": 13,
       "member_preview": [
         {
-          "member_id": "f479c2c0-20cb-40fc-9cb0-bcc078ce9c26",
+          "member_id": "fixture-id-000040",
           "member_type": "agent",
           "role": "leader"
         },
         {
-          "member_id": "8f8f7922-119e-4ef1-81f1-b995ad6ba834",
+          "member_id": "fixture-id-000030",
           "member_type": "agent",
           "role": "要件定義とタスク分割。新しい要望は最初にここへ回す"
         },
         {
-          "member_id": "ec73a3fc-f90b-4295-a3f8-09517b581daf",
+          "member_id": "fixture-id-000039",
           "member_type": "agent",
           "role": "設計。要件が合意されたタスクを受け、docs/ の変更を draft PR にする"
         }
       ],
       "name": "SQUADKIT-AND00",
       "updated_at": "2026-11-10T07:08:57Z",
-      "workspace_id": "f7d02290-356c-4abc-9e49-6b857942fcd7"
+      "workspace_id": "fixture-id-000041"
     }
   ]
 ]

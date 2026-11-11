@@ -2,7 +2,7 @@
   "issue-get": [
     {
       "name": "assigned",
-      "count": 8
+      "count": 4
     },
     {
       "name": "unassigned",
@@ -10,29 +10,29 @@
     },
     {
       "name": "ci_watch_thread-present",
-      "count": 6
+      "count": 4
     },
     {
       "name": "ci_watch_thread-absent",
-      "count": 3
+      "count": 1
     },
     {
       "name": "pr_url-present",
-      "count": 7
+      "count": 4
     },
     {
       "name": "pr_url-absent",
-      "count": 2
+      "count": 1
     }
   ],
   "issue-comments": [
     {
       "name": "member",
-      "count": 63
+      "count": 25
     },
     {
       "name": "agent",
-      "count": 209
+      "count": 69
     },
     {
       "name": "system",
@@ -42,49 +42,49 @@
   "issue-runs": [
     {
       "name": "comment",
-      "count": 186
+      "count": 66
     },
     {
       "name": "direct",
-      "count": 8
+      "count": 4
     }
   ],
   "issue-wakeups": [
     {
       "name": "no-condition",
-      "count": 12
+      "count": 4
     },
     {
       "name": "pull-request",
-      "count": 8
+      "count": 4
     }
   ],
   "issue-labels": [
     {
       "name": "element",
-      "count": 7
+      "count": 3
     }
   ],
   "issue-metadata": [
     {
       "name": "pr-present",
-      "count": 7
+      "count": 4
     },
     {
       "name": "pr-absent",
-      "count": 2
+      "count": 1
     }
   ],
   "issue-search": [
     {
       "name": "element",
-      "count": 20
+      "count": 11
     }
   ],
   "agent-get": [
     {
       "name": "element",
-      "count": 8
+      "count": 7
     }
   ],
   "squad-list": [
@@ -126,7 +126,7 @@
   "gh-pr-checks": [
     {
       "name": "CheckRun",
-      "count": 15
+      "count": 9
     },
     {
       "name": "StatusContext",
