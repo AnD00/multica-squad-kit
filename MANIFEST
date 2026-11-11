@@ -3,7 +3,7 @@ a6075c06025d8c2d6445a942619b5062fd172e5402b77fe4c294029707e0dcba  ./.agents/rule
 7ec8af9fdbda60aacfcd7510d9e44ebc478f79feae2fd586d0393fd396da39c1  ./.agents/rules/tests.md
 63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 da815857eac0c45fe217fca927b5132fff467d9d1c015e0fc5b0de3f356b5918  ./.github/pull_request_template.md
-4a9bc7c0ae67e04c1eddd73c9d0726633601ecfe87fccb8c6c04f85f26261fb6  ./.github/workflows/check.yml
+88e0088b4c4ab227d923a93de38315097f44b7b0c43c24ad058929e1b8146bdc  ./.github/workflows/check.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 d53ad43ea0db729b90fc1f55850b98e00a7d5065a954591d9b21f0eb6d2f183b  ./AGENTS.md
