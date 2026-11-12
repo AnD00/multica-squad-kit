@@ -20,28 +20,35 @@ dispatch_pick_main() (
 	work_dir=$(mktemp -d "$PWD/tmp/dispatch-pick.XXXXXX")
 	# 読み取りを独立したプロセスグループで始める。時間切れや中断のときは、
 	# squad-usage-read が呼んだ CLI とその子も止め、実行を残さない。
+	# グループは、set -m ではなく子が自分で作る。set -m は親と子の両方が setpgid を呼び、
+	# 負荷が高いと子の側が失敗して、標準エラーに警告を出すため。
+	# 子がグループを作る前は、グループがないので、読み取りのプロセスに直接 kill する。
+	# その時点の読み取りは、まだ子を起こしていない。
+	stop_reader() {
+		kill -"$1" -- "-$reader_pid" 2>/dev/null || kill -"$1" -- "$reader_pid" 2>/dev/null || true
+	}
 	trap 'if [[ -n "$reader_pid" ]]; then
-		kill -TERM -- "-$reader_pid" 2>/dev/null || true
-		kill -KILL -- "-$reader_pid" 2>/dev/null || true
+		stop_reader TERM
+		stop_reader KILL
 		wait "$reader_pid" 2>/dev/null || true
 	fi
 	rm -rf -- "$work_dir"' EXIT
 	trap 'exit 1' HUP INT TERM
-	set -m
-	bash "$script_dir/squad-usage-read" >"$work_dir/usage.json" 2>"$work_dir/usage.err" &
+	python3 -c 'import os, sys; os.setpgrp(); os.execvp(sys.argv[1], sys.argv[1:])' \
+		bash "$script_dir/squad-usage-read" >"$work_dir/usage.json" 2>"$work_dir/usage.err" &
 	reader_pid=$!
-	set +m
 	for ((ticks = 0; ticks < 90; ticks++)); do
 		kill -0 "$reader_pid" 2>/dev/null || break
 		sleep 1
 	done
 	if kill -0 "$reader_pid" 2>/dev/null; then
 		reason='使用率の読み取りが 90 秒で終わらなかった'
-		kill -TERM -- "-$reader_pid" 2>/dev/null || true
-		kill -KILL -- "-$reader_pid" 2>/dev/null || true
+		stop_reader TERM
+		stop_reader KILL
 	fi
 	wait "$reader_pid" 2>/dev/null || status=$?
 	# 正常終了した読み取りでも、残った子があれば片付ける。
+	# 読み取りは終わっているので、プロセスの ID への kill は使わない（別のプロセスに当たりうる）。
 	kill -KILL -- "-$reader_pid" 2>/dev/null || true
 	reader_pid=
 	if [[ -n "$reason" ]]; then
