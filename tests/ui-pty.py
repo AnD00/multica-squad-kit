@@ -7,6 +7,8 @@
 screen は入出力を 1 つの疑似端末につなぐ。--stdin-tty <入力> --wait-for <問い> を指定し、問いを待ってから答えを送る。
 100 桁・40 行、TERM=xterm-256color で流し、最初の保存先に問いまで、次の保存先に答え以降を保存する。
 screen だけは、流したコマンドの終了コードを返す。
+--merge-output は both の 2 つの出力を同じ端末につなぎ、最初の保存先へまとめる。
+--resize-on <文字列> <桁> <行> は、その文字列が出たときに大きさを変え、SIGWINCH を送る。繰り返し指定できる。
 受け取った内容は、そのまま保存先のファイルに書く。環境変数は呼び出し元のものを渡す。
 """
 import errno
@@ -25,25 +27,62 @@ mode, out_path, err_path = sys.argv[1:4]
 rest = sys.argv[4:]
 stdin_path = None
 stdin_tty = False
-if rest[0] in ("--stdin", "--stdin-tty"):
-    stdin_tty = rest[0] == "--stdin-tty"
-    stdin_path = rest[1]
-    rest = rest[2:]
 prompt = None
-if rest[0] == "--wait-for":
-    prompt = rest[1].encode()
-    rest = rest[2:]
+merge_output = False
+resize_events = []
+while rest[0] != "--":
+    if rest[0] in ("--stdin", "--stdin-tty"):
+        stdin_tty = rest[0] == "--stdin-tty"
+        stdin_path = rest[1]
+        rest = rest[2:]
+    elif rest[0] == "--wait-for":
+        prompt = rest[1].encode()
+        rest = rest[2:]
+    elif rest[0] == "--merge-output":
+        merge_output = True
+        rest = rest[1:]
+    elif rest[0] == "--resize-on":
+        columns, rows = int(rest[2]), int(rest[3])
+        assert columns > 0 and rows > 0
+        resize_events.append((rest[1].encode(), columns, rows))
+        rest = rest[4:]
+    else:
+        raise ValueError(f"使えない指定: {rest[0]}")
 assert rest[0] == "--"
 command = rest[1:]
 assert mode in ("out", "err", "both", "none", "screen")
+assert not merge_output or mode == "both"
+
+
+def open_terminal():
+    master, slave = pty.openpty()
+    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
+    return master, slave
+
+
+resize_seen = bytearray()
+
+
+def resize_on_output(data, terminals, pid):
+    resize_seen.extend(data)
+    for event in list(resize_events):
+        marker, columns, rows = event
+        if marker not in resize_seen:
+            continue
+        for fd in set(fd for fd in terminals if fd is not None):
+            fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack("HHHH", rows, columns, 0, 0))
+        try:
+            os.kill(pid, signal.SIGWINCH)
+        except ProcessLookupError:
+            pass
+        resize_events.remove(event)
 
 
 def capture_screen():
     assert stdin_tty and prompt
     with open(stdin_path, "rb") as handle:
         answer = handle.read()
-    master, slave = pty.openpty()
-    fcntl.ioctl(slave, termios.TIOCSWINSZ, struct.pack("HHHH", 40, 100, 0, 0))
+    master, slave = open_terminal()
     proc = subprocess.Popen(
         command, stdin=slave, stdout=slave, stderr=slave,
         env={**os.environ, "TERM": "xterm-256color"}, start_new_session=True,
@@ -70,6 +109,7 @@ def capture_screen():
             if not data:
                 break
             (after if answered else before).extend(data)
+            resize_on_output(data, [master], proc.pid)
             if not answered and prompt in before:
                 os.write(master, answer)
                 answered = True
@@ -102,16 +142,20 @@ if mode == "screen":
 
 def attach(use_tty):
     if use_tty:
-        master, slave = pty.openpty()
+        master, slave = open_terminal()
         return master, slave
     return None, subprocess.PIPE
 
 
 out_master, out_target = attach(mode in ("out", "both"))
 err_master, err_target = attach(mode in ("err", "both"))
+if merge_output:
+    os.close(err_master)
+    os.close(err_target)
+    err_master, err_target = out_master, out_target
 stdin_master = None
 if stdin_tty:
-    stdin_master, stdin_file = pty.openpty()
+    stdin_master, stdin_file = open_terminal()
 else:
     stdin_file = open(stdin_path, "rb") if stdin_path else subprocess.DEVNULL
 proc = subprocess.Popen(command, stdin=stdin_file, stdout=out_target, stderr=err_target)
@@ -120,16 +164,17 @@ if stdin_tty:
     with open(stdin_path, "rb") as handle:
         os.write(stdin_master, handle.read() + b"\x04")
     os.close(stdin_file)
-for master, target in ((out_master, out_target), (err_master, err_target)):
-    if master is not None:
-        os.close(target)
+for target in {target for master, target in ((out_master, out_target), (err_master, err_target)) if master is not None}:
+    os.close(target)
 
 sources = {}
 if out_master is not None:
     sources[out_master] = out_path
 else:
     sources[proc.stdout.fileno()] = out_path
-if err_master is not None:
+if merge_output:
+    pass
+elif err_master is not None:
     sources[err_master] = err_path
 else:
     sources[proc.stderr.fileno()] = err_path
@@ -147,6 +192,7 @@ while sources and time.time() < deadline:
             data = b""
         if data:
             captured[sources[fd]] += data
+            resize_on_output(data, [out_master, err_master, stdin_master], proc.pid)
         else:
             del sources[fd]
 proc.wait(timeout=30)

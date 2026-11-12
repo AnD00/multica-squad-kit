@@ -59,7 +59,7 @@ for scene in 1 2 3 4 5; do
 	printf '%s\n' "$status" >"$output_dir/$scene-status"
 	if [[ $capture_only != yes ]]; then
 		"$screens_python" "$root/tests/ansi-to-png.py" "$output_dir/$scene-confirm.ansi" "$output_dir/$scene-confirm.png" --last-lines 40
-		"$screens_python" "$root/tests/ansi-to-png.py" "$output_dir/$scene-after.ansi" "$output_dir/$scene-after.png"
+		"$screens_python" "$root/tests/ansi-to-png.py" "$output_dir/$scene-after.ansi" "$output_dir/$scene-after.png" --before "$output_dir/$scene-confirm.ansi"
 	fi
 done
 printf '画面の出力を保存しました: %s\n' "$output_dir"
