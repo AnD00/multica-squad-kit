@@ -42,6 +42,7 @@ tests/vm-lima-test.sh 23
 tests/agent-templates-test.sh 19
 tests/runtime-selection-test.sh 17
 tests/setup-version-test.sh 15
+tests/release-screens-test.sh 16
 tests/project-changes-test.sh 14
 tests/build-assets-test.sh 10
 tests/ci-install-test.sh 10
