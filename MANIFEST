@@ -57,7 +57,7 @@ adfb0e15a2f23706c8ac822ef3c6e14e632d1c5af5862d5f1cc0c79a90847d55  ./common/squad
 680d4a0a72f93f6137416efdf36f1ee49665a350f49288456af87e671a802c28  ./docs/conflict-resolution.md
 c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate-path.md
 9e16d28fee953be91a85ada3c4fa00970cc04b2e3b3f1f51a2b03884f5fb5b57  ./docs/install.md
-d8202e4ecafa8f7d5433af786253977b1292c6d2f81536b427b596c3f551ef73  ./docs/leader-principles.md
+9a922504e85d91f40a9117ebc924856ac529a6dcd8a46c3c50377de8a3954dfd  ./docs/leader-principles.md
 ff0e5faa1ff0c0ac18368e3f31df058707c5ae929df29f226c281de8e29bbd0b  ./docs/local-verification.md
 a19c8d845eac7ce4e1a0888ad1aca23b1acf0782191514826dd3aea7595f4d29  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
@@ -181,7 +181,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
 d2e2434c80e2378db96823c1006595d93f307a052bf8ed757035c66ce2e7e6cb  ./tests/leader-eval-test.sh
-90b8edcab4758fcf9d125de6a97ec02ee7c081077d57d4d5cb0b86924caf9cea  ./tests/leader-eval/leader_eval.py
+c01549350f77945f52a052f5be109a8cd49c75b1838c700c012d8f614e0a487f  ./tests/leader-eval/leader_eval.py
 6d4a7651208209f8214af525f99876a985db2cf783a81900a1670fb19e4c0bc2  ./tests/leader-eval/run.sh
 3370b1172bd48a18ca61f592f375ebef86fbaa5027d60b7ddeb232c25aa790e3  ./tests/leader-eval/runtime-brief.md
 bc12043c77174f0cd04becf3bc38e2468e6343431f53c8c16dc2ab77b5f04a08  ./tests/leader-eval/scenes/1-1/cli.json
@@ -191,11 +191,11 @@ c219e240eea2a0f36099dbce407dbff1f4c5d986754bfd79de43d9677063ed47  ./tests/leader
 63b232129dce1334932ca4eabc7b47d8e3d8d30210fb405511861ac5ad92a0c1  ./tests/leader-eval/scenes/2-1/cli.json
 b22a2e9507acff581f4c815db409a21e43e05816a60c3245a9744b0e0a68dc41  ./tests/leader-eval/scenes/2-1/scene.md
 af33a6d7eb26be16d2605c5e4f48b3ec279a52ca17ec7cd0c1163871b653a79b  ./tests/leader-eval/scenes/2-2/cli.json
-5b74b0d78b10f66f2f1dc74f24cbe4e6d1dc5c89a20d15fb755b71f6ef2d2c22  ./tests/leader-eval/scenes/2-2/scene.md
+0491cedae0123e3f0ef2d50299c1127cd32ca8f6b6585f2616907d824fc7dd29  ./tests/leader-eval/scenes/2-2/scene.md
 2a64ee48595010799dac2e48b4f32232275dc388b6cf65f8401cceef14d67d3d  ./tests/leader-eval/scenes/3-1/cli.json
 59c6608f77b49d344908380d8cf5c067d7bbefeb370d51df90923a014d7608b9  ./tests/leader-eval/scenes/3-1/scene.md
 00d450aebaaa256b56ba9f1e760c54ad12bf86118e741006bb24332b837a655a  ./tests/leader-eval/scenes/3-2/cli.json
-50268db75b5a753a11cd591b6771571b4e0fd96a60fd3d906cdcadc208c2a8ca  ./tests/leader-eval/scenes/3-2/scene.md
+65b676d9aac2cc8016477a82e1386463ab3a71a438218dd5af940dabe53853a5  ./tests/leader-eval/scenes/3-2/scene.md
 46a7ac754babffe1f70fd243f06d2bd3156903f9866e3125ed6a2226e36ce58e  ./tests/leader-eval/scenes/4-1/cli.json
 8f7767e79787808b0bb9617700a7bfefcb6b04f49e7c53f8f370aeea19a89663  ./tests/leader-eval/scenes/4-1/scene.md
 2ffe99e75abaa0a557f1d2e97d0b83f16abc513ab1e6d2544911da9113d731f0  ./tests/leader-eval/scenes/4-2/cli.json
@@ -216,10 +216,10 @@ fec502fd98c6e7bb0bb9e56f089ae7d84cb5312bdd7e8aac932d9cd39f8f26ce  ./tests/leader
 3bf8857c6751e4fa8af856784546e4d78d1184ab72276e0da17a227e5eb38c03  ./tests/leader-eval/scenes/保-3/scene.md
 6fbae8a49077fe2d5b65637cb2a5f455894e386500e912a144a7a2eb455f8098  ./tests/leader-eval/scenes/保-4/cli.json
 31633e13ea92efa4b0e6d78a18988877128f6080c1daa1abfc33953dce1437cc  ./tests/leader-eval/scenes/保-4/scene.md
-0a4fd985ee356246d6d0328e47200ab40f8b623afab489fb0c7ed83b948e552e  ./tests/leader-eval/scenes/保-5/cli.json
-0e34c473fd35befb2701d36e4893fd9c7a068ff990cf78357378acff0b71e23b  ./tests/leader-eval/scenes/保-5/scene.md
+66349d885ad579a88184ec7f2d75577c5e9696bd90eae1f0b2a1ff5e6a79c810  ./tests/leader-eval/scenes/保-5/cli.json
+63822e451b6fe870137c250e89cd8587b2e22ae6e92b4e9a9e510df5b928605a  ./tests/leader-eval/scenes/保-5/scene.md
 406f282e5e2e2055bdfde95857e033612c8b6a776ec0e1760a25be89bf9cc1a8  ./tests/leader-eval/scenes/保-6/cli.json
-b584e4718a515799b06181ba432cc072ecc0cf99a88304e770d4b7beacbd075e  ./tests/leader-eval/scenes/保-6/scene.md
+bd6d5ad4c73bdd6c1660e6c8796b6d9d8b7392732185822c19753f62c2fb0e38  ./tests/leader-eval/scenes/保-6/scene.md
 f3a6d60757b256592e9a1a6d21072d8e4d8026b76c25c16891992584a618f520  ./tests/leader-eval/values.json
 b07bac540574fc897e6967a373c67d30f4e50a80a21c110d9d4b2bb0ed001fac  ./tests/link-scope-questions-test.sh
 d9c9ca4f517999386d111d1d7e20f9b934e3c1ffc3d013e49d6aca1a965e62ca  ./tests/manual-test.sh

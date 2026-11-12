@@ -230,9 +230,14 @@ def stub(name, argv):
 
 SHIMS = ["multica", "gh", "squad-preflight", "squad-pr-link", "squad-pr-watch", "squad-review-wait",
          "squad-dispatch-pick", "squad-usage-read"]
-# 使える道具は、スタブのコマンドの Bash と、作業ディレクトリの中の読み書きだけにする。
-# コメントの一時ファイルの片付け（rm）は、作業ディレクトリの中に限る
-ALLOWED_TOOLS = ["Bash(multica *)", "Bash(gh *)", "Bash(squad-*)", "Bash(rm tmp/*)", "Bash(rm ./tmp/*)",
+# 使える道具は、スタブのコマンドの Bash と、作業ディレクトリの中の読み書きに、次の 2 つを足したものにする。
+# - エージェントは `cmd; echo "exit=$?"` や `cmd | head` のようにコマンドをつなぐ。dontAsk では、つないだ
+#   部分が許可に無いと全体が拒否されるので、読むだけの標準のコマンドも許可する（書き込みや通信はできない）
+# - コメントの一時ファイルの片付けのため、`rm` は `.md` のファイルと、tmp/ と ./ の下だけ許可する。
+#   Claude Code の許可の書き方では、絶対パスを除けない。作業ディレクトリは使い捨てなので、この幅で足りるとする
+SHELL_READERS = ["echo", "printf", "cat", "ls", "head", "tail", "wc", "grep", "jq", "sort", "pwd", "which", "test"]
+ALLOWED_TOOLS = ["Bash(multica *)", "Bash(gh *)", "Bash(squad-*)", "Bash(rm *.md)", "Bash(rm -f *.md)", "Bash(rm tmp/*)", "Bash(rm -f tmp/*)", "Bash(rm ./*)", "Bash(rm -f ./*)",
+                 *[f"Bash({c} *)" for c in SHELL_READERS], "Bash(pwd)",
                  "Read(./**)", "Edit(./**)"]  # Edit の規則は Write も覆う
 BUILTIN_TOOLS = "Bash Read Write Edit"
 
@@ -261,6 +266,24 @@ def build_workdir(instr_dir, run_dir, runtime):
         )
         shim.chmod(0o755)
     return work, bin_dir
+
+
+# Multica の実行は、シェルの起動で本物の gh と squad- の見張りの置き場（関所）を PATH の先頭に足す。
+# それではスタブより先に本物が呼ばれ、評価の呼び出しが本物の GitHub やタスクへ届くので、
+# 評価の実行ではその仕組みを外し、スタブの置き場だけを先頭に置く
+# 利用者のシェルの設定（`alias rm='rm -i'` など）も読み込まれないよう、ZDOTDIR は空のディレクトリにする
+GATE_ENV = ["BASH_ENV", "CLAUDE_ENV_FILE", "SQUAD_KIT_ALLOWED_REPOS"]
+
+
+def stub_env(bin_dir):
+    env = {k: v for k, v in os.environ.items() if k not in GATE_ENV}
+    zdotdir = Path(bin_dir).parent / "zdotdir"
+    zdotdir.mkdir(exist_ok=True)
+    env["ZDOTDIR"] = str(zdotdir)
+    keep = [d for d in env.get("PATH", "").split(":")
+            if d and not any(Path(d, n).exists() for n in ("squad-preflight", "squad-pr-link"))]
+    env["PATH"] = ":".join([str(bin_dir)] + keep)
+    return env
 
 
 def run_command(cmd, cwd, env, timeout, stdin_text=None):
@@ -321,8 +344,7 @@ def run_one(args):
     work, bin_dir = build_workdir(instr_dir, run_dir, args["runtime"])
     calls_path = run_dir / "calls.jsonl"
     calls_path.write_text("")
-    env = dict(os.environ)
-    env["PATH"] = f"{bin_dir}:{env['PATH']}"
+    env = stub_env(bin_dir)
     env["LEADER_EVAL_CLI"] = str(Path(args["scenes"]) / args["scene"] / "cli.json")
     env["LEADER_EVAL_CALLS"] = str(calls_path)
     env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
@@ -378,7 +400,8 @@ def summary(runs_path, out_path):
 
     for sid in sorted(scenes):
         s = scenes[sid]
-        failed = sorted({g["n"] for r in s["new"] for g in r["criteria"] if not g["pass"]})
+        # 落ちた基準は新しいリーダーのもの。新しい側を流していない記録（今のリーダーだけ）は、今のリーダーのものを出す
+        failed = sorted({g["n"] for r in (s["new"] or s["old"]) for g in r["criteria"] if not g["pass"]})
         rows.append(f"| {sid} | {s['type']} | {cell(s['old'])} | {cell(s['new'])} | "
                     f"{', '.join(map(str, failed)) if failed else '-'} |")
     Path(out_path).write_text("\n".join(rows) + "\n", encoding="utf-8")

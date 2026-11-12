@@ -6,7 +6,7 @@
     },
     {
       "match": "multica issue get issue-shop-1",
-      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"ログインの有効期限を延ばす\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [\n    {\n      \"id\": \"label-important\",\n      \"name\": \"重要\"\n    }\n  ],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\",\n    \"pr_url\": \"https://github.com/example/shop/pull/7\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
+      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"ログインの有効期限を延ばす\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [\n    {\n      \"id\": \"label-important\",\n      \"name\": \"重要\"\n    }\n  ],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/login-expiry\",\n    \"pr_url\": \"https://github.com/example/shop/pull/7\"\n  },\n  \"description\": \"ログインの有効期限を、7 日から 30 日に延ばす。\"\n}"
     },
     {
       "match": "multica issue comment list issue-shop-1",
@@ -50,7 +50,7 @@
     },
     {
       "match": "gh pr view",
-      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
+      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: ログインの有効期限を 30 日に延ばす\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/login-expiry\",\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/auth/session.ts\"\n    },\n    {\n      \"path\": \"src/auth/session.test.ts\"\n    }\n  ],\n  \"body\": \"ログインの有効期限を、7 日から 30 日に延ばす。トークンの発行と検証の期限を合わせる。\"\n}"
     }
   ]
 }
