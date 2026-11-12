@@ -162,6 +162,32 @@ Mac の Lima の VM と WSL の専用のディストリは、[バージョンを
 
 起票するタスクの本文（`common/setup-issues.json`）は、取り出したタグの `manual.md` の節へリンクする。
 
+## 出力を変える PR で画面の画像を作る
+
+`scripts/release.sh` の出力を変える PR では、変える前と後の画面を、同じ場面・同じ入力で PNG にして、見比べられるようにする。  
+テストの文字列の一致に加えて、人が見た目で確かめるためである。  
+設計は `docs/release.md` の[画面を画像で見比べる](docs/release.md#画面を画像で見比べる)にある。
+
+前は変える前の `main` の `scripts/release.sh`、後は PR の `scripts/release.sh` を、同じ仕組みで流す。  
+`lib/ui.sh` などのほかのファイルは、作業ツリーのものを使う。
+
+```bash
+python3 -m venv tmp/screens-venv
+tmp/screens-venv/bin/pip install -r tests/release-screens-requirements.txt
+git fetch origin main
+git show origin/main:scripts/release.sh >tmp/release-before.sh
+RELEASE_SCREENS_PYTHON=tmp/screens-venv/bin/python bash tests/release-screens.sh tmp/release-before.sh tmp/screens/before
+RELEASE_SCREENS_PYTHON=tmp/screens-venv/bin/python bash tests/release-screens.sh scripts/release.sh tmp/screens/after
+```
+
+- `RELEASE_SCREENS_PYTHON` は、描くときの Python のパスである。指定がなければ `python3` を使い、Pillow がなければ、入れ方を出して止まる
+- `--capture-only` を付けると、出力を取るところまでで終わり、PNG を描かない。CI と、描く道具のない手元で使う
+- 画像は、リポジトリに入れない。`tmp/` は Git に入れない
+
+PR のコメントに、場面ごとの前と後の画像の組、上のコマンド、前に使った `main` のコミットを書く。  
+`gh` には PR のコメントに画像を載せる口がないので、画像は GitHub の画面でそのコメントに添える。  
+エージェントが作ったときは、画像をタスクのコメントに添え、人が PR のコメントに移す。
+
 ## 文書の改行
 
 `README.md`、`manual.md`、`CONTRIBUTING.md` の段落は、1 行に 1 文で書く。  
@@ -219,12 +245,18 @@ git pull --ff-only origin main
 bash scripts/release.sh
 ```
 
-コマンドは、公開の前に、バージョン、タグを付けるコミット、Release の本文（`CHANGELOG.md` のそのバージョンの節）を出して、確認を求める。  
+コマンドは、確認を求める前に、確かめた項目の一覧、Release の本文（`CHANGELOG.md` のそのバージョンの節）、バージョンとタグを付けるコミットの要約、番号付きの「すること」を出す。  
 確認は端末で答えるので、端末から流す。  
 パイプや自動の実行では、公開されない。
 
 `y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、下書きの Release を作る。  
 そのあと、配布物を作るワークフローの終わりを待ち、配布物と証明を確かめて、確かめが通ったときだけ公開する。
+
+公開の手順は、番号と総数と名前の見出しで進む。  
+外のコマンドの出力は、失敗したときだけそのまま出る。  
+公開したら、バージョン、コミット、Release の URL、配布物、発行のワークフローの実行の URL を、終わりのまとめに出す。  
+画面の例は写さない。  
+確認の前の画面は `docs/release.md` の[確認](docs/release.md#確認)に、手順と終わりのまとめは[手順の表示](docs/release.md#手順の表示)と[終わりのまとめ](docs/release.md#終わりのまとめ)にある。
 
 止まったときは、出た理由に従って直してから、流し直す。  
 未公開のコミットがあるときや、`VERSION` と `CHANGELOG.md` の先頭のバージョンが違うときは、変更を PR でレビュー・マージしてからやり直す。
