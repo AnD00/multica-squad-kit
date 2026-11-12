@@ -23,7 +23,8 @@ for selected in claude codex; do
  : >"$TEST_DB/calls"
  run
  grep -qF 'エージェント 14 件の既存設定' "$test_dir/err"
- grep -qF '今回作った件数: エージェント 0 件' "$test_dir/out"
+ grep -q '^✔ ' "$test_dir/out"
+ ! grep -q '^✔ .*エージェント' "$test_dir/out"
  ! jq -es --arg prefix "agent-demo-$absent-" 'any(.[]; .[0]=="agent" and (.[2] // ""|startswith($prefix)))' "$TEST_DB/calls" >/dev/null
  for role in orchestrator planner designer qa code-reviewer security-reviewer ux-reviewer performance-reviewer ci-monitor usage-monitor dependabot-merger; do
   role_model=$expected

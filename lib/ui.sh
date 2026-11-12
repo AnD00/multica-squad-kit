@@ -750,18 +750,3 @@ ui_phase_fail() {
 	ui_notice_flush
 	ui_step_fail "${1:-$ui_steps_subject}"
 }
-
-# ui_result <結果の語>: 完了の表示の結果の語に、種類の色を付けて改行なしで標準出力へ出す。
-# 「成功（HTTP 200）」のように括弧で補足が続くときは、括弧の前の語だけに色を付ける。
-# 知らない語は色を付けずに出す。
-ui_result() {
-	local word=${1%%（*} kind
-	case $word in
-	一致 | 作成 | 既存 | 新規 | 成功) kind=success ;;
-	要確認 | 飛ばした | 記録なし) kind=warning ;;
-	失敗) kind=error ;;
-	*) printf '%s' "$1"; return 0 ;;
-	esac
-	ui_paint out "$kind" "$word"
-	printf '%s' "${1#"$word"}"
-}

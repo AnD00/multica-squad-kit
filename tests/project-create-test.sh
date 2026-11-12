@@ -15,7 +15,7 @@ done
 [[ $(grep -c '^エージェント [0-9]*/17（ID の準備' "$test_dir/err") == 18 ]]
 echo 'PASS progress: 17役のID準備・指示設定・公開を0から順に表示し、未公開のID準備を全体完了と表示しない'
 
-grep -qF "今回作った件数: エージェント 17 件、スクワッド 1 件、オートパイロット 0 件" "$test_dir/out"
+grep -qE "^✔ .*  \+17 エージェント  \+1 スクワッド\$" "$test_dir/out"
 [[ $(jq -s 'length' "$TEST_DB"/agents/*.json) == 18 ]]
 jq -es 'all(.[]|select(.name|startswith("demo-")); .permission_mode=="public_to" and (.instructions|contains("squad-a")) and (.instructions|contains("agent-demo-orchestrator-owner")) and (.instructions|contains("{{")|not))' "$TEST_DB"/agents/*.json >/dev/null
 printf 'example/project\nexample/second\nexample/third\n' >"$test_dir/expected-repos"
@@ -70,7 +70,7 @@ jq -e '.content=="Edited skill"' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.EXTRA=="keep"' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
 jq -e '.instructions=="keep"' "$TEST_DB/agents/other.json" >/dev/null
 cmp "$test_dir/resources-before" "$TEST_DB/resources.json"
-grep -qF "今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件" "$test_dir/out"
+grep -q "^✔ [^+]*\$" "$test_dir/out"
 echo 'PASS project: 再実行は実 ID・説明・プロジェクトのスキル・追加の環境と別人の設定を保ち、同じ内容は書かない'
 echo 'PASS custom args: 作成時に Codex にだけ 2 設定を渡し、同じ内容の再実行では設定を書かない'
 echo 'PASS project: HTTPS・SSH・大小文字・末尾の違いは重ねて紐付けず、既存の ref と別種のリソースも保つ'

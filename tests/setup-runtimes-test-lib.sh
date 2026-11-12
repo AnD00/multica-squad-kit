@@ -79,7 +79,7 @@ STUB
  unset MULTICA_SERVER_URL MULTICA_WORKSPACE_ID USAGE_CHECK_RUNTIMES
  printf '\n1\nRuntime test\ndemo\n1\nowner\n1\n%s\n0\n2\nyes\n' "$choice" >"$scenario_dir/input"
  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
- grep -qF 'プロジェクトの設定が終わりました' "$scenario_dir/out"
+ grep -q '^✔ ' "$scenario_dir/out"
  "$python" - "$scenario_dir" <<'PY'
 import json
 import re
@@ -135,11 +135,11 @@ for pilot in db['autopilots']:
     kinds = sorted(t['kind'] for t in db['triggers'][pilot['id']])
     assert kinds == (['schedule', 'webhook'] if pilot['assignee_id'] == agents['dependabot-merger']['id'] else ['schedule'])
 assert len(db['github_hooks']) == 1
-assert '配信 成功（HTTP 200）' in (scenario / 'out').read_text()
+assert '✔ 配信 200' in (scenario / 'out').read_text()
 display = (scenario / 'out').read_text()
-assert display.count(': 一致') == 6 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
-assert ': 要確認' not in display
-assert display.index('導入の確認:') < display.index('Webhook の登録:') < display.index('起票したタスク:')
+assert display.count('\n  ✔ ') == 6 + len(roles) + 1 + len(db['autopilots']) + len(runtimes)
+assert '\n  ! ' not in display and '記録なし' not in display
+assert display.index('\n  ✔ ') < display.index('✔ トリガー') < display.index('\n  + ')
 issues = {i['metadata']['squad_kit_task']: i for i in db['issues']}
 assert set(issues) == {'dependabot-filter', 'repository-rules', 'project-instructions', 'squad-trial'}
 for kind, issue in issues.items():
@@ -151,8 +151,8 @@ calls = [json.loads(line) for line in (scenario / 'calls.jsonl').read_text().spl
 first_issue = next(n for n, call in enumerate(calls) if call[:2] == ['issue', 'create'])
 last_registration = max(n for n, call in enumerate(calls) if call[:2] == ['agent', 'update'] or call[:2] == ['autopilot', 'trigger-add'])
 assert first_issue > last_registration
-assert (scenario / 'out').read_text().count('（新規）') == 4
-assert '起票できなかったタスク:' not in (scenario / 'out').read_text()
+assert (scenario / 'out').read_text().count('\n  + ') == 4
+assert '✖' not in (scenario / 'out').read_text()
 pilot = next(a for a in db['autopilots'] if a['assignee_id'] == agents['usage-monitor']['id'])
 value = re.search(r'USAGE_CHECK_RUNTIMES に "([^"]+)"', pilot['description'])[1]
 assert value == ' '.join(runtimes)
@@ -171,14 +171,14 @@ PY
  : >"$scenario_dir/calls.jsonl"
  printf '\n1\n1\ndemo\n1\nowner\n1\n\n0\n\nyes\n' >"$scenario_dir/input"
  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
- grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件' "$scenario_dir/out"
+ grep -q '^✔ [^+]*$' "$scenario_dir/out"
  "$python" - "$scenario_dir" <<'PY'
 import json
 import sys
 from pathlib import Path
 scenario = Path(sys.argv[1])
 assert json.loads((scenario / 'first-db.json').read_text()) == json.loads((scenario / 'db.json').read_text())
-assert (scenario / 'out').read_text().count('（既存）') == 4
+assert (scenario / 'out').read_text().count('\n  · ') == 4
 PY
  ! jq -es 'any(.[]; .[1]=="create" or .[1]=="update" or .[1]=="import" or .[1]=="trigger-add" or .[0:3]==["agent","env","set"] or .[0:3]==["agent","skills","set"] or .[0:3]==["squad","member","add"])' "$scenario_dir/calls.jsonl" >/dev/null
  jq -e --arg words "$runtime_words" '.runtimes==($words|split(" ")) and .excluded_roles==[]' "$TEMPLATE_STATE_ROOT/ws-a/demo.json" >/dev/null
@@ -188,13 +188,12 @@ PY
   mv "$scenario_dir/new" "$scenario_dir/db.json"
   printf '%s\n' 'スクワッドの動きを試す' >"$scenario_dir/fail-issue"
   if /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"; then exit 1; fi
-  grep -qF 'プロジェクトの設定が終わりました' "$scenario_dir/out"
-  grep -qF '起票できなかったタスク:' "$scenario_dir/out"
-  grep -qF 'スクワッドの動きを試す: タスクを作れませんでした。' "$scenario_dir/out"
+  grep -q '^✔ ' "$scenario_dir/out"
+  grep -qF '  ✖ スクワッドの動きを試す  タスクを作れませんでした。' "$scenario_dir/out"
   jq -e '.issues|length==3' "$scenario_dir/db.json" >/dev/null
   rm "$scenario_dir/fail-issue"
   /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
-  [[ $(grep -c '（新規）' "$scenario_dir/out") == 1 && $(grep -c '（既存）' "$scenario_dir/out") == 3 ]]
+  [[ $(grep -c '^  + ' "$scenario_dir/out") == 1 && $(grep -c '^  · ' "$scenario_dir/out") == 3 ]]
   jq -e '.issues|length==4' "$scenario_dir/db.json" >/dev/null
  fi
  # 登録されたオートパイロットの選択を、実際に配置した見張りへ渡す。

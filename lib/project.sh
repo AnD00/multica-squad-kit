@@ -258,27 +258,41 @@ prepare_project() (
 	[[ $(jq length <<<"$setup_issue_failures") == 0 ]]
 )
 
-# 実際に成功した create の件数だけを出す。再実行の既存利用は数えない。
+# 完了の表示（docs/screens.md の「完了の表示」）。標準出力に、すべての項目を印で並べる。
+# 件数は実際に成功した create だけで、再実行の既存利用は数えない。行のない塊は、前の空行ごと出さない。
 project_completion() {
+	local summary=${workspace_name:-$workspace_id} command
+	[[ $created_agents == 0 ]] || summary+="  +${created_agents} エージェント"
+	[[ $created_squads == 0 ]] || summary+="  +${created_squads} スクワッド"
+	[[ $created_autopilots == 0 ]] || summary+="  +${created_autopilots} オートパイロット"
 	printf '\n'
-	ui_line out done "プロジェクトの設定が終わりました: ${project_name}（${workspace_name:-$workspace_id}）"
-	printf '今回作った件数: エージェント %s 件、スクワッド %s 件、オートパイロット %s 件\n' "$created_agents" "$created_squads" "$created_autopilots"
+	ui_paint out done "✔ ${project_name}"
+	printf '  '
+	ui_paint out default "$summary"
+	printf '\n'
 	project_installation_completion
 	project_webhook_completion
 	project_issue_completion
-	ui_line out done '次にすること:'
-	printf '%s\n' '表示したタスクを対象のプロジェクトで開き、担当と本文に沿って作業してください。'
-	printf '%s\n' 'ひな形の記入は skeleton/ の案内を参照してください。'
+	printf '\n'
+	project_next_step '表示したタスクを対象のプロジェクトで開き、担当と本文に沿って作業してください。'
+	project_next_step 'ひな形の記入は skeleton/ の案内を参照してください。'
 	if dependabot_webhook_active; then
-		printf '%s\n' 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
+		project_next_step 'Dependabot のイベントフィルターや登録を飛ばした場合の手順は、manual.md の「人間が行う Webhook の登録」を参照してください。'
 	elif [[ " $enabled " == *' dependabot-merger '* ]]; then
-		printf '%s\n' 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。'
+		project_next_step 'Dependabot の PR は週次のスケジュールだけで扱うため、Webhook の登録は不要です。'
 	else
-		printf '%s\n' 'Dependabot の役は外したため、この役の Webhook の登録は不要です。'
+		project_next_step 'Dependabot の役は外したため、この役の Webhook の登録は不要です。'
 	fi
-	printf '%s\n' 'エージェント用のログインが切れた場合は、次を実行してから bash setup.sh を流し直してください。'
-	if uses_runtime claude; then printf '  CLAUDE_CONFIG_DIR=%q claude\n' "$agent_home/claude"; fi
-	if uses_runtime codex; then printf '  CODEX_HOME=%q codex login\n' "$agent_home/codex"; fi
+	project_next_step 'エージェント用のログインが切れた場合は、次を実行してから bash setup.sh を流し直してください。'
+	if uses_runtime claude; then printf -v command 'CLAUDE_CONFIG_DIR=%q claude' "$agent_home/claude"; printf '      '; ui_paint out strong "$command"; printf '\n'; fi
+	if uses_runtime codex; then printf -v command 'CODEX_HOME=%q codex login' "$agent_home/codex"; printf '      '; ui_paint out strong "$command"; printf '\n'; fi
+}
+
+# 次にすること 1 行。青の › を付ける。
+project_next_step() {
+	printf '  '
+	ui_paint out active '›'
+	printf ' %s\n' "$1"
 }
 
 # 登録を終えてから、人間に残る作業を対象のプロジェクトへ起票する。
@@ -317,19 +331,22 @@ record_project_issue_failure() {
 }
 
 project_issue_completion() {
-	local row action
-	printf '%s\n' '起票したタスク:'
+	local row
+	[[ $(jq length <<<"${setup_issue_rows:-[]}") != 0 || $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]] || return 0
+	printf '\n'
 	# タイトルに \ やタブがあっても元の文字のまま出すため、行ごとに JSON から取り出す。
 	while IFS= read -r row; do
-		printf '  %s %s（' "$(jq -r '.identifier' <<<"$row")" "$(jq -r '.title' <<<"$row")"
-		action=$(jq -r 'if .action=="created" then "新規" else "既存" end' <<<"$row")
-		ui_result "$action"
-		printf '）\n'
+		printf '  '
+		if [[ $(jq -r '.action' <<<"$row") == created ]]; then
+			ui_mark out add "$(jq -r '.identifier' <<<"$row")  $(jq -r '.title' <<<"$row")"
+		else
+			ui_mark out keep "$(jq -r '.identifier' <<<"$row")  $(jq -r '.title' <<<"$row")"
+		fi
 	done < <(jq -c '.[]' <<<"${setup_issue_rows:-[]}")
-	if [[ $(jq length <<<"${setup_issue_failures:-[]}") != 0 ]]; then
-		printf '%s\n' '起票できなかったタスク:'
-		jq -r '.[] | "  \(.title): \(.reason)"' <<<"$setup_issue_failures"
-	fi
+	while IFS= read -r row; do
+		printf '  '
+		ui_mark out fail "$(jq -r '.title' <<<"$row")" "$(jq -r '.reason' <<<"$row")"
+	done < <(jq -c '.[]' <<<"${setup_issue_failures:-[]}")
 }
 
 # 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。

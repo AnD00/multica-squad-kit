@@ -194,7 +194,7 @@ reset_db() {
  : >"$TEST_DB/calls"
 }
 run() { /bin/bash "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"; }
-deny() { if run; then echo 'unexpected success'; exit 1; fi; [[ -s $test_dir/err ]]; ! grep -q '今回作った件数' "$test_dir/out"; }
+deny() { if run; then echo 'unexpected success'; exit 1; fi; [[ -s $test_dir/err ]]; ! grep -q '^✔ ' "$test_dir/out"; }
 assert_no_final() {
  ! jq -es 'any(.[]; .[0:2]==["agent","update"] or .[0:3]==["agent","skills","set"] or .[0:2]==["skill","import"])' "$TEST_DB/calls" >/dev/null
 }
