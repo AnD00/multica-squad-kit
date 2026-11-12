@@ -213,7 +213,7 @@ c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-
 8b36bcc55cba4d1e36d9ba0020b5f414934e0af5e8386454619fb6dadaa81de8  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
-f1e92ea6d30077ef57582886d517057b3545446ce267c47220c66487439b3911  ./tests/setup-version-test.sh
+7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
 13131c76cd4838b6aecc41ee3b4ebeef49696fc51764323e8b14ba82eefe8b8b  ./tests/squad-cli-lib-test.sh
 30ad29381910385b013c0bba17613ab177d3bf358a8fa8f009655cf60c8d88d9  ./tests/squad-dependabot-merge-advance-ci-change-test.sh
