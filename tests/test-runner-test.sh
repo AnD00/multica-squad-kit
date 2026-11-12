@@ -6,6 +6,33 @@ test_dir=$(mktemp -d "$root/tmp/test-runner.XXXXXX")
 # 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
 exec 8>&2
 trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&8; fi; rm -rf -- "$test_dir"' EXIT
+: >"$test_dir/out"
+: >"$test_dir/err"
+check_weight_budget() {
+	awk '
+		/^[[:space:]]*(#|$)/ {next}
+		$2 + 0 > 150 {
+			printf "%s の重み %s 秒は 150 秒を超えています\n", $1, $2 > "/dev/stderr"
+			failed = 1
+		}
+		END {exit failed}
+	' "$1"
+}
+# 150 秒は許可し、151 秒ならファイルの名前と理由を出して失敗する。
+printf '# 重みの上限\ntests/at-limit-test.sh 150\n' >"$test_dir/budget"
+check_weight_budget "$test_dir/budget" >"$test_dir/out" 2>"$test_dir/err"
+[[ ! -s $test_dir/out && ! -s $test_dir/err ]]
+printf 'tests/over-budget-test.sh 151\n' >>"$test_dir/budget"
+if check_weight_budget "$test_dir/budget" >"$test_dir/out" 2>"$test_dir/err"; then
+	echo '151 秒の重みを拒否しませんでした' >&8
+	false
+fi
+grep -qxF 'tests/over-budget-test.sh の重み 151 秒は 150 秒を超えています' "$test_dir/err"
+: >"$test_dir/err"
+echo 'PASS runner: 重みが 150 秒なら許可し、151 秒ならファイルの名前と理由を出して失敗する'
+check_weight_budget "$root/tests/test-weights"
+echo 'PASS runner: すべてのテストの重みが 150 秒以下である'
+
 # 小さな原本のコピーを使い、本物のテストの再帰実行や一覧の書き換えを避ける。
 kit="$test_dir/kit"
 fixtures="$test_dir/fixtures with spaces"

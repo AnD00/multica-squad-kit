@@ -1,24 +1,28 @@
 # ファイル 秒（macOS の CI での目安）
 # 追記と更新の決まりは CONTRIBUTING.md の「テストを書く決まり」を参照する。
-tests/squad-dependabot-merge-advance-ci-wait-test.sh 211
-tests/squad-dependabot-merge-advance-ci-origin-test.sh 211
-tests/squad-dependabot-merge-advance-mergeability-test.sh 211
+# 重みの上限は 150 秒。macOS の ==== PASS の実測値を写す。
+# 更新したテストの採取元: e0c9734 https://github.com/AnD00/multica-squad-kit/actions/runs/43234806235
+# 更新したテストの採取元: 8a2381b https://github.com/AnD00/multica-squad-kit/actions/runs/43239563120
+# 更新したテストの採取元: 425558f https://github.com/AnD00/multica-squad-kit/actions/runs/43247237925
+tests/squad-dependabot-merge-advance-ci-wait-test.sh 81
+tests/squad-dependabot-merge-advance-ci-origin-test.sh 83
+tests/squad-dependabot-merge-advance-mergeability-test.sh 55
 tests/setup-runtimes-both-changes-test.sh 105
 tests/setup-runtimes-both-test.sh 140
-tests/project-followup-test.sh 181
-tests/project-followup-failure-test.sh 181
-tests/project-followup-repositories-test.sh 181
-tests/project-followup-webhook-test.sh 181
-tests/squad-dependabot-merge-advance-request-test.sh 172
-tests/squad-dependabot-merge-advance-retry-test.sh 172
-tests/squad-dependabot-merge-advance-retry-limit-test.sh 172
-tests/squad-pr-watch-ci-test.sh 161
-tests/squad-pr-watch-ci-handoff-test.sh 161
-tests/squad-cli-lib-test.sh 156
-tests/squad-cli-lib-gh-test.sh 156
-tests/squad-cli-lib-check-runs-test.sh 156
-tests/release-test.sh 155
-tests/release-failure-test.sh 155
+tests/project-followup-test.sh 30
+tests/project-followup-failure-test.sh 70
+tests/project-followup-repositories-test.sh 57
+tests/project-followup-webhook-test.sh 31
+tests/squad-dependabot-merge-advance-request-test.sh 23
+tests/squad-dependabot-merge-advance-retry-test.sh 79
+tests/squad-dependabot-merge-advance-retry-limit-test.sh 61
+tests/squad-pr-watch-ci-test.sh 85
+tests/squad-pr-watch-ci-handoff-test.sh 77
+tests/squad-cli-lib-test.sh 53
+tests/squad-cli-lib-gh-test.sh 49
+tests/squad-cli-lib-check-runs-test.sh 46
+tests/release-test.sh 69
+tests/release-failure-test.sh 70
 tests/squad-dependabot-merge-advance-diff-test.sh 141
 tests/squad-dependabot-merge-escalate-test.sh 141
 tests/setup-test.sh 136
