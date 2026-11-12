@@ -44,8 +44,10 @@ ui_paint() {
 	err) enabled=$ui_color_err ;;
 	*) return 1 ;;
 	esac
-	if [[ $enabled != yes || $color == - ]]; then
+	if [[ $enabled != yes || ( $color == - && $bold == 0 ) ]]; then
 		printf '%s' "$text"
+	elif [[ $color == - ]]; then
+		printf '\033[1m%s\033[0m' "$text"
 	elif [[ $bold == 1 ]]; then
 		printf '\033[1;38;5;%sm%s\033[0m' "$color" "$text"
 	else
