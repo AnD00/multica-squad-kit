@@ -18,6 +18,7 @@ real_git=$(command -v git)
 mkdir -p "$test_dir/bin"
 cat >"$test_dir/bin/git" <<'STUB'
 #!/bin/bash
+if [[ ${1:-} == archive ]]; then printf '%s\n' "$*" >>"$ARCHIVE_LOG"; fi
 if [[ ${1:-} == archive && -n ${EVIL_TAR:-} ]]; then
 	while [[ $# -gt 0 ]]; do
 		if [[ $1 == -o ]]; then
@@ -41,7 +42,7 @@ make_repo() {
 	cp "$root/scripts/build-assets.sh" "$root/scripts/manifest.sh" "$repo/scripts/"
 	cp "$root/lib/ui.sh" "$repo/lib/ui.sh"
 	printf 'v1.6.0\n' >"$repo/VERSION"
-	printf '#!/bin/sh\necho install\n' >"$repo/install.sh"
+	cp "$root/install.sh" "$repo/install.sh"
 	printf '#!/bin/sh\necho setup\n' >"$repo/setup.sh"
 	chmod +x "$repo/setup.sh"
 	printf 'a\n' >"$repo/dir/sub/file.txt"
@@ -56,7 +57,9 @@ make_repo() {
 # run_build <引数...>: 出力先の相対パスの基準は caller（既定は $case_dir）。終了コードを rc に置く。
 run_build() {
 	rc=0
-	(cd "${caller:-$case_dir}" && env PATH="$test_dir/bin:$PATH" REAL_GIT="$real_git" EVIL_TAR="${EVIL_TAR:-}" TMPDIR="$case_dir/tmp" \
+	: >"$case_dir/archive.log"
+	(cd "${caller:-$case_dir}" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" REAL_GIT="$real_git" EVIL_TAR="${EVIL_TAR:-}" TMPDIR="$case_dir/tmp" \
+		CHECK_INSTALL="$root/install.sh" LISTING_LOG="$case_dir/listing.log" ARCHIVE_LOG="$case_dir/archive.log" \
 		bash "$repo/scripts/build-assets.sh" "$@") >"$case_dir/out" 2>"$case_dir/err" </dev/null || rc=$?
 }
 
@@ -254,6 +257,8 @@ for entry in "${evil_cases[@]}"; do
 		echo "理由が違います: $mode" >&2
 		exit 1
 	}
+	grep -qF 'CONTRIBUTING.md' "$case_dir/err"
+	grep -qF 'docs/install.md' "$case_dir/err"
 	[[ ! -e $case_dir/escape.txt ]]
 	no_leftover
 done
@@ -264,9 +269,130 @@ EVIL_TAR=$case_dir/evil.tar.gz run_build v1.6.0 "$case_dir/assets"
 grep -qF 'エラー:' "$case_dir/err"
 no_leftover
 
+# タグのない HEAD でも同じ 3 ファイルを作り、git archive の中身と一致する。
+make_repo commit
+git -C "$repo" tag -d v1.6.0 >/dev/null
+chosen=$(git -C "$repo" rev-parse HEAD)
+run_build --commit HEAD "$case_dir/assets"
+[[ $rc == 0 ]]
+[[ $(ls "$case_dir/assets" | LC_ALL=C sort | tr '\n' ' ') == 'SHA256SUMS install.sh multica-squad-kit-v1.6.0.tar.gz ' ]]
+(cd "$case_dir/assets" && shasum -a 256 -c SHA256SUMS >/dev/null)
+mkdir "$case_dir/x-asset" "$case_dir/x-archive"
+tar -xzf "$case_dir/assets/multica-squad-kit-v1.6.0.tar.gz" -C "$case_dir/x-asset"
+git -C "$repo" archive --prefix=multica-squad-kit-v1.6.0/ "$chosen" | tar -xf - -C "$case_dir/x-archive"
+diff -r "$case_dir/x-asset" "$case_dir/x-archive"
+cmp "$case_dir/assets/install.sh" <(git -C "$repo" show "$chosen:install.sh")
+no_leftover
+
+# HEAD と違うコミットの VERSION・内容・install.sh を使う。検査する入口は作業ツリーから呼ぶ。
+printf 'v2.0.0\n' >"$repo/VERSION"
+printf '# later installer\n' >>"$repo/install.sh"
+printf 'later\n' >"$repo/later.txt"
+regen_manifest
+git -C "$repo" add -A
+git -C "$repo" commit -qm 'Later content'
+cat >"$repo/install.sh" <<'STUB'
+#!/bin/bash
+printf '%s\n' "$@" >"$LISTING_LOG"
+exec /bin/bash "$CHECK_INSTALL" "$@"
+STUB
+run_build --commit "$chosen" "$case_dir/older-assets"
+[[ $rc == 0 ]]
+cmp "$case_dir/older-assets/install.sh" "$case_dir/assets/install.sh"
+mkdir "$case_dir/x-older"
+tar -xzf "$case_dir/older-assets/multica-squad-kit-v1.6.0.tar.gz" -C "$case_dir/x-older"
+diff -r "$case_dir/x-older" "$case_dir/x-archive"
+[[ $(sed -n '1p' "$case_dir/listing.log") == --check-listing && $(sed -n '2p' "$case_dir/listing.log") == v1.6.0 ]]
+grep -qF 'multica-squad-kit-v1.6.0.tar.gz' "$case_dir/listing.log"
+no_leftover
+
+# Git の名前の検査と、同じコミットの配布物に対する入口の判定を比べる。
+for kind in kanji tab backslash directory printable; do
+	make_repo "name-$kind"
+	case $kind in
+	kanji) name='保-1.txt' ;;
+	tab) name=$'tab\tname.txt' ;;
+	backslash) name='back\slash.txt' ;;
+	directory) name='保-1/scene.md'; mkdir "$repo/保-1" ;;
+	printable) name='space ~!@#$%^&()_+-=[]{};,.txt' ;;
+	esac
+	printf 'x\n' >"$repo/$name"
+	regen_manifest
+	git -C "$repo" add -A
+	git -C "$repo" commit -qm 'Named file'
+	run_build --commit HEAD "$case_dir/assets"
+	build_rc=$rc
+	git -C "$repo" archive --format=tar.gz --prefix=multica-squad-kit-v1.6.0/ -o "$case_dir/listing.tar.gz" HEAD
+	listing_rc=0
+	bash "$root/install.sh" --check-listing v1.6.0 "$case_dir/listing.tar.gz" >"$case_dir/listing.out" 2>"$case_dir/listing.err" || listing_rc=$?
+	[[ $build_rc == "$listing_rc" ]]
+	if [[ $kind == printable ]]; then
+		[[ $build_rc == 0 && -f $case_dir/assets/SHA256SUMS ]]
+	else
+		[[ $build_rc == 1 && ! -e $case_dir/assets && ! -s $case_dir/archive.log ]]
+		grep -qF 'CONTRIBUTING.md の「ファイルとディレクトリの名前」' "$case_dir/err"
+		if [[ $kind == backslash ]]; then
+			grep -qF 'バックスラッシュがある' "$case_dir/err"
+		else
+			grep -qF '印字できる ASCII ではない文字がある' "$case_dir/err"
+		fi
+		if [[ $kind == tab ]]; then
+			grep -qF 'tab\011name.txt' "$case_dir/err"
+			! grep -q $'\t' "$case_dir/err"
+		else
+			grep -qF "$name" "$case_dir/err"
+		fi
+		if [[ $kind == directory ]]; then grep -qF 'エラー: 保-1:' "$case_dir/err"; fi
+	fi
+	# タグの形でも名前を検査する。
+	git -C "$repo" tag -f -a v1.6.0 -m v1.6.0 >/dev/null
+	run_build v1.6.0 "$case_dir/tag-assets"
+	[[ $rc == "$build_rc" ]]
+	no_leftover
+done
+
+# 複数の拒む名前をまとめて出し、20 件を超えた分は件数を出す。
+make_repo many-names
+for i in 1 2; do printf x >"$repo/保-$i.txt"; done
+regen_manifest
+git -C "$repo" add -A
+git -C "$repo" commit -qm 'Two invalid names'
+run_build --commit HEAD "$case_dir/assets"
+[[ $rc == 1 && ! -e $case_dir/assets && ! -s $case_dir/archive.log ]]
+[[ $(grep -c '印字できる ASCII ではない文字がある' "$case_dir/err") == 2 ]]
+grep -qF '保-1.txt' "$case_dir/err"
+grep -qF '保-2.txt' "$case_dir/err"
+for ((i = 3; i <= 22; i++)); do printf x >"$repo/保-$i.txt"; done
+regen_manifest
+git -C "$repo" add -A
+git -C "$repo" commit -qm 'Many invalid names'
+run_build --commit HEAD "$case_dir/assets"
+[[ $rc == 1 && ! -e $case_dir/assets ]]
+[[ $(grep -c '印字できる ASCII ではない文字がある' "$case_dir/err") == 20 ]]
+grep -qF 'ほかに 2 件' "$case_dir/err"
+grep -qF '保-1.txt' "$case_dir/err"
+grep -qF '保-2.txt' "$case_dir/err"
+no_leftover
+
+# コミットの VERSION が欠ける・形に合わない、参照がないときは止まる。
+for kind in bad-version no-version; do
+	make_repo "commit-$kind"
+	if [[ $kind == bad-version ]]; then printf '1.6\n' >"$repo/VERSION"; else git -C "$repo" rm -q VERSION; fi
+	regen_manifest
+	git -C "$repo" add -A
+	git -C "$repo" commit -qm 'Invalid VERSION'
+	run_build --commit HEAD "$case_dir/assets"
+	[[ $rc == 1 && ! -e $case_dir/assets ]]
+	grep -qF VERSION "$case_dir/err"
+	no_leftover
+done
+run_build --commit not-a-commit "$case_dir/assets"
+[[ $rc == 1 && ! -e $case_dir/assets ]]
+grep -qF 'コミットを読めません' "$case_dir/err"
+
 # 引数: 足りない、余分、バージョンの形が違う、空の出力先は 2 か 1 で終わる。--help と -h は、使い方を出して 0 で終わる。
 make_repo args
-for args in "" "v1.6.0" "v1.6.0 a b"; do
+for args in "" "v1.6.0" "v1.6.0 a b" '--commit' '--commit HEAD' '--commit HEAD a b'; do
 	run_build $args
 	[[ $rc == 2 ]]
 	grep -qF '使い方: bash scripts/build-assets.sh' "$case_dir/err"
@@ -276,9 +402,12 @@ run_build 1.6.0 "$case_dir/assets"
 grep -qF 'vX.Y.Z の形' "$case_dir/err"
 run_build v1.6.0 ''
 [[ $rc == 2 ]]
+run_build --commit HEAD ''
+[[ $rc == 2 ]]
 for flag in --help -h; do
 	run_build "$flag"
 	[[ $rc == 0 ]]
 	grep -qF '使い方: bash scripts/build-assets.sh' "$case_dir/out"
+	grep -qF -- '--commit <コミット> <出力先>' "$case_dir/out"
 done
 echo 'PASS build-assets: タグの中身から配布物と install.sh と SHA256SUMS を作る。VERSION・HEAD・MANIFEST・リンク・拒む配布物・出力先・引数の誤りで止まることを確かめた'
