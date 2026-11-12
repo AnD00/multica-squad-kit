@@ -158,6 +158,17 @@ _ui_text_width() {
 	done
 }
 
+# ui_body_line <out|err> <本文>: 本文の左の罫線だけを灰にする。空の行は罫線だけを出す。
+ui_body_line() {
+	local target=$1 text=$2 fd
+	case $target in out) fd=1 ;; err) fd=2 ;; *) return 1 ;; esac
+	{
+		ui_paint "$target" default '│'
+		if [[ -n $text ]]; then printf ' %s' "$text"; fi
+		printf '\n'
+	} >&$fd
+}
+
 # ui_width <本文>: UTF-8 の文字の表示の幅。外の道具や文字ごとの子のプロセスを使わない。
 # 読めないバイトは一桁にし、次のバイトから読み直す。
 ui_width() {
@@ -338,6 +349,11 @@ _ui_steps_append_full() {
 	done
 }
 
+_ui_steps_append_tail() {
+	local i
+	for ((i = 0; i < ui_steps_tail_count; i++)); do ui_steps_buffer+=${ui_steps_tail_lines[$i]}$'\n'; done
+}
+
 # 書き換える範囲（手順 <番号> から下）の行を、幅から 1 を引いた幅に切って ui_steps_cache に置く。
 _ui_steps_build_cache() {
 	local i=$1 j k=0
@@ -355,6 +371,11 @@ _ui_steps_build_cache() {
 			ui_steps_cache[$k]=$ui_steps_clipped
 			k=$((k + 1))
 		done
+	done
+	for ((j = 0; j < ui_steps_tail_count; j++)); do
+		_ui_steps_clip "${ui_steps_tail_lines[$j]}" "$((ui_columns - 1))"
+		ui_steps_cache[$k]=$ui_steps_clipped
+		k=$((k + 1))
 	done
 	ui_steps_cache_count=$k
 }
@@ -374,7 +395,7 @@ _ui_steps_write() {
 # 手順から下にする。大きさが変わったとき、範囲が高さ - 1 を超えるとき、<final> を渡されたとき
 # （失敗の描き直し）は、一覧を切らずに 1 回出して、以後は書き換えない。
 _ui_steps_refresh() {
-	local mode=${1-live} next=$ui_steps_first pending=0 i j changed=no insert=$ui_steps_insert
+	local mode=${1-live} next=$ui_steps_first pending=$ui_steps_tail_count i j changed=no insert=$ui_steps_insert
 	ui_steps_insert= ui_steps_flushed=no
 	[[ $ui_steps_live == yes ]] || return 0
 	ui_size "$ui_steps_target"
@@ -394,6 +415,7 @@ _ui_steps_refresh() {
 		if [[ $changed == yes ]]; then ui_steps_rewind=; fi
 		ui_steps_buffer=$ui_steps_rewind$insert
 		for ((i = ui_steps_first; i < ui_steps_count; i++)); do _ui_steps_append_full "$i"; done
+		_ui_steps_append_tail
 		_ui_steps_write "$ui_steps_buffer"
 		ui_steps_live=no ui_steps_drawn=0 ui_steps_flushed=yes
 		return 0
@@ -460,6 +482,7 @@ ui_steps_begin() {
 	ui_steps_names=("$@") ui_steps_padded=() ui_steps_states=() ui_steps_values=()
 	ui_steps_extra_steps=() ui_steps_extra_marks=() ui_steps_extra_texts=() ui_steps_extra_values=() ui_steps_extra_printed=()
 	ui_steps_cache=()
+	ui_steps_tail_lines=() ui_steps_tail_count=0 ui_steps_shown_rows=0 ui_steps_shown_columns=0 ui_steps_shown_lines=0
 	ui_steps_count=$# ui_steps_extra_count=0 ui_steps_current=0 ui_steps_first=0 ui_steps_drawn=0 ui_steps_frame=0
 	ui_steps_cache_active=-1 ui_steps_cache_count=0 ui_steps_insert= ui_steps_flushed=no ui_steps_buffer=
 	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0
@@ -482,7 +505,7 @@ ui_steps_begin() {
 
 # ui_steps_show: 書き換えるかによらず、今の一覧を出す。
 ui_steps_show() {
-	local i
+	local i line rest
 	_ui_spinner_stop
 	if [[ $ui_steps_live == yes ]]; then
 		_ui_steps_refresh
@@ -491,7 +514,44 @@ ui_steps_show() {
 	fi
 	ui_steps_buffer=
 	for ((i = 0; i < ui_steps_count; i++)); do _ui_steps_append_full "$i"; done
+	_ui_steps_append_tail
 	_ui_steps_write "$ui_steps_buffer"
+	# 切らずに出した行の数と大きさを覚え、問いを含む範囲の書き換えに備える。
+	ui_size "$ui_steps_target"
+	ui_steps_shown_columns=$ui_columns ui_steps_shown_lines=$ui_lines ui_steps_shown_rows=0
+	rest=$ui_steps_buffer
+	while [[ -n $rest ]]; do
+		line=${rest%%$'\n'*}; rest=${rest#*$'\n'}
+		_ui_steps_clip "$line" 2147483647
+		ui_steps_shown_rows=$((ui_steps_shown_rows + (ui_text_width + ui_columns - 1) / ui_columns))
+		if ((ui_text_width == 0)); then ui_steps_shown_rows=$((ui_steps_shown_rows + 1)); fi
+	done
+}
+
+# ui_steps_tail <出した文字>: ui_steps_show のあと、一覧の下に出した空行や答えた問いを覚える。
+# 文字を出さず、次の手順から同じ一覧を更新できるようにする。最後には改行を含める。
+# 出した範囲が流れたときや、その間にリサイズされたときは戻らない。
+ui_steps_tail() {
+	local rest=$1 line rows=$ui_steps_shown_rows capable
+	_ui_spinner_stop
+	ui_steps_tail_lines=() ui_steps_tail_count=0
+	ui_size "$ui_steps_target"
+	while [[ -n $rest ]]; do
+		line=${rest%%$'\n'*}
+		if [[ $rest == *$'\n'* ]]; then rest=${rest#*$'\n'}; else rest=; fi
+		ui_steps_tail_lines[$ui_steps_tail_count]=$line
+		ui_steps_tail_count=$((ui_steps_tail_count + 1))
+		_ui_steps_clip "$line" 2147483647
+		rows=$((rows + (ui_text_width + ui_columns - 1) / ui_columns))
+		if ((ui_text_width == 0)); then rows=$((rows + 1)); fi
+	done
+	case $ui_steps_target in out) capable=$ui_live_out ;; err) capable=$ui_live_err ;; esac
+	if [[ $capable != yes || $ui_steps_shown_columns != "$ui_columns" || $ui_steps_shown_lines != "$ui_lines" ]] || ((rows > ui_lines - 1)); then
+		ui_steps_live=no
+		return 0
+	fi
+	ui_steps_live=yes ui_steps_drawn=$rows ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines
+	if [[ -z $ui_steps_dir ]]; then ui_steps_dir=$(mktemp -d "${TMPDIR:-/tmp}/squad-ui.XXXXXX" 2>/dev/null) || ui_steps_dir=; fi
 }
 
 ui_step_start() {

@@ -73,7 +73,9 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
     before = (screens / f'{scene}-confirm.ansi').read_bytes()
     after = (screens / f'{scene}-after.ansi').read_bytes()
     assert before.endswith('公開しますか [y/N]: '.encode()), scene
-    assert notes in ansi.sub(b'', before).decode().replace('\r\n', '\n'), scene
+    plain_before = ansi.sub(b'', before).decode().replace('\r\n', '\n')
+    body = '\n'.join(line[4:] if line.startswith('  │ ') else '' for line in plain_before.splitlines() if line.startswith('  │'))
+    assert body == notes, scene
     assert after.startswith(b'y\r\n'), scene
     assert b'\x1b[' in before if scene != 5 else b'\x1b' not in before + after
     plain = ansi.sub(b'', after).decode().replace('\r\n', '\n')

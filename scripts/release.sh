@@ -108,7 +108,7 @@ if [[ $gh_first =~ $gh_re ]]; then
 else
 	stop "gh のバージョンを読めません（必要: $required_gh 以上）。gh --version の出力を確かめ、gh を更新してから流し直してください。"
 fi
-add_check 成功 道具 "${tools// /, }（gh ${gh_version}、必要: ${required_gh} 以上）"
+add_check 成功 道具 "${tools}  gh ${gh_version}  ${required_gh} 以上"
 root=$(pwd -P)
 top=$(git rev-parse --show-toplevel 2>/dev/null) || stop '原本のリポジトリのルートで流してください。'
 [[ $(cd "$top" && pwd -P) == "$root" ]] || stop '原本のリポジトリのルートで流してください。'
@@ -127,7 +127,7 @@ repo=${repo%.git}
 # 3: ブランチ。止まるときは手元の状態を変えず、流すコマンドを添える。
 branch=$(git symbolic-ref --quiet --short HEAD) || branch=
 [[ $branch == main ]] || stop '今のブランチが main ではありません。`git switch main` と `git pull --ff-only origin main` をしてから流してください。'
-add_check 成功 場所 "$repo のルート、ブランチ $branch"
+add_check 成功 場所 "$repo  $branch"
 
 # 4: 追跡しているファイルの未コミットの変更。追跡していないファイルは公開する中身に入らない。
 [[ -z $(git status --porcelain --untracked-files=no) ]] || stop '未コミットの変更があります。コミットするか戻してから流してください。'
@@ -137,7 +137,7 @@ add_check 成功 未コミットの変更 なし
 git fetch --quiet --no-tags origin main || stop 'origin の main を取ってこれません。'
 [[ $(git rev-parse HEAD) == "$(git rev-parse FETCH_HEAD)" ]] || stop '手元の main が origin/main と一致しません。未公開のコミットがあるか、origin/main に遅れています。`git pull --ff-only origin main` をしても合わないときは、PR でマージしてから流してください。'
 commit=$(git rev-parse HEAD)
-add_check 一致 'origin の main' "${commit:0:12}（手元の main と同じ）"
+add_check 一致 'origin/main' "${commit:0:12}"
 
 # 6: VERSION の形。タグの名前を決めるため、まず手元の main の先頭から読む。
 version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || version=
@@ -161,6 +161,7 @@ stop_watch() {
 }
 cleanup() {
 	stop_watch
+	ui_steps_cleanup
 	chmod -R u+rwX "$work_tmp" 2>/dev/null || true
 	rm -rf -- "$work_tmp"
 }
@@ -297,17 +298,17 @@ top_version=$(printf '%s\n' "$changelog" | awk '/^## / {print $2; exit}')
 notes=$(printf '%s\n' "$changelog" | awk -v heading="## $version" '$0 == heading {found = 1; next} found && /^## / {exit} found')
 [[ -n $(printf '%s' "$notes" | tr -d '[:space:]') ]] || stop "CHANGELOG.md の $version の節が空です。"
 notes=$(printf '%s\n' "$notes" | awk 'NF {if (started) for (; blank > 0; blank--) print ""; started = 1; blank = 0; print; next} started {blank++}')
-add_check 一致 バージョン "VERSION ${commit_version}、CHANGELOG.md の先頭 ${top_version}、節は空でない"
+add_check 一致 バージョン "VERSION ${commit_version}  CHANGELOG.md ${top_version}"
 # タグと Release の行。値は、手元のタグ、origin のタグ、Release の順に読む。
 if [[ -z $local_tag ]]; then
-	add_check 新規 'タグと Release' '手元のタグ なし、origin のタグ なし、Release なし'
+	add_check 新規 'タグと Release' '手元 なし  origin なし  Release なし'
 else
 	case $release in
 	none) release_text=なし ;;
 	draft) release_text="下書き（配布物 $(printf '%s\n' "$asset_names" | wc -w | tr -d ' ') 個）" ;;
 	published) release_text=公開済み ;;
 	esac
-	add_check 既存 'タグと Release' "手元のタグ あり、origin のタグ あり（同じ）、Release $release_text"
+	add_check 既存 'タグと Release' "手元 あり  origin あり（同じ）  Release $release_text"
 fi
 
 # 公開済みのバージョンは、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
@@ -318,16 +319,22 @@ fi
 
 # 確認: 確かめの一覧、本文、要約を標準出力に出し、問いを標準エラー出力に出して、標準入力の答えを読む。
 [[ -t 0 ]] || stop '標準入力が端末でないため、確認を求められません。端末から流してください。'
-printf '確かめ:\n'
 while IFS=$'\t' read -r check_word check_name check_value; do
 	printf '  '
-	ui_result "$check_word"
-	printf '  %s: %s\n' "$check_name" "$check_value"
+	ui_mark out ok "$(ui_pad 16 "$check_name")" "$check_value"
 done <<<"${check_rows%$'\n'}"
-printf '\n【Release の本文 ここから】\n%s\n【Release の本文 ここまで】\n\n' "$notes"
-printf 'リポジトリ: %s\n' "$repo"
-printf '出すバージョン: %s\n' "$version"
-printf 'タグを付けるコミット: %s %s\n' "${commit:0:12}" "$(git log -1 --format=%s "$commit")"
+printf '\n'
+while IFS= read -r note_line; do
+	printf '  '
+	ui_body_line out "$note_line"
+done <<<"$notes"
+printf '\n  '
+ui_paint out strong "$version"
+printf '  '
+ui_line out default "$repo"
+printf '  '
+ui_paint out default "${commit:0:12}"
+printf '  %s\n\n' "$(git log -1 --format=%s "$commit")"
 # すること: 公開の手順の表（docs/release.md の「公開」）のうち、することから決まる手順だけを、1 から振り直して並べる。
 case $action in
 tag) step_first=1 ;;
@@ -342,17 +349,22 @@ step_names=(
 	'配布物を確かめる'
 	'Release を公開する'
 )
-printf 'すること:\n'
-step_no=0
-while [[ $step_first -le 5 ]]; do
-	step_no=$((step_no + 1))
-	printf '  %d. %s\n' "$step_no" "${step_names[$((step_first - 1))]}"
-	step_first=$((step_first + 1))
-done
+remaining_steps=("${step_names[@]:$((step_first - 1))}")
+step_no=${#remaining_steps[@]}
+# 確認の前は、端末でも切らずに順に出す。承認のあとの書き換えは、問いを覚えてから始める。
+release_live_out=$ui_live_out
+ui_live_out=no
+ui_steps_begin out 2 "${remaining_steps[@]}"
+ui_live_out=$release_live_out
+ui_steps_show
+printf '\n'
 printf '公開しますか [y/N]: ' >&2
 answer=
 read -r answer || :
 [[ $answer == y || $answer == Y ]] || stop '公開を取りやめました。'
+if [[ $ui_live_out == yes && $ui_live_err == yes ]]; then
+	ui_steps_tail $'\n'"公開しますか [y/N]: $answer"$'\n'
+fi
 # 確認で並べた手順と、同じ名前・番号・総数で進み具合を出す。
 step_total=$step_no
 step_no=0

@@ -46,20 +46,16 @@ step_names=(
 	'配布物を確かめる'
 	'Release を公開する'
 )
-# steps_expected <最初の手順の番号>: 「すること:」の行と、番号付きの一覧。
+# steps_expected <最初の手順の番号>: 確認に出す、灰の○の一覧。
 steps_expected() {
-	local first=$1 no=0
-	printf 'すること:'
+	local first=$1
 	while [[ $first -le 5 ]]; do
-		no=$((no + 1))
-		printf '\n  %d. %s' "$no" "${step_names[$((first - 1))]}"
+		printf '  ○ %s\n' "${step_names[$((first - 1))]}"
 		first=$((first + 1))
 	done
-	printf '\n'
 }
-# expect_steps <最初の手順の番号>: 標準出力の「すること:」の行と、そのあとの手順の行（承認のあとの出力は含めない）が、その一覧と同じ。
 expect_steps() {
-	[[ $(sed -n '/^すること:$/,$p' "$case_dir/out" | head -n "$((7 - $1))") == "$(steps_expected "$1")" ]]
+	[[ $(grep '^  ○ ' "$case_dir/out") == "$(steps_expected "$1")" ]]
 }
 # 承認したあとの見出しは、確認の一覧と同じ番号・総数・名前にする。
 expect_headings() {
@@ -125,15 +121,17 @@ expect_screen() {
 	commit12=${3:0:12}
 	local expected
 	expected=$(
-		printf '確かめ:\n'
-		printf '  成功  道具: git, gh, tar, shasum, diff, cmp（gh 2.102.0、必要: 2.102.0 以上）\n'
-		printf '  成功  場所: example/kit のルート、ブランチ main\n'
-		printf '  成功  未コミットの変更: なし\n'
-		printf '  一致  origin の main: %s（手元の main と同じ）\n' "$head12"
-		printf '  一致  バージョン: VERSION v1.6.0、CHANGELOG.md の先頭 v1.6.0、節は空でない\n'
-		printf '  %s  タグと Release: %s\n' "$1" "$2"
-		printf '\n【Release の本文 ここから】\n%s\n【Release の本文 ここまで】\n\n' "$notes_expected"
-		printf 'リポジトリ: example/kit\n出すバージョン: v1.6.0\nタグを付けるコミット: %s Release content\n' "$commit12"
+		printf '  ✔ 道具              git gh tar shasum diff cmp  gh 2.102.0  2.102.0 以上\n'
+		printf '  ✔ 場所              example/kit  main\n'
+		printf '  ✔ 未コミットの変更  なし\n'
+		printf '  ✔ origin/main       %s\n' "$head12"
+		printf '  ✔ バージョン        VERSION v1.6.0  CHANGELOG.md v1.6.0\n'
+		printf '  ✔ タグと Release    %s\n' "$2"
+		printf '\n'
+		while IFS= read -r line; do
+			if [[ -n $line ]]; then printf '  │ %s\n' "$line"; else printf '  │\n'; fi
+		done <<<"$notes_expected"
+		printf '\n  v1.6.0  example/kit\n  %s  Release content\n\n' "$commit12"
 		steps_expected "$4"
 	)
 	[[ $(cat "$case_dir/out") == "$expected" ]]
@@ -172,11 +170,11 @@ for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
 	grep -q "^attestation verify .*/$file --bundle .*/multica-squad-kit-v1.6.0.sigstore.json --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref refs/tags/v1.6.0 --deny-self-hosted-runners\$" "$case_dir/gh.log"
 done
 [[ $(draft_flag) == false ]]
-grep -qxF '出すバージョン: v1.6.0' "$case_dir/out"
-grep -qF "タグを付けるコミット: ${main_head:0:12} Release content" "$case_dir/out"
+grep -qxF '  v1.6.0  example/kit' "$case_dir/out"
+grep -qF "  ${main_head:0:12}  Release content" "$case_dir/out"
 expect_steps 1
 expect_headings 1
-grep -qxF '新しいバージョンの 1 段落目。' "$case_dir/out"
+grep -qxF '  │ 新しいバージョンの 1 段落目。' "$case_dir/out"
 grep -qxF "  成功  タグの push: v1.6.0 を origin に push しました（${main_head:0:12}）" "$case_dir/out"
 grep -qxF "  作成  下書きの Release: $draft_url" "$case_dir/out"
 draft_note="        下書きの間だけの URL です。公開すると、タグの名前の URL（${published_url}）に変わります。"
@@ -229,13 +227,13 @@ log_lacks '^attestation verify'
 [[ $(snapshot) == "$before" && $(draft_flag) == true ]]
 grep -qF '公開を取りやめました。' "$case_dir/err"
 
-# 確認の前の画面: 確かめの一覧、本文の区切り、要約、番号付きのすることが、設計のとおり、することの 4 つの状態ごとに出る。
+# 確認の前の画面: 確かめの一覧、本文の罫線、見出し、○の手順が、設計のとおり、することの 4 つの状態ごとに出る。
 # タグも Release もない: 手順は 5 つ。
 make_case screen-tag
 screen_commit=$(git -C "$work" rev-parse HEAD)
 run_release "$test_dir/answer-n"
 [[ $rc == 1 ]]
-expect_screen 新規 '手元のタグ なし、origin のタグ なし、Release なし' "$screen_commit" 1
+expect_screen 新規 '手元 なし  origin なし  Release なし' "$screen_commit" 1
 # タグだけある: 手順は 4 つ。タグを付けるコミットは、タグが指すコミット。
 make_case screen-draft
 tag_here
@@ -244,7 +242,7 @@ git -C "$work" push -q origin main
 screen_tag_commit=$(git -C "$work" rev-parse 'v1.6.0^{commit}')
 run_release "$test_dir/answer-n"
 [[ $rc == 1 ]]
-expect_screen 既存 '手元のタグ あり、origin のタグ あり（同じ）、Release なし' "$screen_tag_commit" 2
+expect_screen 既存 '手元 あり  origin あり（同じ）  Release なし' "$screen_tag_commit" 2
 # 配布物のない下書きがある: 手順は 3 つ。
 make_case screen-workflow
 tag_here
@@ -252,7 +250,7 @@ add_release true
 screen_tag_commit=$(git -C "$work" rev-parse 'v1.6.0^{commit}')
 run_release "$test_dir/answer-n"
 [[ $rc == 1 ]]
-expect_screen 既存 '手元のタグ あり、origin のタグ あり（同じ）、Release 下書き（配布物 0 個）' "$screen_tag_commit" 3
+expect_screen 既存 '手元 あり  origin あり（同じ）  Release 下書き（配布物 0 個）' "$screen_tag_commit" 3
 # 配布物のそろった下書きがある: 手順は 2 つ。
 make_case screen-verify
 tag_here
@@ -261,7 +259,7 @@ seed_assets
 screen_tag_commit=$(git -C "$work" rev-parse 'v1.6.0^{commit}')
 run_release "$test_dir/answer-n"
 [[ $rc == 1 ]]
-expect_screen 既存 '手元のタグ あり、origin のタグ あり（同じ）、Release 下書き（配布物 4 個）' "$screen_tag_commit" 4
+expect_screen 既存 '手元 あり  origin あり（同じ）  Release 下書き（配布物 4 個）' "$screen_tag_commit" 4
 
 # 標準入力が端末でない: 問いを出さず、確認を求められないと出して、何も変えない。
 make_case notty
@@ -273,7 +271,7 @@ no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF '端末でない' "$case_dir/err"
 ! grep -qF '公開しますか' "$case_dir/err"
-! grep -qF '確かめ:' "$case_dir/out"
+! grep -qF '✔ 道具' "$case_dir/out"
 # パイプで y を流し込んでも、確認を飛ばせない。
 rc=0
 (cd "$work" && printf 'y\n' | env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" /bin/bash scripts/release.sh) >"$case_dir/out" 2>"$case_dir/err" || rc=$?
@@ -293,7 +291,7 @@ expect_stop_keep() {
 	[[ $(snapshot) == "$before" ]]
 	grep -qF "$1" "$case_dir/err"
 	! grep -qF '公開しますか' "$case_dir/err"
-	! grep -qF '確かめ:' "$case_dir/out"
+	! grep -qF '✔ 道具' "$case_dir/out"
 }
 # expect_stop <理由に含む文字>: expect_stop_keep に、手元にも origin にもタグがないことを足す。
 expect_stop() {
@@ -401,7 +399,7 @@ run_release "$test_dir/answer-y"
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
 expect_steps 2
 expect_headings 2
-grep -qF "タグを付けるコミット: ${tag_commit:0:12} Release content" "$case_dir/out"
+grep -qF "  ${tag_commit:0:12}  Release content" "$case_dir/out"
 expect_verify_rows
 expect_summary "$tag_commit" "$published_url" "$run_url"
 [[ $(draft_flag) == false ]]
@@ -518,7 +516,7 @@ no_download
 [[ $(snapshot) == "$before" ]]
 grep -qxF "v1.6.0 のタグと Release は、すでに出してあります: $published_url" "$case_dir/out"
 ! grep -qF '公開しますか' "$case_dir/err"
-! grep -qF '確かめ:' "$case_dir/out"
+! grep -qF '✔ 道具' "$case_dir/out"
 run_release_notty
 [[ $rc == 0 ]]
 no_write
@@ -909,6 +907,9 @@ seed_assets
 run_release_tty "$test_dir/answer-y"
 [[ $rc == 0 ]]
 tr -d '\r' <"$case_dir/out" >"$case_dir/screen"
+grep -qxF "  ${esc}[38;5;28m✔${esc}[0m 道具              ${esc}[38;5;244mgit gh tar shasum diff cmp  gh 2.102.0  2.102.0 以上${esc}[0m" "$case_dir/screen"
+grep -qxF "  ${esc}[1mv1.6.0${esc}[0m  ${esc}[38;5;244mexample/kit${esc}[0m" "$case_dir/screen"
+grep -qxF "  ${esc}[38;5;244m│${esc}[0m 新しいバージョンの 1 段落目。" "$case_dir/screen"
 grep -qxF "  ${esc}[38;5;28m一致${esc}[0m  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧" "$case_dir/screen"
 grep -qxF "  ${esc}[38;5;28m一致${esc}[0m  証明: 配布物と SHA256SUMS" "$case_dir/screen"
 grep -qxF "  ${esc}[38;5;28m成功${esc}[0m  公開: 下書きから公開に切り替えました" "$case_dir/screen"

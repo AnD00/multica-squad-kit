@@ -318,3 +318,15 @@ live_state() {
 [[ $(live_state out TERM=dumb) == 'no no no no' ]]
 [[ $(live_state out TERM=) == 'no no no no' ]]
 echo 'PASS ui: ui_live_out と ui_live_err は、その出す先が端末で色が付くときだけ yes で、NO_COLOR・dumb・端末でないときは no'
+
+# 本文の罫線だけを灰にし、空の行の罫線のあとには空白を足さない。
+probe='source "$1/lib/ui.sh"; ui_init; ui_body_line out 本文; ui_body_line err ""'
+run_pty both TERM=xterm-256color
+grep -qxF "$esc[38;5;244m│$esc[0m 本文" <(tr -d '\r' <"$test_dir/out")
+grep -qxF "$esc[38;5;244m│$esc[0m" <(tr -d '\r' <"$test_dir/err")
+run_pty none TERM=xterm-256color
+printf '│ 本文\n' >"$test_dir/expected"
+cmp "$test_dir/out" "$test_dir/expected"
+printf '│\n' >"$test_dir/expected"
+cmp "$test_dir/err" "$test_dir/expected"
+echo 'PASS ui: 本文の罫線だけを灰にし、色が出ないときも同じ罫線と本文を出す'

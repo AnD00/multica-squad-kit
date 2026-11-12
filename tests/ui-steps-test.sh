@@ -250,6 +250,98 @@ for name in cleanup abandon; do
 done
 echo 'PASS ui-steps: 片付けか親の終了で、スピナーの裏のプロセスが残らず、Terminated も出ない'
 
+# 確認の前は切らずに出し、答えた問いと空行を、そのあとで書き換える範囲に含める。
+cat >"$test_dir/tail.sh" <<'SH'
+set -euo pipefail
+source "$1/lib/ui.sh"
+ui_init
+trap ui_steps_cleanup EXIT
+printf 'anchor\n'
+live=$ui_live_out
+ui_live_out=no
+ui_steps_begin out 0 a b
+ui_live_out=$live
+ui_steps_show
+printf '\nQ: y\n'
+ui_steps_tail $'\nQ: y\n'
+[[ $ui_steps_drawn == 4 ]]
+ui_step_start 1
+sleep 0.25
+ui_step_done 1
+ui_step_start 2
+ui_step_done 2
+printf 'end\n'
+SH
+run_steps out "$test_dir/tail.sh" TMPDIR="$test_dir"
+screen "$test_dir/out" >"$test_dir/screen"
+printf 'anchor\n✔ a  1\n✔ b  2\n\nQ: y\nend\n' >"$test_dir/expected"
+cmp "$test_dir/screen" "$test_dir/expected"
+python3 - "$test_dir/out" <<'PY'
+from pathlib import Path
+import re
+import sys
+data=Path(sys.argv[1]).read_text()
+before=data.split('Q: y',1)[0]
+assert not re.search(r'\x1b\[\d+A',before)
+rewinds=[int(n) for n in re.findall(r'\x1b\[(\d+)A',data)]
+assert rewinds[0]==4 and all(n<=4 for n in rewinds),rewinds
+PY
+echo 'PASS ui-steps: 確認の前は書き換えず、答えた問いと空行も含めて更新し、先に出した行を消さない'
+
+# 問いが折り返したときの行数も数え、初回だけは切らずに出した元の範囲まで戻る。
+sed 's/Q: y/QQ: y/g' "$test_dir/tail.sh" >"$test_dir/wrapped-tail.sh"
+python3 - "$test_dir/wrapped-tail.sh" <<'PY'
+from pathlib import Path
+import sys
+p=Path(sys.argv[1])
+s=p.read_text().replace('QQ: y','Q'*105).replace('$ui_steps_drawn == 4','$ui_steps_drawn == 5')
+p.write_text(s)
+PY
+run_steps out "$test_dir/wrapped-tail.sh" TMPDIR="$test_dir"
+python3 - "$test_dir/out" <<'PY'
+from pathlib import Path
+import re
+import sys
+data=Path(sys.argv[1]).read_text()
+rewinds=[int(n) for n in re.findall(r'\x1b\[(\d+)A',data)]
+assert rewinds[0]==5 and all(n<=4 for n in rewinds[1:]),rewinds
+PY
+echo 'PASS ui-steps: 折り返した問いの行数を含めて戻り、そのあとは画面に収まる範囲だけを書く'
+
+# 問いを待つ間に端末が変わったときや、一覧と問いが高さを超えたときは戻らない。
+cat >"$test_dir/tail-guard.sh" <<'SH'
+source "$1/lib/ui.sh"
+ui_init
+trap ui_steps_cleanup EXIT
+live=$ui_live_out
+ui_live_out=no
+ui_steps_begin out 0 a b
+ui_live_out=$live
+ui_steps_show
+printf '\nQ: RESIZE\n'
+sleep 0.5
+ui_steps_tail $'\nQ: RESIZE\n'
+[[ $ui_steps_live == no ]] || exit 8
+ui_step_start 1
+ui_step_done 1
+SH
+run_steps out "$test_dir/tail-guard.sh" --resize-on RESIZE 40 10 TMPDIR="$test_dir"
+! grep -qE "$esc\[[0-9]+A" "$test_dir/out"
+grep -qF '✔ a  1' <(stripped "$test_dir/out")
+python3 - "$test_dir/tail-guard.sh" "$test_dir/tail-overflow.sh" <<'PYCASE'
+from pathlib import Path
+import sys
+s=Path(sys.argv[1]).read_text()
+start=s.index("printf '\\nQ: RESIZE\\n'")
+end=s.index('[[ $ui_steps_live',start)
+s=s[:start]+"tail=\"\"\nfor i in {1..40}; do tail+=$'\\n'; done\ntail+=$'Q: y\\n'\nprintf '%s' \"$tail\"\nui_steps_tail \"$tail\"\n"+s[end:]
+Path(sys.argv[2]).write_text(s)
+PYCASE
+run_steps out "$test_dir/tail-overflow.sh" TMPDIR="$test_dir"
+! grep -qE "$esc\[[0-9]+A" "$test_dir/out"
+grep -qF '✔ a  1' <(stripped "$test_dir/out")
+echo 'PASS ui-steps: 確認を待つ間のリサイズと、一覧の下の行を含めた高さ超過では書き換えない'
+
 # 書き換えないとき（NO_COLOR、端末でない出力）は、○ の一覧と書き換えの制御文字を出さず、終わった行を順に出す。
 cat >"$test_dir/plain.sh" <<'SH'
 source "$1/lib/ui.sh"
