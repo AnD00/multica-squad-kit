@@ -474,6 +474,8 @@ for tool in cat wc; do
 	ln -s "$(command -v "$tool")" "$test_dir/no-tar-bin/$tool"
 done
 ln -s "$test_dir/bin/tar" "$test_dir/listing-bin/tar"
+# GNU tar は tar.gz を読むとき PATH から gzip を起こすので、gzip だけは足す。gh と shasum は置かない。
+ln -s "$(command -v gzip)" "$test_dir/listing-bin/gzip"
 reset_logs
 rc=0
 env -u BASH_ENV PATH="$test_dir/listing-bin" TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" \

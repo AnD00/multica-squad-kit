@@ -186,7 +186,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 41dccb97d9b032aca33eee4ce3580ec3908075e5484160e04d457112c54db833  ./tests/guard-check-test.sh
 3cb82e8f002781ce8c1c3766b91c3eb49f03147cc40c0f2cba55cb82f7e6eaf6  ./tests/host-test.sh
 92a7e11db54a89ff81599c2383fdf3e6bfa673058c35f74c52389b0922ec8946  ./tests/install-command-test.sh
-d42a0fe46968f6259a495538150c8e836e3826be10ae999d0444a2e8ae02abae  ./tests/install-test.sh
+e7e2c746ae56a95ba3793dd67462392e4997da98099976f93850d5455c0182dd  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
 0d05b66e7a6849f91e2ccb870686365bbf1432ec10e16d2341f77b7279798afa  ./tests/leader-eval-test.sh
