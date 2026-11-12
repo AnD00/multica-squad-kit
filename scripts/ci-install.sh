@@ -12,8 +12,15 @@
 #   （InRelease と Packages。apt-meta に保存）を保存する。キャッシュの中身は信用しない。復元後は、
 #   ランナーにある Ubuntu アーカイブの公開鍵で InRelease の署名を gpgv で確かめ、その InRelease が
 #   記すハッシュと Packages が合い、Packages が記す SHA-256 と .deb が合うことを確かめてから
-#   apt-get install でローカルの .deb として入れる。署名・期限・ハッシュのどれかが違う、情報が足りない、署名できる鍵が違う場合は、
-#   キャッシュを捨ててミラーから取る。.deb と一覧を一緒に書き換えても、署名は偽造できない。
+#   apt-get install でローカルの .deb として入れる。.deb と一覧を一緒に書き換えても、署名は偽造できない。
+#   署名が正しくても、次のどれかなら、キャッシュを捨ててミラーから取る（正しく署名された別リリース・古い情報の持ち込みを防ぐ）。
+#   - 署名した情報の Codename・Suite が、ランナーのリリース（/etc/os-release の VERSION_CODENAME と、
+#     その -updates・-security）でない
+#   - Valid-Until がある場合に、過ぎている。Ubuntu の InRelease には Valid-Until がなく、署名は期限切れにならない。
+#     そのため、期限のない一覧は受け入れるが、次の確認で古いバージョンを拒否する
+#   - .deb のバージョンが、ランナー自身の APT（apt-cache policy）の候補より古い、または候補がない
+#     （ランナーが信頼できるバージョンを持たないものは、署名が正しくても入れない）
+#   署名・ハッシュのどれかが違う、情報が足りない、署名できる鍵が違う場合も同じ。
 # - macOS は、brew がバイナリの SHA-256 を公式の値と照らすので、その確認に任せる。
 #   失敗したり、入れたあとに動作の確認が通らなかったりしたら、キャッシュを捨てて、ミラーから取り直す。
 # - どちらも入れたあとに、パッケージの状態とコマンドの動作を確かめる。
@@ -28,6 +35,8 @@ brew_step=10
 apt_keyring=${CI_INSTALL_APT_KEYRING:-/usr/share/keyrings/ubuntu-archive-keyring.gpg}
 apt_lists_dir=${CI_INSTALL_APT_LISTS_DIR:-/var/lib/apt/lists}
 apt_helper=${CI_INSTALL_APT_HELPER:-/usr/lib/apt/apt-helper}
+# 署名した情報を受け入れる、ランナーのリリース名（空なら /etc/os-release）。
+apt_codename=${CI_INSTALL_APT_CODENAME:-}
 
 log() { printf 'ci-install: %s\n' "$*"; }
 fail() { printf 'ci-install: %s\n' "$*" >&2; exit 1; }
@@ -74,17 +83,36 @@ list_cat() {
 	esac
 }
 
-# linux_release_fresh <Release>: Valid-Until があれば、まだ期限内かを確かめる。
-linux_release_fresh() {
-	local until exp
-	until=$(sed -n 's/^Valid-Until: *//p' "$1" | head -n 1)
-	if [[ -z $until ]]; then return 0; fi
-	exp=$(date -u -d "$until" +%s 2>/dev/null || date -u -j -f '%a, %d %b %Y %H:%M:%S %Z' "$until" +%s 2>/dev/null) || return 1
-	[[ $exp -gt $(date -u +%s) ]]
+# to_epoch <日時>: RFC 2822 形式の日時（InRelease の Valid-Until）を UTC の秒にする（GNU と BSD の date）。
+to_epoch() {
+	date -u -d "$1" +%s 2>/dev/null || date -u -j -f '%a, %d %b %Y %H:%M:%S %Z' "$1" +%s 2>/dev/null
+}
+
+# linux_codename: ランナーのリリース名（noble など）。
+linux_codename() {
+	if [[ -n $apt_codename ]]; then printf '%s' "$apt_codename"; return; fi
+	# shellcheck disable=SC1091
+	( . /etc/os-release 2>/dev/null && printf '%s' "${VERSION_CODENAME:-}" )
+}
+
+# linux_release_ok <Release>: 署名された Release が、ランナーのリリースのもので、期限内かを確かめる。
+linux_release_ok() {
+	local codename suite rel_codename until_s u
+	codename=$(linux_codename)
+	[[ -n $codename ]] || return 1
+	suite=$(sed -n 's/^Suite: *//p' "$1" | head -n 1)
+	rel_codename=$(sed -n 's/^Codename: *//p' "$1" | head -n 1)
+	[[ $rel_codename == "$codename" ]] || return 1
+	case $suite in "$codename" | "$codename-updates" | "$codename-security") ;; *) return 1 ;; esac
+	until_s=$(sed -n 's/^Valid-Until: *//p' "$1" | head -n 1)
+	if [[ -n $until_s ]]; then
+		u=$(to_epoch "$until_s") || return 1
+		[[ $u -gt $(date -u +%s) ]] || return 1
+	fi
 }
 
 # linux_trusted_hashes <作業ディレクトリ>: キャッシュの InRelease の署名を公開鍵で確かめ、
-# 署名された Release が記すハッシュに合う Packages だけから、「SHA-256  ファイル名」の一覧を作る。
+# 署名された Release が記すハッシュに合う Packages だけから、「SHA-256  ファイル名  パッケージ  バージョン」の一覧を作る。
 linux_trusted_hashes() {
 	local tmp=$1 meta=$cache_dir/apt-meta inrel prefix release f rel want have n=0
 	: >"$tmp/trusted"
@@ -95,7 +123,7 @@ linux_trusted_hashes() {
 		n=$((n + 1))
 		release="$tmp/Release.$n"
 		gpgv --homedir "$tmp" --keyring "$apt_keyring" --output "$release" "$inrel" >/dev/null 2>&1 || return 1
-		linux_release_fresh "$release" || return 1
+		linux_release_ok "$release" || return 1
 		for f in "$meta/$prefix"_*_Packages.gz; do
 			[[ -f $f ]] || continue
 			rel=${f##*/}
@@ -105,15 +133,24 @@ linux_trusted_hashes() {
 			want=$(awk -v p="$rel" '/^SHA256:/{s=1;next} /^[^ ]/{s=0} s&&$3==p{print $1}' "$release")
 			have=$(gzip -dc "$f" | sha256_of) || return 1
 			[[ -n $want && $want == "$have" ]] || return 1
-			gzip -dc "$f" | awk '/^Filename:/{n=$2; sub(".*/","",n)} /^SHA256:/{h=$2} /^$/{if(n!=""&&h!="")print h"  "n; n=""; h=""} END{if(n!=""&&h!="")print h"  "n}' >>"$tmp/trusted" || return 1
+			gzip -dc "$f" | awk '/^Package:/{p=$2} /^Version:/{v=$2} /^Filename:/{n=$2; sub(".*/","",n)} /^SHA256:/{h=$2} /^$/{if(n!=""&&h!=""&&p!=""&&v!="")print h"  "n"  "p"  "v; n=""; h=""; p=""; v=""} END{if(n!=""&&h!=""&&p!=""&&v!="")print h"  "n"  "p"  "v}' >>"$tmp/trusted" || return 1
 		done
 	done
 	[[ -s $tmp/trusted ]]
 }
 
+# linux_deb_not_older <パッケージ> <バージョン>: ランナー自身の APT の候補より古くなければ成功する。
+# 候補がないとき（ランナーの APT がそのパッケージを知らないとき）は、信頼できるバージョンの基準がないので失敗にする。
+linux_deb_not_older() {
+	local cand
+	cand=$(apt-cache policy "$1" 2>/dev/null | awk '/^ *Candidate:/{print $2; exit}')
+	if [[ -z $cand || $cand == '(none)' ]]; then return 1; fi
+	dpkg --compare-versions "$2" ge "$cand"
+}
+
 # linux_cache_valid <足りないものの一覧>: キャッシュを入れてよいかを、署名の確認まで含めて判定する。
 linux_cache_valid() {
-	local wanted=$1 tmp f name rc=0
+	local wanted=$1 tmp f name entry rc=0
 	[[ -f $cache_dir/PACKAGES && -d $cache_dir/apt-meta ]] || return 1
 	[[ $(cat "$cache_dir/PACKAGES") == "$wanted" ]] || return 1
 	ls "$cache_dir"/*.deb >/dev/null 2>&1 || return 1
@@ -123,7 +160,10 @@ linux_cache_valid() {
 		for f in "$cache_dir"/*.deb; do
 			# apt はバージョンの epoch の ":" を %3a にして保存する。Packages の Filename は epoch を含まない。
 			name=$(printf '%s' "${f##*/}" | sed 's/_[0-9][0-9]*%3a/_/')
-			grep -qxF "$(sha256_of "$f")  $name" "$tmp/trusted" || { rc=1; break; }
+			entry=$(awk -v h="$(sha256_of "$f")" -v n="$name" '$1==h && $2==n {print $3" "$4; exit}' "$tmp/trusted")
+			[[ -n $entry ]] || { rc=1; break; }
+			# shellcheck disable=SC2086
+			linux_deb_not_older $entry || { rc=1; break; }
 		done
 	else
 		rc=1

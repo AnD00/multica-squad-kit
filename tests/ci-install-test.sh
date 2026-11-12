@@ -120,6 +120,25 @@ cat >"$stubs/python3" <<'STUB'
 #!/bin/bash
 grep -qx python "$CASE_DIR/state"
 STUB
+# apt-cache policy: ランナーの APT の候補。case_dir の candidates（「パッケージ バージョン」を 1 行ずつ）があればそれを、なければ全部 1.0 を返す。
+cat >"$stubs/apt-cache" <<'STUB'
+#!/bin/bash
+[[ $1 == policy ]] || exit 1
+pkg=$2
+if [[ -f $CASE_DIR/candidates ]]; then
+	cand=$(awk -v p="$pkg" '$1==p{print $2}' "$CASE_DIR/candidates")
+	[[ -n $cand ]] || cand='(none)'
+else
+	cand=1.0
+fi
+printf '%s:\n  Installed: (none)\n  Candidate: %s\n' "$pkg" "$cand"
+STUB
+# dpkg --compare-versions <a> ge <b>: この test のバージョンは「数字をドットでつないだもの」だけなので、数字の比較で足りる。
+cat >"$stubs/dpkg" <<'STUB'
+#!/bin/bash
+[[ $1 == --compare-versions && $3 == ge ]] || exit 2
+awk -v a="$2" -v b="$4" 'BEGIN{n=split(a,x,"."); m=split(b,y,"."); k=(n>m?n:m); for(i=1;i<=k;i++){if(x[i]+0>y[i]+0)exit 0; if(x[i]+0<y[i]+0)exit 1} exit 0}'
+STUB
 chmod +x "$stubs"/*
 
 # new_case <名前> [Linux で入っているもの...]: 空のキャッシュと記録を作る。Linux は引数のもの以外を足りない状態にする。
@@ -133,6 +152,7 @@ new_case() {
 	: >"$case_dir/out"
 	lists_src="$test_dir/lists-ok"
 	keyring=
+	runner_codename=
 	local p
 	for p in "$@"; do echo "$p" >>"$case_dir/state"; done
 }
@@ -141,7 +161,7 @@ new_case() {
 run_install() {
 	rc=0
 	PATH="$stubs:$PATH" CASE_DIR="$case_dir" CI_INSTALL_CACHE_DIR="$cache" GITHUB_OUTPUT="$case_dir/out" \
-		CI_INSTALL_APT_KEYRING="${keyring:-$fx/keyring.gpg}" CI_INSTALL_APT_HELPER="$stubs/apt-helper" CI_INSTALL_APT_LISTS_DIR="$case_dir/lists" LISTS_SRC="$lists_src" \
+		CI_INSTALL_APT_CODENAME="${runner_codename:-noble}" CI_INSTALL_APT_KEYRING="${keyring:-$fx/keyring.gpg}" CI_INSTALL_APT_HELPER="$stubs/apt-helper" CI_INSTALL_APT_LISTS_DIR="$case_dir/lists" LISTS_SRC="$lists_src" \
 		bash "$root/scripts/ci-install.sh" "$1" >"$case_dir/stdout" 2>"$case_dir/err" || rc=$?
 	source=$(sed -n 's/^source=//p' "$case_dir/out" | tail -1)
 }
@@ -167,7 +187,7 @@ grep -qF 'Dir::Cache::archives=' "$case_dir/log"
 [[ -f $cache/libdigest-sha-perl_1%3a1.0_amd64.deb && -f $cache/zsh_1.0_amd64.deb ]]
 # 保存するのは、.deb を含むパッケージ情報と、その InRelease だけ。
 [[ $(ls "$cache/apt-meta" | wc -l | tr -d ' ') == 2 && -f $cache/apt-meta/${lists_prefix}_InRelease && -f $cache/apt-meta/${lists_prefix}_main_binary-amd64_Packages.gz ]]
-linux_cache_snapshot="$test_dir/linux-cache"
+linux_cache_snapshot="$test_dir/snapshot-linux"
 cp -R "$cache" "$linux_cache_snapshot"
 
 # restore_linux_cache <名前> [Linux で入っているもの...]: 上の保存済みのキャッシュを復元した状態の事例を作る。
@@ -264,6 +284,54 @@ cp "$fx/InRelease.expired" "$cache/apt-meta/${lists_prefix}_InRelease"
 run_install Linux
 [[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
 
+# 7g. Linux: 正しく署名された別のリリース（focal）の情報と、その .deb は、ランナーのリリースでないので使わない。
+restore_linux_cache linux-other-release "${linux_installed[@]}"
+cp "$fx/InRelease.focal" "$cache/apt-meta/${lists_prefix}_InRelease"
+run_install Linux
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
+
+# 7g2. Linux: Codename だけ、または Suite だけがランナーのリリースと違う署名済みの情報も使わない。-updates の Suite は使える。
+for f in codename backports; do
+	restore_linux_cache "linux-release-$f" "${linux_installed[@]}"
+	cp "$fx/InRelease.$f" "$cache/apt-meta/${lists_prefix}_InRelease"
+	run_install Linux
+	[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
+done
+restore_linux_cache linux-release-updates "${linux_installed[@]}"
+cp "$fx/InRelease.updates" "$cache/apt-meta/${lists_prefix}_InRelease"
+run_install Linux
+[[ $rc == 0 && $source == cache ]]
+
+# 7h. Linux: 逆に、ランナーが focal なら、noble の署名済みキャッシュを使わない。
+restore_linux_cache linux-runner-focal "${linux_installed[@]}"
+runner_codename=focal
+run_install Linux
+[[ $source != cache && $(count '^apt-get .*no-download') == 0 ]]
+
+# 7i. Linux: 署名が正しく Valid-Until のない（期限のない）古いバージョンの .deb は、ランナーの候補より古いので使わない。
+restore_linux_cache linux-old-version "${linux_installed[@]}"
+mv "$cache/zsh_1.0_amd64.deb" "$cache/zsh_0.5_amd64.deb"
+gzip -n -c "$fx/Packages.old" >"$cache/apt-meta/${lists_prefix}_main_binary-amd64_Packages.gz"
+cp "$fx/InRelease.old" "$cache/apt-meta/${lists_prefix}_InRelease"
+run_install Linux
+[[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
+[[ -f $cache/zsh_1.0_amd64.deb && ! -e $cache/zsh_0.5_amd64.deb ]]
+
+# 7j. Linux: 7i と同じキャッシュでも、ランナーの候補が同じバージョン（0.5）なら使える（バージョンの比較だけで拒否している対照）。
+restore_linux_cache linux-old-version-control "${linux_installed[@]}"
+mv "$cache/zsh_1.0_amd64.deb" "$cache/zsh_0.5_amd64.deb"
+gzip -n -c "$fx/Packages.old" >"$cache/apt-meta/${lists_prefix}_main_binary-amd64_Packages.gz"
+cp "$fx/InRelease.old" "$cache/apt-meta/${lists_prefix}_InRelease"
+printf 'zsh 0.5\nlibdigest-sha-perl 1.0\n' >"$case_dir/candidates"
+run_install Linux
+[[ $rc == 0 && $source == cache && $(count '^apt-get .*install -y --no-download /') == 1 ]]
+
+# 7k. Linux: ランナーの APT に候補がないパッケージは、信頼できるバージョンの基準がないので、キャッシュを使わず、保存もしない。
+restore_linux_cache linux-no-candidate "${linux_installed[@]}"
+printf 'libdigest-sha-perl 1.0\n' >"$case_dir/candidates"
+run_install Linux
+[[ $rc == 0 && $source == mirror-uncached && $(count '^apt-get .*no-download') == 0 && ! -e $cache/PACKAGES ]]
+
 # 7e. Linux: 公開鍵が見つからないときは、キャッシュを確かめられないので使わず、保存もしない。
 restore_linux_cache linux-no-keyring "${linux_installed[@]}"
 keyring="$test_dir/missing.gpg"
@@ -328,7 +396,7 @@ run_install macOS
 [[ $(count '^brew install python$') == 1 && $(count '^brew') == 1 ]]
 grep -qx 'HOMEBREW_NO_AUTO_UPDATE=1' "$case_dir/log"
 [[ -f $cache/downloads/python--1.0.bottle.tar.gz && ! -e $cache/downloads/api && ! -e $cache/downloads/python.incomplete ]]
-macos_cache_snapshot="$test_dir/macos-cache"
+macos_cache_snapshot="$test_dir/snapshot-macos"
 cp -R "$cache" "$macos_cache_snapshot"
 
 # 15. macOS: キャッシュがあれば、それを使い、保存し直さない。
