@@ -115,6 +115,32 @@ concurrency:
 
 macOS の `jq` と `python3` は、イメージに入っているものを使う。イメージから外れたら、テストが「command not found」で失敗し、それで気づける。入れ直しで隠すより早く分かる。
 
+## 配布物の確かめ
+
+`check.yml` に、ジョブ `assets` を足す。PR の head の木から、発行と同じ `scripts/build-assets.sh` で配布物を作り、名前の決まりと配布物の確かめを流す。設計の全体は `docs/asset-names.md` の[確かめる場所](asset-names.md#確かめる場所)に書く。
+
+```yaml
+  assets:
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Build and check the assets
+        run: bash scripts/build-assets.sh --commit HEAD "$RUNNER_TEMP/assets"
+```
+
+- 取り出すのは、PR では head のコミット、`main` への push ではそのコミットにする。既定のマージのコミットではなく、PR の作者が直す木を確かめるため
+- 動かす場所は、発行のワークフローと同じ `ubuntu-24.04` にする。GNU tar で、発行と同じ一覧の出方にするため。macOS の bsdtar での答えは、`scripts` のジョブの `tests/build-assets-test.sh` の同じ答えのケースで確かめる
+- 道具を入れる手順と、そのキャッシュは置かない。使うのは `git`、`tar`、`shasum` で、イメージに入っているため
+- 権限はワークフローの全体の `contents: read` のまま、ジョブに足さない。`persist-credentials: false` で、取り出したあとの手順に認証を残さない
+- 時間の上限は、ほかのジョブと同じ 10 分にする。配布物を作るのは数秒で、[時間の予算](#時間の予算)の 7 分に効かない
+- 止まったときは、ジョブのログに、`scripts/build-assets.sh` の出した名前、理由、`CONTRIBUTING.md` の「ファイルとディレクトリの名前」が出る
+
+ジョブの定義の決まりは、`tests/release-workflow-test.sh` で確かめる。`check.yml` に `assets` のジョブがあり、`runs-on` が `ubuntu-24.04` で、取り出しの `ref` が上の式で、`scripts/build-assets.sh --commit HEAD` を流すことである。発行のワークフローの定義と同じファイルで、ワークフローの決まりを読むテストを 1 つにまとめる。
+
 ## テストを分けて流す
 
 `tests/run.sh` に、選んだファイルを N 個に分け、その k 番目だけを流す指定を足す。指定がなければ、今までどおりすべてを流す。CI は、シャードごとのジョブで k を変えて呼ぶ。
