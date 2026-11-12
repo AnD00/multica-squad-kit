@@ -16,6 +16,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 SCORER_MARK = "[leader-eval-scorer]"
@@ -136,7 +137,9 @@ def parse_predicate(text):
 
 def check_record(predicate, calls):
     """記録から判定する。返り値は (合否, 理由)。"""
-    lines = [c["command"] for c in calls]
+    # 呼んだことの確認には、実行できた記録だけを使う。呼ばなかったことの確認には拒否も含める。
+    lines = [c["command"] for c in calls if c.get("kind") != "denied"]
+    attempted = [c["command"] for c in calls]
     bodies = [b for c in calls for b in c.get("bodies", [])]
 
     def first(rx):
@@ -148,8 +151,10 @@ def check_record(predicate, calls):
     for op, args in parse_predicate(predicate):
         if op == "called" and first(args[0]) is None:
             return False, f"呼んでいない: {args[0]}"
-        if op == "not-called" and first(args[0]) is not None:
-            return False, f"呼んでいる: {lines[first(args[0])]}"
+        if op == "not-called":
+            for line in attempted:
+                if re.search(args[0], line):
+                    return False, f"呼んでいる（拒否も含む）: {line}"
         if op == "before":
             a, b = first(args[0]), first(args[1])
             if a is None:
@@ -300,7 +305,7 @@ def agent_command(runtime, model, thinking, prompt):
         return ["claude", "-p", prompt, "--model", model, "--effort", thinking,
                 "--setting-sources", "project", "--tools", *BUILTIN_TOOLS.split(),
                 "--allowedTools", *ALLOWED_TOOLS, "--permission-mode", "dontAsk",
-                "--no-session-persistence", "--strict-mcp-config", "--output-format", "text"]
+                "--no-session-persistence", "--strict-mcp-config", "--output-format", "json"]
     return ["codex", "exec", "--skip-git-repo-check", "--sandbox", "workspace-write", "-m", model,
             "-c", f'model_reasoning_effort="{thinking}"', prompt]
 
@@ -309,8 +314,8 @@ def posted_comments(calls):
     return [b for c in calls if c["command"].startswith("multica issue comment add") for b in c.get("bodies", [])]
 
 
-def scorer_prompt(scene, criterion, calls):
-    commands = "\n".join(f"- {c['command']}（終了コード {c['exit']}）" for c in calls) or "（なし）"
+def scorer_prompt(scene, criterion, calls, response):
+    commands = "\n".join(f"- {c['command']}（{c['kind']}、終了コード {c['exit']}）" for c in calls) or "（なし）"
     comments = "\n\n".join(f"--- 投稿 {i + 1} ---\n{b}" for i, b in enumerate(posted_comments(calls))) or "（なし）"
     return (
         f"{SCORER_MARK}\n"
@@ -320,8 +325,29 @@ def scorer_prompt(scene, criterion, calls):
         f"## エージェントに渡した入力\n{scene['input']}\n\n"
         f"## エージェントが呼んだコマンド\n{commands}\n\n"
         f"## エージェントが投稿したコメント\n{comments}\n\n"
+        f"## エージェントの最後の返答\n{response}\n\n"
         '合否と理由を、次の形の JSON だけで返してください。{"pass": true か false, "reason": "1〜2 文"}\n'
     )
+
+
+def parse_agent_output(text):
+    """Claude の JSON の最終結果から、返答とスタブに届かなかった拒否を取り出す。"""
+    data = json.loads(text)
+    if not isinstance(data, dict) or data.get("type") != "result":
+        raise ValueError("type が result ではありません")
+    response, denials = data.get("result", ""), data.get("permission_denials")
+    if not isinstance(response, str) or not isinstance(denials, list):
+        raise ValueError("result または permission_denials の形が違います")
+    calls = []
+    for denial in denials:
+        if not isinstance(denial, dict) or not isinstance(denial.get("tool_input"), dict):
+            raise ValueError("拒否された道具の入力が読めません")
+        name, tool_input = denial.get("tool_name"), denial["tool_input"]
+        if not isinstance(name, str) or (name == "Bash" and not isinstance(tool_input.get("command"), str)):
+            raise ValueError("拒否された道具の名前またはコマンドが読めません")
+        command = tool_input["command"] if name == "Bash" else f"{name} {json.dumps(tool_input, ensure_ascii=False)}"
+        calls.append({**denial, "command": command, "kind": "denied", "exit": None})
+    return response, denials, calls, bool(data.get("is_error"))
 
 
 def parse_score(text):
@@ -351,12 +377,26 @@ def run_one(args):
     timeout = int(args["timeout"])
     result = {"scene": scene["id"], "type": scene["type"], "which": args["which"], "n": int(args["n"]), "runtime": args["runtime"],
               "model": meta["model"], "thinking_level": meta["thinking_level"]}
+    started = time.monotonic()
     code, out, err = run_command(
         agent_command(args["runtime"], meta["model"], meta["thinking_level"], scene["input"]),
         work, env, timeout)
-    (run_dir / "response.txt").write_text(out)
+    result.update({"exit_code": code, "duration_ms": round((time.monotonic() - started) * 1000)})
+    (run_dir / "agent-output.txt").write_text(out)
     calls = [json.loads(line) for line in calls_path.read_text().splitlines() if line.strip()]
-    result.update({"calls": calls, "comments": posted_comments(calls), "response": out.strip()})
+    response = out
+    if args["runtime"] == "claude":
+        try:
+            response, denials, denied_calls, is_error = parse_agent_output(out)
+            calls.extend(denied_calls)
+            result["permission_denials"] = denials
+            if denials or is_error:
+                result["error"] = f"道具の呼び出しが {len(denials)} 件拒否されたか、実行が失敗した"
+        except (ValueError, TypeError) as e:
+            response = ""
+            result["error"] = f"実行の JSON が読めなかった: {e}"
+    (run_dir / "response.txt").write_text(response)
+    result.update({"calls": calls, "comments": posted_comments(calls), "response": response.strip()})
     if code != 0:
         result["error"] = f"実行が終了コード {code} で終わった: {err.strip()[:300]}"
     scorer_env = dict(os.environ)
@@ -368,7 +408,7 @@ def run_one(args):
             ok, reason = False, "実行が失敗したので採点しない"
         else:
             scode, sout, serr = run_command(
-                ["claude", "-p", scorer_prompt(scene, c, calls), "--model", SCORER_MODEL,
+                ["claude", "-p", scorer_prompt(scene, c, calls, result["response"]), "--model", SCORER_MODEL,
                  "--effort", SCORER_EFFORT, "--setting-sources", "", "--tools", "",
                  "--no-session-persistence", "--strict-mcp-config", "--output-format", "text"],
                 str(run_dir), scorer_env, timeout)

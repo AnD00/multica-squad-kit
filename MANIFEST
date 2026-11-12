@@ -186,8 +186,8 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 75613607387b2673bb5b47c17acdfd721308274a943b221999f29c04d8709a97  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
-33c09f0711c9ab91d70aa6e514e86a4a76ebff050335f1d1ca364f9ea3582187  ./tests/leader-eval-test.sh
-c01549350f77945f52a052f5be109a8cd49c75b1838c700c012d8f614e0a487f  ./tests/leader-eval/leader_eval.py
+94a9d88798c58ee5be2292babd6289596360190eafb35ecc9e7724660b97a82a  ./tests/leader-eval-test.sh
+b494df6c94e63b15d37369c9ae2177b76e3a06ba28d52714bf164b2dabd8b4c2  ./tests/leader-eval/leader_eval.py
 309a8ca02090d4d2f65abd3fae2715fb88e39331351b073bc569369b4034083e  ./tests/leader-eval/run.sh
 3370b1172bd48a18ca61f592f375ebef86fbaa5027d60b7ddeb232c25aa790e3  ./tests/leader-eval/runtime-brief.md
 bc12043c77174f0cd04becf3bc38e2468e6343431f53c8c16dc2ab77b5f04a08  ./tests/leader-eval/scenes/1-1/cli.json

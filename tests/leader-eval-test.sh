@@ -90,6 +90,38 @@ check("called: issue pull-requests && not-called: issue comment add", False)
 PY
 echo "PASS leader-eval: [記録] の判定が呼び出しの記録と投稿した文から決まる"
 
+# Claude が拒否した呼び出しはスタブに届かなくても、未呼び出しの判定に数える。
+# JSON の欄の形: https://github.com/anthropics/claude-code/issues/77037
+python3 -I -B - "$eval_dir" <<'PY'
+import json, sys
+sys.path.insert(0, sys.argv[1])
+import leader_eval as le
+denials = [
+    {"tool_name": "Bash", "tool_use_id": "tool-denied-1",
+     "tool_input": {"command": "multica issue cancel-task issue-shop-1 task-fixer"}},
+    {"tool_name": "Bash", "tool_use_id": "tool-denied-2",
+     "tool_input": {"command": "squad-pr-link issue-shop-1 https://github.com/example/shop/pull/7"}},
+    {"tool_name": "Read", "tool_use_id": "tool-denied-3", "tool_input": {"file_path": "/outside/file.md"}},
+]
+response, actual, calls, is_error = le.parse_agent_output(json.dumps({
+    "type": "result", "result": "最後の返答", "is_error": False, "permission_denials": denials,
+}))
+assert response == "最後の返答" and actual == denials and not is_error
+assert len(calls) == 3 and all(c["kind"] == "denied" and c["exit"] is None for c in calls)
+for command in ("^multica issue cancel-task", "^squad-pr-link"):
+    assert not le.check_record("not-called: " + command, calls)[0]
+    assert not le.check_record("called: " + command, calls)[0]
+assert calls[-1]["tool_input"] == denials[-1]["tool_input"]
+for bad in ["not JSON", "[]", '{"type":"result","result":"done"}',
+            '{"type":"result","permission_denials":[{}]}']:
+    try:
+        le.parse_agent_output(bad)
+    except ValueError:
+        continue
+    raise AssertionError(bad)
+PY
+echo "PASS leader-eval: 拒否された道具の入力を残し、未呼び出しの合格や実行した扱いにしない"
+
 # 保-7 は、通常の依頼を通し、CI・待ちの欠落、順序や対象コミットの違いを落とす。
 python3 -I -B - "$eval_dir" <<'PY'
 import copy, sys
@@ -123,29 +155,51 @@ stub_bin="$test_dir/stub-bin"
 mkdir -p "$stub_bin"
 cat >"$stub_bin/claude" <<'EOF2'
 #!/usr/bin/env bash
-model= effort= prev=
+model= effort= format= prev=
 for arg in "$@"; do
-	case $prev in --model) model=$arg ;; --effort) effort=$arg ;; esac
+	case $prev in --model) model=$arg ;; --effort) effort=$arg ;; --output-format) format=$arg ;; esac
 	prev=$arg
 done
 case "$*" in
 *"[leader-eval-scorer]"*)
 	echo "scorer $model $effort" >>"$STUB_LOG"
-	echo '{"pass": true, "reason": "stub"}'
+	python3 -I - "$2" <<'PY'
+import json, sys
+prompt = sys.argv[1]
+assert "## エージェントの最後の返答\n" in prompt
+response = prompt.split("## エージェントの最後の返答\n", 1)[1].split("\n\n合否と理由を、", 1)[0]
+ok = response == "/note\n返事の待ち: 回ごと済み" if "最後の返答にしている" in prompt else True
+print(json.dumps({"pass": ok, "reason": "最後の返答で判定"}, ensure_ascii=False))
+PY
 	exit 0
 	;;
 esac
 echo "leader $model $effort $(basename "$PWD" | cut -c1-4)" >>"$STUB_LOG"
+[[ $format == json ]] || exit 4
 grep -q 'shop-orchestrator-member1' CLAUDE.md || exit 3
 grep -q 'Multica Agent Runtime' CLAUDE.md || exit 3
 test -f .claude/skills/squad-handoff/SKILL.md || exit 3
+if [[ $* == *'ほぼ同時に、レビューの役も同じ知らせ'* ]]; then
+	squad-review-wait proceed issue-shop-1 comment-6 >tmp/proceed.md
+	python3 -I - <<'PY'
+import json, os
+from pathlib import Path
+denials = []
+if os.environ.get("STUB_DENIAL"):
+    denials = [{"tool_name": "Bash", "tool_use_id": "tool-denied",
+                "tool_input": {"command": "multica issue status issue-shop-1 in_review"}}]
+print(json.dumps({"type": "result", "is_error": False, "permission_denials": denials,
+                  "result": os.environ.get("STUB_RESPONSE", Path("tmp/proceed.md").read_text().strip())}, ensure_ascii=False))
+PY
+	exit 0
+fi
 multica issue get issue-shop-1 >/dev/null
 multica issue pull-requests issue-shop-1 --output json >/dev/null
-multica no-such-command || true
+multica no-such-command >/dev/null 2>&1 || true
 printf '確認します [@member1](mention://member/member1)\n' >tmp/c.md
-multica issue comment add issue-shop-1 --parent comment-2 --content-file tmp/c.md
-multica issue status issue-shop-1 in_review
-echo done
+multica issue comment add issue-shop-1 --parent comment-2 --content-file tmp/c.md >/dev/null
+multica issue status issue-shop-1 in_review >/dev/null
+echo '{"type":"result","result":"done","is_error":false,"permission_denials":[]}'
 EOF2
 chmod +x "$stub_bin/claude"
 export STUB_LOG="$test_dir/stub.log"
@@ -171,6 +225,7 @@ jq -e -s 'all(.[]; .pass == true)' "$out/runs.jsonl" >/dev/null
 jq -e -s 'all(.[]; any(.calls[]; .kind == "unmatched" and .exit == 1))' "$out/runs.jsonl" >/dev/null
 jq -e -s 'all(.[]; any(.calls[]; .kind == "write" and (.bodies | length) > 0))' "$out/runs.jsonl" >/dev/null
 jq -e -s 'all(.[]; (.comments | length) > 0 and (.comments[0] | contains("member1")))' "$out/runs.jsonl" >/dev/null
+jq -e -s 'all(.[]; .response == "done" and .exit_code == 0 and (.duration_ms >= 0) and .permission_denials == [])' "$out/runs.jsonl" >/dev/null
 jq -e -s 'all(.[]; .criteria | all(.[]; has("n") and has("kind") and has("pass") and has("reason")))' "$out/runs.jsonl" >/dev/null
 grep -q '^| 保-2 | 保 | 2/2 | 2/2 | - |$' "$out/summary.md"
 grep -q '^| 1-1 | 1 | 2/2 | 2/2 | - |$' "$out/summary.md"
@@ -179,6 +234,29 @@ echo "PASS leader-eval: スタブのコマンドが呼び出しを記録し、ru
 grep -q '^leader claude-opus-5-5 high' "$test_dir/stub.log"
 grep -q '^scorer claude-opus-5-5 high' "$test_dir/stub.log"
 echo "PASS leader-eval: モデルと思考の深さは展開した front matter から、採点は opus の high で流す"
+
+# 保-6 の最後の返答だけを変え、採点が合格と不合格に分かれることを確かめる。
+for mode in good bad denied; do
+	case $mode in good | denied) reply=$'/note\n返事の待ち: 回ごと済み' ;; bad) reply='別の返答' ;; esac
+	denial=
+	[[ $mode != denied ]] || denial=1
+	mode_out="$test_dir/final-$mode"
+	STUB_RESPONSE="$reply" STUB_DENIAL="$denial" PATH="$stub_bin:$PATH" bash "$eval_dir/run.sh" \
+		--baseline HEAD --scenes 保-6 --only new --runs 1 --jobs 1 --out "$mode_out" >"$test_dir/$mode.out" 2>"$test_dir/$mode.err" ||
+		{ cat "$test_dir/$mode.err" >&2; exit 1; }
+	done_file="$mode_out/runs.jsonl"
+	case $mode in
+	good) jq -e '.pass == true and .response == "/note\n返事の待ち: 回ごと済み" and .comments == []' "$done_file" >/dev/null ;;
+	bad) jq -e '.pass == false and (.criteria[] | select(.n == 3) | .pass == false)' "$done_file" >/dev/null ;;
+	denied)
+		jq -e '.pass == false and (.error | contains("拒否")) and (.permission_denials | length) == 1
+			and any(.calls[]; .kind == "denied" and .exit == null and .tool_use_id == "tool-denied"
+				and .command == "multica issue status issue-shop-1 in_review")
+			and (.criteria[] | select(.n == 2) | .pass == false)' "$done_file" >/dev/null
+		;;
+	esac
+done
+echo "PASS leader-eval: 保-6 の採点に最後の返答を渡し、拒否された状態の変更を記録と判定に含める"
 
 # --- 全場面をスタブで流す（合否は問わず、場面が読めて 1 行ずつ出ることだけを見る）---
 all_out="$test_dir/all"
