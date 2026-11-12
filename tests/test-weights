@@ -1,7 +1,8 @@
 # ファイル 秒（macOS の CI での目安）
 # 追記と更新の決まりは CONTRIBUTING.md の「テストを書く決まり」を参照する。
 tests/squad-dependabot-merge-advance-ci-wait-test.sh 211
-tests/setup-runtimes-both-test.sh 196
+tests/setup-runtimes-both-changes-test.sh 105
+tests/setup-runtimes-both-test.sh 140
 tests/project-followup-test.sh 181
 tests/squad-dependabot-merge-advance-request-test.sh 172
 tests/squad-pr-watch-ci-test.sh 161
@@ -59,6 +60,7 @@ tests/install-command-test.sh 7
 tests/confirmation-test.sh 8
 tests/gh-test.sh 5
 tests/error-marks-test.sh 3
+tests/leader-eval-test.sh 3
 tests/capture-cli-fixtures-test.sh 2
 tests/completion-colors-test.sh 2
 tests/setup-tag-test.sh 2

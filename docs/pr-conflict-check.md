@@ -2,7 +2,7 @@
 
 リーダーが人間のマージへ回す直前に、PR の今の head と `mergeable` を `squad-pr-watch` で読み、その値と head の SHA を 1 行で出す。リーダーはその行に従って次の動きを決め、人間やほかの役へは読んだ値と head をそのまま書く。
 
-この文書は、スクリプトの新しいサブコマンド、リーダーの指示、`squad-handoff` の決まりの設計と、その理由を書く。
+この文書は、スクリプトの新しいサブコマンド、リーダーの指示、`squad-handoff` の決まりの設計と、その理由を書く。現在のリーダーの手順は、squad-handoff の参照ファイル [leader-pr-checks.md](../common/skills/squad-handoff/references/leader-pr-checks.md) にある。指示の構成と移した理由は、[leader-principles.md の手順の移し先](leader-principles.md#手順の移し先)を参照する。
 
 ## 目的と範囲
 

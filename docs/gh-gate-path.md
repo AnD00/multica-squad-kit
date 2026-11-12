@@ -44,7 +44,7 @@ Claude の実行の順を、原本のテストで bash と zsh の両方につ�
 - ひな形の `env.sh` から関所を先頭に置く処理を外した原本で流すと、Claude の順の確かめで止まり、許可ファイルと起動ファイルを書かない
 - 関所の外に `gh` がない PATH では、理由を出して止まる
 
-`tests/setup-runtimes-claude-test.sh`・`setup-runtimes-codex-test.sh`・`setup-runtimes-both-test.sh` では、ランタイムの組み合わせごとに、Claude の役の `CLAUDE_ENV_FILE` が `BASH_ENV` と同じ値で、Codex の役には入らないことを確かめる。環境変数の追加・上書き・モデルの切り替えは、`docs/agent-path.md` のとおり `tests/project-create-test.sh`・`tests/project-runtimes-test.sh` で確かめる。
+`tests/setup-runtimes-claude-test.sh`・`setup-runtimes-codex-test.sh`・`setup-runtimes-both-test.sh`・`setup-runtimes-both-changes-test.sh` では、ランタイムの組み合わせごとに、Claude の役の `CLAUDE_ENV_FILE` が `BASH_ENV` と同じ値で、Codex の役には入らないことを確かめる。環境変数の追加・上書き・モデルの切り替えは、`docs/agent-path.md` のとおり `tests/project-create-test.sh`・`tests/project-runtimes-test.sh` で確かめる。
 
 ## 前提と限界
 

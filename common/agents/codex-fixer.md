@@ -130,6 +130,7 @@ codex exec --sandbox read-only --ephemeral -m {{model}} -c model_reasoning_effor
 
 ## 人間に確認するとき
 
+- 「できない」「口がない」として人間に操作を頼む前に、試した方法とコマンドの出力をコメントに残す。画像は、PR には `gh pr comment <PR> --body-file <本文> --attach <PNG>` で、タスクには `multica issue comment add --attachment` で載せる。手順と、載せられなかったときの扱いは、スキル squad-handoff の「画像を載せる」と「人間に操作を頼む前に」に従う
 - 指摘やコンフリクトの解消に、設計の変更が要るとき
 - 自分の変更と関係のないテストが失敗したとき（直さずに、落ちたテストの名前と出力を添えて報告する）
 - コンフリクトを解消するとき、関わらないテストが落ちた場合も同じ。出力は PR のコメントに置き、タスクのコメントからリンクする
