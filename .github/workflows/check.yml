@@ -26,10 +26,25 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      - if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps
+      - name: Cache key for tools
+        id: tools-key
+        run: echo "key=tools-${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-unknown}-${ImageVersion:-unknown}-${{ hashFiles('scripts/ci-install.sh') }}" >> "$GITHUB_OUTPUT"
+      - name: Restore tools cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/ci-install-cache
+          key: ${{ steps.tools-key.outputs.key }}
+      - name: Install missing tools
+        id: install
+        env:
+          CI_INSTALL_CACHE_DIR: ${{ runner.temp }}/ci-install-cache
+        run: bash scripts/ci-install.sh "$RUNNER_OS"
+      - name: Save tools cache
+        if: steps.install.outputs.source == 'mirror'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/ci-install-cache
+          key: ${{ steps.tools-key.outputs.key }}
       - name: Tests
         env:
           SQUAD_KIT_TEST_SHARD: ${{ matrix.shard }}

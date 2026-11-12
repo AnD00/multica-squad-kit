@@ -44,6 +44,7 @@ tests/runtime-selection-test.sh 17
 tests/setup-version-test.sh 15
 tests/project-changes-test.sh 14
 tests/build-assets-test.sh 10
+tests/ci-install-test.sh 10
 tests/manual-test.sh 10
 tests/test-runner-test.sh 35
 tests/workspace-test.sh 10
