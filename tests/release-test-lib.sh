@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release-test.sh と release-failure-test.sh が読み込む準備と補助。単独では実行しない。
+# release-test.sh、release-check-test.sh、release-failure-test.sh が読み込む準備と補助。単独では実行しない。
 # scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確かめる。
 # origin は一時の bare のリポジトリで、本物の GitHub には push せず、Release もワークフローの実行も作らない。
 # 設計は docs/release.md の「テストと CI」。スタブの gh は、Release の一覧を JSON の状態として持ち、

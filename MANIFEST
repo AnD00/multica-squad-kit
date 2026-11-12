@@ -70,7 +70,7 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
 5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
-2cc58e6c146fba99cf72769961020240c31fa55bc2d399e53fd36b6d3df8357d  ./docs/release.md
+aa947e63276bb8a52ef1803db93ff7f2b0b3df896c31a0e58335bb48e54da8f8  ./docs/release.md
 965a009c6f8e3262c6d33ab09d7288b066b6282ee66bcd8472f6c45a56b8cabc  ./docs/review-wait.md
 2e01bc767f204b6a3c5fd70b01bdfa5e3ef5457bc7887e9a0a8ba615b75c0435  ./docs/run-status.md
 d92c09520ff698c6240542eb4f71b60e6f6ff3f6a4f680638965cef32002ccde  ./docs/setup-completion.md
@@ -254,9 +254,10 @@ e2141527ff9e7280bce9dd9dd161bec702edca9d55658c078e487cae802c9ab2  ./tests/projec
 c2ceb8dd3561ee8adeaca790ebc1594cb1ad442522bb2a39334276306999f1ad  ./tests/project-select-test.sh
 6a75439aa217c567d6a63178cd759c189f00187e19758d806819eb5dd601b931  ./tests/project-test-lib.sh
 e702e1dd459c4239b74c2538b549604dc3c961531fb2249df16b66dca231e8f7  ./tests/questions-ui-test.sh
-ba1f6c8fcba7db5c7b695c28b61f76600993eae20129bfb2df93498859923dde  ./tests/release-failure-test.sh
-d6845161d0097a56c11e8607b4ebdd9efe32efe0ccb0691e1d3227ceebb2e53f  ./tests/release-test-lib.sh
-1f9c178360d453802c89239d8eeb5eb090ef8d6c1fdafe191e2e0b239d52984b  ./tests/release-test.sh
+c4ea99ff26a74254abd0cdd747111c509f731e42387ddc1678e1b02b821b89c1  ./tests/release-check-test.sh
+59da9c66f9a8ccd0a7ac4ec75751c28f42c5e47c51610dbdf06229df74fa9760  ./tests/release-failure-test.sh
+b29b075fd5941554228679f49b33426557c530a856ed28937237ed97f8a5900a  ./tests/release-test-lib.sh
+59674ff18f43c07c0e8c9857e501a3d5c7603e539078cdd10fbcdab83ec42d8f  ./tests/release-test.sh
 b3294d76761ef637231fa8d6e593c4efecb08d6ec4f7e2883f195a0a47e616e9  ./tests/release-workflow-test.sh
 9059bbcc14118aed461e95965f261959c381780b25ddee5c9372d929c1d46010  ./tests/review-wait-fixture.py
 2b8cc440684e9d84ca041c9aca96efa13d8c4572ee4d5e5c5956a56dfdc826e8  ./tests/review-wait-test-lib.sh
@@ -313,7 +314,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-0d108a7c4c8719f43a84cdb3fc01366ea0152e4344ceb6e66d49a261ceabdc6a  ./tests/test-weights
+a62ecf719503604ba4a80a708b6ac3bfe9aef05c63f2b1fee758e7615f8393d6  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
