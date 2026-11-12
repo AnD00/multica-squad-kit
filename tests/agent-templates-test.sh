@@ -115,7 +115,7 @@ echo 'PASS preflight templates: 共通スキルと全構成のリーダー・見
 
 # 進捗を聞かれたときと実行を止めるときの節は、全構成のリーダーに、確かめ方・止める条件・やり直し方の要を残す。
 run_status_section() {
-	awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
+	LC_ALL=C awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
 }
 for dir in "$test_dir/"*/; do
 	[[ -f $dir/orchestrator ]] || continue
@@ -129,9 +129,9 @@ for dir in "$test_dir/"*/; do
 		grep -qF -- "$text" "$test_dir/run-status"
 	done
 	# 節は、CI とコンフリクトの節の後、受け渡しの節の前に置く。
-	ci_line=$(awk '$0=="## CI とコンフリクト" {print NR; exit}' "$dir/orchestrator")
-	status_line=$(awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {print NR; exit}' "$dir/orchestrator")
-	handoff_line=$(awk '$0=="## 受け渡しと人間を待つところ" {print NR; exit}' "$dir/orchestrator")
+	ci_line=$(LC_ALL=C awk '$0=="## CI とコンフリクト" {print NR; exit}' "$dir/orchestrator")
+	status_line=$(LC_ALL=C awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {print NR; exit}' "$dir/orchestrator")
+	handoff_line=$(LC_ALL=C awk '$0=="## 受け渡しと人間を待つところ" {print NR; exit}' "$dir/orchestrator")
 	[[ $ci_line -lt $status_line && $status_line -lt $handoff_line ]]
 done
 echo 'PASS run-status templates: 全構成のリーダーに、実行の確かめ方・止める条件・やり直し方の要の語句を残す'
