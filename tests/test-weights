@@ -21,6 +21,7 @@ tests/setup-runtimes-claude-test.sh 79
 tests/squad-review-wait-report-test.sh 74
 tests/squad-dependabot-merge-advance-ci-change-test.sh 73
 tests/setup-runtimes-codex-test.sh 72
+tests/questions-fold-test.sh 35
 tests/questions-ui-test.sh 68
 tests/squad-usage-check-test.sh 68
 tests/project-environment-test.sh 66

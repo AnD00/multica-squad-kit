@@ -82,17 +82,17 @@ grep -qF 'Dependabot の PR の Webhook: 使う' "$test_dir/err"
 printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.dependabot_webhook==true' "$saved" >/dev/null
-grep -qF '既定値: 2（Enter で使います）' "$test_dir/err"
+grep -qxF '› 2 ' "$test_dir/err"
 [[ $(grep -c '前の答えにはこの項目がありません' "$test_dir/err") == 0 ]]
 jq 'del(.dependabot_webhook)' "$test_dir/previous" >"$saved"
 printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 cmp "$saved" "$test_dir/previous"
-grep -qF '警告: 前の答えにはこの項目がありません。前のバージョンは聞かずに Webhook を登録していました。' "$test_dir/err"
+grep -qF '  ! 前の答えにはこの項目がありません。前のバージョンは聞かずに Webhook を登録していました。' "$test_dir/err"
 printf '1\n\n\n\n\n\n\n12\nyes\n' >"$test_dir/input"
 run
 jq -e '.dependabot_webhook==false and (.excluded_roles|index("dependabot-merger")!=null)' "$saved" >/dev/null
-grep -qxF '質問 (9/9) Dependabot の PR の Webhook: Dependabot の役を外したので聞きません。' "$test_dir/err"
+grep -qxF '· Dependabot の PR の Webhook  Dependabot の役を外したので聞きません。' "$test_dir/err"
 cp "$test_dir/previous" "$saved"
 echo 'PASS setup: Webhook は既定で使わず、使う答えを保存して次の既定にし、項目のない前の答えは使わないと読み、役を外せば番号だけ進めて聞かない'
 printf '2\nNew project\nother\n1\nmemberb\n0\n1\n0\n\nyes\n' >"$test_dir/input"

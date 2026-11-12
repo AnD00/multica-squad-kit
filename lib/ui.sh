@@ -236,6 +236,18 @@ ui_rows() {
 	printf '%s\n' "$(((ui_text_width + ui_columns - 1) / ui_columns))"
 }
 
+# ui_rewind <out|err> <行数>: 出した行を書き換えるために、行数だけ上へ戻って行頭から下を消す。
+# 色が出る端末で、呼ぶ側が行を数えたときだけ使う。自分が出した行より上へは戻らない。
+ui_rewind() {
+	local target=$1 rows=$2
+	[[ $rows =~ ^[0-9]+$ ]] && ((rows > 0)) || return 1
+	case $target in
+	out) printf '\033[%sA\r\033[J' "$rows" ;;
+	err) printf '\033[%sA\r\033[J' "$rows" >&2 ;;
+	*) return 1 ;;
+	esac
+}
+
 # チェックリスト。1 つの出す先に出し、一度に一つだけ動かす。呼ぶ側は、終わるときの片付け
 # （trap）でも ui_steps_cleanup を呼ぶ。
 ui_steps_active=no

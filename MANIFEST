@@ -79,15 +79,15 @@ d5da15ab6568bd6b3cf2c635f9e8d3c50b63492177f2085a77a6d7f2dd61907d  ./lib/autopilo
 e042f7692fd3b291d67de0297ba39e0e3bc4cb98245b480f6013f64c35988d3c  ./lib/installation.sh
 5347a2157370ff88cf75f0532603f715270a57c63fa749a3e95e32b57fa09825  ./lib/project-changes.sh
 71d440f868a14b77d8e2dd77264a78c8a9d2081898a56d561c60ce8d15e26b2b  ./lib/project.sh
-8cbc6afe17d596b07c9fc58542b96bd19eff5db7dec4d388f8070659eceaa374  ./lib/questions.sh
+4dfcb2b909b3966ba66ebdce2094f457e618670b05b48b15da5f2cb64203ac64  ./lib/questions.sh
 984fae87b1b94c4dcdce08adb161f51f3f08317bad1df7dfdd9c1ac144f3abb7  ./lib/render.sh
 9a6e78b8a9fe9a957e119c63ea1b7d91c94be51250e49ab4bdd334eca1cb6ce5  ./lib/setup-issues.sh
 fb9095c763149a27ddb315a372518439670f4f39feceaf30fe20d6dc527966f0  ./lib/squad.sh
-29a36859947c167d80b12b5dfd30521217a4a4066c8daf17ed48743f6231855c  ./lib/ui.sh
+eb0416e42edfe1584226efb2e389768386be8eb77c997ec1f28f3d229bbaebe8  ./lib/ui.sh
 37af1a74c3d6f736cc761771d58a53a8a3c2c2e2ec7c52c6c5ed3be680f2469a  ./lib/version.sh
 2acbe40057c86b3059cf53669db57e2b7e6f0afa11bca7695fef880734f7a610  ./lib/webhooks.sh
 6f510b06aef196594ebc3fa84a5cb42a4b23e1b98fd9e05f10c1a5c30c74db9e  ./lib/workspace.sh
-9f456c77579b64fae60c7ec23f348de9df3752acf84c809874b8f3f245bc9735  ./manual.md
+ee9919939c84981b57bcb1b44d5622746110a2b4f497a1069ca22f604bea55e9  ./manual.md
 bb09118b4a3f07886858d1255f5eb807243c4e25bf524ed84d83f7c500b5df35  ./scripts/build-assets.sh
 5502cd894d01488bcf22a4d332d3f8b87271923e2e05fd72e8a50bb847b774e2  ./scripts/check.sh
 2b1d474d9d51940cde91cb4529ca3c16d16d4be3e0d7548d1066986f615a812d  ./scripts/ci-install.sh
@@ -124,7 +124,7 @@ f6b5febce120c2de48411ed659d1a89b5da2b9d11aec3d54325f48f4b9176b51  ./tests/cli-st
 d0a1670ec140dbabb74467738f04d0a121465aecca25a82a0c062a2821b378c9  ./tests/dependabot-merge-advance-test-lib.sh
 e8368dbbd8991557806ad104ab9195cdbf35e29f5a28fcfb02f385cdbfe0f2e3  ./tests/dependabot-merge-test-lib.sh
 ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-lines-test.sh
-125fb78955f74eadf4de21203121e8ac58a174e1d881bb90e9a868a8a8c4aa3e  ./tests/error-marks-test.sh
+f1e145146865ec3a695c57bc7ce4f3951179f3e78cc1173469578dc709ceabbb  ./tests/error-marks-test.sh
 726edf12288d6694caa3c8b3311b205c8150eb1d15c6357bf5fc2489c55e05e1  ./tests/extensions-test.sh
 ec5cef23dc19fbcc621e52a3a5fd5d7604484515ff48b435163724ddad02fb43  ./tests/fixtures/ci-install/InRelease
 5da2715152d18bfb6bbbecb7f35a2537a23cb70982838668ee40d41661254cad  ./tests/fixtures/ci-install/InRelease.attacker
@@ -182,7 +182,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
 b07bac540574fc897e6967a373c67d30f4e50a80a21c110d9d4b2bb0ed001fac  ./tests/link-scope-questions-test.sh
-d9c9ca4f517999386d111d1d7e20f9b934e3c1ffc3d013e49d6aca1a965e62ca  ./tests/manual-test.sh
+72f6c63084712a16f9f22c5b9113c058b0214f6a237f9c00d932ac820c423cd4  ./tests/manual-test.sh
 4e821def23057c68c2b54904b18bbc57eecd33ffba6d5730600a84c3d51a7bef  ./tests/multica-fixture.py
 53c8729001728a604bb778fd2b9943915f3c00bd87b698b9735633f1474feed0  ./tests/pr-watch-fixture.py
 321ba38eaed72caa945859fdfd6b086bd465ea50bb6230b883b1ba5021e4643a  ./tests/pr-watch-test-lib.sh
@@ -198,7 +198,9 @@ e2141527ff9e7280bce9dd9dd161bec702edca9d55658c078e487cae802c9ab2  ./tests/projec
 582aac67f293c943e92ec4c5b15baa6558604a1561bb5e45f14fec8c7fac2ce1  ./tests/project-runtimes-test.sh
 c2ceb8dd3561ee8adeaca790ebc1594cb1ad442522bb2a39334276306999f1ad  ./tests/project-select-test.sh
 6a75439aa217c567d6a63178cd759c189f00187e19758d806819eb5dd601b931  ./tests/project-test-lib.sh
-e702e1dd459c4239b74c2538b549604dc3c961531fb2249df16b66dca231e8f7  ./tests/questions-ui-test.sh
+4959eb3e967ac0dfb6b9451bacbb569192db2236846843d0aed7aad9803157a7  ./tests/question-pty.py
+7d6a11368a850e109d3749907481b3322f52dd521b0ad8800d14ad8c5d364fb5  ./tests/questions-fold-test.sh
+25233232992b9d73b337584360a51b086234982b559fc16d542422e28ac471c9  ./tests/questions-ui-test.sh
 3a4d980d4d064ac1e38653eef628f0cb1b20f7c7a0001417d5e2e97cedafa9d1  ./tests/release-assertions.sh
 aa53ae265be7d9753c57f7563ba3766cee0fced62f39bf855e4e23c6ac7df826  ./tests/release-display-test.sh
 ae3337e5ae362bf1fad83355272ff595b58aae13d7a7ac67617f6f3161fa0c07  ./tests/release-screens-requirements.txt
@@ -222,7 +224,7 @@ b6b47cd2495438ddcb9a6dbfb4ae17e055215638730e6471cf62f1802f2b41d7  ./tests/setup-
 c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-runtimes-codex-test.sh
 8b36bcc55cba4d1e36d9ba0020b5f414934e0af5e8386454619fb6dadaa81de8  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
-0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
+f7df5fdefeb8330614653ca193dfdd5ac0003b8c402d14a0ff8742dd51f56e36  ./tests/setup-test.sh
 7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
 13131c76cd4838b6aecc41ee3b4ebeef49696fc51764323e8b14ba82eefe8b8b  ./tests/squad-cli-lib-test.sh
@@ -248,7 +250,7 @@ f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-s
 b212af80366faa54e2a8e9183179a9dea4321f9228d3c33fea49adc6ae1e3a47  ./tests/terminal-screen-test.sh
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 f28ae55cfcf1eb74bb1573c6111ad36207f176592835f1ef8753fe3b83d63309  ./tests/test-runner-test.sh
-1cd97554684991eea15a83bd9c17da13e7a7d139a48d0758400b0f8f37f2f1f3  ./tests/test-weights
+da2db1918dfd733e66f8aab80c043d75a2597bf7fea5aca7f969f4db02f0acb8  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 509fb1c7732cab6832a3fec61c7a1ab6d0b8e050ad5a5277a5a2911cdf6922a6  ./tests/ui-pty.py
 943f6d898984025f053cd0458baf1d92891e20355208e01ada14b23866ab92fd  ./tests/ui-steps-test.sh

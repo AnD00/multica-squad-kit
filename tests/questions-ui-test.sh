@@ -8,9 +8,20 @@ happy() { printf '1\nShop\n\n1,2\n\n\n1\n\n\nno\n' >"$test_dir/input"; }
 happy
 deny
 no_state
-for entry in '質問 (1/9) ワークスペース' '質問 (2/9) プロジェクト' '質問 (3/9) プロジェクトの区別' '質問 (4/9) リポジトリ' '質問 (5/9) メンバーの区別' '質問 (6/9) スクワッドに入れる人間' '質問 (7/9) 使うランタイム' '質問 (8/9) 外す役' '質問 (9/9) Dependabot の PR の Webhook'; do grep -qF "$entry" "$test_dir/err"; done
-[[ $(grep -c '^例:' "$test_dir/err") == 9 ]]
-[[ $(grep -c '^既定値:' "$test_dir/err") == 9 ]]
+# 答えた質問は 1 行に縮み、題は 9 問で最も長い題の幅にそろう。開いた質問は ●○ で進みを示す。
+for entry in '? ワークスペース  ●○○○○○○○○' '? プロジェクト  ●●○○○○○○○' '? プロジェクトの区別  ●●●○○○○○○' '? リポジトリ  ●●●●○○○○○' '? メンバーの区別  ●●●●●○○○○' '? スクワッドに入れる人間  ●●●●●●○○○' '? 使うランタイム  ●●●●●●●○○' '? 外す役  ●●●●●●●●○' '? Dependabot の PR の Webhook  ●●●●●●●●●'; do grep -qxF "$entry" "$test_dir/err"; done
+for entry in '✔ ワークスペース               Workspace A' '✔ プロジェクト                 Shop  新しく作る' '✔ プロジェクトの区別           shop' '✔ リポジトリ                   example/one  example/two' '✔ メンバーの区別               owner' '✔ スクワッドに入れる人間       Member A' '✔ 使うランタイム               Claude Code  Codex' '✔ 外す役                       何も外さない' '✔ Dependabot の PR の Webhook  使わない'; do grep -qxF "$entry" "$test_dir/err"; done
+[[ $(grep -c '^? ' "$test_dir/err") == 9 ]]
+[[ $(grep -c '^✔ ' "$test_dir/err") == 9 ]]
+[[ $(grep -c '^› ' "$test_dir/err") == 9 ]]
+# 出さない文字。旧い画面の見出し・例・既定値・入力の行は残さない。
+! grep -qE '^質問 \(|^例:|^既定値:|^入力 |入力 \[' "$test_dir/err"
+# 入力が端末でないときは書き換えない。上へ戻る制御と、以降を消す制御を出さない。
+[[ -s $test_dir/err ]]
+! grep -aqE $'\033\\[[0-9]*(A|J)' "$test_dir/err"
+# 画面に出る順は、題・入力・縮めた答えの繰り返しになる。
+awk '/^\? / {print "?"} /^› / {print "›"} /^✔ / {print "✔"}' "$test_dir/err" | tr -d '\n' >"$test_dir/question-order"
+[[ $(cat "$test_dir/question-order") == "$(printf '?›✔%.0s' 1 2 3 4 5 6 7 8 9)" ]]
 grep -qF 'エージェント: 17件（新規17件、既存0件）' "$test_dir/err"
 grep -qF '名前の規則: shop-<役>-owner' "$test_dir/err"
 grep -qF 'SHOP-OWNER（新しく作る）' "$test_dir/err"
@@ -19,29 +30,29 @@ grep -qF 'オートパイロット: 5件（新規5件、既存0件）' "$test_di
 grep -qF '2件、名前の規則: Dependabot の PR の週次の確認 shop <OWNER/REPO>' "$test_dir/err"
 grep -qF 'スクワッドに入れる人間: Member A' "$test_dir/err"
 # Webhook は既定で使わず、最後の確認にもそう出す。
-awk '/^質問 \(9\/9\) Dependabot の PR の Webhook/ {show=1} /^答えの一覧/ {show=0} show {print}' "$test_dir/err" >"$test_dir/webhook-question"
-grep -qxF '既定値: 1（Enter で使います）' "$test_dir/webhook-question"
-grep -qxF '1: 使わない（週次のスケジュールだけで扱う。Webhook の登録とタスクの起票をしない）' "$test_dir/webhook-question"
+awk '/^\? Dependabot の PR の Webhook/ {show=1} /^答えの一覧/ {show=0} show {print}' "$test_dir/err" >"$test_dir/webhook-question"
+grep -qxF '› 1 ' "$test_dir/webhook-question"
+grep -qxF '    1  使わない（週次のスケジュールだけで扱う。Webhook の登録とタスクの起票をしない）' "$test_dir/webhook-question"
 grep -qxF 'Dependabot の PR の Webhook: 使わない（週次のスケジュールだけ。登録と起票をしない）' "$test_dir/err"
 # 説明に、人の目印との違いと、使う場所がある。
 grep -qF '人の目印とは別です' "$test_dir/err"
 grep -qF 'ホストと AI の利用枠' "$test_dir/err"
 grep -qF '選んだものだけに push と PR' "$test_dir/err"
-awk '/^質問 \(4\/9\) リポジトリ/ {show=1} /^質問 \(5\/9\)/ {show=0} show {print}' "$test_dir/err" >"$test_dir/repository-question"
-grep -qxF '1: example/one' "$test_dir/repository-question"
-grep -qxF '2: example/two' "$test_dir/repository-question"
+awk '/^\? リポジトリ/ {show=1} /^\? メンバーの区別/ {show=0} show {print}' "$test_dir/err" >"$test_dir/repository-question"
+grep -qxF '    1  example/one' "$test_dir/repository-question"
+grep -qxF '    2  example/two' "$test_dir/repository-question"
 ! grep -qE 'https://|git@|\.git' "$test_dir/repository-question"
-awk '/^質問 \(8\/9\) 外す役/ {show=1} /^質問 \(9\/9\)/ {show=0} show {print}' "$test_dir/err" >"$test_dir/role-question"
-awk '/^常に入る役:/ {fixed=NR} /^リーダー（orchestrator）:/ {leader=NR} /^外せる役:/ {optional=NR} /^1: 要件定義:/ {first=NR} END {exit !(fixed<leader && leader<optional && optional<first)}' "$test_dir/role-question"
-grep -qxF '  エージェント: shop-orchestrator-owner' "$test_dir/role-question"
-grep -qxF '  エージェント: shop-claude-implementer-owner、shop-claude-fixer-owner' "$test_dir/role-question"
-grep -qxF '  エージェント: shop-codex-implementer-owner、shop-codex-fixer-owner' "$test_dir/role-question"
-grep -qxF '6: セキュリティ: 危険な実装を確認する。' "$test_dir/role-question"
-grep -qxF '  オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one、週 1 回の依存ライブラリの脆弱性チェック shop example/two' "$test_dir/role-question"
-grep -qxF '10: PR の CI の見張り: CIの結果を知らせる。' "$test_dir/role-question"
-grep -qxF '  見張り: リーダーが PR ごとに置く CI の見張り' "$test_dir/role-question"
-grep -qxF '  オートパイロット: 使用上限の見張り shop-owner' "$test_dir/role-question"
-grep -qxF '  ほかに変わること: Webhook を使うかを聞かず、GitHub への Webhook の登録をしない' "$test_dir/role-question"
+awk '/^\? 外す役/ {show=1} /^\? Dependabot の PR の Webhook/ {show=0} show {print}' "$test_dir/err" >"$test_dir/role-question"
+awk '/^  常に入る役:/ {fixed=NR} /^  リーダー（orchestrator）:/ {leader=NR} /^  外せる役:/ {optional=NR} /^    1  要件定義:/ {first=NR} END {exit !(fixed<leader && leader<optional && optional<first)}' "$test_dir/role-question"
+grep -qF 'エージェント: shop-orchestrator-owner' "$test_dir/role-question"
+grep -qF 'エージェント: shop-claude-implementer-owner、shop-claude-fixer-owner' "$test_dir/role-question"
+grep -qF 'エージェント: shop-codex-implementer-owner、shop-codex-fixer-owner' "$test_dir/role-question"
+grep -qxF '    6  セキュリティ: 危険な実装を確認する。' "$test_dir/role-question"
+grep -qF 'オートパイロット: 週 1 回の依存ライブラリの脆弱性チェック shop example/one、週 1 回の依存ライブラリの脆弱性チェック shop example/two' "$test_dir/role-question"
+grep -qxF '    10  PR の CI の見張り: CIの結果を知らせる。' "$test_dir/role-question"
+grep -qF '見張り: リーダーが PR ごとに置く CI の見張り' "$test_dir/role-question"
+grep -qF 'オートパイロット: 使用上限の見張り shop-owner' "$test_dir/role-question"
+grep -qF 'ほかに変わること: Webhook を使うかを聞かず、GitHub への Webhook の登録をしない' "$test_dir/role-question"
 ! grep -qF '選べない役:' "$test_dir/role-question"
 ! grep -qE '^  shop-(orchestrator|codex-fixer)-owner（' "$test_dir/err"
 echo 'PASS display: リポジトリ候補を OWNER/REPO にそろえ、リーダーを先に示し、外せる役と二つの実装・修正の組を分ける'
@@ -52,22 +63,30 @@ cp "$test_dir/err" "$test_dir/err-plain"
 { printf '\n'; printf 'x\n'; cat "$test_dir/input"; } >"$test_dir/pty-input"
 pty_setup() { env -u NO_COLOR "$@" python3 "$root/tests/ui-pty.py" err "$test_dir/pty-out" "$test_dir/pty-err" --stdin "$test_dir/pty-input" -- /bin/bash "$test_dir/package/setup.sh"; }
 pty_setup TERM=xterm-256color
-grep -qF "$esc[1;38;5;32m質問 (1/9) ワークスペース$esc[0m" "$test_dir/pty-err"
-grep -qF "$esc[38;5;244m既定値: なし。例と説明を見て入力してください。$esc[0m" "$test_dir/pty-err"
-grep -qF "$esc[1;38;5;98m1:$esc[0m" "$test_dir/pty-err"
-grep -qF "$esc[1;38;5;196mエラー: 1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。$esc[0m" "$test_dir/pty-err"
-grep -qF "入力 $esc[38;5;244m[]$esc[0m: " "$test_dir/pty-err"
-# 説明と例は色を付けない。
-grep -qxF "$(printf 'エージェントのチームを作る置き場です。自分が入っているものから選びます。\r')" "$test_dir/pty-err"
+grep -qF "$esc[1;38;5;32m? ワークスペース$esc[0m  $esc[38;5;32m●$esc[0m$esc[38;5;244m○$esc[0m" "$test_dir/pty-err"
+grep -qF "$esc[38;5;32m●$esc[0m$esc[38;5;32m●$esc[0m$esc[38;5;244m○$esc[0m" "$test_dir/pty-err"
+# 説明と例は、字下げ 2 の灰の行。例は例の値だけ。
+grep -qF "$esc[38;5;244m  エージェントのチームを作る置き場です。自分が入っているものから選びます。$esc[0m" "$test_dir/pty-err"
+grep -qF "$esc[38;5;244m  1（一覧の番号）$esc[0m" "$test_dir/pty-err"
+# 選択肢は字下げ 4 で、番号は太字の紫。
+grep -qF "    $esc[1;38;5;98m1$esc[0m  Workspace A" "$test_dir/pty-err"
+# 入力の行は青の › と空白。既定値は灰で続く。
+grep -qF "$esc[38;5;32m›$esc[0m $esc[38;5;244mshop$esc[0m " "$test_dir/pty-err"
+grep -qF "$esc[1;38;5;196m✖$esc[0m 1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。" "$test_dir/pty-err"
+! grep -qF 'エラー: 1つ以上の番号を' "$test_dir/pty-err"
+# 縮めた答えは緑の ✔、補足は灰。
+grep -qF "$esc[38;5;28m✔$esc[0m ワークスペース               Workspace A" "$test_dir/pty-err"
+grep -qF "Shop  $esc[38;5;244m新しく作る$esc[0m" "$test_dir/pty-err"
 pty_setup TERM=xterm-256color NO_COLOR=
 ! grep -qF "$esc" "$test_dir/pty-err"
-grep -qF 'エラー: 1つ以上の番号を' "$test_dir/pty-err"
+grep -qF '✖ 1つ以上の番号を' "$test_dir/pty-err"
 pty_setup TERM=dumb
 ! grep -qF "$esc" "$test_dir/pty-err"
-# 色を付けない画面は、エラーの印があっても、文字だけで質問・既定値・エラーを見分けられる。
-grep -qE '^質問 \(1/9\) ワークスペース' "$test_dir/pty-err"
-grep -qE '^既定値: ' "$test_dir/pty-err"
-echo 'PASS color: 質問の画面は端末のとき種類ごとの色が付き、ファイル・NO_COLOR・dumb では制御文字がなく、エラーは印で分かる'
+# 色を付けない画面は、文字だけで題・入力・エラーを見分けられる。
+grep -qE '^\? ワークスペース  ●' "$test_dir/pty-err"
+grep -qE '^› ' "$test_dir/pty-err"
+grep -qE '^✖ ' "$test_dir/pty-err"
+echo 'PASS color: 質問の画面は端末のとき種類ごとの色が付き、ファイル・NO_COLOR・dumb では制御文字がなく、題・入力・エラーは印で分かる'
 echo 'PASS questions: 8問の見出し・説明・例・既定と、件数・命名規則にまとめた予定を表示し、キャンセルで保存しない'
 
 export TEST_PROJECTS_FILE="$test_dir/projects.json"
@@ -151,8 +170,11 @@ unset TEST_SQUADS_FILE TEST_AGENTS_FILE TEST_SKILLS_FILE TEST_AUTOPILOTS_FILE TE
 
 printf 'http://wrong.example.test\nhttps://offline.example.test\nhttps://okay.example.test\n1\n1\nsecure\n1\nowner\n0\n1\n0\n\nno\n' >"$test_dir/input"
 TEST_SERVER='(not set)' TEST_UNREACHABLE_URL=https://offline.example.test deny; no_state
-[[ $(grep -c '質問 (1/10) サーバーの URL' "$test_dir/err") == 3 ]]
-grep -qF '質問 (9/10) 外す役' "$test_dir/err"
+# 入力を受け付けないときは、題を出し直さず、理由と入力の行だけをもう一度出す。
+[[ $(grep -c '^? サーバーの URL  ○○○○○○○○○$' "$test_dir/err") == 1 ]]
+[[ $(grep -c '^✖ ' "$test_dir/err") == 2 ]]
+grep -qxF '✔ サーバーの URL               https://okay.example.test' "$test_dir/err"
+grep -qxF '? 外す役  ●●●●●●●●○' "$test_dir/err"
 grep -qF 'https:// で始まるサーバー' "$test_dir/err"
 grep -qF 'サーバーに接続できないか' "$test_dir/err"
 echo 'PASS questions: 未設定のURLだけ9問目まで表示し、HTTPSでない入力と応答しない接続先を同じ質問へ戻す'
@@ -161,7 +183,7 @@ export TEST_WORKSPACES_FILE="$test_dir/workspaces.json"
 echo '[]' >"$TEST_WORKSPACES_FILE"
 : >"$test_dir/input"
 deny; no_state
-grep -qF '質問 (1/9) ワークスペース' "$test_dir/err"
+grep -qF '? ワークスペース  ●○○○○○○○○' "$test_dir/err"
 grep -qF '管理者に招待' "$test_dir/err"
 echo 'PASS questions: ワークスペース0件は説明と作成・招待の案内を出して保存前に止まる'
 unset TEST_WORKSPACES_FILE
@@ -193,7 +215,7 @@ deny; no_state
 grep -qF 'エージェント: 5件（新規5件、既存0件）' "$test_dir/err"
 grep -qF 'オートパイロット: 0件（新規0件、既存0件）' "$test_dir/err"
 # Dependabot の役を外したら、Webhook は番号の見出しだけで聞かず、確認にも出さない。
-grep -qxF '質問 (9/9) Dependabot の PR の Webhook: Dependabot の役を外したので聞きません。' "$test_dir/err"
+grep -qxF '· Dependabot の PR の Webhook  Dependabot の役を外したので聞きません。' "$test_dir/err"
 [[ $(grep -c 'Dependabot の PR の Webhook' "$test_dir/err") == 1 ]]
 echo 'PASS display: 最小の3役とオートパイロット0件の構成も、外した分を予定に含めず表示する'
 
@@ -224,10 +246,12 @@ echo '[{"id":"ws-a","name":"Only workspace"}]' >"$TEST_WORKSPACES_FILE"
 printf '\n' >"$test_dir/input"
 : >"$TEST_CALLS"
 MULTICA_WORKSPACE_ID=ws-a deny; no_state
-[[ $(grep -cF '質問 (1/9) ワークスペース' "$test_dir/err") == 2 ]]
-! grep -qF '(2/9)' "$test_dir/err" || exit 1
+[[ $(grep -cF '? ワークスペース  ●○○○○○○○○' "$test_dir/err") == 1 ]]
+[[ $(grep -c '^› ' "$test_dir/err") == 2 ]]
+grep -qF '✖ 1つ以上の番号を' "$test_dir/err"
+! grep -qF '? プロジェクト ' "$test_dir/err"
 ! grep -q 'project list' "$TEST_CALLS"
-grep -qF '既定値: なし' "$test_dir/err"
+grep -qxF '› ' "$test_dir/err"
 unset TEST_WORKSPACES_FILE
 echo 'PASS questions: 候補が一つでもCLIの設定だけでは選ばず、Enter のみでは後続の取得・保存へ進まない'
 
@@ -242,5 +266,6 @@ printf '\n2\n\n\n\n\n\n\n\n\nno\n' >"$test_dir/input"
 MULTICA_WORKSPACE_ID=ws-a deny
 cmp "$TEMPLATE_STATE_ROOT/ws-b/shop.json" "$test_dir/saved-before"
 grep -qF 'ワークスペース: Workspace B' "$test_dir/err"
-[[ $(grep -cF '質問 (1/9) ワークスペース' "$test_dir/err") == 2 ]]
+[[ $(grep -cF '? ワークスペース  ●○○○○○○○○' "$test_dir/err") == 1 ]]
+grep -qxF '✔ ワークスペース               Workspace B' "$test_dir/err"
 echo 'PASS questions: 前回の答えとCLIの既定があっても Enter では進まず、番号で選んだ ws の保存値を使う'
