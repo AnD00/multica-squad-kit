@@ -59,6 +59,7 @@ bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skill
 72f290e2794488ba8d0b1bfc7d8b2dfd9602df9fe88c8574fa41e8fe1426933c  ./common/skills/squad-handoff/references/leader-run-status.md
 8093bc2d5d0099ee21b373099ae4334be5463fa542c2afce4e0df82dbdd26dc3  ./common/squad.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
+3ce8df5a172765aff2d94625e033837254f94ba912c45868e037a7dc2fcf4dab  ./docs/attach-images.md
 35850b8f5d56de2877620f4abbc966648eff0ec6a25a0d275e0521104e0c41e6  ./docs/ci.md
 680d4a0a72f93f6137416efdf36f1ee49665a350f49288456af87e671a802c28  ./docs/conflict-resolution.md
 c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate-path.md
