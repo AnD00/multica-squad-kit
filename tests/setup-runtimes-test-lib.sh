@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # setup-runtimes-*-test.sh が読み込む共通の処理。選んだランタイムを $runtime_selections で受け、それぞれの入口を通す。単独では実行しない。
+# $runtime_part で流す範囲を絞れる（既定は all）。both は setup.sh を 6 回通し、1 ファイルでは CI の macOS の上限（300 秒）に近づくため、
+# main（初回から再実行・起票の失敗・配置した見張りまで）と changes（初回から更新を飛ばした場合の確認まで）の 2 ファイルに分けて並列に流す。
+runtime_part=${runtime_part:-all}
+# ホストの BASH_ENV・ZDOTDIR は、子のシェルの PATH の先頭へ本物の関所を足す。関所が入ったホストでは、
+# テストの関所と本物の関所が互いを「次の gh」として呼び合い、setup.sh が止まらなくなるので、ここで外す。
+unset BASH_ENV ZDOTDIR SQUAD_KIT_ALLOWED_REPOS
 mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/setup-runtimes.XXXXXX")
 scenario_dir=$test_dir
@@ -170,6 +176,7 @@ PY
  fi
  : >"$scenario_dir/calls.jsonl"
  printf '\n1\n1\ndemo\n1\nowner\n1\n\n0\n\nyes\n' >"$scenario_dir/input"
+ if [[ $runtime_part != changes ]]; then
  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
  grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件' "$scenario_dir/out"
  "$python" - "$scenario_dir" <<'PY'
@@ -212,8 +219,9 @@ assert all(i['project_id'] == 'projects-1' and i['assignee'] == 'Owner' and i['l
 state = json.loads((scenario / 'usage-state/projects-1/owner.state').read_text())
 assert {key.split(':')[0] for key in state} == set(db['runtimes'])
 PY
+ fi
  # 更新の権限がない共通スキルと、既存の検証スキルから消えた選択を入口から確かめる。
- if [[ $selected == both ]]; then
+ if [[ $selected == both && $runtime_part != main ]]; then
   jq '.members=[{user_id:"member-a",name:"Owner",role:"member"},{user_id:"creator",name:"Creator",role:"member"}] |
    .skills |= map(if .name=="squad-handoff" then .content="older content" | .created_by="creator"
     elif .name=="demo-verify" then .content += "\n## `example/removed`\n前からある検証手順\n" else . end)' "$scenario_dir/db.json" >"$scenario_dir/new"
@@ -228,5 +236,7 @@ PY
   [[ $(jq '.issues|length' "$scenario_dir/db.json") == "$before_issues" ]]
   echo 'PASS setup changes: 更新を飛ばしたスキルの作成者への起票と既存の検証スキルとの差を入口から確かめ、再実行で重ねない'
  fi
- echo "PASS setup runtimes: $selected の入口・ホスト・登録・再実行・配置した見張りが通り、使わない側を求めない"
+ if [[ $runtime_part != changes ]]; then
+  echo "PASS setup runtimes: $selected の入口・ホスト・登録・再実行・配置した見張りが通り、使わない側を求めない"
+ fi
 done
