@@ -180,6 +180,15 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 75613607387b2673bb5b47c17acdfd721308274a943b221999f29c04d8709a97  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
+e4c8e88e5cab21acb99dd62d7fe5a83e678a1aaab7c70b394572256ee1a604d3  ./tests/leader-eval-test.sh
+90b8edcab4758fcf9d125de6a97ec02ee7c081077d57d4d5cb0b86924caf9cea  ./tests/leader-eval/leader_eval.py
+6d4a7651208209f8214af525f99876a985db2cf783a81900a1670fb19e4c0bc2  ./tests/leader-eval/run.sh
+3370b1172bd48a18ca61f592f375ebef86fbaa5027d60b7ddeb232c25aa790e3  ./tests/leader-eval/runtime-brief.md
+bc12043c77174f0cd04becf3bc38e2468e6343431f53c8c16dc2ab77b5f04a08  ./tests/leader-eval/scenes/1-1/cli.json
+3da260251a49e3435b7680a3fb70aa1dd4efcb650f910c391927ba8e4997a907  ./tests/leader-eval/scenes/1-1/scene.md
+b1d1c9679b3292deb5deb10efc140bdd96befae64998ed77d2eb31413d487b05  ./tests/leader-eval/scenes/保-2/cli.json
+fec502fd98c6e7bb0bb9e56f089ae7d84cb5312bdd7e8aac932d9cd39f8f26ce  ./tests/leader-eval/scenes/保-2/scene.md
+f3a6d60757b256592e9a1a6d21072d8e4d8026b76c25c16891992584a618f520  ./tests/leader-eval/values.json
 b07bac540574fc897e6967a373c67d30f4e50a80a21c110d9d4b2bb0ed001fac  ./tests/link-scope-questions-test.sh
 d9c9ca4f517999386d111d1d7e20f9b934e3c1ffc3d013e49d6aca1a965e62ca  ./tests/manual-test.sh
 4e821def23057c68c2b54904b18bbc57eecd33ffba6d5730600a84c3d51a7bef  ./tests/multica-fixture.py
@@ -241,7 +250,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 f28ae55cfcf1eb74bb1573c6111ad36207f176592835f1ef8753fe3b83d63309  ./tests/test-runner-test.sh
-57c0cc0ffc79f3269d5ea20bbd45e123f4afac716328cb3663cabfe12e82b789  ./tests/test-weights
+ec545504846fb6b378f8c978195583c234a269ac723ab2e2bde58ab721bd19b9  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
