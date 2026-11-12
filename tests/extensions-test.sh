@@ -87,6 +87,8 @@ PY
 set -euo pipefail
 die() { printf '%s\n' "$*" >&2; exit 1; }
 root=$1; test_dir=$2
+source "$root/lib/ui.sh"
+source "$root/lib/questions.sh"
 source "$root/lib/render.sh"
 source "$root/lib/extensions.sh"
 # 新しい clone と同じく tmp がない原本から、拡張なしを選ぶ。

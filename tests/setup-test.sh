@@ -78,7 +78,7 @@ echo 'PASS setup: ワークスペースだけは番号で選び、残りは保�
 printf '1\n\n\n\n\n\n\n\n2\nyes\n' >"$test_dir/input"
 run
 jq -e '.dependabot_webhook==true' "$saved" >/dev/null
-grep -qF 'Dependabot の PR の Webhook: 使う' "$test_dir/err"
+grep -qE '^✔ Dependabot の PR の Webhook +使う$' "$test_dir/err"
 printf '1\n\n\n\n\n\n\n\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.dependabot_webhook==true' "$saved" >/dev/null
@@ -159,17 +159,17 @@ mkdir -p "$test_dir/callers/extension"
 cp "$test_dir/package/VERSION" "$test_dir/callers/extension/kit-version"
 base_input yes
 TEMPLATE_STATE_ROOT="$test_dir/ext-state" run_extension "$test_dir" --extension "$test_dir/callers/extension"
-grep -qF "拡張のディレクトリ（引数で指定）: $test_dir/callers/extension" "$test_dir/err"
+grep -qF "· 拡張のディレクトリ  $test_dir/callers/extension" "$test_dir/err"
 ! grep -qF '使わない場合は Enter' "$test_dir/err"
 grep -qF 'ワークスペース' "$test_dir/err"
-grep -qF 'この答えを保存して続けますか' "$test_dir/err"
+grep -qF '? 保存して作りますか' "$test_dir/err"
 jq -e '.workspace_id=="ws-a" and .project_key=="demo"' "$test_dir/ext-state/ws-a/demo.json" >/dev/null
 jq -e '.roles==[]' "$test_dir/ext-state/ws-a/demo-membera.extensions.json" >/dev/null
 [[ -z $(find "$test_dir/package/tmp" -mindepth 1 -print) ]]
 echo 'PASS setup: --extension で渡すと拡張の質問を出さず、ワークスペースと最後の確認は聞いてから保存する'
 rm -rf "$test_dir/ext-state"
 TEMPLATE_STATE_ROOT="$test_dir/ext-state" run_extension "$test_dir/callers" --extension=extension
-grep -qF "拡張のディレクトリ（引数で指定）: $test_dir/callers/extension" "$test_dir/err"
+grep -qF "· 拡張のディレクトリ  $test_dir/callers/extension" "$test_dir/err"
 jq -e '.project_key=="demo"' "$test_dir/ext-state/ws-a/demo.json" >/dev/null
 echo 'PASS setup: --extension= の形と、流した場所から見た相対パスを受ける'
 rm -rf "$test_dir/ext-state"
@@ -205,7 +205,7 @@ grep -qF '使い方: bash setup.sh [--extension' "$test_dir/err"
 echo 'PASS setup: 値のない・重なった --extension と、ほかの引数は使い方を出して止まる'
 base_input yes
 run
-grep -qF '拡張のディレクトリ（使わない場合は Enter）' "$test_dir/err"
+grep -qF '? 拡張のディレクトリ' "$test_dir/err"
 ! grep -qF '引数で指定' "$test_dir/err"
 echo 'PASS setup: 引数がないときは、今と同じく拡張のディレクトリを質問で聞く'
 

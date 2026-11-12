@@ -56,6 +56,7 @@ tests/workspace-test.sh 10
 tests/guard-check-test.sh 9
 tests/link-scope-questions-test.sh 9
 tests/install-command-test.sh 7
+tests/confirmation-test.sh 8
 tests/gh-test.sh 5
 tests/error-marks-test.sh 3
 tests/capture-cli-fixtures-test.sh 2

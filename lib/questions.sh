@@ -1,13 +1,3 @@
-# 質問は stdin から読み、既定値でも Enter を待つ。質問中は登録・保存しない。
-ask() {
-	local label=$1 default=$2
-	printf '%s ' "$label" >&2
-	ui_paint err default "[$default]" >&2
-	printf ': ' >&2
-	IFS= read -r answer || die '入力が終わりました。答えは保存していません。'
-	[[ -n $answer ]] || answer=$default
-}
-
 # 質問の順。行ごとに一つの題で、サーバーの URL は未設定のときだけ先頭に足す。
 # 総数はこの行数から数える。答えによって出さない質問も数え、question_skip で聞かないことを示す。
 question_order='ワークスペース
@@ -67,15 +57,6 @@ question_notice_show() {
 			question_text "  $line"
 		fi
 	done <<<"$question_notice"
-}
-
-# 画面の種類ごとの色と印は manual.md の「表示の色と印」に従い、lib/ui.sh で付ける。
-# 確認の yes/no だけは、入力を受け付けずに同じ質問へ戻るときに、行頭に印の「エラー:」を付ける。
-input_error() {
-	local line
-	ui_error "$1"
-	shift
-	for line; do ui_line err error "$line"; done
 }
 
 # 質問の入力を受け付けなかったときは、入力の行の下に ✖ と理由を出す。続く行は字下げだけにする。
@@ -164,7 +145,7 @@ question_open() {
 	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
 }
 
-# 選択肢は、字下げ 4、太字の紫の番号、2 つの空白、本文の順。本文の続きの行は、本文より 2 つ深く字下げする。
+# 選択肢は、字下げ 4、太字の紫の番号、2 つの空白、本文の順。本文の続きの行は、最初の行の本文と同じ位置にそろえる。
 question_choice() {
 	local number=$1 text=$2 line first=yes pad
 	pad=$(printf '%*s' $((${#number} + 2)) '')
@@ -182,16 +163,22 @@ question_choice() {
 
 # 入力の行は › と空白で、既定値があれば灰で添える。打たれた答えの分も折り返しの行に数える。
 # 標準入力が端末でないときは、答えが画面に出ないので、入力の行の終わりに改行を足す。
-question_input() {
+question_input_show() {
 	local default=$1
 	{
 		ui_paint err active '›'
 		printf ' '
 		if [[ -n $default ]]; then ui_paint err default "$default"; printf ' '; fi
 	} >&2
+}
+
+question_input() {
+	local default=$1
+	question_input_show "$default"
 	IFS= read -r answer || { printf '\n' >&2; die '入力が終わりました。答えは保存していません。'; }
 	[[ -t 0 ]] || printf '\n' >&2
 	question_count "› ${default:+$default }$answer"
+	question_typed=$answer
 	[[ -n $answer ]] || answer=$default
 }
 
@@ -558,9 +545,15 @@ plan_autopilot_action() {
 	else printf '今あるものを保持（別の担当またはプロジェクト）'; fi
 }
 
+# 一覧の行はデータとして集め、読み取りがすべて通ってから画面に出す。
+plan_item() {
+	plan_rows=$(jq -c --arg group "$1" --arg mark "$2" --arg name "$3" --arg value "${4-}" '.+[{group:$group,mark:$mark,name:$name,value:$value}]' <<<"$plan_rows")
+}
+
 confirmation_plan() {
-	local agents skills autopilots squad_name role name action skill_dir repo title humans resources bound='[]'
-	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern i choice excluded_shown=no
+	local agents skills autopilots squad_name squad_id role name action skill_dir repo title resources bound='[]' roster='[]'
+	local auto_plan='[]' kind choice id value watch changes note
+	local plan_rows='[]'
 	# 表示の予定だけに、選ばなかったランタイムの系統を足す。保存する答えは変えない。
 	local excluded_roles=$excluded_roles
 	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer","\($runtime)-principal"] | unique' <<<"$excluded_roles")
@@ -573,92 +566,126 @@ confirmation_plan() {
 		jq -e 'type=="array" and all(.[]; (.resource_type|type=="string"))' >/dev/null <<<"$resources" || die '既存の紐付けの応答が不正です。'
 		bound=$(jq -c "$repository_filter"'[.[]|select(.resource_type=="github_repo")|.resource_ref.url|repository_name]' <<<"$resources") || die '既存の紐付けの URL が不正です。'
 	fi
-	printf 'サーバー: %s\nワークスペース: %s（既存を使う）\n' "$server_url" "$workspace_name"
-	if [[ -n $project_id ]]; then action='今あるものを使う'; else action='新しく作る'; fi
-	printf 'プロジェクト: %s（%s）\n' "$project_name" "$action"
-	printf '使うランタイム: %s\n' "$(jq -r 'map(if .=="claude" then "Claude Code" else "Codex" end)|join("、")' <<<"$runtimes")"
 	for role in $template_roles; do
-		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || { printf "外れた拡張の役（エージェントは残す）: %s\n" "$role"; continue; }
+		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || continue
 		jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
 		name=$project_key-$role-$member_key
-		action=$(plan_action "$agents" name "$name" '今あるものを直す') || return 1
-		agent_total=$((agent_total+1))
-		if [[ $action == '新しく作る' ]]; then agent_new=$((agent_new+1)); else agent_existing=$((agent_existing+1)); fi
+		action=$(plan_action "$agents" name "$name" change) || return 1
+		[[ $action != 新しく作る ]] || action=add
+		plan_item エージェント "$action" "$name" || return 1
 	done
-	printf 'エージェント: %s件（新規%s件、既存%s件）\n  名前の規則: %s-<役>-%s\n' "$agent_total" "$agent_new" "$agent_existing" "$project_key" "$member_key"
 	squad_name=$(printf '%s-%s' "$project_key" "$member_key" | LC_ALL=C tr '[:lower:]' '[:upper:]')
 	squad_named "$question_squads" "$squad_name"
-	if [[ $(jq length <<<"$matches") == 1 ]]; then
-		squad_name=$(jq -r '.[0].name' <<<"$matches")
-		action='今あるものを直す'
-	else
-		action='新しく作る'
-	fi
-	printf 'スクワッド: %s（%s）\n' "$squad_name" "$action"
-	printf 'プロジェクトだけのスキル:\n'
+	squad_id=$(jq -r '.[0].id // empty' <<<"$matches")
+	if [[ -n $squad_id ]]; then action=change; squad_name=$(jq -r '.[0].name' <<<"$matches"); else action=add; fi
+	plan_item スクワッド "$action" "$squad_name" || return 1
 	for skill_dir in "$root/skeleton/.agents/skills/"*/; do
 		[[ -d $skill_dir ]] || continue
 		name=$project_key-$(basename "$skill_dir")
-		action=$(plan_action "$skills" name "$name" '今あるものを使う。内容は保持') || return 1
-		printf '  %s（%s）\n' "$name" "$action"
+		action=$(plan_action "$skills" name "$name" keep) || return 1
+		[[ $action != 新しく作る ]] || action=add
+		plan_item スキル "$action" "$name" || return 1
 	done
-	printf 'リポジトリ:\n'
 	while IFS= read -r repo; do
-		if jq -e --arg repo "$repo" 'index($repo)!=null' >/dev/null <<<"$bound"; then action='既存の紐付けを使う'; else action='新しくプロジェクトへ紐付ける'; fi
-		printf '  %s（%s）\n' "$repo" "$action"
+		if jq -e --arg repo "$repo" 'index($repo)!=null' >/dev/null <<<"$bound"; then action=keep; else action=add; fi
+		plan_item リポジトリ "$action" "$repo" || return 1
 		for role in security-reviewer dependabot-merger; do
 			jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
 			title=$(autopilot_title "$role" "$repo")
 			action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
-			auto_plan=$(jq -c --arg kind "$role" --arg title "$title" --arg action "$action" '.+[{kind:$kind,title:$title,action:$action}]' <<<"$auto_plan") || return 1
+			auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{title:$title,action:$action}]' <<<"$auto_plan") || return 1
 		done
 	done < <(jq -r '.[].repository' <<<"$repositories")
-	if [[ $(jq length <<<"${link_repositories:-[]}") != 0 ]]; then
-		printf '紐付け専用のリポジトリ（既存の GitHub の issue のコメントと Assignees の同期だけ。コード作業・定期処理は追加しない）:\n'
-		jq -r '.[]|"  "+.' <<<"$link_repositories"
-	fi
+	while IFS= read -r repo; do
+		[[ -n $repo ]] || continue
+		if jq -e --arg repo "$repo" 'index($repo)!=null' >/dev/null <<<"$bound"; then action=keep; else action=add; fi
+		plan_item リポジトリ "$action" "$repo" 紐付けだけ || return 1
+	done < <(jq -r '.[]' <<<"${link_repositories:-[]}")
 	if ! jq -e 'index("usage-monitor")!=null' >/dev/null <<<"$excluded_roles"; then
 		title=$(autopilot_title usage-monitor)
 		action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
-		auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{kind:"usage-monitor",title:$title,action:$action}]' <<<"$auto_plan") || return 1
+		auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{title:$title,action:$action}]' <<<"$auto_plan") || return 1
 	fi
-	total=$(jq length <<<"$auto_plan")
-	new=$(jq '[.[]|select(.action=="新しく作る")]|length' <<<"$auto_plan")
-	existing=$((total-new))
-	printf 'オートパイロット: %s件（新規%s件、既存%s件）\n' "$total" "$new" "$existing"
-	for kind in security-reviewer dependabot-merger usage-monitor; do
-		count=$(jq --arg kind "$kind" '[.[]|select(.kind==$kind)]|length' <<<"$auto_plan")
-		[[ $count != 0 ]] || continue
-		case $kind in
-		usage-monitor) pattern=$(autopilot_title "$kind") ;;
-		*) pattern=$(autopilot_title "$kind" '<OWNER/REPO>') ;;
+	while IFS= read -r choice; do
+		title=$(jq -r .title <<<"$choice"); action=$(jq -r .action <<<"$choice"); value=''
+		case $action in
+		新しく作る) action=add ;;
+		今あるものを直す) action=change ;;
+		*) action=warn; value=別の担当 ;;
 		esac
-		printf '  %s件、名前の規則: %s\n' "$count" "$pattern"
-	done
-	# 集計しても、別の担当等を保護する注意は隠さない。
-	jq -r '.[]|select(.action|startswith("今あるものを保持"))|"  保持する既存の設定: \(.title)（別の担当またはプロジェクト）"' <<<"$auto_plan"
-	if ! jq -e 'index("dependabot-merger")!=null' >/dev/null <<<"$excluded_roles"; then
-		if [[ ${dependabot_webhook:-false} == true ]]; then printf 'Dependabot の PR の Webhook: 使う（リポジトリごとに登録し、フィルターの設定を起票する）\n'
-		else printf 'Dependabot の PR の Webhook: 使わない（週次のスケジュールだけ。登録と起票をしない）\n'; fi
+		plan_item オートパイロット "$action" "$title" "$value" || return 1
+	done < <(jq -c '.[]' <<<"$auto_plan")
+	if [[ -n $squad_id && $(jq length <<<"$member_ids") != 0 ]]; then
+		roster=$(mc squad member list "$squad_id" --output json) || die 'スクワッドのメンバーを読めませんでした。'
+		jq -e 'type=="array" and all(.[]; (.member_type=="agent" or .member_type=="member") and (.member_id|type=="string" and length>0))' >/dev/null <<<"$roster" || die 'スクワッドのメンバーの応答が不正です。'
 	fi
-	humans=$(jq -r --argjson ids "$member_ids" '[.[]|select(.user_id as $id|$ids|index($id))|.name]|join("、")' <<<"$question_people")
-	printf 'スクワッドに入れる人間: %s（既存の人をスクワッドへ追加・維持）\n' "${humans:-なし}"
-	printf '外す役と、一緒に外れるもの:\n'
-	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
-		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
+	while IFS= read -r id; do
+		name=$(jq -r --arg id "$id" '.[]|select(.user_id==$id)|.name' <<<"$question_people")
+		if jq -e --arg id "$id" 'any(.[]; .member_type=="member" and .member_id==$id)' >/dev/null <<<"$roster"; then action=keep; else action=add; fi
+		plan_item 人間 "$action" "$name" || return 1
+	done < <(jq -r '.[]' <<<"$member_ids")
+	while IFS= read -r choice; do
 		jq -e --argjson excluded "$excluded_roles" 'any(.roles[]; . as $role | $excluded|index($role))' >/dev/null <<<"$choice" || continue
-		printf '  %s\n' "$(role_choice_text "$choice" '    ' "$(role_choice_note "$(jq -r '.key' <<<"$choice")")")"
-		excluded_shown=yes
+		name=$(jq -r .key <<<"$choice")
+		value=''
+		for role in $(jq -r '.roles[]' <<<"$choice"); do value+=${value:+  }$project_key-$role-$member_key; done
+		for kind in $(jq -r '.autopilots[]?' <<<"$choice"); do
+			if [[ $kind == usage-monitor ]]; then value+="  $(autopilot_title "$kind")"
+			else while IFS= read -r repo; do value+="  $(autopilot_title "$kind" "$repo")"; done < <(jq -r '.[].repository' <<<"$repositories"); fi
+		done
+		watch=$(jq -r '.watch // empty' <<<"$choice"); changes=$(jq -r '.changes // empty' <<<"$choice"); note=$(role_choice_note "$name")
+		value+=${watch:+  $watch}${changes:+  $changes}$note
+		plan_item 役 drop "$name" "$value" || return 1
+	done < <(jq -c '.[]' <<<"$role_choices")
+	for role in ${extension_disabled_roles:-}; do plan_item 役 drop "$role" エージェントは残す || return 1; done
+	printf '%s\n' "$plan_rows"
+}
+
+confirmation_show() {
+	local plan=$1 group row mark name value count text separator=''
+	printf '\n' >&2
+	for group in エージェント スクワッド スキル リポジトリ オートパイロット 人間 役; do
+		[[ $(jq --arg group "$group" '[.[]|select(.group==$group)]|length' <<<"$plan") != 0 ]] || continue
+		ui_line err strong "  $group"
+		while IFS= read -r row; do
+			mark=$(jq -r .mark <<<"$row"); name=$(jq -r .name <<<"$row"); value=$(jq -r .value <<<"$row")
+			printf '    ' >&2; ui_mark err "$mark" "$name" "$value"
+		done < <(jq -c --arg group "$group" '.[]|select(.group==$group)' <<<"$plan")
 	done
-	[[ $excluded_shown == yes ]] || printf '  なし\n'
+	printf '\n  ' >&2
+	for mark in add change keep warn drop; do
+		count=$(jq --arg mark "$mark" '[.[]|select(.mark==$mark)]|length' <<<"$plan")
+		((count != 0)) || continue
+		# 印と色の対応は ui_mark に任せ、件数だけは印のすぐ後ろへ詰める。
+		text=$(ui_mark err "$mark" "$count" 2>&1)
+		printf '%s%s' "$separator" "${text/ /}" >&2
+		separator='  '
+	done
+	printf '\n' >&2
 }
 
 confirm_answers() {
-	local plan
+	local plan question_live=no question_rows=0 question_size='' question_typed='' accepted=no retried=no
 	plan=$(confirmation_plan) || die '答えの一覧を作れませんでした。答えは保存していません。'
+	confirmation_show "$plan"
+	{ ui_paint err question '? 保存して作りますか'; printf '  '; ui_paint err default 'yes/no'; printf '\n'; } >&2
+	if [[ $ui_live_err == yes && -t 0 ]]; then question_live=yes; ui_size err; question_size="$ui_lines $ui_columns"; fi
 	while :; do
-		printf '\n答えの一覧（まだ変更していません）:\n%s\n' "$plan" >&2
-		ask 'この答えを保存して続けますか（yes/no）' 'no'
-		case $answer in yes) return 0 ;; no) die '中止しました。答えは保存していません。' ;; *) input_error 'yes で続けるか、no で中止してください。答えはまだ保存していません。' ;; esac
+		question_input no
+		case $answer in yes|no) accepted=yes ;; esac
+		if [[ $accepted == yes ]]; then
+			# 問いと一覧は残す。聞き直した入力と理由だけを、受け付けた入力へ置き換える。
+			if [[ $question_live == yes && $retried == yes ]]; then
+				ui_size err
+				if [[ "$ui_lines $ui_columns" == "$question_size" ]] && ((question_rows <= ui_lines - 1)); then
+					ui_rewind err "$question_rows"
+					question_input_show no; printf '%s\n' "$question_typed" >&2
+				fi
+			fi
+			[[ $answer != yes ]] || return 0
+			die '中止しました。答えは保存していません。'
+		fi
+		retried=yes
+		question_reject 'yes で続けるか、no で中止してください。答えはまだ保存していません。'
 	done
 }

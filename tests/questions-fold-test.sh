@@ -21,6 +21,7 @@ fold() {
 import importlib.util
 import sys
 
+sys.dont_write_bytecode = True
 path, raw, output, columns, rows = sys.argv[1:]
 spec = importlib.util.spec_from_file_location("ansi_to_png", path)
 module = importlib.util.module_from_spec(spec)
@@ -40,11 +41,11 @@ opened() { grep -cE '^(\?|›) ' "$test_dir/$1.txt" || true; }
 fold tall "$happy" --size 100 100
 grep -qF '✔ ワークスペース               Workspace A' "$test_dir/tall.txt"
 [[ $(folded tall) == 9 ]]
-[[ $(opened tall) == 0 ]]
+[[ $(opened tall) == 3 ]]
 ! grep -qE '^ +[0-9]+  ' "$test_dir/tall.txt"
 ! grep -qF 'エージェントのチームを作る置き場です' "$test_dir/tall.txt"
 # 縮めた 9 行は続けて並び、間の空行を残さない。
-awk '/^✔ ワークスペース/ {start=NR} /^答えの一覧/ {end=NR} {line[NR]=$0} END {for (i = start; i < start + 9; i++) if (line[i] !~ /^✔ /) exit 1; if (line[start + 9] != "" || end != start + 10) exit 1}' "$test_dir/tall.txt"
+awk '/^✔ ワークスペース/ {start=NR} /^  エージェント$/ {end=NR} {line[NR]=$0} END {for (i = start; i < start + 9; i++) if (line[i] !~ /^✔ /) exit 1; if (line[start + 9] != "" || end != start + 10) exit 1}' "$test_dir/tall.txt"
 # 縮めるのに使う制御は、上へ戻る ESC[nA、行頭の \r、以降を消す ESC[J だけ。
 grep -qE "$esc\\[[0-9]+A" "$test_dir/tall.raw"
 grep -qF "$esc[J" "$test_dir/tall.raw"
@@ -56,7 +57,7 @@ fold rejected "\n$happy" --size 100 100
 grep -qF "✖$esc[0m 1つ以上の番号を" "$test_dir/rejected.raw"
 ! grep -qF '✖' "$test_dir/rejected.txt"
 [[ $(folded rejected) == 9 ]]
-[[ $(opened rejected) == 0 ]]
+[[ $(opened rejected) == 3 ]]
 echo 'PASS fold: 受け付けなかった理由の行と入力の行は、答えたときにまとめて消える'
 
 # 入力が端末の幅で折り返しても、折り返した行まで消す（半角 150 字と、全角 60 字）。
@@ -67,12 +68,12 @@ for name in ascii wide; do
  fold "wrap-$name" "1\n$value\nshop\n1,2\n\n\n1\n\n\nno\n" --size 100 100
  grep -qF "$value" "$test_dir/wrap-$name.raw"
  [[ $(folded "wrap-$name") == 9 ]]
- [[ $(opened "wrap-$name") == 0 ]]
+ [[ $(opened "wrap-$name") == 3 ]]
  ! grep -qE '^ +[0-9]+  ' "$test_dir/wrap-$name.txt"
  ! grep -qF 'タスクを入れる場所です' "$test_dir/wrap-$name.txt"
  ! grep -qF 'Existing project' "$test_dir/wrap-$name.txt"
  # 縮めた行の前にも間にも、消し残りの行と空行がない。
- awk '/^✔ ワークスペース/ {start=NR} /^答えの一覧/ {end=NR} {line[NR]=$0} END {for (i = 1; i < start; i++) if (line[i] ~ /^[›?]|エージェントの/) exit 1; for (i = start; i < end - 1; i++) if (line[i] ~ /^[›?]/ || line[i] == "") exit 1}' "$test_dir/wrap-$name.txt"
+ awk '/^✔ ワークスペース/ {start=NR} /^  エージェント$/ {end=NR} {line[NR]=$0} END {for (i = 1; i < start; i++) if (line[i] ~ /^\? (ワークスペース|プロジェクト|リポジトリ)/ || line[i] ~ /エージェントの/) exit 1; for (i = start; i < end - 1; i++) if (line[i] ~ /^[›?]/ || line[i] == "") exit 1}' "$test_dir/wrap-$name.txt"
 done
 echo 'PASS fold: 入力が端末の幅で折り返しても、折り返した行まで消して縮める'
 
@@ -87,14 +88,14 @@ grep -qF '✔ スクワッドに入れる人間       Member A' "$test_dir/short
 grep -qF '✔ 使うランタイム               Claude Code  Codex' "$test_dir/short.txt"
 grep -qF '✔ Dependabot の PR の Webhook  使わない' "$test_dir/short.txt"
 ! grep -qE '^\? (ワークスペース|プロジェクト|リポジトリ|使うランタイム|Dependabot の PR の Webhook)' "$test_dir/short.txt"
-[[ $(grep -c '^? ' "$test_dir/short.txt") == 1 ]]
+[[ $(grep -c '^? ' "$test_dir/short.txt") == 3 ]]
 echo 'PASS fold: 高さに収まらない質問は縮めず、切らずに入力の行のあとへ ✔ を足し、前後の質問は縮める'
 
 # 答えるまでに端末の大きさが変わった質問は縮めない。次の質問からは縮める。
 fold resized "$happy" --size 100 100 --resize-on '? プロジェクトの区別' 100 90
 grep -qxF '? プロジェクトの区別  ●●●○○○○○○' "$test_dir/resized.txt"
 awk '/^\? プロジェクトの区別/ {open=NR} /^› / && open && !input && NR > open {input=NR} /^✔ プロジェクトの区別/ {done=NR} END {exit !(open && input && done == input + 1)}' "$test_dir/resized.txt"
-[[ $(grep -c '^? ' "$test_dir/resized.txt") == 1 ]]
+[[ $(grep -c '^? ' "$test_dir/resized.txt") == 3 ]]
 grep -qF '✔ ワークスペース               Workspace A' "$test_dir/resized.txt"
 grep -qF '✔ リポジトリ                   example/one  example/two' "$test_dir/resized.txt"
 [[ $(folded resized) == 9 ]]
