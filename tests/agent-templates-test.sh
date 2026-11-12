@@ -113,6 +113,29 @@ for dir in "$test_dir/"*/; do
 done
 echo 'PASS preflight templates: 共通スキルと全構成のリーダー・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
 
+# 進捗を聞かれたときと実行を止めるときの節は、全構成のリーダーに、確かめ方・止める条件・やり直し方の要を残す。
+run_status_section() {
+	LC_ALL=C awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
+}
+for dir in "$test_dir/"*/; do
+	[[ -f $dir/orchestrator ]] || continue
+	[[ $(grep -cxF '## 進捗を聞かれたときと、実行を止めるとき' "$dir/orchestrator") -eq 1 ]]
+	run_status_section "$dir/orchestrator" >"$test_dir/run-status"
+	for text in 'runs <タスク> --active' '--siblings' 'run-messages' '--help' \
+		'実行の ID' '役' '状態' '始まった時刻' '直近にしていたこと' '終わった' '失敗した' '止められた' \
+		'cancel-task' '人間の指示か承認があるときだけ' '自分の判断では止めない' \
+		'最後に push されたコミット' '編集・コミット' '失うおそれ' '未確認' '「なし」とは書かない' \
+		'確認の 4 項目を挟まずに止める' 'メンションで呼び' '止めた実行の ID' '`multica issue rerun` は使わない'; do
+		grep -qF -- "$text" "$test_dir/run-status"
+	done
+	# 節は、CI とコンフリクトの節の後、受け渡しの節の前に置く。
+	ci_line=$(LC_ALL=C awk '$0=="## CI とコンフリクト" {print NR; exit}' "$dir/orchestrator")
+	status_line=$(LC_ALL=C awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {print NR; exit}' "$dir/orchestrator")
+	handoff_line=$(LC_ALL=C awk '$0=="## 受け渡しと人間を待つところ" {print NR; exit}' "$dir/orchestrator")
+	[[ $ci_line -lt $status_line && $status_line -lt $handoff_line ]]
+done
+echo 'PASS run-status templates: 全構成のリーダーに、実行の確かめ方・止める条件・やり直し方の要の語句を残す'
+
 for runtime in claude codex; do
 	if [[ $runtime == claude ]]; then expected=claude-sonnet-5-5; else expected=gpt-6.1-sol; fi
 	for file in "$test_dir/runtime-$runtime-only/"*; do
