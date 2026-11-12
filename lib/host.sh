@@ -124,9 +124,11 @@ prepare_project_host() {
 	fi
 	# 既存の関所も含め、全選択を確認してから実際の許可を書き替える。
 	# 確認用の起動ファイルは同じひな形から作り、専用の一時許可を指す。
+	# 子では親のスピナーを wait できないので、表示を渡す前に起動した親で停止を待ち切る。
+	_ui_spinner_stop
 	host_check_guards "$content" || die '関所の確認に失敗しました。従来の許可とシェル起動ファイルを保って停止します。'
-	# 子のプロセスが止めたスピナーを、この手順のために動かし直す。
-	if ui_phase_active; then _ui_spinner_stop; _ui_spinner_start; fi
+	# 子は終了時に自分のスピナーを止める。ここからは親が表示を引き取る。
+	if ui_phase_active; then _ui_spinner_start; fi
 	# プロジェクト登録から呼ぶ場合は、通信中の紐付け変更も最後に確認する。
 	# local の印は prepare_project が付け、ホスト単体の準備では呼ばない。
 	if [[ ${project_host_recheck:-no} == yes ]]; then

@@ -290,6 +290,61 @@ printf 'cleanup\n' >"$test_dir/expected"
 cmp "$test_dir/restart-cleanup" "$test_dir/expected"
 echo 'PASS ui-steps: 起動直後の進みと待ちを60回ずつ繰り返しても停止せず、親だけが作業場所を片付ける'
 
+# prepare_project_host が関所確認のサブシェルへ表示を渡す経路。外の確認だけを置き換える。
+cat >"$test_dir/handoff.sh" <<'SH'
+set -euo pipefail
+source "$1/lib/ui.sh"
+source "$1/lib/host.sh"
+root=$1
+TEMPLATE_AGENT_HOME="$TMPDIR/handoff-home"
+die() { printf '%s\n' "$*" >&2; exit 1; }
+host_check_guards() (
+	trap _ui_spinner_stop EXIT
+	# この子からは wait できない旧 PID が、呼び出し前に終了していなければ失敗。
+	if kill -0 "$original" 2>/dev/null; then exit 9; fi
+	ui_phase_progress 1 2 NEW
+	printf 'child-updated\n'
+	sleep 0.35
+	if kill -0 "$original" 2>/dev/null; then exit 10; fi
+	child_spinner=$ui_spinner_pid
+	_ui_spinner_stop
+	if kill -0 "$child_spinner" 2>/dev/null; then exit 11; fi
+	printf 'child-finished\n'
+)
+ui_init
+trap ui_steps_cleanup EXIT
+ui_steps_begin out 0 old next
+for ((round = 0; round < 3; round++)); do
+	ui_step_start 1
+	original=$ui_spinner_pid
+	prepare_project_host project-a example/one
+	# 子の終了後は、親が新しいスピナーを持ち、待って止められる。
+	[[ -n $ui_spinner_pid && $ui_spinner_pid != "$original" ]]
+	kill -0 "$ui_spinner_pid"
+	_ui_spinner_stop
+	printf 'parent-resumed\n'
+done
+printf 'handoff-finished\n'
+SH
+run_steps both "$test_dir/handoff.sh" TMPDIR="$test_dir"
+grep -qF 'handoff-finished' "$test_dir/out"
+[[ ! -s $test_dir/err ]]
+python3 - "$test_dir/out" <<'PY'
+from pathlib import Path
+import re
+import sys
+data = re.sub(r'\x1b\[[0-9;]*m', '', Path(sys.argv[1]).read_text())
+chunks = data.split('child-updated')[1:]
+assert len(chunks) == 3
+for chunk in chunks:
+    child = chunk.split('child-finished', 1)[0]
+    # 子が回す複数のフレームが、いずれも更新後のゲージと対象名を保つ。
+    frames = re.findall(r'[^\n]*old[^\n]*', child)
+    assert sum('1/2' in frame and 'NEW' in frame for frame in frames) >= 2, frames
+    assert all('1/2' in frame and 'NEW' in frame for frame in frames), frames
+PY
+echo 'PASS ui-steps: 関所確認の子へ渡す前に旧スピナーを待ち切り、子の更新を古い表示へ戻さず、親が再開する'
+
 # 確認の前は切らずに出し、答えた問いと空行を、そのあとで書き換える範囲に含める。
 cat >"$test_dir/tail.sh" <<'SH'
 set -euo pipefail
