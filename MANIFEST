@@ -265,12 +265,12 @@ df9ab5049ed1b43324cb47e55bdfa5e709724fe62ec80a45ae562dabfdb93c66  ./tests/run-on
 3526f268511346605b35ae8f3bcb458d0009dda82f94e63001d7b6f0ce827a53  ./tests/runtime-selection-test.sh
 494a4fd2570f30a870899f32b13a6cddf220d591b14c45e74456b71ac51efd7d  ./tests/setup-fixture.sh
 8f358f5ae0c9878451cc7a87999a485e427f085223b2a31c7851d3ddea981205  ./tests/setup-issues-test.sh
-8403ca92c29afc92c1e7e4264f48bda0181e1672439a033525868c1c27278a58  ./tests/setup-runtime-cli.py
+9e39734944b5b01de7d41d507f472d4a4febcb534546b768140efcb934b76978  ./tests/setup-runtime-cli.py
 4740c56546986613ed3cc7be52b71badc7f6f98fc74799d7c5f15c5d3f903581  ./tests/setup-runtimes-both-changes-test.sh
 bca2095200cf3e3eef685159dd9416e5f3dfca75e09a74d96212112dcb9759d6  ./tests/setup-runtimes-both-test.sh
 1ce45122fecfaa84dcd9d5592b63c982aafdfa1b49e0bb5817a9f9f7e5345ff6  ./tests/setup-runtimes-claude-test.sh
 c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-runtimes-codex-test.sh
-6d6fe706ac60c2a9012611c4d39a33960a50a5d939cd307f20ab73687a3c6941  ./tests/setup-runtimes-test-lib.sh
+78685d6f88a381d107b872bb4e9e2db484c970eaf193aae51f0fcc8f7165d98e  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
 7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
@@ -282,7 +282,9 @@ c9c312e3692a2f34be8120b0b8fccab0ce22a4e36ffacae72bbb2f20150cf0dc  ./tests/squad-
 30ad29381910385b013c0bba17613ab177d3bf358a8fa8f009655cf60c8d88d9  ./tests/squad-dependabot-merge-advance-ci-change-test.sh
 549b072ac58f24323ae512f3b7d663b222b6e17ff57d20aacd704f2f9e239077  ./tests/squad-dependabot-merge-advance-ci-origin-test.sh
 b51049f27799415d5e787648dee693733e3d2b641dccb806adb3c4efa449d70b  ./tests/squad-dependabot-merge-advance-ci-wait-test.sh
-fc993e655cf81eb2720c4a3671483f762601a6949bb7ff4905ea0fbbf2d2d4bb  ./tests/squad-dependabot-merge-advance-diff-test.sh
+92a6140772050d4a36dc41c666ddec65c772e3a46dc97f82835ace394c7a7ddb  ./tests/squad-dependabot-merge-advance-diff-binary-test.sh
+6233cf8df8d63a68b9ca3b64c99b9196e7c73c86e8568197bb7fc9103bca3f27  ./tests/squad-dependabot-merge-advance-diff-request-test.sh
+2ec6a04a9a2df14981dac98c97772e38edfbfba7ef4e8ce66f3ffc41fe747f4f  ./tests/squad-dependabot-merge-advance-diff-test.sh
 6e6546f398c9b4e7111e7d439720cabd5a669f4fcab71d562e67a76535c3e1e8  ./tests/squad-dependabot-merge-advance-gh-test.sh
 12be32d54cb4f50b160ab2ad6dbc84951d3e8266eb18cbdc9b0f965f924f5579  ./tests/squad-dependabot-merge-advance-mergeability-test.sh
 83e5df82da76f6a04d0a7407b9c65fd95b32562f7bfb954bf321bfc8ce8348b2  ./tests/squad-dependabot-merge-advance-request-test.sh
@@ -305,7 +307,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-9906ab6e3c06b5d74cc95340fc82ea76984cef5244ce1b1cc027bc494bceecd9  ./tests/test-weights
+001d538c05fb8f380745d241590f0caf309923f44ba5af5d235dd4813b9782c1  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh

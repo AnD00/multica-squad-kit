@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import zipfile
+from copy import deepcopy
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -11,6 +12,7 @@ scenario = Path(sys.argv[1])
 args = sys.argv[2:]
 path = scenario / 'db.json'
 db = json.loads(path.read_text())
+before = deepcopy(db)
 with (scenario / 'calls.jsonl').open('a') as log:
     log.write(json.dumps(args, ensure_ascii=False) + '\n')
 
@@ -225,8 +227,10 @@ elif event == ('issue', 'status'):
 else:
     raise AssertionError(f'Unexpected CLI call: {args}')
 
-# Webhook のパイプでは別の CLI が同じ DB を読む。途中の JSON を見せない。
-with NamedTemporaryFile(mode='w', encoding='utf-8', dir=scenario, delete=False) as saved:
-    json.dump(db, saved, ensure_ascii=False)
-Path(saved.name).replace(path)
+# 読み取りだけの呼び出しでは、大きな DB の保存を繰り返さない。
+# Webhook のパイプでは別の CLI が同じ DB を読む。変更時も途中の JSON を見せない。
+if db != before:
+    with NamedTemporaryFile(mode='w', encoding='utf-8', dir=scenario, delete=False) as saved:
+        json.dump(db, saved, ensure_ascii=False)
+    Path(saved.name).replace(path)
 print(json.dumps(result, ensure_ascii=False))

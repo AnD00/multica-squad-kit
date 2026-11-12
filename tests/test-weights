@@ -24,6 +24,8 @@ tests/squad-cli-lib-check-runs-test.sh 46
 tests/release-test.sh 69
 tests/release-failure-test.sh 70
 tests/squad-dependabot-merge-advance-diff-test.sh 141
+tests/squad-dependabot-merge-advance-diff-request-test.sh 141
+tests/squad-dependabot-merge-advance-diff-binary-test.sh 141
 tests/squad-dependabot-merge-escalate-test.sh 141
 tests/setup-test.sh 136
 tests/squad-dependabot-merge-list-test.sh 112

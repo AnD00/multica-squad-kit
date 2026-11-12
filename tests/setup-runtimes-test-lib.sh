@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # setup-runtimes-*-test.sh が読み込む共通の処理。選んだランタイムを $runtime_selections で受け、それぞれの入口を通す。単独では実行しない。
-# $runtime_part で流す範囲を絞れる（既定は all）。both は setup.sh を 6 回通し、1 ファイルでは CI の macOS の上限（300 秒）に近づくため、
+# $runtime_part で流す範囲を絞れる（既定は all）。both は setup.sh を 6 回通し、1 ファイルでは macOS の CI の上限（150 秒）を超えるため、
 # main（初回から再実行・起票の失敗・配置した見張りまで）と changes（初回から更新を飛ばした場合の確認まで）の 2 ファイルに分けて並列に流す。
 runtime_part=${runtime_part:-all}
 # ホストの BASH_ENV・ZDOTDIR は、子のシェルの PATH の先頭へ本物の関所を足す。関所が入ったホストでは、
@@ -22,7 +22,12 @@ for tool in awk basename bash cat chmod cmp cp cut date dirname env find git gre
  ln -s "$(command -v "$tool")" "$test_dir/tools/$tool"
 done
 # コピーした原本だけの配布物検査も、実際の入口で通す。
-(cd "$test_dir/package"; while IFS= read -r file; do shasum -a 256 "$file"; done < <(find . -type f | LC_ALL=C sort)) >"$test_dir/package-manifest"
+(
+ cd "$test_dir/package"
+ manifest_files=()
+ while IFS= read -r file; do manifest_files+=("$file"); done < <(find . -type f | LC_ALL=C sort)
+ shasum -a 256 "${manifest_files[@]}"
+) >"$test_dir/package-manifest"
 cp "$test_dir/package-manifest" "$test_dir/package/MANIFEST"
 
 for selected in $runtime_selections; do
