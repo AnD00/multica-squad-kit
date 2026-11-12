@@ -199,6 +199,20 @@ grep -qF '未確認' <<<"$state_section"
 grep -qF '「なし」' <<<"$state_section"
 echo 'PASS templates: リーダーの指示は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
 
+# PR の紐付けは、受け取ったとき・人間のマージへ回す前・返事を待つ回の開始前に確かめ、空なら人間に画面で紐付けてもらって止まる。
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews minimum runtime-claude-only runtime-codex-only; do
+	file="$test_dir/$scenario/orchestrator"
+	link_section=$(awk '/^## PR の紐付けの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file")
+	grep -qF 'multica issue pull-requests <タスク> --output json' <<<"$link_section"
+	grep -qF 'PR を受け取ったとき' <<<"$link_section"
+	grep -qF '人間のマージへ回す前' <<<"$link_section"
+	grep -qF '返事を待つ回を始める前' <<<"$link_section"
+	grep -qF '`pull_requests` が空なら' <<<"$link_section"
+	grep -qF 'タスクの画面で PR の URL を紐付けてもらうよう頼んで止まる' <<<"$link_section"
+	grep -qF '「PR の紐付けの確認」に従い' "$file"
+done
+echo 'PASS templates: リーダーの指示は、PR の紐付けを 3 つの時点で確かめ、空なら人間に頼んで止まる'
+
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
 	grep -qx 'model: gpt-6.1-sol' "$test_dir/all/$role"
@@ -331,7 +345,8 @@ grep -qF '呼ぶ前に metadata の `pr_url` を書かない' "$test_dir/pr-link
 grep -qF '終了コードが 0 なら、metadata の `pr_url` はスクリプトが書いたので、`branch` だけを置く' "$test_dir/pr-link-procedure"
 grep -qF '0 以外なら、止まらずに `branch` と `pr_url` を自分で置く' "$test_dir/pr-link-procedure"
 grep -qF 'コマンドが見つからないとき（終了コード 127）も同じに扱う' "$test_dir/pr-link-procedure"
-grep -qF '失敗したときは、引き継ぎのコメントに「PR をタスクに紐付けられなかったので、タスクの画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
+grep -qF '失敗したときは、引き継ぎのコメントの先頭、結論の行のすぐ次の行に「PR をタスクに紐付けられなかったので、タスクの画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
+grep -qF '人間への依頼として扱い' "$test_dir/pr-link-procedure"
 grep -qF 'スクリプトを呼ぶのは PR を作った直後の 1 回だけにする' "$test_dir/pr-link-procedure"
 grep -qF 'タスクの識別子・作業番号・進行の記録は Multica 側に置き、PR の本文やコミットメッセージへ持ち出さない' "$test_dir/pr-link-procedure"
 ! grep -qF 'PR とタスクは、タスクの画面で URL を指定して紐付ける' "$test_dir/pr-link-procedure"

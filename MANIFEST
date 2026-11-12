@@ -24,7 +24,7 @@ deafe76efbfd3f3b2616898ded2831e669eb246edac2aa6c98730f64992d3cbc  ./common/agent
 0e3e40df8d63f2a663e2346a48a1dca02bf17d0d2e8e3dc7b5e6bb846718282b  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 c469e87e9ef355cad173fa9894e020717ab24efa252f54e3b353c7b8bdef050e  ./common/agents/designer.md
-694738ee5452356bd764d5ca3e75384bd490f29771420826b7606b8b1d653d32  ./common/agents/orchestrator.md
+20f084342631f2b5e84a98d01b4c07d05dd0282f2769a6705a98b269695a5200  ./common/agents/orchestrator.md
 775341f7a54fed2c0ec77b03b8047b88aa557ffe627f6a7b6d0983f759237270  ./common/agents/performance-reviewer.md
 792447cdc0b16290d0a7af7e10f63836a652dbd3fc8837b51304d6b903316ad8  ./common/agents/planner.md
 c390705b43bda9ecee8aed75ea1a406b16ae6b753c3161f37040c5e9da97ea96  ./common/agents/qa.md
@@ -50,7 +50,7 @@ a390c8c21494d51e5d715cffa1488558b8cefc8a6e1693e86270f47d3f063cbc  ./common/monit
 4819ffffbc38ddef5f88a9aeb8719cce15a297af8df821fdc0dee025db5e79d1  ./common/setup-issues.json
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/.zshenv
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/env.sh
-8ee2652094a7efe0706f74534f2a2f47d77dd011322cb75e836af0fb56d0fe3f  ./common/skills/squad-handoff/SKILL.md
+af66fd921acfb836bb92e06f7414583bb93eb08049edea315a7ea954d652e1f9  ./common/skills/squad-handoff/SKILL.md
 adfb0e15a2f23706c8ac822ef3c6e14e632d1c5af5862d5f1cc0c79a90847d55  ./common/squad.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
 da1a906c1b2680ac9a609f2f1b40eaa7debe832e26b4824aec4b7d1bbde7ea1b  ./docs/ci.md
@@ -58,7 +58,7 @@ da1a906c1b2680ac9a609f2f1b40eaa7debe832e26b4824aec4b7d1bbde7ea1b  ./docs/ci.md
 be653b5fca32f490a7d1fd8d9d2927157887bfbe41ca649d72ed01be5743ede6  ./docs/install.md
 ff0e5faa1ff0c0ac18368e3f31df058707c5ae929df29f226c281de8e29bbd0b  ./docs/local-verification.md
 dc5ad95d2923365b792d7abfe8b3f5d6666c1348654c380fa9e5e9d2e522be5c  ./docs/pr-conflict-check.md
-fd1b12956995d17476be112a9f07a4a6e8dfebee925fd6350d6cb78702e12fc5  ./docs/pr-link.md
+cd52ba0ef0fb10562c5e409c78aff682022653a0aab6fe5ad65bc9833a7d217c  ./docs/pr-link.md
 f7c608c81104c18c054148fba1837ed064413185ddaa57ddf7f3369737223954  ./docs/principal-review.md
 0ae20574a597df6ac09c8a9f2eacfc4badc7b2b3d2edaa14e324b8a175c183ed  ./docs/release.md
 fa0bb4eb1f0c8b371f7533ff560f3d984c758468cdc4a5f5629486a4e8ec9868  ./docs/review-wait.md
@@ -99,7 +99,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 8c491e62719b72b6c895199808c2320d960e946d8e883c4fd48d8a9a25f5ef4d  ./skeleton/README.md
 c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/project.md
 a5c1768652ad26d58317815edb0bd31f888306c2e08685862a187f105d2f949a  ./skeleton/verify-repository.md
-4e2bd7029ca8eadd63a8754c6c2e1a3bfbd21a70007f88c82ef011dd1d857454  ./tests/agent-templates-test.sh
+b8ee95b66847ecd34f219ca04082976395a560f9472082cebcf68dcd08079b2a  ./tests/agent-templates-test.sh
 c0a4918cf140c51fec5a0a619a09714411551361dd8acf0f749237f79d8f4e46  ./tests/build-assets-test.sh
 33716690201522a64b8217a9175469202605860a45c7ae3c1f89fc50320ebb89  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
@@ -199,7 +199,7 @@ c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-
 8b36bcc55cba4d1e36d9ba0020b5f414934e0af5e8386454619fb6dadaa81de8  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
-f1e92ea6d30077ef57582886d517057b3545446ce267c47220c66487439b3911  ./tests/setup-version-test.sh
+7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
 13131c76cd4838b6aecc41ee3b4ebeef49696fc51764323e8b14ba82eefe8b8b  ./tests/squad-cli-lib-test.sh
 30ad29381910385b013c0bba17613ab177d3bf358a8fa8f009655cf60c8d88d9  ./tests/squad-dependabot-merge-advance-ci-change-test.sh
