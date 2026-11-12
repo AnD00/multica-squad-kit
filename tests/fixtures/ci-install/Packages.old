@@ -1,0 +1,72 @@
+Package: bash
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/bash/bash_1.0_amd64.deb
+SHA256: 8a4ec54cab2dd18561fe31a6204c68c690414cb5eaf6c7b27217948dd768888e
+
+Package: zsh
+Version: 0.5
+Architecture: amd64
+Filename: pool/main/x/zsh/zsh_0.5_amd64.deb
+SHA256: 959a95937aa1a47ba4f671a80fcdfa34749f935592f9fc0a47fad5aeb2c84d45
+
+Package: git
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/git/git_1.0_amd64.deb
+SHA256: 985b3f0b915ec0de7288c1880fd9a1ab17a6ee25cb1e69360d2c1d151d379bf4
+
+Package: jq
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/jq/jq_1.0_amd64.deb
+SHA256: d378ce62710183b220f7789d7557bd5bec008d8d1f1c62e2eb174e80d1a964b2
+
+Package: gh
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/gh/gh_1.0_amd64.deb
+SHA256: f0a55c6ceddb31aa42bb7ff6f30fef1e2644d1afbf2b814653a7f1a4261c54db
+
+Package: zip
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/zip/zip_1.0_amd64.deb
+SHA256: 7ccfbc5dadeeb540414113b374371235cccd2cc138e1c64d914ba68d55f16b40
+
+Package: unzip
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/unzip/unzip_1.0_amd64.deb
+SHA256: 143d37daa6f9d68e86f9e3b4d2d7211c6878901cd3cb3089df0fb6071cb7feb5
+
+Package: python3
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/python3/python3_1.0_amd64.deb
+SHA256: 66660a5c80a4c306965a7ad4f747fa4c78d015402d0fa8c5a2ca33f6c9aaf538
+
+Package: tzdata
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/tzdata/tzdata_1.0_amd64.deb
+SHA256: d11f8993e67cbfb479abcf23f9dff9b0c9914e60a514e6010c60d465945b59c5
+
+Package: libdigest-sha-perl
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/libdigest-sha-perl/libdigest-sha-perl_1.0_amd64.deb
+SHA256: 58885ba2e5cf80750852fee7c42902985b14a1dcb53a3ac7eff454edef241b8c
+
+Package: procps
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/procps/procps_1.0_amd64.deb
+SHA256: 6facb15244ae260d191ee27c4c14c0fedb432639abfd5e49265dd710ba8b5d8e
+
+Package: gpgv
+Version: 1.0
+Architecture: amd64
+Filename: pool/main/x/gpgv/gpgv_1.0_amd64.deb
+SHA256: b63f206d34106324cb427b5f816095fd63b751549787f3bf6cf1a9bbaa18c682
+
