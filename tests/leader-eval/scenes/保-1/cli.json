@@ -1,0 +1,45 @@
+{
+  "commands": [
+    {
+      "match": "squad-preflight",
+      "stderr": "squad-preflight: squad-pr-watch が使えません。実際の解決先: 見つからない（期待: squad-kit/bin/squad-pr-watch）\n直し方: 見張りが欠けたか、別の同じ名前のものが先にあります。動いているタスクがないときに、同じプロジェクトでセットアップを流し直して、見張りを置き直してください。",
+      "exit": 1
+    },
+    {
+      "match": "multica issue get issue-shop-1",
+      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"カートに商品数を出す\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\",\n    \"pr_url\": \"https://github.com/example/shop/pull/7\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
+    },
+    {
+      "match": "multica issue comment list issue-shop-1",
+      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-claude-implementer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。PR: https://github.com/example/shop/pull/7\\n\\n確かめたこと:\\n- 単体テストが通った\\n\\n残っていること:\\n- レビュー\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  }\n]"
+    },
+    {
+      "match": "multica issue pull-requests issue-shop-1",
+      "stdout": "{\n  \"pull_requests\": [\n    {\n      \"url\": \"https://github.com/example/shop/pull/7\",\n      \"state\": \"open\",\n      \"draft\": true\n    }\n  ]\n}"
+    },
+    {
+      "match": "multica issue pull-requests --help",
+      "stdout": "Usage: multica issue pull-requests <issue-id> [--output json]\n\nList the pull requests linked to an issue. Read-only."
+    },
+    {
+      "match": "multica issue --help",
+      "stdout": "Usage: multica issue <command>\n\nCommands:\n  get, list, search, create, comment, status, assign, update, pull-requests, runs, run-messages, cancel-task, rerun, label, metadata\n\n`multica issue pull-requests <id>` lists the pull requests linked to an issue. There is no command that links a pull request."
+    },
+    {
+      "match": "multica issue label list issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica label list",
+      "stdout": "[\n  {\n    \"id\": \"label-important\",\n    \"name\": \"重要\"\n  },\n  {\n    \"id\": \"label-dev\",\n    \"name\": \"開発\"\n  },\n  {\n    \"id\": \"label-ops\",\n    \"name\": \"運用\"\n  },\n  {\n    \"id\": \"label-instruction\",\n    \"name\": \"指示の改善\"\n  },\n  {\n    \"id\": \"label-qa\",\n    \"name\": \"検証\"\n  }\n]"
+    },
+    {
+      "match": "multica issue children issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica repo list",
+      "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    }
+  ]
+}

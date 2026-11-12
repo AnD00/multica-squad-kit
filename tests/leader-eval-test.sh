@@ -10,9 +10,9 @@ eval_dir="$root/tests/leader-eval"
 scenes_dir="$eval_dir/scenes"
 helper=(python3 -I -B "$eval_dir/leader_eval.py")
 
-# 設計の「場面の一覧」にある 18 場面。まだ置いていないものだけを pending に書き、置いたら外す。
+# 設計の「場面の一覧」にある 18 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
 expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 保-1 保-2 保-3 保-4 保-5 保-6'
-pending_scenes='1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 保-1 保-3 保-4 保-5 保-6'
+pending_scenes=''
 
 # --- 場面の形 ---
 present=
@@ -45,7 +45,7 @@ if grep -Eqi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$ev
 	echo "values.json に UUID の形の値があります" >&2
 	exit 1
 fi
-echo "PASS leader-eval: 置いてある場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
+echo "PASS leader-eval: 18 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
 
 # --- 悪い場面を拒む ---
 bad="$test_dir/bad"
@@ -122,7 +122,7 @@ EOF2
 chmod +x "$stub_bin/claude"
 export STUB_LOG="$test_dir/stub.log"
 out="$test_dir/out"
-PATH="$stub_bin:$PATH" bash "$eval_dir/run.sh" --baseline HEAD --runs 2 --jobs 2 --out "$out" >"$test_dir/run.out" 2>"$test_dir/run.err" ||
+PATH="$stub_bin:$PATH" bash "$eval_dir/run.sh" --baseline HEAD --scenes 1-1,保-2 --runs 2 --jobs 2 --out "$out" >"$test_dir/run.out" 2>"$test_dir/run.err" ||
 	{ cat "$test_dir/run.err" >&2; exit 1; }
 
 for which in old new; do
@@ -137,7 +137,7 @@ for which in old new; do
 done
 echo "PASS leader-eval: 今と新しい指示を展開し、squad-handoff と一緒に作業ディレクトリへ置く"
 
-[[ $(wc -l <"$out/runs.jsonl" | tr -d ' ') == $((2 * 2 * $(ls "$scenes_dir" | wc -l))) ]] || { echo "runs.jsonl の行数が違います" >&2; exit 1; }
+[[ $(wc -l <"$out/runs.jsonl" | tr -d ' ') == $((2 * 2 * 2)) ]] || { echo "runs.jsonl の行数が違います" >&2; exit 1; }
 jq -e -s 'all(.[]; has("scene") and has("which") and has("n") and has("model") and has("calls") and has("comments") and has("response") and has("criteria"))' "$out/runs.jsonl" >/dev/null
 jq -e -s 'all(.[]; .pass == true)' "$out/runs.jsonl" >/dev/null
 jq -e -s 'all(.[]; any(.calls[]; .kind == "unmatched" and .exit == 1))' "$out/runs.jsonl" >/dev/null
@@ -151,3 +151,14 @@ echo "PASS leader-eval: スタブのコマンドが呼び出しを記録し、ru
 grep -q '^leader claude-sonnet-5-5 medium' "$test_dir/stub.log"
 grep -q '^scorer claude-opus-5-5 high' "$test_dir/stub.log"
 echo "PASS leader-eval: モデルと思考の深さは展開した front matter から、採点は opus の high で流す"
+
+# --- 全場面をスタブで流す（合否は問わず、場面が読めて 1 行ずつ出ることだけを見る）---
+all_out="$test_dir/all"
+PATH="$stub_bin:$PATH" bash "$eval_dir/run.sh" --baseline HEAD --runs 1 --only new --jobs 4 --out "$all_out" >"$test_dir/all.out" 2>"$test_dir/all.err" ||
+	{ cat "$test_dir/all.err" >&2; exit 1; }
+[[ $(wc -l <"$all_out/runs.jsonl" | tr -d ' ') == "$(wc -w <<<"$expected_scenes" | tr -d ' ')" ]] || { echo "全場面の runs.jsonl の行数が違います" >&2; exit 1; }
+for id in $expected_scenes; do
+	jq -e -s --arg id "$id" 'any(.[]; .scene == $id and .which == "new" and (.criteria | length) > 0)' "$all_out/runs.jsonl" >/dev/null ||
+		{ echo "$id: 全場面の結果に行がありません" >&2; exit 1; }
+done
+echo "PASS leader-eval: 18 場面すべてをスタブで流し、場面ごとに基準の結果が出る"

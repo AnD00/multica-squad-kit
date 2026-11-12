@@ -1,0 +1,56 @@
+{
+  "commands": [
+    {
+      "match": "squad-preflight",
+      "stdout": "squad-preflight: 関所の gh と、すべての見張りが使えます。"
+    },
+    {
+      "match": "multica issue get issue-shop-1",
+      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"カートに商品数を出す\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
+    },
+    {
+      "match": "multica issue comment list issue-shop-1",
+      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"member\",\n    \"author_id\": \"member1\",\n    \"parent_id\": null,\n    \"content\": \"カートのアイコンに、入っている商品の数を出したい\",\n    \"created_at\": \"2026-01-10T10:10:00Z\"\n  },\n  {\n    \"id\": \"comment-2\",\n    \"author_type\": \"member\",\n    \"author_id\": \"member1\",\n    \"parent_id\": null,\n    \"content\": \"実装の役はいま何をしているか\",\n    \"created_at\": \"2026-01-10T10:30:00Z\"\n  }\n]"
+    },
+    {
+      "match": "multica issue pull-requests issue-shop-1",
+      "stdout": "{\n  \"pull_requests\": []\n}"
+    },
+    {
+      "match": "multica issue pull-requests --help",
+      "stdout": "Usage: multica issue pull-requests <issue-id> [--output json]\n\nList the pull requests linked to an issue. Read-only."
+    },
+    {
+      "match": "multica issue --help",
+      "stdout": "Usage: multica issue <command>\n\nCommands:\n  get, list, search, create, comment, status, assign, update, pull-requests, runs, run-messages, cancel-task, rerun, label, metadata\n\n`multica issue pull-requests <id>` lists the pull requests linked to an issue. There is no command that links a pull request."
+    },
+    {
+      "match": "multica issue label list issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica label list",
+      "stdout": "[\n  {\n    \"id\": \"label-important\",\n    \"name\": \"重要\"\n  },\n  {\n    \"id\": \"label-dev\",\n    \"name\": \"開発\"\n  },\n  {\n    \"id\": \"label-ops\",\n    \"name\": \"運用\"\n  },\n  {\n    \"id\": \"label-instruction\",\n    \"name\": \"指示の改善\"\n  },\n  {\n    \"id\": \"label-qa\",\n    \"name\": \"検証\"\n  }\n]"
+    },
+    {
+      "match": "multica issue children issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica repo list",
+      "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    },
+    {
+      "match": "multica issue runs issue-shop-1 --active",
+      "stdout": "[\n  {\n    \"id\": \"run-leader-1\",\n    \"agent_id\": \"agent-orchestrator\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:30:05Z\",\n    \"trigger_comment_id\": \"comment-2\"\n  },\n  {\n    \"id\": \"run-impl-1\",\n    \"agent_id\": \"agent-claude-implementer\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:12:40Z\",\n    \"trigger_comment_id\": \"comment-1\"\n  }\n]"
+    },
+    {
+      "match": "multica issue runs issue-shop-1",
+      "stdout": "[\n  {\n    \"id\": \"run-leader-1\",\n    \"agent_id\": \"agent-orchestrator\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:30:05Z\"\n  },\n  {\n    \"id\": \"run-impl-1\",\n    \"agent_id\": \"agent-claude-implementer\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:12:40Z\"\n  },\n  {\n    \"id\": \"run-leader-0\",\n    \"agent_id\": \"agent-orchestrator\",\n    \"status\": \"completed\",\n    \"started_at\": \"2026-01-10T10:00:00Z\",\n    \"completed_at\": \"2026-01-10T10:12:30Z\"\n  }\n]"
+    },
+    {
+      "match": "multica issue run-messages run-impl-1",
+      "stdout": "[\n  {\n    \"seq\": 41,\n    \"type\": \"tool_use\",\n    \"tool\": \"Bash\",\n    \"input\": {\n      \"command\": \"npm test -- Badge\"\n    },\n    \"created_at\": \"2026-01-10T10:26:11Z\"\n  },\n  {\n    \"seq\": 42,\n    \"type\": \"tool_result\",\n    \"content\": \"Tests: 3 passed\",\n    \"created_at\": \"2026-01-10T10:26:30Z\"\n  },\n  {\n    \"seq\": 43,\n    \"type\": \"tool_use\",\n    \"tool\": \"Edit\",\n    \"input\": {\n      \"file_path\": \"src/cart/Badge.tsx\"\n    },\n    \"created_at\": \"2026-01-10T10:28:02Z\"\n  },\n  {\n    \"seq\": 44,\n    \"type\": \"text\",\n    \"content\": \"100 以上の表示を `99+` に丸めます。\",\n    \"created_at\": \"2026-01-10T10:29:47Z\"\n  }\n]"
+    }
+  ]
+}
