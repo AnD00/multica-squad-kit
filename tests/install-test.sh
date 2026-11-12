@@ -85,6 +85,12 @@ STUB
 cat >"$test_dir/bin/tar" <<'STUB'
 #!/bin/bash
 echo "$*" >>"$TAR_LOG"
+if [[ -n ${TAR_RAW_NAME:-} ]]; then
+	case ${1:-} in
+	-tzf) printf 'multica-squad-kit-v1.6.0/%s\n' "$TAR_RAW_NAME"; exit 0 ;;
+	-tvzf) printf '%s\n' '-rw-r--r-- file'; exit 0 ;;
+	esac
+fi
 "$REAL_TAR" "$@" || exit $?
 if [[ ${1:-} == -xzf && -n ${PLANT:-} ]]; then
 	top=${4:-}/multica-squad-kit-v1.6.0
@@ -166,6 +172,10 @@ with tarfile.open(path, "w:gz", format=tarfile.PAX_FORMAT) as tar:
         add(prefix + "a\\b.txt", b"x")
     elif mode == "control":
         add(prefix + "a\x07b.txt", b"x")
+    elif mode == "non-ascii":
+        add(prefix + "保-1/scene.md", b"x")
+    elif mode == "printable":
+        add(prefix + "space ~.txt", b"x")
     elif mode == "newline":
         add(prefix + "a\n" + prefix + "b.txt", b"x")
     elif mode == "fifo":
@@ -206,7 +216,7 @@ stub_env() {
 		GH_VERSION_OUT="$gh_out" GH_VERSION_FAIL="${GH_VERSION_FAIL:-}" GH_FAIL_ON="${GH_FAIL_ON:-}"
 		GH_DOWNLOAD_FAIL="${GH_DOWNLOAD_FAIL:-}" GH_DOWNLOAD_EMPTY="${GH_DOWNLOAD_EMPTY:-}"
 		GH_LATEST="${GH_LATEST-$version}" GH_LATEST_FAIL="${GH_LATEST_FAIL:-}"
-		TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" PLANT="${PLANT:-}"
+		TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" PLANT="${PLANT:-}" TAR_RAW_NAME="${TAR_RAW_NAME:-}"
 		SETUP_LOG="$case_dir/setup.log" SETUP_EXIT="${SETUP_EXIT:-0}" SETUP_READ="${SETUP_READ:-}"
 		SETUP_SLEEP="${SETUP_SLEEP:-}" SETUP_STARTED="${SETUP_STARTED:-}"
 		FAKE_UNAME="${FAKE_UNAME:-}" REAL_UNAME="$real_uname")
@@ -446,6 +456,71 @@ write_sums "$(sha_of "$assets/$asset")"
 run_install --verify "$version" "$assets"
 expect_stop 1 '配布物の一覧を読めません'
 
+# 一覧専用の入口: 証明とチェックサムがなくても、配布物の一覧だけを確かめる。
+new_case listing-ok printable
+rm "$assets/SHA256SUMS" "$assets/install.sh"
+FAKE_UNAME=unsupported gh_out=garbage run_install --check-listing "$version" "$assets/$asset"
+[[ $rc == 0 && ! -s $case_dir/err && ! -s $case_dir/gh.log ]]
+grep -qF '一覧の確かめが通りました' "$case_dir/out"
+grep -qF '証明とチェックサムは確かめていません' "$case_dir/out"
+grep -qF '展開も実行もしていません' "$case_dir/out"
+[[ $(tar_extracts) == 0 && ! -e $case_dir/setup.log && -z $(ls -A "$case_dir/tmp") ]]
+[[ $(wc -l <"$case_dir/tar.log") -eq 2 ]]
+
+# gh、shasum、uname のない PATH でも通る。端末も要らない。
+mkdir "$test_dir/listing-bin" "$test_dir/no-tar-bin"
+for tool in cat wc; do
+	ln -s "$(command -v "$tool")" "$test_dir/listing-bin/$tool"
+	ln -s "$(command -v "$tool")" "$test_dir/no-tar-bin/$tool"
+done
+ln -s "$test_dir/bin/tar" "$test_dir/listing-bin/tar"
+reset_logs
+rc=0
+env -u BASH_ENV PATH="$test_dir/listing-bin" TAR_LOG="$case_dir/tar.log" REAL_TAR="$real_tar" \
+	/bin/bash "$root/install.sh" --check-listing "$version" "$assets/$asset" \
+	>"$case_dir/out" 2>"$case_dir/err" </dev/null || rc=$?
+[[ $rc == 0 && ! -s $case_dir/gh.log && $(tar_extracts) == 0 && ! -e $case_dir/setup.log ]]
+rc=0
+env -u BASH_ENV PATH="$test_dir/no-tar-bin" /bin/bash "$root/install.sh" --check-listing "$version" "$assets/$asset" \
+	>"$case_dir/out" 2>"$case_dir/err" </dev/null || rc=$?
+expect_stop 1 'tar がありません'
+run_stdin notty --check-listing "$version" "$assets/$asset"
+[[ $rc == 0 && ! -s $case_dir/gh.log && $(tar_extracts) == 0 ]]
+
+# 既存の拒否条件を、一覧専用の入口にも同じ配布物で当てる。
+for entry in "${evil_cases[@]}"; do
+	mode=${entry%%|*}
+	reason=${entry#*|}
+	new_case "listing-evil-$mode" "$mode"
+	run_install --check-listing "$version" "$assets/$asset"
+	expect_stop 1 "$reason"
+	[[ ! -s $case_dir/gh.log && $(tar_extracts) == 0 && ! -e $case_dir/setup.log ]]
+	no_extract
+done
+for mode in newline non-ascii; do
+	new_case "listing-$mode" "$mode"
+	run_install --check-listing "$version" "$assets/$asset"
+	[[ $rc == 1 && ! -s $case_dir/gh.log && $(tar_extracts) == 0 && ! -e $case_dir/setup.log ]]
+	no_extract
+done
+new_case listing-unreadable
+printf 'not a tar\n' >"$assets/$asset"
+run_install --check-listing "$version" "$assets/$asset"
+expect_stop 1 '配布物の一覧を読めません'
+run_install --check-listing "$version" "$assets/missing.tar.gz"
+expect_stop 1 '配布物の一覧を読めません'
+
+# tar が漢字をバイトのまま返しても、共通の一覧検査が全入口で拒む。
+new_case raw-name
+TAR_RAW_NAME=保-1/scene.md run_install --check-listing "$version" "$assets/$asset"
+expect_stop 1 '印字できる ASCII ではない文字'
+grep -qF '保-1/scene.md' "$case_dir/err"
+TAR_RAW_NAME=保-1/scene.md run_install --verify "$version" "$assets"
+expect_stop 1 '印字できる ASCII ではない文字'
+TAR_RAW_NAME=保-1/scene.md run_install "$version"
+expect_stop 1 '印字できる ASCII ではない文字'
+not_run 0
+
 # 引数の誤り: 2 で終わり、使い方を出し、gh は呼ばない。
 new_case args
 for args in "--verify" "--verify $version" "--verify $version $assets extra" "$version --bogus" "--bogus" "$version --extension" "$version --extension a --extension b" "$version stray"; do
@@ -458,6 +533,14 @@ for args in "--verify" "--verify $version" "--verify $version $assets extra" "$v
 	grep -qF '使い方:' "$case_dir/err"
 	[[ ! -s $case_dir/gh.log ]]
 done
+for args in '--check-listing' "--check-listing $version" "--check-listing $version $assets/$asset extra" "--check-listing $version $assets/$asset --extension ext"; do
+	# shellcheck disable=SC2086
+	run_install $args
+	[[ $rc == 2 && ! -s $case_dir/gh.log && ! -s $case_dir/tar.log ]]
+	grep -qF '使い方:' "$case_dir/err"
+done
+run_install --check-listing "$version" ''
+[[ $rc == 2 && ! -s $case_dir/gh.log && ! -s $case_dir/tar.log ]]
 for bad in 1.6.0 v1.6 v1.6.0.1 v1.6.x 'v1.6.0 ' vv1.6.0; do
 	run_install "$bad"
 	[[ $rc == 2 ]] || {
@@ -467,6 +550,8 @@ for bad in 1.6.0 v1.6 v1.6.0.1 v1.6.x 'v1.6.0 ' vv1.6.0; do
 	grep -qF 'vX.Y.Z の形' "$case_dir/err"
 	run_install --verify "$bad" "$assets"
 	[[ $rc == 2 ]]
+	run_install --check-listing "$bad" "$assets/$asset"
+	[[ $rc == 2 && ! -s $case_dir/tar.log ]]
 done
 run_install ''
 [[ $rc == 2 ]]
@@ -481,6 +566,7 @@ for flag in --help -h; do
 	[[ $rc == 0 ]]
 	grep -qF '使い方:' "$case_dir/out"
 	grep -qF -- '--verify <バージョン> <置き場>' "$case_dir/out"
+	grep -qF -- '--check-listing <バージョン> <配布物>' "$case_dir/out"
 	[[ ! -s $case_dir/err && ! -s $case_dir/gh.log ]]
 done
 run_install --help "$version"

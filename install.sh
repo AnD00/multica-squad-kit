@@ -65,10 +65,12 @@ usage() {
 使い方:
   bash install.sh [<バージョン>] [--extension <拡張のディレクトリ>]
   bash install.sh --verify <バージョン> <置き場>
+  bash install.sh --check-listing <バージョン> <配布物>
   bash install.sh --help
 <バージョン> は vX.Y.Z の形で渡す。省いたときは、最新の Release のバージョンを使う。
 標準入力から流すときは、bash -s -- のあとに引数を渡す。セットアップの質問には、端末（/dev/tty）から答える。
 --verify は、置き場にある配布物と SHA256SUMS を確かめるだけで、展開も実行もしない。
+--check-listing は、配布物の一覧だけを確かめる。証明とチェックサムは確かめず、展開も実行もしない。
 USAGE
 }
 # 引数の誤りは 2 で終わる。
@@ -179,6 +181,9 @@ check_listing() {
 		esac
 		if [[ $name == *[[:cntrl:]]* || $name == *\\* ]]; then
 			stop "配布物に、制御文字かバックスラッシュを含む名前があります: $name"
+		fi
+		if [[ $name == *[![:print:]]* ]]; then
+			stop "配布物に、印字できる ASCII ではない文字を含む名前があります: $name"
 		fi
 	done <<<"$names"
 	while IFS= read -r line; do
@@ -308,6 +313,14 @@ parse_args() {
 		place=$3
 		[[ -n $place ]] || usage_error '置き場が空です。'
 		;;
+	--check-listing)
+		[[ $# -eq 3 ]] || usage_error '--check-listing は、バージョンと配布物の 2 つを渡してください。'
+		mode=check-listing
+		version=$2
+		have_version=yes
+		place=$3
+		[[ -n $place ]] || usage_error '配布物が空です。'
+		;;
 	*)
 		if [[ $# -gt 0 && $1 != -* ]]; then
 			version=$1
@@ -334,6 +347,12 @@ parse_args() {
 
 main() {
 	parse_args "$@"
+	if [[ $mode == check-listing ]]; then
+		command -v tar >/dev/null || stop 'tar がありません。tar を入れてから流してください。'
+		check_listing "$place" "$version"
+		ui_line out success "一覧の確かめが通りました: ${version}。証明とチェックサムは確かめていません。展開も実行もしていません。"
+		exit 0
+	fi
 	check_tools
 	check_gh_version
 	if [[ $mode == verify ]]; then
