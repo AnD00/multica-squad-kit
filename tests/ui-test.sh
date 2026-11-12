@@ -165,7 +165,7 @@ PY
 PATH="$test_dir/bin" /bin/bash -euo pipefail -c '
 source "$1/lib/ui.sh"
 if command -v jq; then exit 1; fi
-while IFS="|" read -r expected value; do
+while IFS="|" LC_ALL=C read -r expected value; do
     actual=$(ui_width "$value")
     [[ $actual == "$expected" ]] || { printf "width: %s != %s\n" "$actual" "$expected"; exit 1; }
 done <"$2/width-cases"

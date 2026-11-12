@@ -48,7 +48,7 @@ tests/setup-version-test.sh 15
 tests/release-screens-test.sh 16
 tests/project-changes-test.sh 14
 tests/ui-test.sh 12
-tests/ui-steps-test.sh 11
+tests/ui-steps-test.sh 29
 tests/build-assets-test.sh 10
 tests/ci-install-test.sh 10
 tests/manual-test.sh 10

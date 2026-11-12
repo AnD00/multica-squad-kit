@@ -259,8 +259,11 @@ ui_steps_dir=
 ui_steps_notice_file=
 ui_steps_subject=
 ui_steps_phase_began=0
+ui_steps_owner_subshell=
 
 ui_steps_cleanup() {
+	# bash 3.2 には BASHPID がない。継承した状態は、その一覧を始めたサブシェルの深さで区別する。
+	[[ -z ${ui_steps_owner_subshell:-} || $BASH_SUBSHELL == "$ui_steps_owner_subshell" ]] || return 0
 	_ui_spinner_stop
 	if [[ -n ${ui_steps_dir:-} ]]; then rm -rf -- "$ui_steps_dir"; fi
 	if [[ -n ${ui_steps_notice_file:-} ]]; then rm -f -- "$ui_steps_notice_file" "$ui_steps_notice_file.failed"; fi
@@ -269,7 +272,8 @@ ui_steps_cleanup() {
 
 _ui_spinner_stop() {
 	if [[ -n ${ui_spinner_pid:-} ]]; then
-		kill -TERM "$ui_spinner_pid" 2>/dev/null || :
+		# 子の起動前でも消せる印で止める。trap を準備する前の子にシグナルを送らない。
+		rm -f -- "$ui_steps_dir/spinner-running"
 		{ wait "$ui_spinner_pid"; } 2>/dev/null || :
 		ui_spinner_pid=
 	fi
@@ -462,13 +466,16 @@ _ui_steps_refresh() {
 _ui_spinner_start() {
 	[[ $ui_steps_live == yes && $ui_steps_active == yes ]] || return 0
 	((ui_steps_cache_active >= 0)) || return 0
+	[[ -n $ui_steps_dir ]] || return 0
+	: >"$ui_steps_dir/spinner-running" || return 0
 	local owner=$$
 	(
-		stop=no ticks=0
-		trap 'stop=yes' TERM HUP INT
-		while [[ $stop != yes ]]; do
+		# 親の作業場所を片付ける trap は、この子では実行しない。
+		trap - EXIT TERM HUP INT
+		ticks=0
+		while [[ -f $ui_steps_dir/spinner-running ]]; do
 			sleep 0.1
-			[[ $stop != yes ]] || break
+			[[ -f $ui_steps_dir/spinner-running ]] || break
 			kill -0 "$owner" 2>/dev/null || break
 			# 親が終わってもまだ受け取られていない（zombie）あいだは kill -0 が通るので、1 秒おきに状態も見る。
 			ticks=$((ticks + 1))
@@ -499,6 +506,7 @@ _ui_spinner_start() {
 ui_steps_begin() {
 	local i width longest=0
 	ui_steps_cleanup
+	ui_steps_owner_subshell=$BASH_SUBSHELL
 	ui_steps_target=${1-} ui_steps_indent=${2-0}
 	case $ui_steps_target in
 	out) ui_steps_live=$ui_live_out ;;

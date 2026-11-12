@@ -250,6 +250,46 @@ for name in cleanup abandon; do
 done
 echo 'PASS ui-steps: 片付けか親の終了で、スピナーの裏のプロセスが残らず、Terminated も出ない'
 
+# 親の後片付けとシグナルの trap を置き、起動直後の更新と停止を繰り返す。
+cat >"$test_dir/restart.sh" <<'SH'
+set -euo pipefail
+source "$1/lib/ui.sh"
+ui_init
+work=$(mktemp -d "$TMPDIR/restart.XXXXXX")
+cleanup() {
+	ui_steps_cleanup
+	printf 'cleanup\n' >>"$TMPDIR/restart-cleanup"
+	rm -rf -- "$work"
+}
+trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+ui_steps_begin out 0 restart
+ui_step_start 1
+steps_dir=$ui_steps_dir
+(ui_steps_cleanup)
+[[ -d $steps_dir ]]
+for ((n = 1; n <= 60; n++)); do
+	ui_step_progress "$n" 60 item
+	ui_step_wait "$n"
+	[[ -d $work && -d $steps_dir && ! -e $TMPDIR/restart-cleanup ]]
+done
+pid=$ui_spinner_pid
+ui_step_done finished
+if kill -0 "$pid" 2>/dev/null; then exit 9; fi
+ui_steps_cleanup
+[[ ! -e $steps_dir && -d $work ]]
+printf 'restart-finished\n'
+SH
+run_steps both "$test_dir/restart.sh" TMPDIR="$test_dir"
+grep -qF 'restart-finished' "$test_dir/out"
+[[ ! -s $test_dir/err ]]
+! grep -qE 'run_pending_traps|Terminated|No such file' "$test_dir/out"
+printf 'cleanup\n' >"$test_dir/expected"
+cmp "$test_dir/restart-cleanup" "$test_dir/expected"
+echo 'PASS ui-steps: 起動直後の進みと待ちを60回ずつ繰り返しても停止せず、親だけが作業場所を片付ける'
+
 # 確認の前は切らずに出し、答えた問いと空行を、そのあとで書き換える範囲に含める。
 cat >"$test_dir/tail.sh" <<'SH'
 set -euo pipefail
