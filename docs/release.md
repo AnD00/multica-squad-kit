@@ -26,7 +26,8 @@
 | `scripts/release.sh` | 確かめ、確認、タグの作成と push、下書きの Release の作成、配布物の作成の依頼と確かめ、公開をする |
 | `scripts/build-assets.sh` | タグかコミットの中身から、配布物と `SHA256SUMS` を作る（[配布物を作る](#配布物を作る)）。PR の CI と、このコマンドの確かめの 9 でも使う |
 | `.github/workflows/release-assets.yml` | 発行のワークフロー。配布物を作り、証明を付け、下書きの Release に載せる（[発行のワークフロー](#発行のワークフロー)） |
-| `tests/release-test.sh` | コマンドの動きを、一時の Git のリポジトリとスタブの `gh` で確かめる |
+| `tests/release-test.sh`、`tests/release-check-test.sh`、`tests/release-failure-test.sh` | コマンドの動きを、一時の Git のリポジトリとスタブの `gh` で確かめる。ケースの分け方は[テストのファイルの分け方](#テストのファイルの分け方) |
+| `tests/release-test-lib.sh` | 3 つのテストが読み込む準備と補助。`-test.sh` で終えず、単独では流さない |
 | `tests/build-assets-test.sh` | 配布物を作るスクリプトを、一時の Git のリポジトリで確かめる |
 | `tests/release-workflow-test.sh` | 発行のワークフローの定義の決まり（きっかけ、権限、固定したバージョン）を確かめる |
 
@@ -275,6 +276,35 @@ bash scripts/build-assets.sh --commit <コミット> <出力先>
 | `release edit` が失敗する | 下書きが残り、流し直すと確かめから続ける |
 | 引数の誤りと `--help` | 2 で終わる、0 で使い方を出す |
 
+### テストのファイルの分け方
+
+上の表のケースを、3 つのテストのファイルに分ける。1 本の所要時間を短くし、手元の並列でも 1 本の時間の上限（`docs/ci.md` の[時間の予算](ci.md#時間の予算)）に近づかないようにするため。準備と補助は `tests/release-test-lib.sh` にまとめ、3 つのファイルが読み込む。
+
+| ファイル | 持つケース |
+| --- | --- |
+| `tests/release-test.sh` | 承認する、承認しない、標準入力が端末でない、タグがあって Release がない、配布物のない下書き・そろった下書き・足りないか余分な下書き、公開済み |
+| `tests/release-check-test.sh` | 確かめで止まるケース。[確かめること](#確かめること)の 1 の `gh` のバージョン（新しいバージョンが通ることを含む）とルートでないところに置いたコピー、2〜8 |
+| `tests/release-failure-test.sh` | 手元だけ・`origin` だけ・違うタグ・注釈付きでないタグ・タグのない Release・同じタグの Release が 2 つ、一覧を読めない、6〜8 をタグのコミットで確かめること、各手順の失敗と流し直し、公開の前の確かめの失敗、引数の誤りと `--help` |
+
+- 各ケースは、どれか 1 つのファイルにだけ置く。3 つを合わせると、上の表のケースをすべて流す
+- 分けるときは、ケースの手順と確かめる内容を変えない。変えるのは、置き場所と、冒頭の説明、節の説明、最後の `PASS` の行の文だけにする
+- 最後の `PASS` の行は、そのファイルが確かめたケースに合わせる。`tests/release-test.sh` の行から確かめで止まるケースを除き、`tests/release-check-test.sh` には自分の行を置く
+- `tests/release-check-test.sh` の名前は、`docs/ci.md` の[長いファイルを分ける](ci.md#長いファイルを分ける)の決まりで、元の名前にまとまりの名前を足した形にする。まとまりは、この文書の[確かめること](#確かめること)にあたる
+- 各ファイルの冒頭の説明には、そのファイルが持つケースと、残りのケースがどのファイルにあるかを書く。`tests/release-test-lib.sh` の冒頭の、読み込むファイルの一覧も合わせる
+- 3 つのファイルは、`tests/test-weights` に重みを持つ（[分けたときの重み](#分けたときの重み)）
+
+#### 分けたときの重み
+
+`tests/release-check-test.sh` を足すときは、分ける前の `tests/release-test.sh` の重み（macOS の CI の実測）を、手元で流した 2 つの所要時間の比で分けて、2 つの重みにする。macOS の CI の実測を待たずに、分けたあとの値に近い目安を置くため。
+
+1. 分けたあとの `tests/release-test.sh` と `tests/release-check-test.sh` を、`SQUAD_KIT_TEST_JOBS=1 bash tests/run.sh tests/release-test.sh tests/release-check-test.sh` で 1 本ずつ流す。並列の負荷で、比がずれないようにするため
+2. 2 つの `==== PASS` の行の秒数を a（`release-test.sh`）と b（`release-check-test.sh`）とする
+3. 分ける前の重みを W とし、`release-test.sh` に W × a ÷ (a + b)、`release-check-test.sh` に W × b ÷ (a + b) を、それぞれ切り上げて書く
+
+ケースの数の比では分けない。確かめで止まるケースは、配布物を作らずに止まるので、1 つのケースが承認のケースよりずっと短いため。分けた 2 つの重みはどちらも W 以下で、W は 150 秒以下なので、[重みの上限](ci.md#時間の予算)を超えない。
+
+この重みは目安で、採取元の行（`tests/test-weights` の `# 更新したテストの採取元:` など）は足さない。macOS の CI の実測が出たら、`CONTRIBUTING.md` の「テストを書く決まり」のとおり、2 倍以上ずれたときに実測を写して直す。
+
 `tests/build-assets-test.sh` は、一時の Git のリポジトリにタグを付けて、`scripts/build-assets.sh` を流す。配布物の一番上が 1 つのディレクトリであること、中身が `git archive` と同じこと、`SHA256SUMS` が 2 行で `shasum -a 256 -c` が通ることを確かめる。`VERSION` がタグと違う、`HEAD` がタグと違う、`MANIFEST` が合わない、リンクを含むときに止まることも確かめる。
 
 同じテストに、コミットの形のケースを足す。
@@ -331,4 +361,8 @@ bash scripts/build-assets.sh --commit <コミット> <出力先>
 | ワークフローの承認に Environment の reviewers を使う | 公開の確認と合わせて 2 回の承認になる。コマンドが流れを待てず、人が画面を行き来する |
 | 公開の前に、もう 1 回確認を求める | 確かめが通らなければ公開しないので、人が判断する材料が増えない。要件の確認は 1 回にそろえる |
 | 確かめで止まったとき、下書きや配布物を消す | 差し替えのおそれを人が調べる材料が消える |
+| 確かめで止まるケースのファイルを `tests/release-preflight-test.sh` や `tests/release-stop-test.sh` にする | この文書の[確かめること](#確かめること)と名前が対応しない。止まるケースは `tests/release-failure-test.sh` にもあり、`stop` では分けた境が読めない |
+| 分けたときの重みを、分ける前の値のまま 2 つに置く | 分けたあとの値に合わせる要件に合わない。シャードの分け方で、2 つの合計を実際の倍に見積もる |
+| 分けたときの重みを、ケースの数の比で分ける | 確かめで止まるケースは承認のケースよりずっと短く、数の比では `tests/release-check-test.sh` を大きく見積もる |
+| 分けたときの重みを、PR の macOS の CI の実測を待って書く | 実装の引き継ぎが CI を待つことになる。実測で直す決まりがすでにあるので、目安を置いてあとで直せる |
 | `gh release verify` で確かめる | 不変の Release になったあとの確かめで、公開の前の下書きには使えない。使う人と同じ確かめを公開の前に流すため、入口の `--verify` を使う |

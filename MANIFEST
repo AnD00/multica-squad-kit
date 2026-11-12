@@ -70,7 +70,7 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
 5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
-81ce1b46d45060b24b55278a02db39f9e4a84ba0806342d56b333de5bf11f80b  ./docs/release.md
+2cc58e6c146fba99cf72769961020240c31fa55bc2d399e53fd36b6d3df8357d  ./docs/release.md
 965a009c6f8e3262c6d33ab09d7288b066b6282ee66bcd8472f6c45a56b8cabc  ./docs/review-wait.md
 2e01bc767f204b6a3c5fd70b01bdfa5e3ef5457bc7887e9a0a8ba615b75c0435  ./docs/run-status.md
 d92c09520ff698c6240542eb4f71b60e6f6ff3f6a4f680638965cef32002ccde  ./docs/setup-completion.md
