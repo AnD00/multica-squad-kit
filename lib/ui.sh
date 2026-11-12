@@ -105,6 +105,17 @@ ui_mark() {
 	} >&$fd
 }
 
+# ui_complete <out|err> <名前> [値]: 完了の印と名前を太字の青緑にし、値は既定の色で添える。
+ui_complete() {
+	local target=$1 text=$2 value=${3-} fd
+	case $target in out) fd=1 ;; err) fd=2 ;; *) return 1 ;; esac
+	{
+		ui_paint "$target" done "✔ $text"
+		if [[ -n $value ]]; then printf '  %s' "$value"; fi
+		printf '\n'
+	} >&$fd
+}
+
 # _ui_character <本文> <バイトの位置>: その位置の文字のバイト数と表示の幅を、
 # ui_character_bytes と ui_character_width に置く。幅の計算と行を切る処理で共有する。
 # 読めないバイトは 1 バイトで幅 1 にし、次のバイトから読み直す。

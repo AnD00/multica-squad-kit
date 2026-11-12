@@ -330,3 +330,15 @@ cmp "$test_dir/out" "$test_dir/expected"
 printf '│\n' >"$test_dir/expected"
 cmp "$test_dir/err" "$test_dir/expected"
 echo 'PASS ui: 本文の罫線だけを灰にし、色が出ないときも同じ罫線と本文を出す'
+
+# 完了の印と名前だけを太字の青緑にし、URLなどの値は既定の色で出す。
+probe='source "$1/lib/ui.sh"; ui_init; ui_complete out 名前 URL; ui_complete err 終了'
+run_pty both TERM=xterm-256color
+grep -qxF "$esc[1;38;5;30m✔ 名前$esc[0m  URL" <(tr -d '\r' <"$test_dir/out")
+grep -qxF "$esc[1;38;5;30m✔ 終了$esc[0m" <(tr -d '\r' <"$test_dir/err")
+run_pty both TERM=xterm-256color NO_COLOR=1
+printf '✔ 名前  URL\n' >"$test_dir/expected"
+cmp <(tr -d '\r' <"$test_dir/out") "$test_dir/expected"
+printf '✔ 終了\n' >"$test_dir/expected"
+cmp <(tr -d '\r' <"$test_dir/err") "$test_dir/expected"
+echo 'PASS ui: 完了の印と名前は太字の青緑、値は既定の色。NO_COLORでも同じ記号と配置を出す'

@@ -14,6 +14,7 @@ export RELEASE_RUN_FIND_INTERVAL=0
 #   GH_VERSION_OUT / GH_VERSION_FAIL: --version の出力と失敗
 #   GH_LIST_FAIL: Release の一覧を読めない
 #   GH_CREATE_FAIL / GH_WORKFLOW_FAIL / GH_WATCH_FAIL / GH_EDIT_FAIL: release create、workflow run、run watch、release edit の失敗
+#   GH_EDIT_EMPTY: 空でないと、release edit は URL を返さず成功する
 #   GH_RUNS_MODE: run list の返し方（空: 1 件 / none: 見つからない / dup: 2 件 / fail: 読めない）、GH_RUNS_DELAY: 見つかるまでの空振りの回数
 #   GH_TAMPER: 配布物の差し替え（content / sums / install / install-sum）
 #   GH_ATTEST_FAIL: 証明を拒むファイル名、GH_ATTEST_FAIL_WITH: bundle（--bundle ありだけ）/ nobundle / 空（どちらも）
@@ -222,7 +223,7 @@ if [[ ${1:-} == release && ${2:-} == edit ]]; then
 	[[ -z ${GH_EDIT_FAIL:-} ]] || { echo 'intentional edit failure' >&2; exit 1; }
 	[[ ${3:-} == v1.6.0 && ${4:-} == --repo && ${5:-} == example/kit && ${6:-} == --draft=false ]] || { echo "unexpected release edit: $*" >&2; exit 1; }
 	jq '(.[] | select(.tag_name == "v1.6.0")).draft = false | (.[] | select(.tag_name == "v1.6.0")).html_url = "https://github.com/example/kit/releases/tag/v1.6.0"' "$GH_RELEASES" >"$GH_RELEASES.new" && mv "$GH_RELEASES.new" "$GH_RELEASES"
-	echo 'https://github.com/example/kit/releases/tag/v1.6.0'
+	if [[ -z ${GH_EDIT_EMPTY:-} ]]; then echo 'https://github.com/example/kit/releases/tag/v1.6.0'; fi
 	exit 0
 fi
 
@@ -269,7 +270,7 @@ notes_expected=$'新しいバージョンの 1 段落目。\n\n- 項目 1\n- 項
 draft_url=https://github.com/example/kit/releases/tag/untagged-0123456789ab
 published_url=https://github.com/example/kit/releases/tag/v1.6.0
 run_url=https://github.com/example/kit/actions/runs/4242
-gh_env_vars='GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY GH_WATCH_DELAY GH_JOBS_MODE GH_JOBS_DONE'
+gh_env_vars='GH_EDIT_EMPTY GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY GH_WATCH_DELAY GH_JOBS_MODE GH_JOBS_DONE'
 
 # make_case <名前> [origin の URL]: bare の origin と、その URL を insteadOf で bare に向けた作業コピーを作る。
 # 作業コピーは、配布物を作るスクリプトと本物の install.sh を持つ。一覧には、別のバージョンの公開済みの Release だけがある。

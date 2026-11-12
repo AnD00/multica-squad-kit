@@ -15,6 +15,7 @@ tests/webhooks-test.sh 108
 tests/installation-test.sh 88
 tests/squad-pr-watch-register-test.sh 83
 tests/project-create-test.sh 81
+tests/release-display-test.sh 58
 tests/project-linking-test.sh 79
 tests/setup-runtimes-claude-test.sh 79
 tests/squad-review-wait-report-test.sh 74

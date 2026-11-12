@@ -447,8 +447,19 @@ find_run() {
 	stop "起こした $workflow_file の実行が、一覧に見つかりません。下書きは残してあります。GitHub の Actions の画面で実行を確かめてください。動いているなら終わってから、配布物が載っていなければ、流し直してください。"
 }
 
+# 確かめ中の項目。取得中は空にし、2〜5 の確かめを始めるときだけ置く。
+verify_name=
+verify_value=
+begin_verify() { verify_name=$1 verify_value=$2; }
+fail_verify() {
+	[[ -n $verify_name ]] || return 0
+	ui_step_line fail "$(ui_pad 19 "$verify_name")" "$verify_value"
+	verify_name= verify_value=
+}
+
 # verify_stop <理由>: 公開の前の確かめで止まる。公開せず、下書きと配布物は残す。
 verify_stop() {
+	fail_verify
 	stop "$1 公開しません。下書きと配布物は残してあります。配布物の差し替えのおそれがあるので、人が確かめるまで流し直さないでください。"
 }
 
@@ -461,6 +472,7 @@ attest() {
 		--signer-workflow "$attest_signer_workflow" \
 		--source-ref "refs/tags/$version" \
 		--deny-self-hosted-runners 2>&1 </dev/null) || {
+		fail_verify
 		fail_step
 		printf '%s\n' "$result" >&2
 		verify_stop "証明の束で、${file##*/} の証明を確かめられませんでした。"
@@ -474,9 +486,10 @@ download_asset() {
 	[[ -f $dir/$name && ! -L $dir/$name ]] || verify_stop "配布物を取得できませんでした: $name"
 }
 
-# verify_row <項目の名前> <値>: 通った確かめの行を、4 の手順の続きの行に足す。名前は一番長いものにそろえる。
+# verify_row: 通った確かめの行を、4 の手順の続きの行に足す。名前は一番長いものにそろえる。
 verify_row() {
-	ui_step_line ok "$(ui_pad 19 "$1")" "$2"
+	ui_step_line ok "$(ui_pad 19 "$verify_name")" "$verify_value"
+	verify_name= verify_value=
 }
 
 # 公開の前の確かめ（docs/release.md の「公開の前の確かめ」）。
@@ -493,17 +506,20 @@ verify_draft() {
 	download_asset "$id_sums" SHA256SUMS "$assets"
 	download_asset "$id_bundle" "$bundle_name" "$assets"
 	# 2: タグの install.sh で、使う人の入口と同じ確かめ（証明、チェックサム、一覧）を流す。
+	begin_verify 'タグの install.sh' '証明  チェックサム  tar.gz の中の一覧'
 	git ls-tree "$version" -- install.sh | grep -Eq '^100(644|755) blob ' || verify_stop 'タグの install.sh が、通常のファイルではありません。'
 	git show "$version:install.sh" >"$tag_install" || verify_stop 'タグの install.sh を読めません。'
 	# install.sh の文は導入する人に向けたものなので、画面に出さない。失敗したときだけ、そのまま出す。
 	install_command=(bash "$tag_install" --verify "$version" "$assets")
 	if ! "${install_command[@]}" >"$work_tmp/install-output" 2>&1 </dev/null; then
+		fail_verify
 		fail_step
 		show_failure "${install_command[*]}" "$work_tmp/install-output"
 		verify_stop "タグの install.sh の --verify が通りませんでした。"
 	fi
-	verify_row 'タグの install.sh' '証明  チェックサム  tar.gz の中の一覧'
+	verify_row
 	# 3: 配布物の install.sh の証明、SHA256SUMS の行、タグの install.sh との一致。
+	begin_verify '配布物の install.sh' '証明  SHA256SUMS の行  タグの install.sh'
 	attest "$assets/install.sh" "$assets/$bundle_name"
 	sums_count=0
 	actual=$(shasum -a 256 "$assets/install.sh") || verify_stop 'install.sh のチェックサムを計算できません。'
@@ -518,20 +534,23 @@ verify_draft() {
 	[[ $sums_count -eq 1 ]] || verify_stop "SHA256SUMS の install.sh の行が、1 行ではありません（$sums_count 行）。"
 	[[ $sums_line == "$actual" ]] || verify_stop "install.sh のチェックサムが、SHA256SUMS と違います。"
 	cmp -s "$assets/install.sh" "$tag_install" || verify_stop "配布物の install.sh が、タグの install.sh と違います。"
-	verify_row '配布物の install.sh' '証明  SHA256SUMS の行  タグの install.sh'
+	verify_row
 	# 4: 配布物を展開したものと、git archive を展開したものを比べる。
+	begin_verify '配布物の中身' "git archive $version"
 	tar -xzf "$assets/$tar_name" -C "$vdir/archive" || verify_stop '配布物を展開できません。'
 	git archive --format=tar --prefix="multica-squad-kit-$version/" "$version" | tar -xf - -C "$vdir/expected" || verify_stop 'タグの中身を取り出せません。'
 	diff -r "$vdir/archive" "$vdir/expected" >"$vdir/diff" 2>&1 || {
+		fail_verify
 		fail_step
 		head -n 20 "$vdir/diff" >&2
 		verify_stop '配布物の中身が、git archive で取り出したタグの中身と違います。'
 	}
-	verify_row '配布物の中身' "git archive $version"
+	verify_row
 	# 5: 証明の束で、3 つの証明を確かめる。
+	begin_verify 証明 '配布物  SHA256SUMS'
 	attest "$assets/$tar_name" "$assets/$bundle_name"
 	attest "$assets/SHA256SUMS" "$assets/$bundle_name"
-	verify_row 証明 '配布物  SHA256SUMS'
+	verify_row
 }
 
 # 確かめるところから続けたときは、この実行でワークフローを起こしていないので、成功した実行のうち最も新しいものを探す。
@@ -598,15 +617,16 @@ if ! url=$("${edit_command[@]}" 2>"$work_tmp/edit-error" </dev/null); then
 	command_failed '' "${edit_command[*]}" "$work_tmp/edit-error" 'Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を確かめ直して公開します。'
 fi
 end_step
-# 終わりのまとめ（docs/release.md の「終わりのまとめ」）。
+# 終わりの表示（docs/release.md の「終わりの表示」）。
 [[ $action != verify ]] || run_url=$(find_past_run)
 printf '\n'
-ui_line out done "${version} の Release を公開しました"
-printf '  バージョン: %s\n' "$version"
-printf '  コミット: %s\n' "$commit"
-printf '  Release: %s\n' "${url:-https://github.com/$repo/releases/tag/$version}"
-printf '  配布物:\n'
+ui_complete out "$version" "${url:-https://github.com/$repo/releases/tag/$version}"
+printf '  '
+ui_line out default "$commit"
+printf '\n'
 for asset_name in "$tar_name" install.sh SHA256SUMS "$bundle_name"; do
-	printf '    %s\n' "$asset_name"
+	printf '  %s\n' "$asset_name"
 done
-printf '  発行のワークフロー: %s\n' "${run_url:-見つかりません（GitHub の Actions の画面で確かめてください）}"
+printf '\n  '
+if [[ -n $run_url ]]; then ui_line out default "$run_url"
+else ui_mark out warn '発行のワークフローの実行が見つかりません。GitHub の Actions の画面で確かめてください。'; fi

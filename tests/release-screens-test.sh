@@ -80,7 +80,11 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
     assert b'\x1b[' in before if scene != 5 else b'\x1b' not in before + after
     plain = ansi.sub(b'', after).decode().replace('\r\n', '\n')
     if expected == 0:
-        assert 'v1.6.0 の Release を公開しました' in plain, scene
+        summary=plain.rsplit('\n✔ v1.6.0  ',1)[1].splitlines()
+        assert summary[0]=='https://github.com/example/kit/releases/tag/v1.6.0',scene
+        assert re.fullmatch(r'  [0-9a-f]{40}', summary[1]),(scene,summary)
+        assert summary[2:8]==['','  multica-squad-kit-v1.6.0.tar.gz','  install.sh','  SHA256SUMS','  multica-squad-kit-v1.6.0.sigstore.json',''],(scene,summary)
+        assert summary[8]=='  https://github.com/example/kit/actions/runs/4242',(scene,summary)
         assert '配布物を確かめる' in plain and 'Release を公開する' in plain, scene
         if scene != 2:
             assert '発行のワークフローに配布物を作らせ、終わるまで待つ' in plain, scene
@@ -91,6 +95,7 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
     else:
         assert '$ bash ' in plain and '--verify v1.6.0' in plain
         assert 'stub: attestation failed' in plain
+        assert '✖ タグの install.sh' in plain and '✖ 配布物を確かめる' in plain
         assert 'ここから】' not in plain
 assert not list(screens.glob('*.png'))
 PY
