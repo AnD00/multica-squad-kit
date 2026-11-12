@@ -19,6 +19,7 @@ export RELEASE_RUN_FIND_INTERVAL=0
 #   GH_ATTEST_FAIL: 証明を拒むファイル名、GH_ATTEST_FAIL_WITH: bundle（--bundle ありだけ）/ nobundle / 空（どちらも）
 #   GH_DL_FAIL: 取得に失敗する配布物の ID
 #   GH_WATCH_DELAY: run watch が終わるまで待つ秒数（空なら待たない）
+#   GH_PAST_RUN: 空でないと、run list に、この実行より前の v1.6.0 の実行（失敗 1 件、成功 2 件）が並ぶ
 # __seed <差し替え>: テストが、下書きの Release に配布物を載せた状態を作るために呼ぶ（記録しない）。
 mkdir -p "$test_dir/bin"
 # タグの push だけ、v1.10.0 の公開ログ（タスクの本文）の文面を出す。
@@ -157,16 +158,21 @@ if [[ ${1:-} == run && ${2:-} == list ]]; then
 	now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 	extra='[]'
 	if [[ -f $GH_STATE/dispatched && ${GH_RUNS_MODE:-} != none && $calls -gt ${GH_RUNS_DELAY:-0} ]]; then
-		extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4242"}]'
+		extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4242"}]'
 		if [[ ${GH_RUNS_MODE:-} == dup ]]; then
-			extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4242"},{"databaseId":4243,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4243"}]'
+			extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4242"},{"databaseId":4243,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4243"}]'
 		fi
 	fi
-	jq -n --arg ref "$ref" --arg now "$now" --argjson extra "$extra" '[
-		{databaseId: 1, headBranch: $ref, createdAt: "2020-01-01T00:00:00Z", event: "workflow_dispatch", url: "https://github.com/example/kit/actions/runs/1"},
-		{databaseId: 2, headBranch: "main", createdAt: $now, event: "workflow_dispatch", url: "https://github.com/example/kit/actions/runs/2"},
-		{databaseId: 3, headBranch: $ref, createdAt: $now, event: "push", url: "https://github.com/example/kit/actions/runs/3"}
-	] + $extra' | jq -r "$filter"
+	# GH_PAST_RUN があると、この実行より前の v1.6.0 の実行が並ぶ（新しい順に、失敗、成功、さらに前の成功）。
+	past='[]'
+	if [[ -n ${GH_PAST_RUN:-} ]]; then
+		past='[{"databaseId":4101,"headBranch":"v1.6.0","createdAt":"2020-03-01T00:00:00Z","event":"workflow_dispatch","conclusion":"failure","url":"https://github.com/example/kit/actions/runs/4101"},{"databaseId":4100,"headBranch":"v1.6.0","createdAt":"2020-02-01T00:00:00Z","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4100"},{"databaseId":4099,"headBranch":"v1.6.0","createdAt":"2020-01-15T00:00:00Z","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4099"}]'
+	fi
+	jq -n --arg ref "$ref" --arg now "$now" --argjson extra "$extra" --argjson past "$past" '[
+		{databaseId: 1, headBranch: $ref, createdAt: "2020-01-01T00:00:00Z", event: "workflow_dispatch", conclusion: "failure", url: "https://github.com/example/kit/actions/runs/1"},
+		{databaseId: 2, headBranch: "main", createdAt: $now, event: "workflow_dispatch", conclusion: "success", url: "https://github.com/example/kit/actions/runs/2"},
+		{databaseId: 3, headBranch: $ref, createdAt: $now, event: "push", conclusion: "success", url: "https://github.com/example/kit/actions/runs/3"}
+	] + $extra + $past' | jq -r "$filter"
 	exit 0
 fi
 
@@ -331,6 +337,18 @@ run_release() {
 	(cd "$work" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" \
 		python3 "$root/tests/ui-pty.py" none "$case_dir/out" "$case_dir/err" --stdin-tty "$input" -- \
 		/bin/bash -c 'rc=0; /bin/bash scripts/release.sh "$@" || rc=$?; printf "%s" "$rc" >"$0"' "$case_dir/rc" "$@")
+	rc=$(<"$case_dir/rc")
+}
+
+# run_release_tty <入力のファイル> [環境変数の指定...]: 標準入力と、標準出力・標準エラー出力のどちらも疑似端末につなぎ、
+# 256 色の端末の TERM で流す。色の判定を確かめるために使う。NO_COLOR は外し、指定があれば付ける。
+run_release_tty() {
+	local input=$1
+	shift
+	rm -f "$case_dir/rc"
+	(cd "$work" && env -u BASH_ENV -u NO_COLOR PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" TERM=xterm-256color "$@" \
+		python3 "$root/tests/ui-pty.py" both "$case_dir/out" "$case_dir/err" --stdin-tty "$input" -- \
+		/bin/bash -c 'rc=0; /bin/bash scripts/release.sh || rc=$?; printf "%s" "$rc" >"$0"' "$case_dir/rc")
 	rc=$(<"$case_dir/rc")
 }
 

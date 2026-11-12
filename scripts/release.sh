@@ -450,7 +450,12 @@ verify_draft() {
 	# 2: タグの install.sh で、使う人の入口と同じ確かめ（証明、チェックサム、一覧）を流す。
 	git ls-tree "$version" -- install.sh | grep -Eq '^100(644|755) blob ' || verify_stop 'タグの install.sh が、通常のファイルではありません。'
 	git show "$version:install.sh" >"$tag_install" || verify_stop 'タグの install.sh を読めません。'
-	bash "$tag_install" --verify "$version" "$assets" </dev/null || verify_stop "タグの install.sh の --verify が通りませんでした。"
+	# install.sh の文は導入する人に向けたものなので、画面に出さない。失敗したときだけ、そのまま出す。
+	if ! bash "$tag_install" --verify "$version" "$assets" >"$work_tmp/install-output" 2>&1 </dev/null; then
+		show_command_output 'install.sh --verify' "$work_tmp/install-output"
+		verify_stop "タグの install.sh の --verify が通りませんでした。"
+	fi
+	result_row 一致 'タグの install.sh での確かめ' '証明、チェックサム、tar.gz の中の一覧'
 	# 3: 配布物の install.sh の証明、SHA256SUMS の行、タグの install.sh との一致。
 	attest "$assets/install.sh" "$assets/$bundle_name"
 	sums_count=0
@@ -466,6 +471,7 @@ verify_draft() {
 	[[ $sums_count -eq 1 ]] || verify_stop "SHA256SUMS の install.sh の行が、1 行ではありません（$sums_count 行）。"
 	[[ $sums_line == "$actual" ]] || verify_stop "install.sh のチェックサムが、SHA256SUMS と違います。"
 	cmp -s "$assets/install.sh" "$tag_install" || verify_stop "配布物の install.sh が、タグの install.sh と違います。"
+	result_row 一致 '配布物の install.sh' '証明、SHA256SUMS の行、タグの install.sh と同じ'
 	# 4: 配布物を展開したものと、git archive を展開したものを比べる。
 	tar -xzf "$assets/$tar_name" -C "$vdir/archive" || verify_stop '配布物を展開できません。'
 	git archive --format=tar --prefix="multica-squad-kit-$version/" "$version" | tar -xf - -C "$vdir/expected" || verify_stop 'タグの中身を取り出せません。'
@@ -473,9 +479,20 @@ verify_draft() {
 		head -n 20 "$vdir/diff" >&2
 		verify_stop '配布物の中身が、git archive で取り出したタグの中身と違います。'
 	}
+	result_row 一致 '配布物の中身' 'タグから取り出した中身と同じ'
 	# 5: 証明の束で、3 つの証明を確かめる。
 	attest "$assets/$tar_name" "$assets/$bundle_name"
 	attest "$assets/SHA256SUMS" "$assets/$bundle_name"
+	result_row 一致 証明 '配布物と SHA256SUMS'
+}
+
+# 確かめるところから続けたときは、この実行でワークフローを起こしていないので、成功した実行のうち最も新しいものを探す。
+# 読めない、または見つからないときは、止まらずに、見つからないことを返す。
+find_past_run() {
+	local filter out
+	filter=".[] | select(.event == \"workflow_dispatch\" and .headBranch == \"$version\" and .conclusion == \"success\") | .url"
+	out=$(gh run list --repo "$repo" --workflow "$workflow_file" --event workflow_dispatch --limit 20 --json headBranch,conclusion,event,url --jq "$filter" 2>/dev/null </dev/null) || out=
+	printf '%s' "${out%%$'\n'*}"
 }
 
 # 公開: 確認で出したコミットを明示してタグを作る。--force は付けない。
@@ -522,12 +539,22 @@ if [[ $action != verify ]]; then
 fi
 # 5: 配布物を確かめる。
 step_heading 4
-printf '配布物を確かめます。\n'
 verify_draft
-printf '配布物の確かめが通りました。\n'
 # 6: 公開する。
 step_heading 5
 if ! url=$(gh release edit "$version" --repo "$repo" --draft=false </dev/null); then
 	stop "Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を確かめ直して公開します。"
 fi
-printf 'Release を公開しました: %s\n' "${url:-https://github.com/$repo/releases/tag/$version}"
+result_row 成功 公開 '下書きから公開に切り替えました'
+# 終わりのまとめ（docs/release.md の「終わりのまとめ」）。
+[[ $action != verify ]] || run_url=$(find_past_run)
+printf '\n'
+ui_line out done "${version} の Release を公開しました"
+printf '  バージョン: %s\n' "$version"
+printf '  コミット: %s\n' "$commit"
+printf '  Release: %s\n' "${url:-https://github.com/$repo/releases/tag/$version}"
+printf '  配布物:\n'
+for asset_name in "$tar_name" install.sh SHA256SUMS "$bundle_name"; do
+	printf '    %s\n' "$asset_name"
+done
+printf '  発行のワークフロー: %s\n' "${run_url:-見つかりません（GitHub の Actions の画面で確かめてください）}"

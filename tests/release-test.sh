@@ -87,6 +87,36 @@ captured = output.split(start, 1)[1].split(end, 1)[0]
 assert captured == Path(raw).read_bytes() + b'\n'
 PY
 }
+# 配布物の確かめは、4 項目が 1 行ずつ出る。タグの install.sh の出力と、「展開も実行もしていません」は出ない。
+expect_verify_rows() {
+	local expected
+	expected=$(
+		printf '  一致  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧\n'
+		printf '  一致  配布物の install.sh: 証明、SHA256SUMS の行、タグの install.sh と同じ\n'
+		printf '  一致  配布物の中身: タグから取り出した中身と同じ\n'
+		printf '  一致  証明: 配布物と SHA256SUMS\n'
+	)
+	[[ $(sed -n '/^\[[0-9]\/[0-9]\] 配布物を確かめる$/,/^\[[0-9]\/[0-9]\] Release を公開する$/p' "$case_dir/out" | grep '^  一致  ') == "$expected" ]]
+	! grep -qF '展開も実行もしていません' "$case_dir/out" "$case_dir/err"
+	! grep -qF '確かめが通りました' "$case_dir/out" "$case_dir/err"
+}
+# expect_summary <コミット> <Release の URL> <ワークフローの実行の URL か、見つからないとき空>: 終わりのまとめが設計のとおり、出力の末尾にある。
+expect_summary() {
+	local run_line expected
+	run_line=$3
+	[[ -n $run_line ]] || run_line='見つかりません（GitHub の Actions の画面で確かめてください）'
+	expected=$(
+		printf '\n'
+		printf 'v1.6.0 の Release を公開しました\n'
+		printf '  バージョン: v1.6.0\n'
+		printf '  コミット: %s\n' "$1"
+		printf '  Release: %s\n' "$2"
+		printf '  配布物:\n    multica-squad-kit-v1.6.0.tar.gz\n    install.sh\n    SHA256SUMS\n    multica-squad-kit-v1.6.0.sigstore.json\n'
+		printf '  発行のワークフロー: %s\n' "$run_line"
+	)
+	[[ $(tail -n 11 "$case_dir/out") == "$expected" ]]
+	grep -qxF '  成功  公開: 下書きから公開に切り替えました' "$case_dir/out"
+}
 # expect_screen <結果の語> <タグと Release の値> <タグを付けるコミット> <最初の手順の番号>: 確認の前の画面の全体（確かめの一覧から、することの一覧まで）が設計のとおり。
 expect_screen() {
 	local head12 commit12
@@ -154,8 +184,10 @@ grep -A1 -xF "  作成  下書きの Release: $draft_url" "$case_dir/out" | tail
 grep -qxF "  実行: $run_url" "$case_dir/out"
 grep -qE '^  成功  発行のワークフロー: ([0-9]+ 秒|[0-9]+ 分 [0-9]+ 秒)$' "$case_dir/out"
 ! grep -qE 'Enumerating objects|Writing objects|To https://|\[new tag\]|Created workflow_dispatch event|To see|JOBS|Set up job|completed with' "$case_dir/out" "$case_dir/err"
-grep -qxF '配布物の確かめが通りました。' "$case_dir/out"
-grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
+expect_verify_rows
+expect_summary "$main_head" "$published_url" "$run_url"
+# 色は、端末でない出力には付けない。
+! grep -q "$(printf '\033')" "$case_dir/out" "$case_dir/err"
 grep -qF '公開しますか [y/N]: ' "$case_dir/err"
 no_leftover
 
@@ -370,6 +402,8 @@ run_release "$test_dir/answer-y"
 expect_steps 2
 expect_headings 2
 grep -qF "タグを付けるコミット: ${tag_commit:0:12} Release content" "$case_dir/out"
+expect_verify_rows
+expect_summary "$tag_commit" "$published_url" "$run_url"
 [[ $(draft_flag) == false ]]
 # 配布物は、main のあとのファイルを含まない（タグの中身から作られている）。
 [[ ! -e $case_dir/gh/built/multica-squad-kit-v1.6.0.tar.gz || -z $(tar -tzf "$case_dir/gh/built/multica-squad-kit-v1.6.0.tar.gz" | grep after.txt || true) ]]
@@ -395,6 +429,8 @@ before_in_log '^workflow run' '^run watch'
 before_in_log '^run watch' '^release edit'
 expect_steps 3
 expect_headings 3
+expect_verify_rows
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" "$run_url"
 [[ $(draft_flag) == false ]]
 no_leftover
 
@@ -407,15 +443,37 @@ run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 log_lacks '^release create'
 log_lacks '^workflow run'
-log_lacks '^run list'
 log_lacks '^run watch'
 [[ $(log_count 'releases/assets/') == 4 ]]
 before_in_log 'releases/assets/' '^release edit'
+# ワークフローを起こしていないので、実行の一覧は、公開のあとのまとめのためだけに 1 回読む。
+[[ $(log_count '^run list') == 1 ]]
+before_in_log '^release edit' '^run list'
 expect_steps 4
 expect_headings 4
-grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
+expect_verify_rows
+# 一覧に実行がないときは、見つからないことを出して、0 で終わる。
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" ''
 [[ $(draft_flag) == false ]]
 no_leftover
+
+# 確かめから続けるとき、前に成功した実行があれば、最も新しい成功の実行の URL を、まとめに出す。
+make_case draft-complete-past-run
+tag_here
+add_release true
+seed_assets
+GH_PAST_RUN=1 run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" https://github.com/example/kit/actions/runs/4100
+# 実行の一覧を読めなくても、止まらずに、見つからないことを出す。公開は済んでいる。
+make_case draft-complete-runs-fail
+tag_here
+add_release true
+seed_assets
+GH_RUNS_MODE=fail run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" ''
+[[ $(draft_flag) == false ]]
 
 # 配布物が足りないか余分な下書き: 理由と、画面で消すことを出して止まり、何も変えない。
 make_case draft-missing
@@ -784,6 +842,18 @@ add_release true
 seed_assets
 GH_ATTEST_FAIL=SHA256SUMS GH_ATTEST_FAIL_WITH=nobundle expect_verify_stop 'タグの install.sh の --verify が通りませんでした。'
 grep -qF '証明を確かめられませんでした: SHA256SUMS' "$case_dir/err"
+# 隠していた install.sh の出力は、区切りの中にそのまま出て、そのあとに止まるときの案内が出る。確かめの行は 1 つも出ない。
+python3 - "$case_dir/err" <<'PY'
+from pathlib import Path
+import sys
+output = Path(sys.argv[1]).read_text(encoding='utf-8')
+start = output.index('【install.sh --verify の出力 ここから】\n')
+end = output.index('【install.sh --verify の出力 ここまで】\n')
+assert start < end
+assert '証明を確かめられませんでした: SHA256SUMS' in output[start:end]
+assert 'エラー: タグの install.sh の --verify が通りませんでした。' in output[end:]
+PY
+! sed -n '/^\[[0-9]\/[0-9]\] 配布物を確かめる$/,$p' "$case_dir/out" | grep -q '^  一致  '
 log_lacks '^attestation verify .* --bundle '
 # チェックサムが合わない: 配布物が SHA256SUMS と違う。
 make_case verify-checksum
@@ -798,6 +868,9 @@ tag_here
 add_release true
 seed_assets install
 expect_verify_stop '配布物の install.sh が、タグの install.sh と違います。'
+# 通った確かめの行だけが出る: タグの install.sh での確かめは通り、配布物の install.sh の行は出ない。
+grep -qxF '  一致  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧' "$case_dir/out"
+! grep -qF '配布物の install.sh: ' "$case_dir/out"
 # 配布物の install.sh が SHA256SUMS と違う。
 make_case verify-install-sum
 tag_here
@@ -825,6 +898,50 @@ grep -qF '配布物の中身が、git archive で取り出したタグの中身�
 log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
 ! grep -qF 'Release を公開しました' "$case_dir/out"
+
+# 色: 端末では、結果の語が成功の色、終わりのまとめの見出しが完了の案内の色、止まるときの行がエラーの色になる。
+# 色の番号は manual.md の「表示の色と印」と同じ（成功 28、完了の案内 太字の 30、エラー 太字の 196）。
+esc=$(printf '\033')
+make_case color-success
+tag_here
+add_release true
+seed_assets
+run_release_tty "$test_dir/answer-y"
+[[ $rc == 0 ]]
+tr -d '\r' <"$case_dir/out" >"$case_dir/screen"
+grep -qxF "  ${esc}[38;5;28m一致${esc}[0m  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧" "$case_dir/screen"
+grep -qxF "  ${esc}[38;5;28m一致${esc}[0m  証明: 配布物と SHA256SUMS" "$case_dir/screen"
+grep -qxF "  ${esc}[38;5;28m成功${esc}[0m  公開: 下書きから公開に切り替えました" "$case_dir/screen"
+grep -qxF "${esc}[1;38;5;30mv1.6.0 の Release を公開しました${esc}[0m" "$case_dir/screen"
+# 色を付けるのは結果の語と見出しだけ。項目の名前と値、まとめの一覧には付けない。
+[[ $(sed "s/${esc}\[[0-9;]*m//g" "$case_dir/screen" | grep -c "$esc" || true) == 0 ]]
+make_case color-stop
+tag_here
+add_release true
+seed_assets install
+run_release_tty "$test_dir/answer-y"
+[[ $rc == 1 ]]
+tr -d '\r' <"$case_dir/err" >"$case_dir/screen"
+# 先頭は同じ行に続く確認の問いなので、行頭には合わせない。
+grep -qF "${esc}[1;38;5;196mエラー: 配布物の install.sh が、タグの install.sh と違います。" "$case_dir/screen"
+# NO_COLOR を付けると、端末でも色の制御文字を出さない。結果の語と印だけで種類が分かる。
+make_case color-none
+tag_here
+add_release true
+seed_assets
+run_release_tty "$test_dir/answer-y" NO_COLOR=1
+[[ $rc == 0 ]]
+! grep -q "$esc" "$case_dir/out" "$case_dir/err"
+grep -qF '  一致  証明: 配布物と SHA256SUMS' "$case_dir/out"
+grep -qF 'v1.6.0 の Release を公開しました' "$case_dir/out"
+make_case color-none-stop
+tag_here
+add_release true
+seed_assets install
+run_release_tty "$test_dir/answer-y" NO_COLOR=1
+[[ $rc == 1 ]]
+! grep -q "$esc" "$case_dir/out" "$case_dir/err"
+grep -qF 'エラー: 配布物の install.sh が、タグの install.sh と違います。' "$case_dir/err"
 
 # 公開が失敗する: 下書きが残り、1 で終わる。流し直すと、配布物を確かめ直して公開する。
 make_case edit-fails
