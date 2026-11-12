@@ -124,6 +124,9 @@ linux_trusted_hashes() {
 		release="$tmp/Release.$n"
 		if ! gpgv --homedir "$tmp" --keyring "$apt_keyring" --output "$release" "$inrel" >"$tmp/gpgv.log" 2>&1 || [[ ! -s $release ]]; then
 			sed 's/^/ci-install: gpgv: /' "$tmp/gpgv.log" >&2
+			{ echo "DIAG n=$n inrel=$inrel"; ls -la "$tmp" "$meta"; shasum -a 256 "$inrel"; gpgv --version | head -2; command -v gpgv
+			  gpgv --homedir "$tmp" --keyring "$apt_keyring" --output "$tmp/Retry" "$inrel" >/dev/null 2>&1; echo "retry rc=$?"; ls -la "$tmp/Retry"
+			  gpgv --keyring "$apt_keyring" --output "$tmp/Retry2" "$inrel" >/dev/null 2>&1; echo "retry-nohomedir rc=$?"; ls -la "$tmp/Retry2"; } 2>&1 | sed 's/^/ci-install: DIAG: /' >&2
 			return 1
 		fi
 		linux_release_ok "$release" || return 1
