@@ -179,7 +179,7 @@ e4d026426a279f70dc9b746853fb482ce103b670f5726ce24747de8e9c923bce  ./tests/fixtur
 73eb4d65e38382c60b5e28591ff076d74f5e764af5d25796d1df16ce9782f80b  ./tests/fixtures/cli/member-list.json
 f9ce3f4c67b1550210e811f353db239e2f9ca2a4bbf8c5ee1a2306c200526142  ./tests/fixtures/cli/squad-list.json
 941bedae10cb90cd9865ff3cb98b4c9d5ff26c027104c990fc6b75136ad96224  ./tests/gh-fixture.py
-ea6e7dda6b1549434f4ba0da2574167b32702ceafd607d24c5a1fdb1cc0db195  ./tests/gh-test.sh
+ddb25a5382ca2b59d39cd5f300438b8ab0c5513a9d252713b0173ca05542bdfe  ./tests/gh-test.sh
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
 41dccb97d9b032aca33eee4ce3580ec3908075e5484160e04d457112c54db833  ./tests/guard-check-test.sh
 3cb82e8f002781ce8c1c3766b91c3eb49f03147cc40c0f2cba55cb82f7e6eaf6  ./tests/host-test.sh

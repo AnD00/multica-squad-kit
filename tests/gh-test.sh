@@ -36,9 +36,13 @@ INHERITED FLAGS
 HELP
 		;;
 	'pr comment')
+		echo 'FLAGS'
+		if [[ ! -f $dir/no-attach ]]; then
+			echo "      --attach file            Attach an image or video file, in '<file>#<image alt text>' format"
+		fi
 		cat <<'HELP'
-FLAGS
   -b, --body text               Comment body
+  -F, --body-file file          Read body text from file (use "-" to read from standard input)
 
 INHERITED FLAGS
   -R, --repo [HOST/]OWNER/REPO   Select repository
@@ -172,6 +176,21 @@ allow api repos/example/template/issues/367/comments -f body=test
 allow pr comment 367 --body '--admin --auto --match-head-commit'
 block 'への 書き込み' api -X POST repos/other/repo/issues -f title=test
 echo 'PASS 既存操作: マージ済みかの取得、コメント、許可先以外への書き込みの拒否'
+
+allow pr comment 367 --body-file body.md --attach './shot.png#説明'
+allow pr comment https://github.com/example/template/pull/367 --attach shot.png
+allow pr comment https://github.com/example/template/pull/367 --attach=shot.png
+echo 'PASS attach: 本文ファイル・画像の説明・PR の URL・= 形式を元の引数で実行'
+
+block 'other/repo への gh pr comment は止めた' pr comment https://github.com/other/repo/pull/1 --attach shot.png
+block 'other/repo への gh pr comment は止めた' pr comment 367 --repo other/repo --attach shot.png
+block '値がない' pr comment 367 --attach
+echo 'PASS attach: URL・repo フラグの許可先以外と、値なしは拒否'
+
+touch "$test_dir/no-attach"
+block 'フラグの型が分からない' pr comment 367 --attach shot.png
+rm "$test_dir/no-attach"
+echo 'PASS attach: 古い gh のヘルプでは拒否し、本物に書き込まない'
 
 # ランタイムが本物の gh を先に置いた PATH を渡しても、通常のシェルから拒否する。
 # 関所を絶対パスで呼ぶテストだけでは、この抜け道を見つけられない。
