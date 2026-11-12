@@ -57,11 +57,19 @@
     },
     {
       "match": "gh pr view",
-      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
+      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f\",\n  \"mergeable\": \"CONFLICTING\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
     },
     {
       "match": "gh api repos/example/shop/branches/feat/cart-badge",
       "stdout": "{\n  \"name\": \"feat/cart-badge\",\n  \"commit\": {\n    \"sha\": \"9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f\"\n  }\n}"
+    },
+    {
+      "match": "squad-review-wait status issue-shop-1",
+      "stdout": "返事の待ち: 登録なし"
+    },
+    {
+      "match": "squad-pr-watch conflicts-check issue-shop-1",
+      "stdout": "コンフリクト: CONFLICTING head: 9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f"
     }
   ]
 }

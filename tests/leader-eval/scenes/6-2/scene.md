@@ -11,11 +11,11 @@
 
 コメントの本文: 「CI 3f9a2c1の失敗は、修正の役の作業中なので保留した」という記録です（`/note`）。
 
-タスクの状態は `in_progress` です。リーダーが `comment-5` で修正の役にレビューの指摘の修正を頼んでから、50 分たっています。修正の役の実行は、今も動いています。
+タスクの状態は `in_progress` です。リーダーが `comment-5` で修正の役にレビューの指摘の修正を頼んでから、50 分たっています。修正の役の実行は、今も動いています。PR は `CONFLICTING` ですが、この実行が PR に触れており、返事を待つ回はありません。
 
 ## 合格の基準
 
-1. [記録] 修正の役の実行の記録を読み、実行を止めず、状態を変えていない。 `判定: called: issue run-messages run-fix-1 && not-called: issue cancel-task && not-called: ^multica issue status`
+1. [記録] 修正の役の実行の記録を読み、実行を止めず、状態を変えず、別の修正の役を重ねて呼んでいない。 `判定: called: issue run-messages run-fix-1 && not-called: issue cancel-task && not-called: ^multica issue status && not-called: ^squad-dispatch-pick fix && not-posted: mention://agent/agent-(claude|codex)-fixer`
 2. [記録] 人間をメンションして、知らせている。 `判定: posted: mention://member/member1`
 3. [採点] 実行が 50 分ほど続いていることと、記録の要約（直近の作業と時刻、最後の push の時刻）を、人間に知らせている。
 4. [採点] 実行を止めるかどうかを、推す案（待つか止めるか）と理由を添えた 1 つの問いにしている。止める案を出すときは、止めると未 push の作業を失うおそれを書き、「失う作業はない」と断定していない。

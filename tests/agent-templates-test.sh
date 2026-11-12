@@ -70,7 +70,55 @@ EOF
 	done
 	echo "PASS templates: $scenario の有効な役だけが残り、値を文字列のまま差し込む"
 done
+# 原則・索引・人間の待ちは、役の構成によらず残る。
+for dir in "$test_dir/"*/; do
+	file=$dir/orchestrator
+	[[ -f $file ]] || continue
+	[[ $(wc -c <"$file") -le 12288 ]]
+	grep -qF 'マージ待ちまで進める' "$file"
+	grep -qF '代行せず、有効な役へ回す' "$file"
+	awk '/^## 判断の優先の原則$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file" >"$test_dir/principles"
+	[[ $(grep -cE '^[1-7]\. \*\*' "$test_dir/principles") -eq 7 ]]
+	grep -qx 'thinking_level: high' "$file"
+	grep -qF '実行の状態と記録を読んで答える' "$test_dir/principles"
+	grep -qF '同じ誤りや差し戻しが 2 回続いたら' "$test_dir/principles"
+	awk '/^## / {print}' "$file" >"$test_dir/headings"
+	printf '%s\n' '## 判断の優先の原則' '## 受け取ったら確かめること' '## 場面と手順' '## 重要の基準' '## このスクワッドの役' '## 人間を待つところ' '## このプロジェクトの値' >"$test_dir/want-headings"
+	cmp "$test_dir/headings" "$test_dir/want-headings"
+	grep -qF 'in_review' "$file"
+	grep -qF 'ほかの役を呼ばない' "$file"
+	awk '/^## 場面と手順$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file" >"$test_dir/index"
+	for phrase in 'PR を受け取る' '返事を待つ回の開始' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確かめるコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
+		grep -qF "$phrase" "$test_dir/index"
+	done
+	for ref in $(grep -oE 'leader-[a-z-]+\.md' "$test_dir/index" | sort -u); do
+		[[ -s $root/common/skills/squad-handoff/references/$ref ]]
+	done
+done
+echo 'PASS templates: 全構成に目的・7 原則・索引・役の事実・人間の待ちを置き、high と 12KB 以内を保つ'
 runtimes='["claude","codex"]'
+
+# 全分岐で長い方を足した上限を測る。役の相関を無視するので、すべての組み合わせを上回る。
+python3 - "$root/common/agents/orchestrator.md" "$root/tests/leader-eval/values.json" <<'PY_SIZE'
+import json, re, sys
+from pathlib import Path
+values = json.loads(Path(sys.argv[2]).read_text())
+text = re.sub(r"\{\{([^}]+)\}\}", lambda m: values[m[1]], Path(sys.argv[1]).read_text())
+stack = [[0]]
+for line in text.splitlines(keepends=True):
+    if line.startswith("<!-- IF "):
+        stack.append([0])
+    elif line.strip() == "<!-- ELSE -->":
+        stack[-1].append(0)
+    elif line.strip() == "<!-- ENDIF -->":
+        size = max(stack.pop())
+        stack[-1][-1] += size
+    else:
+        stack[-1][-1] += len(line.encode())
+assert len(stack) == 1
+assert stack[0][0] <= 12288, stack[0][0]
+print(f"PASS templates: 全分岐の大きさの上限 {stack[0][0]} bytes <= 12KB")
+PY_SIZE
 
 # 開始時の確認は、全構成で見張りの呼び出しと返事待ちの分岐より前に残す。
 preflight_section() {
@@ -91,10 +139,6 @@ for dir in "$test_dir/"*/; do
 	first_check=$(awk '/^## 受け取ったら確かめること$/ {inside=1; next} inside && /^- / {print; exit}' "$dir/orchestrator")
 	[[ $first_check == *'squad-handoff の「実行の始めの確認」'* && $first_check == *'分かれ道より先'* ]]
 	[[ $first_check == *'squad-preflight <タスク>'* ]]
-	if grep -qF 'squad-review-wait status' "$dir/orchestrator"; then
-		grep -F 'squad-review-wait status' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
-		grep -F 'squad-review-wait proceed' "$dir/orchestrator" | grep -qF '開始時の確認が通ったあと'
-	fi
 	for role in ci-monitor dependabot-merger usage-monitor; do
 		file=$dir/$role
 		[[ -f $file ]] || continue
@@ -113,29 +157,6 @@ for dir in "$test_dir/"*/; do
 done
 echo 'PASS preflight templates: 共通スキルと全構成のリーダー・見張りに、開始時の確認、失敗時の停止・人間への報告・直し方を残す'
 
-# 進捗を聞かれたときと実行を止めるときの節は、全構成のリーダーに、確かめ方・止める条件・やり直し方の要を残す。
-run_status_section() {
-	LC_ALL=C awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
-}
-for dir in "$test_dir/"*/; do
-	[[ -f $dir/orchestrator ]] || continue
-	[[ $(grep -cxF '## 進捗を聞かれたときと、実行を止めるとき' "$dir/orchestrator") -eq 1 ]]
-	run_status_section "$dir/orchestrator" >"$test_dir/run-status"
-	for text in 'runs <タスク> --active' '--siblings' 'run-messages' '--help' \
-		'実行の ID' '役' '状態' '始まった時刻' '直近にしていたこと' '終わった' '失敗した' '止められた' \
-		'cancel-task' '人間の指示か承認があるときだけ' '自分の判断では止めない' \
-		'最後に push されたコミット' '編集・コミット' '失うおそれ' '未確認' '「なし」とは書かない' \
-		'確認の 4 項目を挟まずに止める' 'メンションで呼び' '止めた実行の ID' '`multica issue rerun` は使わない'; do
-		grep -qF -- "$text" "$test_dir/run-status"
-	done
-	# 節は、CI とコンフリクトの節の後、受け渡しの節の前に置く。
-	ci_line=$(LC_ALL=C awk '$0=="## CI とコンフリクト" {print NR; exit}' "$dir/orchestrator")
-	status_line=$(LC_ALL=C awk '$0=="## 進捗を聞かれたときと、実行を止めるとき" {print NR; exit}' "$dir/orchestrator")
-	handoff_line=$(LC_ALL=C awk '$0=="## 受け渡しと人間を待つところ" {print NR; exit}' "$dir/orchestrator")
-	[[ $ci_line -lt $status_line && $status_line -lt $handoff_line ]]
-done
-echo 'PASS run-status templates: 全構成のリーダーに、実行の確かめ方・止める条件・やり直し方の要の語句を残す'
-
 for runtime in claude codex; do
 	if [[ $runtime == claude ]]; then expected=claude-sonnet-5-5; else expected=gpt-6.1-sol; fi
 	for file in "$test_dir/runtime-$runtime-only/"*; do
@@ -144,7 +165,7 @@ for runtime in claude codex; do
 		model=$(template_field "$file" model)
 		if [[ $role == *-principal ]]; then
 			[[ $model == "$(template_field "$test_dir/all/$role" model)" ]]
-		elif [[ $runtime == claude && ( $role == planner || $role == designer ) ]]; then
+		elif [[ $runtime == claude && ( $role == planner || $role == designer || $role == orchestrator ) ]]; then
 			[[ $model == claude-opus-5-5 ]]
 		else [[ $model == "$expected" ]]; fi
 		for field in thinking_level max_concurrent_tasks skills; do
@@ -177,19 +198,15 @@ done
 echo 'PASS templates: 使用上限の役とオートパイロットに、選択したランタイムの値・環境・停止時の案内だけを残す'
 
 # コンフリクトの状態の確認と規則の入れ直しは別の節で、状態は確認の行に従う。PR の状態の書き方は共通スキルが決める。
-for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews minimum runtime-claude-only runtime-codex-only; do
-	file="$test_dir/$scenario/orchestrator"
-	check_section=$(awk '/^### コンフリクトの状態の確認$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$file")
-	rearm_section=$(awk '/^### コンフリクトの規則の入れ直し$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$file")
-	grep -qF 'squad-pr-watch conflicts-check <タスク>' <<<"$check_section"
-	if grep -qF 'squad-pr-watch conflicts <タスク>' <<<"$check_section"; then exit 1; fi
-	grep -qF 'squad-pr-watch conflicts <タスク>' <<<"$rearm_section"
-	if grep -qF 'squad-pr-watch conflicts-check' <<<"$rearm_section"; then exit 1; fi
-	grep -qF '`CONFLICTING` なら' <<<"$check_section"
-	grep -qF '`MERGEABLE` なら' <<<"$check_section"
-	grep -qF '「未確認」なら' <<<"$check_section"
-	grep -qF '「なし」とは書かない' <<<"$check_section"
-	grep -qF '`in_progress`' <<<"$check_section"
+pr_ref="$root/common/skills/squad-handoff/references/leader-pr-checks.md"
+check_section=$(awk '/^## コンフリクトの状態の確認$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$pr_ref")
+rearm_section=$(awk '/^## コンフリクトの規則の入れ直し$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$pr_ref")
+grep -qF 'squad-pr-watch conflicts-check <タスク>' <<<"$check_section"
+if grep -qF 'squad-pr-watch conflicts <タスク>' <<<"$check_section"; then exit 1; fi
+grep -qF 'squad-pr-watch conflicts <タスク>' <<<"$rearm_section"
+if grep -qF 'squad-pr-watch conflicts-check' <<<"$rearm_section"; then exit 1; fi
+for phrase in '`CONFLICTING` なら' '`MERGEABLE` なら' '「未確認」なら' '「なし」とは書かない' '`in_progress`'; do
+	grep -qF "$phrase" <<<"$check_section"
 done
 state_skill="$root/common/skills/squad-handoff/SKILL.md"
 grep -qxF '## PR の状態を書く' "$state_skill"
@@ -197,21 +214,14 @@ state_section=$(awk '/^## PR の状態を書く$/ {inside=1; next} inside && /^#
 grep -qF 'コンフリクト:' <<<"$state_section"
 grep -qF '未確認' <<<"$state_section"
 grep -qF '「なし」' <<<"$state_section"
-echo 'PASS templates: リーダーの指示は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
+echo 'PASS templates: 参照は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
 
-# PR の紐付けは、受け取ったとき・人間のマージへ回す前・返事を待つ回の開始前に確かめ、空なら人間に画面で紐付けてもらって止まる。
-for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews minimum runtime-claude-only runtime-codex-only; do
-	file="$test_dir/$scenario/orchestrator"
-	link_section=$(awk '/^## PR の紐付けの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file")
-	grep -qF 'multica issue pull-requests <タスク> --output json' <<<"$link_section"
-	grep -qF 'PR を受け取ったとき' <<<"$link_section"
-	grep -qF '人間のマージへ回す前' <<<"$link_section"
-	grep -qF '返事を待つ回を始める前' <<<"$link_section"
-	grep -qF '`pull_requests` が空なら' <<<"$link_section"
-	grep -qF 'タスクの画面で PR の URL を紐付けてもらうよう頼んで止まる' <<<"$link_section"
-	grep -qF '「PR の紐付けの確認」に従い' "$file"
+# PR の紐付けを確かめる時機と、空のときの停止も、同じ確認を参照へ向ける。
+link_section=$(awk '/^## PR の紐付けの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in 'multica issue pull-requests <タスク> --output json' 'PR を受け取ったとき' '人間のマージへ回す前' '返事を待つ回を始める前' '`pull_requests` が空なら' 'タスクの画面で PR の URL を紐付けてもらうよう頼んで止まる'; do
+	grep -qF "$phrase" <<<"$link_section"
 done
-echo 'PASS templates: リーダーの指示は、PR の紐付けを 3 つの時点で確かめ、空なら人間に頼んで止まる'
+echo 'PASS templates: 参照は PR の紐付けを 3 つの時点で確かめ、空なら人間に頼んで止まる'
 
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
@@ -262,30 +272,19 @@ done
 [[ -f $test_dir/runtime-claude-only/claude-principal && -f $test_dir/runtime-codex-only/codex-principal && -f $test_dir/all/claude-principal && -f $test_dir/all/codex-principal ]]
 echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと high を持ち、使わない系統には置かない'
 
-# 重要なタスクの指示は、使う系統の最上位の役だけを参照し、系統ごとの選び方を残す。
+# 重要の基準は指示に、手順は参照に、系統の事実は役の節に残す。
+refs="$root/common/skills/squad-handoff/references"
+for heading in 判断する時機 印の記録 修正の依頼の数え方 最上位の役を呼ぶところ 返事の待ち方 最上位の役の選び方; do
+	grep -qxF "## $heading" "$refs/leader-principal.md"
+done
 for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
-	file="$test_dir/$scenario/orchestrator"
-	section=$(awk '/^## 重要なタスクと最上位の役$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file")
-	for heading in 重要の基準 判断する時機 印の記録 修正の依頼の数え方 最上位の役を呼ぶところ 返事の待ち方 最上位の役の選び方; do grep -qxF "### $heading" <<<"$section"; done
-	grep -qF '重要の印: 付けた。基準:' <<<"$section"
-	grep -qF '修正の依頼: <N> 回目' <<<"$section"
-	grep -qF '設計の変更: 実装を始めたあと' <<<"$section"
-	grep -qF 'squad-review-wait watch' <<<"$section"
+	grep -qxF '## 重要の基準' "$test_dir/$scenario/orchestrator"
 	grep -qF '最上位の役の使用枠が' "$test_dir/$scenario/squad"
 	grep -qF '2 つの務め' "$test_dir/$scenario/squad"
 done
-for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews; do
-	section=$(awk '/^### 最上位の役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$test_dir/$scenario/orchestrator")
-	grep -qF 'squad-dispatch-pick principal' <<<"$section"
-	grep -qF -- '- `claude-principal`:' <<<"$section"
-	grep -qF -- '- `codex-principal`:' <<<"$section"
+for role in claude-principal codex-principal; do
+	grep -qF -- "- \`$role\`:" "$test_dir/all/orchestrator"
 done
-section=$(awk '/^### 最上位の役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$test_dir/runtime-claude-only/orchestrator")
-grep -qF 'squad-usage-read' <<<"$section"
-if grep -qF 'squad-dispatch-pick' <<<"$section"; then exit 1; fi
-section=$(awk '/^### 最上位の役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$test_dir/runtime-codex-only/orchestrator")
-grep -qF 'squad-usage-read' <<<"$section"
-if grep -qF 'squad-dispatch-pick' <<<"$section"; then exit 1; fi
 for role in orchestrator designer squad; do
 	[[ -f $test_dir/runtime-claude-only/$role ]] || continue
 	if grep -qF 'codex-principal' "$test_dir/runtime-claude-only/$role"; then exit 1; fi
@@ -298,7 +297,7 @@ grep -qxF '## 重要の基準' "$root/skeleton/project.md"
 grep -qF '[記入: このプロジェクトで重要なタスクとみなす条件' "$root/skeleton/project.md"
 grep -qxF '## ラベル `重要` のあるタスク' "$root/common/agents/designer.md"
 grep -qF '人間ではなくスクワッドへ返す' "$test_dir/all/designer"
-echo 'PASS templates: リーダーの指示に重要の基準・時機・記録・選び方が残り、系統ごとに選び方が変わり、ない系統の最上位の役を参照しない'
+echo 'PASS templates: 重要の基準と系統の事実を指示に残し、判断・記録・選び方を参照に置く'
 
 # 省略した役を代行せず、次の有効な役へ回す。不足は人間へ返す。
 grep -qF '次の有効な役へ直接回す' "$test_dir/no-planning/orchestrator"
