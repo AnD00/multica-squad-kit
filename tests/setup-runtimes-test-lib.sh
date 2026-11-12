@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # setup-runtimes-*-test.sh が読み込む共通の処理。選んだランタイムを $runtime_selections で受け、それぞれの入口を通す。単独では実行しない。
 # $runtime_part で流す範囲を絞れる（既定は all）。both は setup.sh を 6 回通し、1 ファイルでは macOS の CI の上限（150 秒）を超えるため、
-# main（初回から再実行・起票の失敗・配置した見張りまで）と changes（初回から更新を飛ばした場合の確認まで）の 2 ファイルに分けて並列に流す。
+# main（再実行と配置した見張り）、issues（起票の失敗と復旧）、changes（更新を飛ばした場合）に分け、初回の準備から各ファイルで流す。
 runtime_part=${runtime_part:-all}
 # ホストの BASH_ENV・ZDOTDIR は、子のシェルの PATH の先頭へ本物の関所を足す。関所が入ったホストでは、
 # テストの関所と本物の関所が互いを「次の gh」として呼び合い、setup.sh が止まらなくなるので、ここで外す。
@@ -175,13 +175,14 @@ assert calls == [r + (' auth status' if r == 'claude' else ' login status') for 
 (scenario / 'first-db.json').write_text(json.dumps(db))
 PY
  # 旧回答も含め、同じ設定の再実行で登録・割り当てを増やさない。
- if [[ $selected == both ]]; then
+ if [[ $selected == both && $runtime_part != issues ]]; then
   jq 'del(.runtimes)' "$TEMPLATE_STATE_ROOT/ws-a/demo.json" >"$scenario_dir/old-answer"
   mv "$scenario_dir/old-answer" "$TEMPLATE_STATE_ROOT/ws-a/demo.json"
  fi
  : >"$scenario_dir/calls.jsonl"
  printf '\n1\n1\ndemo\n1\nowner\n1\n\n0\n\nyes\n' >"$scenario_dir/input"
  if [[ $runtime_part != changes ]]; then
+ if [[ $runtime_part != issues ]]; then
  /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
  grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件' "$scenario_dir/out"
  "$python" - "$scenario_dir" <<'PY'
@@ -194,8 +195,9 @@ assert (scenario / 'out').read_text().count('（既存）') == 4
 PY
  ! jq -es 'any(.[]; .[1]=="create" or .[1]=="update" or .[1]=="import" or .[1]=="trigger-add" or .[0:3]==["agent","env","set"] or .[0:3]==["agent","skills","set"] or .[0:3]==["squad","member","add"])' "$scenario_dir/calls.jsonl" >/dev/null
  jq -e --arg words "$runtime_words" '.runtimes==($words|split(" ")) and .excluded_roles==[]' "$TEMPLATE_STATE_ROOT/ws-a/demo.json" >/dev/null
+ fi
  # 最後の起票に失敗しても登録済みの完了を表示し、入口の終了コードを 0 以外にする。
- if [[ $selected == both ]]; then
+ if [[ $selected == both && $runtime_part != main ]]; then
   jq '.issues |= map(select(.metadata.squad_kit_task!="squad-trial"))' "$scenario_dir/db.json" >"$scenario_dir/new"
   mv "$scenario_dir/new" "$scenario_dir/db.json"
   printf '%s\n' 'スクワッドの動きを試す' >"$scenario_dir/fail-issue"
@@ -210,6 +212,7 @@ PY
   jq -e '.issues|length==4' "$scenario_dir/db.json" >/dev/null
  fi
  # 登録されたオートパイロットの選択を、実際に配置した見張りへ渡す。
+ if [[ $runtime_part != issues ]]; then
  if [[ $selected == codex ]]; then unset CLAUDE_CONFIG_DIR; else export CLAUDE_CONFIG_DIR="$scenario_dir/host/claude"; fi
  USAGE_CHECK_RUNTIMES=$(cat "$scenario_dir/usage-runtimes") USAGE_CHECK_ASSIGNEE=Owner USAGE_CHECK_PROJECT=projects-1 USAGE_CHECK_MEMBER=owner USAGE_CHECK_STATE_ROOT="$scenario_dir/usage-state" TEST_USAGE_PERCENT=80 CODEX_HOME="$scenario_dir/host/codex" "$scenario_dir/host/bin/squad-usage-check" >"$scenario_dir/out" 2>"$scenario_dir/err"
  "$python" - "$scenario_dir" <<'PY'
@@ -225,8 +228,9 @@ state = json.loads((scenario / 'usage-state/projects-1/owner.state').read_text()
 assert {key.split(':')[0] for key in state} == set(db['runtimes'])
 PY
  fi
+ fi
  # 更新の権限がない共通スキルと、既存の検証スキルから消えた選択を入口から確かめる。
- if [[ $selected == both && $runtime_part != main ]]; then
+ if [[ $selected == both && $runtime_part != main && $runtime_part != issues ]]; then
   jq '.members=[{user_id:"member-a",name:"Owner",role:"member"},{user_id:"creator",name:"Creator",role:"member"}] |
    .skills |= map(if .name=="squad-handoff" then .content="older content" | .created_by="creator"
     elif .name=="demo-verify" then .content += "\n## `example/removed`\n前からある検証手順\n" else . end)' "$scenario_dir/db.json" >"$scenario_dir/new"
@@ -241,7 +245,10 @@ PY
   [[ $(jq '.issues|length' "$scenario_dir/db.json") == "$before_issues" ]]
   echo 'PASS setup changes: 更新を飛ばしたスキルの作成者への起票と既存の検証スキルとの差を入口から確かめ、再実行で重ねない'
  fi
- if [[ $runtime_part != changes ]]; then
+ if [[ $runtime_part != changes && $runtime_part != issues ]]; then
   echo "PASS setup runtimes: $selected の入口・ホスト・登録・再実行・配置した見張りが通り、使わない側を求めない"
+ fi
+ if [[ $runtime_part == issues ]]; then
+  echo 'PASS setup issues: 最後の起票の失敗でも登録済みの完了を表示し、再実行で残りの一件を復旧する'
  fi
 done

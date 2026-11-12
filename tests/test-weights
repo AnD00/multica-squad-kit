@@ -9,6 +9,7 @@ tests/squad-dependabot-merge-advance-ci-origin-test.sh 83
 tests/squad-dependabot-merge-advance-mergeability-test.sh 55
 tests/setup-runtimes-both-changes-test.sh 105
 tests/setup-runtimes-both-test.sh 140
+tests/setup-runtimes-both-issues-test.sh 140
 tests/project-followup-test.sh 30
 tests/project-followup-failure-test.sh 70
 tests/project-followup-repositories-test.sh 57

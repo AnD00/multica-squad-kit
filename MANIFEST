@@ -267,10 +267,11 @@ df9ab5049ed1b43324cb47e55bdfa5e709724fe62ec80a45ae562dabfdb93c66  ./tests/run-on
 8f358f5ae0c9878451cc7a87999a485e427f085223b2a31c7851d3ddea981205  ./tests/setup-issues-test.sh
 9e39734944b5b01de7d41d507f472d4a4febcb534546b768140efcb934b76978  ./tests/setup-runtime-cli.py
 4740c56546986613ed3cc7be52b71badc7f6f98fc74799d7c5f15c5d3f903581  ./tests/setup-runtimes-both-changes-test.sh
-bca2095200cf3e3eef685159dd9416e5f3dfca75e09a74d96212112dcb9759d6  ./tests/setup-runtimes-both-test.sh
+b08e9fbfb08ea9df98ada0157264342c3ca27e6ecdc8db0504dd738cbaf8a654  ./tests/setup-runtimes-both-issues-test.sh
+85fdaf17db25c4e84c6479e1ca427bf8b408eed650769ffba3639f6ec0d05183  ./tests/setup-runtimes-both-test.sh
 1ce45122fecfaa84dcd9d5592b63c982aafdfa1b49e0bb5817a9f9f7e5345ff6  ./tests/setup-runtimes-claude-test.sh
 c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-runtimes-codex-test.sh
-78685d6f88a381d107b872bb4e9e2db484c970eaf193aae51f0fcc8f7165d98e  ./tests/setup-runtimes-test-lib.sh
+73fff639d52e26e9139663291a3aa0985699c3a7135a53b757b4d02ba455ccff  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
 7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
@@ -307,7 +308,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-001d538c05fb8f380745d241590f0caf309923f44ba5af5d235dd4813b9782c1  ./tests/test-weights
+02d225d0cb706ae8f328dffab95812197a605b95234c59daa2be96b9b7959bac  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
