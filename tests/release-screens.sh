@@ -4,7 +4,7 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 usage() {
-	printf '使い方: bash tests/release-screens.sh <release.sh のパス> <出力先> --capture-only\n'
+	printf '使い方: bash tests/release-screens.sh <release.sh のパス> <出力先> [--capture-only]\n'
 }
 capture_only=no
 args=()
@@ -18,8 +18,11 @@ for arg in "$@"; do
 done
 [[ ${#args[@]} == 2 ]] || { usage >&2; exit 2; }
 if [[ $capture_only != yes ]]; then
-	printf 'PNG を描く道具がありません。出力を取るだけなら --capture-only を付けてください。\n' >&2
-	exit 2
+	screens_python=${RELEASE_SCREENS_PYTHON:-python3}
+	if ! "$screens_python" -c 'import PIL' 2>/dev/null; then
+		printf 'Pillow がありません。tmp/ の venv に tests/release-screens-requirements.txt で入れ、RELEASE_SCREENS_PYTHON にその Python のパスを指定してください。出力だけなら --capture-only を使えます。\n' >&2
+		exit 1
+	fi
 fi
 release_script=$(cd "$(dirname "${args[0]}")" && pwd)/$(basename "${args[0]}")
 [[ -f $release_script ]] || { printf '公開のスクリプトがありません: %s\n' "$release_script" >&2; exit 1; }
@@ -54,5 +57,9 @@ for scene in 1 2 3 4 5; do
 		python3 "$root/tests/ui-pty.py" screen "$output_dir/$scene-confirm.ansi" "$output_dir/$scene-after.ansi" \
 		--stdin-tty "$test_dir/answer" --wait-for '公開しますか [y/N]: ' -- /bin/bash scripts/release.sh) || status=$?
 	printf '%s\n' "$status" >"$output_dir/$scene-status"
+	if [[ $capture_only != yes ]]; then
+		"$screens_python" "$root/tests/ansi-to-png.py" "$output_dir/$scene-confirm.ansi" "$output_dir/$scene-confirm.png" --last-lines 40
+		"$screens_python" "$root/tests/ansi-to-png.py" "$output_dir/$scene-after.ansi" "$output_dir/$scene-after.png"
+	fi
 done
 printf '画面の出力を保存しました: %s\n' "$output_dir"

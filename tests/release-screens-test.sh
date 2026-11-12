@@ -31,6 +31,35 @@ assert (p / 'probe-after').read_bytes() == b'y\r\ndone\r\n'
 PY
 echo 'PASS release-screens: 同じ疑似端末で入出力を順に取り、100 桁と問いのあとの入力を確かめた'
 
+# 描画前の読み取りは Pillow を入れずに確かめる。CI では PNG を描かない。
+python3 - "$root/tests/ansi-to-png.py" <<'PY'
+import importlib.util
+import sys
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_file_location('ansi_to_png', sys.argv[1])
+module = importlib.util.module_from_spec(spec)
+sys.modules[spec.name] = module
+spec.loader.exec_module(module)
+assert module.xterm_color(28) == (0, 135, 0)
+assert module.xterm_color(30) == (0, 135, 135)
+assert module.xterm_color(196) == (255, 0, 0)
+assert module.xterm_color(255) == (238, 238, 238)
+text = 'A' * 99 + '界\x1b[1;38;5;28m緑\x1b[22ma\x1b[39mb\x1b[0mc'
+lines = module.terminal_lines(text)
+assert len(lines) == 2 and len(lines[0]) == 99
+wide, green, normal, default, reset = lines[1]
+assert (wide.column, wide.width) == (0, 2)
+assert green.column == 2 and green.color == (0, 135, 0) and green.bold
+assert normal.color == green.color and not normal.bold
+assert default.color == reset.color == module.FOREGROUND
+assert not default.bold and not reset.bold
+unknown = module.terminal_lines('\x1b[38;5;28m\x1b[2J\x1b]0;title\x07\x1b[38;2;0;0;0m字\r\n')
+assert len(unknown) == 1 and len(unknown[0]) == 1
+assert unknown[0][0].text == '字' and unknown[0][0].color == (0, 135, 0)
+assert 'PIL' not in sys.modules
+PY
+echo 'PASS release-screens: Pillow なしで全角の折り返し、色、太字、対象外の制御文字を確かめた'
+
 bash "$root/tests/release-screens.sh" "$root/scripts/release.sh" "$test_dir/screens" --capture-only
 python3 - "$test_dir/screens" "$root/CHANGELOG.md" <<'PY'
 from pathlib import Path
