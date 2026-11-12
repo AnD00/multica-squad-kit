@@ -39,8 +39,8 @@ a26ee9bcd6bc2983fe8d8a45b7f33bea27a1b25421ab1da2689b768a384f8e67  ./common/agent
 8768c448523598ea1fd000696384e55e4d69b92ea8c2eb90647c0844369ea5a2  ./common/monitor/squad-cli-lib
 d1c48f6b2b3a4e8cbe99170631d9ff55a82cd75e8199f571f5c37793b75f19db  ./common/monitor/squad-dependabot-merge
 1d4e2c60e3c5155a0050b0c31fdea9852237e8d78c3fb1c69a8b2ca98838869d  ./common/monitor/squad-dispatch-pick
-8d052954ad9e8da0e1a76f3faec439a7ff00676d66aaf2edb6bc143dcda13288  ./common/monitor/squad-pr-link
-e383e041f6e0d6878950fef2fe0b348b269647d0f8ae7e6038ba9de4526584cd  ./common/monitor/squad-pr-link-lib
+1236831ff5471415f4f9cd4c2f3de933631df011f79e94a30f2120212424e64f  ./common/monitor/squad-pr-link
+33de9251e13aa5d0c61f7562bccd46e34b8e9ef04eb4314ec2b8fcfd957b81fb  ./common/monitor/squad-pr-link-lib
 6766fa81f81854791c250662a6ba15bd50dbb958590061d8b5d3a0be3d5ceb8b  ./common/monitor/squad-pr-watch
 803cc5fb086135d7041d71adb3ccee3196f2866e0dfc486d55435c9ff202af6c  ./common/monitor/squad-preflight
 8bec15c91868e2e8a41319137f8827c33e20338169c7e0f94b53922d9676d507  ./common/monitor/squad-review-wait
@@ -210,7 +210,7 @@ fc993e655cf81eb2720c4a3671483f762601a6949bb7ff4905ea0fbbf2d2d4bb  ./tests/squad-
 17a668aba34cab54c5a32e90bd0a7b32e3f465f236c790bbb70c7163c9f2d385  ./tests/squad-dependabot-merge-escalate-test.sh
 328f4914482040c8770a282a5b9394530fdf3f97e05648d2f6f0408341006168  ./tests/squad-dependabot-merge-list-test.sh
 7a2bd75276db60c6dc8e4c0d4c54e7ef8a1edb338dff963daaa45b0c3c5e37fa  ./tests/squad-dispatch-pick-test.sh
-3590603609a205a270bceb9d50e5bdd37673d9f41187513010f75b9567b879b8  ./tests/squad-pr-link-test.sh
+1a3b44bc56feea7b5aa32fa29f7380836cdc961fb3aebc5bdebaa9baf8eda027  ./tests/squad-pr-link-test.sh
 4b09c2e45ed938258be2a0f4824bac4c89b7c34b582ee769bed0c98c392440e6  ./tests/squad-pr-watch-ci-test.sh
 b13437cf1aba60d7337a990ffde0e07fa4b30a94a65c2dae4b9317ba6e7ba015  ./tests/squad-pr-watch-register-test.sh
 7a31f8adb542e6df92d2c8fba2b707b4e180ca12455bb952c94b0fe0941457a3  ./tests/squad-preflight-test.sh

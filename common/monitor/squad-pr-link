@@ -13,6 +13,12 @@ task=$1 url=$2 identifier=$1
 warn() {
 	printf 'タスク %s に PR %s を紐付けられませんでした（%s）。タスクの画面の PR の欄で、この URL を指定して紐付けてください。\n' "$identifier" "$url" "$1" >&2
 }
+# 404 で待ち切れたときだけ、連携と同期の確認を案内する。
+warn_not_found() {
+	local repository=${url#https://github.com/}
+	repository=${repository%/pull/*}
+	printf 'サーバーは、%s がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、%s がつながっていることを確かめてから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\n' "$repository" "$repository" >&2
+}
 
 mkdir -p tmp
 diagnostic=$(mktemp tmp/pr-link-read.XXXXXX)
@@ -36,6 +42,7 @@ identifier=$(jq -r '.identifier' <<<"$issue")
 metadata=$(jq -c '.metadata' <<<"$issue")
 if ! pr_link_pull_request "$id" "$url" "$metadata"; then
 	warn "$PR_LINK_REASON"
+	if [[ ${PR_LINK_NOT_FOUND:-0} == 1 ]]; then warn_not_found; fi
 	exit 1
 fi
 if jq -e 'has("pr_url")' <<<"$metadata" >/dev/null; then
@@ -43,7 +50,7 @@ if jq -e 'has("pr_url")' <<<"$metadata" >/dev/null; then
 	if [[ $existing_url != "$url" ]]; then
 		printf 'タスク %s の metadata の pr_url は PR %s と違うため、紐付けは変えません。\n' "$identifier" "$url" >&2
 	fi
-	printf '%s %s\n' "$identifier" "$existing_url"
+	printf '紐付けていません: %s %s（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確かめてください）\n' "$identifier" "$url"
 else
-	printf '%s %s\n' "$identifier" "$url"
+	printf '紐付けました: %s %s\n' "$identifier" "$url"
 fi

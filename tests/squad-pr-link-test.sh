@@ -136,13 +136,22 @@ assert_warning() {
 	grep -F 'タスクの画面の PR の欄で、この URL を指定して紐付けてください。' "$test_dir/err" >/dev/null
 	jq -e '.metadata | has("pr_url") | not' "$test_dir/issue.json" >/dev/null
 }
+# 404 で待ち切れたときだけ、2 行目に連携と同期の案内が出る。
+assert_not_found_guidance() {
+	[[ $(wc -l <"$test_dir/err" | tr -d ' ') == 2 ]]
+	[[ $(sed -n 2p "$test_dir/err") == 'サーバーは、Example/Template がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、Example/Template がつながっていることを確かめてから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。' ]]
+}
+assert_no_guidance() {
+	! grep -F 'GitHub 連携' "$test_dir/err" >/dev/null
+	! grep -F 'ワークスペースの設定のコードの画面' "$test_dir/err" >/dev/null
+}
 assert_no_write() {
 	jq -se 'all(.[]; .[0:3] != ["issue","metadata","set"])' "$test_dir/multica.jsonl" >/dev/null
 }
 
 fixture
 run_link 0 TASK-7 "$url"
-[[ $(cat "$test_dir/out") == "TASK-7 $url" && ! -s $test_dir/err ]]
+[[ $(cat "$test_dir/out") == "紐付けました: TASK-7 $url" && ! -s $test_dir/err ]]
 [[ $(cat "$test_dir/config-verified") == verified ]]
 jq -e --arg url "$url" '.metadata.pr_url == $url' "$test_dir/issue.json" >/dev/null
 jq -se --arg url "$url" 'length == 1 and (.[0] | .[-1] == "https://multica.invalid/api/issues/task-id/pull-requests"
@@ -168,7 +177,10 @@ for existing in "$url" https://github.com/Example/Template/pull/44; do
 	# 紐付け済みの判定は、認証の確認より先に行う。
 	MULTICA_TOKEN='' run_link 0 TASK-7 "$url"
 	cmp "$test_dir/issue.json" "$test_dir/before.json"
-	[[ ! -s $test_dir/curl.jsonl && $(cat "$test_dir/out") == "TASK-7 $existing" ]]
+	[[ ! -s $test_dir/curl.jsonl ]]
+	# 飛ばしたときは、紐付けていないことと確かめ方を、渡した URL とともに 1 行で示す。
+	[[ $(wc -l <"$test_dir/out" | tr -d ' ') == 1 ]]
+	[[ $(cat "$test_dir/out") == "紐付けていません: TASK-7 ${url}（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確かめてください）" ]]
 	assert_no_write
 	if [[ $existing == "$url" ]]; then [[ ! -s $test_dir/err ]]; else
 		[[ $(wc -l <"$test_dir/err" | tr -d ' ') == 1 ]]
@@ -195,6 +207,7 @@ assert_no_write
 jq -se 'map(.[index("--max-time")+1]) == ["30","30","30","3"]' "$test_dir/curl.jsonl" >/dev/null
 [[ $(cat "$test_dir/curl-starts") == $'1000\n1039\n1078\n1117' ]]
 grep -F '120 秒待った' "$test_dir/err" >/dev/null
+assert_not_found_guidance
 echo 'PASS HTTP timeout: 通信の時間を含めて 120 秒で打ち切り、最後の通信は残り 3 秒に制限する'
 
 for duration in 3 4; do
@@ -209,6 +222,7 @@ for duration in 3 4; do
 		assert_no_write
 		[[ $(cat "$test_dir/curl-count") == 4 && $(cat "$test_dir/now") == $((1117 + duration)) ]]
 		grep -F '120 秒待った' "$test_dir/err" >/dev/null
+		assert_not_found_guidance
 	done
 done
 echo 'PASS late response: 期限ちょうど・期限後の 200 と 404 では、成功扱いも metadata の書き込みもしない'
@@ -230,6 +244,7 @@ assert_no_write
 [[ $(cat "$test_dir/curl-count") == 4 && $(cat "$test_dir/now") == 1120 ]]
 [[ $(cat "$test_dir/sleeps") == $'10\n10\n10\n1' ]]
 grep -F '120 秒待った' "$test_dir/err" >/dev/null
+assert_not_found_guidance
 echo 'PASS short sleep: 残り 1 秒なら待ちも 1 秒に制限し、期限以降は通信しない'
 
 fixture
@@ -240,6 +255,7 @@ assert_no_write
 [[ $(cat "$test_dir/curl-count") == 12 && $(cat "$test_dir/now") == 1120 ]]
 [[ $(wc -l <"$test_dir/sleeps" | tr -d ' ') == 12 ]]
 grep -F '120 秒待った' "$test_dir/err" >/dev/null
+assert_not_found_guidance
 echo 'PASS timeout: 120 秒で打ち切り、警告と画面の手順を返し、metadata は書かない'
 
 for code in 201 400 401 403 422 500; do
@@ -250,6 +266,7 @@ for code in 201 400 401 403 422 500; do
 	assert_no_write
 	[[ $(cat "$test_dir/curl-count") == 1 && ! -s $test_dir/sleeps ]]
 	grep -F "応答の状態コード $code" "$test_dir/err" >/dev/null
+	assert_no_guidance
 done
 echo 'PASS HTTP error: 200 と 404 以外では待たず、警告して失敗を返す'
 
@@ -265,6 +282,7 @@ for missing in token server curl; do
 		;;
 	esac
 	assert_warning
+	assert_no_guidance
 	assert_no_write
 	[[ ! -s $test_dir/curl.jsonl && ! -s $test_dir/sleeps ]]
 done
@@ -275,6 +293,7 @@ for failure in get set transport; do
 	touch "$test_dir/$failure-fail"
 	run_link 1 TASK-7 "$url"
 	assert_warning
+	assert_no_guidance
 	[[ ! -s $test_dir/sleeps ]]
 	if [[ $failure != set ]]; then assert_no_write; fi
 done
@@ -287,6 +306,7 @@ for invalid in 'null' '[]' '{}' ; do
 	run_link 1 TASK-7 "$url"
 	[[ ! -s $test_dir/curl.jsonl ]]
 	grep -F 'タスクを読めない' "$test_dir/err" >/dev/null
+	assert_no_guidance
 	assert_no_write
 done
 echo 'PASS issue: タスクの応答が読めない場合は紐付けない'
@@ -296,6 +316,7 @@ run_link 1 TASK-7 https://github.com/Other/Template/pull/33
 [[ ! -s $test_dir/curl.jsonl ]]
 assert_no_write
 grep -F 'metadata の repository と違う' "$test_dir/err" >/dev/null
+assert_no_guidance
 fixture
 jq 'del(.metadata.repository,.metadata.pr_url)' "$test_dir/issue.json" >"$test_dir/next.json"
 mv "$test_dir/next.json" "$test_dir/issue.json"
@@ -335,9 +356,14 @@ for repository in absent same other; do
   if [[ $repository != other && $linked == absent ]]; then
    [[ $(jq -s length "$test_dir/curl.jsonl") == 1 ]]
    jq -e --arg url "$url" '.metadata.pr_url==$url' "$test_dir/issue.json" >/dev/null
+   [[ $(cat "$test_dir/out") == "紐付けました: TASK-7 $url" ]]
   else
    [[ ! -s $test_dir/curl.jsonl ]]
    assert_no_write
+   if [[ $repository != other ]]; then
+    # null・空文字の pr_url でも、飛ばしたことを先頭の語と確かめ方で示す。
+    [[ $(cat "$test_dir/out") == "紐付けていません: TASK-7 ${url}（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確かめてください）" ]]
+   fi
   fi
  done
 done
