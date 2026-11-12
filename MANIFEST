@@ -252,7 +252,9 @@ e2141527ff9e7280bce9dd9dd161bec702edca9d55658c078e487cae802c9ab2  ./tests/projec
 c2ceb8dd3561ee8adeaca790ebc1594cb1ad442522bb2a39334276306999f1ad  ./tests/project-select-test.sh
 6a75439aa217c567d6a63178cd759c189f00187e19758d806819eb5dd601b931  ./tests/project-test-lib.sh
 e702e1dd459c4239b74c2538b549604dc3c961531fb2249df16b66dca231e8f7  ./tests/questions-ui-test.sh
-dc07b1395e1a600cb215f3119e50ba31dd72e207b9596c85e118ef2c793ef7f0  ./tests/release-test.sh
+ba1f6c8fcba7db5c7b695c28b61f76600993eae20129bfb2df93498859923dde  ./tests/release-failure-test.sh
+d6845161d0097a56c11e8607b4ebdd9efe32efe0ccb0691e1d3227ceebb2e53f  ./tests/release-test-lib.sh
+2845491562c0b390a2398264e76b6bf93b6ed23715e52bdc34f4129a3ee249db  ./tests/release-test.sh
 e676ddae52c4c2173140a0905b5752315cd041654670608396896d397b76491d  ./tests/release-workflow-test.sh
 9059bbcc14118aed461e95965f261959c381780b25ddee5c9372d929c1d46010  ./tests/review-wait-fixture.py
 2b8cc440684e9d84ca041c9aca96efa13d8c4572ee4d5e5c5956a56dfdc826e8  ./tests/review-wait-test-lib.sh
@@ -273,7 +275,10 @@ c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-
 0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
 7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh
 700e00c82fbe06ea6e5c5339acab33101ea239e178a790f33610a3971312492b  ./tests/shell-test.sh
-13131c76cd4838b6aecc41ee3b4ebeef49696fc51764323e8b14ba82eefe8b8b  ./tests/squad-cli-lib-test.sh
+6d23985056af617740c2181b1dc173d7cf038826cd7097c8993a1916de859164  ./tests/squad-cli-lib-check-runs-test.sh
+6974697147e47724fa1a239120be861363438382ec850db9378fc5f2d68a60d7  ./tests/squad-cli-lib-contract.py
+99b56e0668b2b1249b13789df2488f8271a5a75aad29889553e9b738757e2e70  ./tests/squad-cli-lib-gh-test.sh
+c9c312e3692a2f34be8120b0b8fccab0ce22a4e36ffacae72bbb2f20150cf0dc  ./tests/squad-cli-lib-test.sh
 30ad29381910385b013c0bba17613ab177d3bf358a8fa8f009655cf60c8d88d9  ./tests/squad-dependabot-merge-advance-ci-change-test.sh
 549b072ac58f24323ae512f3b7d663b222b6e17ff57d20aacd704f2f9e239077  ./tests/squad-dependabot-merge-advance-ci-origin-test.sh
 b51049f27799415d5e787648dee693733e3d2b641dccb806adb3c4efa449d70b  ./tests/squad-dependabot-merge-advance-ci-wait-test.sh
@@ -287,7 +292,8 @@ fea5fd1ec138f57f143103f00704d20bedbbe950ddd5494f99f3219fe7a40834  ./tests/squad-
 328f4914482040c8770a282a5b9394530fdf3f97e05648d2f6f0408341006168  ./tests/squad-dependabot-merge-list-test.sh
 7a2bd75276db60c6dc8e4c0d4c54e7ef8a1edb338dff963daaa45b0c3c5e37fa  ./tests/squad-dispatch-pick-test.sh
 1a3b44bc56feea7b5aa32fa29f7380836cdc961fb3aebc5bdebaa9baf8eda027  ./tests/squad-pr-link-test.sh
-4b09c2e45ed938258be2a0f4824bac4c89b7c34b582ee769bed0c98c392440e6  ./tests/squad-pr-watch-ci-test.sh
+f787e340a60f05c7871dc89a959db1810bdeacf71dcdfe77b75db554ae6719eb  ./tests/squad-pr-watch-ci-handoff-test.sh
+1710086f454ccc0dcc44867aefec1f9c75de42203a10ddd8b79aadcbf0b63382  ./tests/squad-pr-watch-ci-test.sh
 d766ef6a223f2e998bb950b55bb9ef37d1da19f697911817a0770d9dbde4f0cb  ./tests/squad-pr-watch-register-test.sh
 7a31f8adb542e6df92d2c8fba2b707b4e180ca12455bb952c94b0fe0941457a3  ./tests/squad-preflight-test.sh
 bf69897455fb948c6029cb06104e68918aa49e0519b150c957a0029a875a44bf  ./tests/squad-review-wait-contract-test.sh
@@ -299,7 +305,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 6feb0540f0f56ae34d8383036d982c2a0e4d8f36ca33b1b9715a90748b282ca7  ./tests/test-runner-test.sh
-8f6dc6e23ff5051fa2797a71efdd23ab826a15a9ca07923f8f1a7a96024e44d8  ./tests/test-weights
+7e048a0dab795d8f17538050c07afb5dd6bd1d3e1eae5cd30b735c85eeabebad  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh

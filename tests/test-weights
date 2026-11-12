@@ -13,8 +13,12 @@ tests/squad-dependabot-merge-advance-request-test.sh 172
 tests/squad-dependabot-merge-advance-retry-test.sh 172
 tests/squad-dependabot-merge-advance-retry-limit-test.sh 172
 tests/squad-pr-watch-ci-test.sh 161
+tests/squad-pr-watch-ci-handoff-test.sh 161
 tests/squad-cli-lib-test.sh 156
+tests/squad-cli-lib-gh-test.sh 156
+tests/squad-cli-lib-check-runs-test.sh 156
 tests/release-test.sh 155
+tests/release-failure-test.sh 155
 tests/squad-dependabot-merge-advance-diff-test.sh 141
 tests/squad-dependabot-merge-escalate-test.sh 141
 tests/setup-test.sh 136
