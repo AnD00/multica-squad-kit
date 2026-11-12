@@ -413,3 +413,55 @@ awk -F '\t' '$1!="repositories"' "$test_dir/values" >"$test_dir/without-list"
 if render 'orchestrator codex-implementer codex-fixer' "$test_dir/without-list" "$root/common/agents/orchestrator.md" >"$test_dir/out" 2>"$test_dir/err"; then exit 1; fi
 grep -q '値が足りない: repositories' "$test_dir/err"
 echo 'PASS templates: 全構成でリポジトリの一覧を渡し、単一の値だけでは一覧の欠落を補わない'
+
+# リーダーの手順は、スキルの参照のファイルに置く。スキルは展開しないので、印も差し込みも持たない。
+refs="$root/common/skills/squad-handoff/references"
+for name in flow dispatch principal review-wait pr-checks run-status; do
+	[[ -s $refs/leader-$name.md ]]
+	if grep -qE '<!-- IF|\{\{' "$refs/leader-$name.md"; then exit 1; fi
+done
+echo 'PASS templates: リーダーの手順の参照 6 件がスキルにあり、展開の印も差し込みも持たない'
+
+grep -qx '## リーダーの手順' "$skill"
+sed -n '/^## リーダーの手順$/,/^## サブエージェントに分けるとき$/p' "$skill" >"$test_dir/leader-section"
+for phrase in 'references/leader-*.md' 'リーダーだけが読み' '場面と手順'; do
+	grep -qF "$phrase" "$test_dir/leader-section"
+done
+echo 'PASS templates: 共通スキルはリーダーの手順の置き場所と読む役だけを示す'
+
+for phrase in 'squad-review-wait watch' 'squad-review-wait proceed' 'squad-review-wait status' '返事を待つ役:' '確かめるコミット:' '返事の待ち: 次に進む'; do
+	grep -qF "$phrase" "$refs/leader-review-wait.md"
+done
+for command in 'squad-review-wait proceed' 'squad-review-wait status'; do
+	grep -F "$command" "$refs/leader-review-wait.md" | grep -qF '開始時の確認が通ったあと'
+done
+echo 'PASS templates: 返事の手順の参照は、開始時の確認が通ったあとに proceed と status を流すと書く'
+
+for phrase in 'runs <タスク> --active' '--siblings' 'run-messages' '--help' '実行の ID' '役' '状態' '始まった時刻' '直近にしていたこと' '終わった' '失敗した' '止められた' 'cancel-task' '人間の指示か承認があるときだけ' '自分の判断では止めない' '最後に push されたコミット' '編集・コミット' '失うおそれ' '未確認' '「なし」とは書かない' '確認の 4 項目を挟まずに止める' 'メンションで呼び' '止めた実行の ID' '`multica issue rerun` は使わない'; do
+	grep -qF -- "$phrase" "$refs/leader-run-status.md"
+done
+echo 'PASS templates: 進捗と停止の参照が、実行の状態の確かめ・止める条件・止めたあとの手順を持つ'
+
+for phrase in '45 分' '実行の遅れ:' '同じ実行につき 1 回だけ' '知らせても、実行は止めない'; do
+	grep -qF -- "$phrase" "$refs/leader-run-status.md"
+done
+for phrase in 'squad-pr-watch conflicts-check' '起きたときの確かめ' '返事を待つ回の途中でない' 'その PR に触れる実行が動いていない' '重ねて呼ばない' '2 回続けて `CONFLICTING`' 'squad-pr-watch conflicts <タスク>' 'squad-pr-watch ci-held'; do
+	grep -qF -- "$phrase" "$refs/leader-pr-checks.md"
+done
+echo 'PASS templates: 起きたときの確かめは、実行の長さとコンフリクトを見て、動いている PR に修正の役を重ねない'
+
+for phrase in 'multica issue pull-requests <タスク>' '紐付けていません:' 'ワークスペースの設定のコードの画面' '警告の文を、そのまま添える' '`squad-pr-link` は、PR を作った直後の 1 回だけ'; do
+	grep -qF -- "$phrase" "$refs/leader-pr-checks.md"
+done
+echo 'PASS templates: PR の紐付けの参照は、一覧で確かめ、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
+
+for phrase in 'squad-dispatch-pick implement' 'squad-dispatch-pick fix' 'squad-usage-read'; do
+	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
+done
+for phrase in 'squad-dispatch-pick principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
+	grep -qF -- "$phrase" "$refs/leader-principal.md"
+done
+for phrase in '作業先' '同じ誤り' '原因'; do
+	grep -qF -- "$phrase" "$refs/leader-flow.md"
+done
+echo 'PASS templates: 振り分け・最上位の役・流れの参照が、スクリプトの呼び方と記録の行を持つ'

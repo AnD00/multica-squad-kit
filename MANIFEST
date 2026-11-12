@@ -50,7 +50,13 @@ a390c8c21494d51e5d715cffa1488558b8cefc8a6e1693e86270f47d3f063cbc  ./common/monit
 4819ffffbc38ddef5f88a9aeb8719cce15a297af8df821fdc0dee025db5e79d1  ./common/setup-issues.json
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/.zshenv
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/env.sh
-272318206e40e37a756851e52cbc686fd3551b4bfebe4b78c173958e3a73ab56  ./common/skills/squad-handoff/SKILL.md
+8ff8294a7a6ae40c4c14c6223795e1cef198a2fbe71f565ceb2849cdb3deb1a9  ./common/skills/squad-handoff/SKILL.md
+9dc3566c384ed1279488e435a86582cafc421157a9c60af45c825e4861561503  ./common/skills/squad-handoff/references/leader-dispatch.md
+eb490215ee995135a77146f5d0bde9a1fdd969c234e8ab31b1e28b3ba1fd4880  ./common/skills/squad-handoff/references/leader-flow.md
+2c3f227990c62f79d548e8a32a5da04a26cf709b1d571ee571e7b116fea79ff3  ./common/skills/squad-handoff/references/leader-pr-checks.md
+23557d062565bea1d38eadcb99ff18327f10fbd5a435d36a1d83f8f553eba704  ./common/skills/squad-handoff/references/leader-principal.md
+bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skills/squad-handoff/references/leader-review-wait.md
+72f290e2794488ba8d0b1bfc7d8b2dfd9602df9fe88c8574fa41e8fe1426933c  ./common/skills/squad-handoff/references/leader-run-status.md
 adfb0e15a2f23706c8ac822ef3c6e14e632d1c5af5862d5f1cc0c79a90847d55  ./common/squad.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
 35850b8f5d56de2877620f4abbc966648eff0ec6a25a0d275e0521104e0c41e6  ./docs/ci.md
@@ -102,7 +108,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 8c491e62719b72b6c895199808c2320d960e946d8e883c4fd48d8a9a25f5ef4d  ./skeleton/README.md
 c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/project.md
 8144c1ca0d6dd5632a64dc48f16a79f276e035e772a97c02e7f43bef10756352  ./skeleton/verify-repository.md
-feb41d01d8b0295c58b09426c7decb3dae433e3dfe4d93bdce8e197c028e07e2  ./tests/agent-templates-test.sh
+9502edd8e22a32883b6b994513318cba07b05231da29c66746f9003b4aeb83ca  ./tests/agent-templates-test.sh
 c0a4918cf140c51fec5a0a619a09714411551361dd8acf0f749237f79d8f4e46  ./tests/build-assets-test.sh
 33716690201522a64b8217a9175469202605860a45c7ae3c1f89fc50320ebb89  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
@@ -182,7 +188,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
 d2e2434c80e2378db96823c1006595d93f307a052bf8ed757035c66ce2e7e6cb  ./tests/leader-eval-test.sh
 c01549350f77945f52a052f5be109a8cd49c75b1838c700c012d8f614e0a487f  ./tests/leader-eval/leader_eval.py
-6d4a7651208209f8214af525f99876a985db2cf783a81900a1670fb19e4c0bc2  ./tests/leader-eval/run.sh
+309a8ca02090d4d2f65abd3fae2715fb88e39331351b073bc569369b4034083e  ./tests/leader-eval/run.sh
 3370b1172bd48a18ca61f592f375ebef86fbaa5027d60b7ddeb232c25aa790e3  ./tests/leader-eval/runtime-brief.md
 bc12043c77174f0cd04becf3bc38e2468e6343431f53c8c16dc2ab77b5f04a08  ./tests/leader-eval/scenes/1-1/cli.json
 f30d1b671e4a1acd63a083bfad376f26914af1dc5ae7b2126efdd7373c7f7a9e  ./tests/leader-eval/scenes/1-1/scene.md

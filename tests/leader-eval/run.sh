@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# リーダーの指示を、場面ごとに今の版と新しい版で流して比べる。実際のモデルを呼ぶので、手で流す。
+# リーダーの指示を、場面ごとに今のバージョンと新しいバージョンで流して比べる。実際のモデルを呼ぶので、手で流す。
 # tests/run.sh と CI には入れない。設計は docs/leader-principles.md の「評価」の節。
 set -euo pipefail
 
@@ -11,7 +11,7 @@ source "$root/lib/render.sh"
 usage() {
 	cat <<'USAGE'
 使い方: bash tests/leader-eval/run.sh [オプション]
-  --baseline REF   今の版にする git の参照（既定: origin/main）
+  --baseline REF   今のバージョンにする git の参照（既定: origin/main）
   --scenes IDS     流す場面の ID をコンマで区切る（既定: すべて）
   --runs N         1 場面あたりの回数（既定: 3）
   --runtime NAME   claude か codex（既定: claude。合否の判定は claude の結果で決める）
