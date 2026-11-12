@@ -120,6 +120,25 @@ assert stack[0][0] <= 12288, stack[0][0]
 print(f"PASS templates: 全分岐の大きさの上限 {stack[0][0]} bytes <= 12KB")
 PY_SIZE
 
+# 画像の添付と、操作を頼む前に残す記録は、共通スキルと展開後の役からたどれる。
+image_skill="$root/common/skills/squad-handoff/SKILL.md"
+grep -qxF '## 画像を載せる' "$image_skill"
+grep -qxF '## 人間に操作を頼む前に' "$image_skill"
+awk '$0=="## 画像を載せる" {inside=1; next} inside && /^## / {exit} inside {print}' "$image_skill" >"$test_dir/image-section"
+for text in 'gh pr comment' --attach 'multica issue comment add' --attachment; do
+	grep -qF -- "$text" "$test_dir/image-section"
+done
+for dir in "$test_dir/"*/; do
+	[[ -f $dir/orchestrator ]] || continue
+	for role in claude-implementer codex-implementer claude-fixer codex-fixer qa; do
+		[[ -f $dir/$role ]] || continue
+		for text in '試した方法とコマンドの出力をコメントに残す' --attach 'squad-handoff の「画像を載せる」'; do
+			grep -qF -- "$text" "$dir/$role"
+		done
+	done
+done
+echo 'PASS image templates: 共通スキルの添付手順と、全構成の実装・修正・QA の指示に、頼む前に残す記録と添付先の案内を残す'
+
 # 開始時の確認は、全構成で見張りの呼び出しと返事待ちの分岐より前に残す。
 preflight_section() {
 	awk '$0=="## 実行の始めの確認" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
