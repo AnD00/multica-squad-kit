@@ -4,6 +4,8 @@
 
 ui_color_out=no
 ui_color_err=no
+ui_live_out=no
+ui_live_err=no
 
 # 種類ごとの「太字か（1 か 0）」と「xterm の 256 色の番号」。色を付けない種類は -。
 ui_kinds='question active strong description choice default success warning error done'
@@ -24,17 +26,20 @@ ui_spec() {
 }
 
 # 出す先ごとに、色を付けるかを一度だけ決める。標準出力と標準エラー出力は別に
-# 判定し、結果を ui_color_out と ui_color_err（yes か no）に置く。
+# 判定し、結果を ui_color_out と ui_color_err（yes か no）に置く。行を書き換えてよいかは、
+# 出す先が端末で色が出るときだけ yes とし、ui_live_out と ui_live_err に置く。
 ui_init() {
 	local colors
 	ui_color_out=no
 	ui_color_err=no
+	ui_live_out=no
+	ui_live_err=no
 	[[ -z ${NO_COLOR+x} ]] || return 0
 	case ${TERM:-} in '' | dumb) return 0 ;; esac
 	colors=$(tput colors 2>/dev/null) || return 0
 	[[ $colors =~ ^[0-9]+$ ]] && ((colors >= 256)) || return 0
-	if [[ -t 1 ]]; then ui_color_out=yes; fi
-	if [[ -t 2 ]]; then ui_color_err=yes; fi
+	if [[ -t 1 ]]; then ui_color_out=yes; ui_live_out=yes; fi
+	if [[ -t 2 ]]; then ui_color_err=yes; ui_live_err=yes; fi
 	return 0
 }
 
@@ -100,50 +105,64 @@ ui_mark() {
 	} >&$fd
 }
 
+# _ui_character <本文> <バイトの位置>: その位置の文字のバイト数と表示の幅を、
+# ui_character_bytes と ui_character_width に置く。幅の計算と行を切る処理で共有する。
+# 読めないバイトは 1 バイトで幅 1 にし、次のバイトから読み直す。
+_ui_character() {
+	local LC_ALL=C
+	local text=$1 offset=$2 byte code count=1 minimum=0 next part valid=yes i
+	printf -v byte '%d' "'${text:offset:1}"
+	# bash 3.2 が負の値で返すバイトも、0〜255 にそろえる。
+	byte=$((byte & 255))
+	code=$byte
+	if ((byte >= 194 && byte <= 223)); then
+		count=2 code=$((byte & 31)) minimum=128
+	elif ((byte >= 224 && byte <= 239)); then
+		count=3 code=$((byte & 15)) minimum=2048
+	elif ((byte >= 240 && byte <= 244)); then
+		count=4 code=$((byte & 7)) minimum=65536
+	fi
+	for ((i = 1; i < count; i++)); do
+		next=$((offset + i))
+		if ((next >= ${#text})); then valid=no; break; fi
+		printf -v part '%d' "'${text:next:1}"
+		part=$((part & 255))
+		if ((part < 128 || part > 191)); then valid=no; break; fi
+		code=$(((code << 6) | (part & 63)))
+	done
+	if [[ $valid == no ]] || ((code < minimum || code > 1114111 || (code >= 55296 && code <= 57343))); then
+		count=1
+	fi
+	ui_character_bytes=$count ui_character_width=1
+	if ((count == 4 || (count == 3 && (
+		(code >= 0x1100 && code <= 0x115f) ||
+		(code >= 0x2e80 && code <= 0xa4cf) ||
+		(code >= 0xac00 && code <= 0xd7a3) ||
+		(code >= 0xf900 && code <= 0xfaff) ||
+		(code >= 0xfe30 && code <= 0xfe4f) ||
+		(code >= 0xff00 && code <= 0xff60) ||
+		(code >= 0xffe0 && code <= 0xffe6))))); then
+		ui_character_width=2
+	fi
+}
+
+# _ui_text_width <本文>: 表示の幅を ui_text_width に置く。コマンド置換を使わずに数える。
+_ui_text_width() {
+	local LC_ALL=C
+	local text=$1 offset=0
+	ui_text_width=0
+	while ((offset < ${#text})); do
+		_ui_character "$text" "$offset"
+		ui_text_width=$((ui_text_width + ui_character_width))
+		offset=$((offset + ui_character_bytes))
+	done
+}
+
 # ui_width <本文>: UTF-8 の文字の表示の幅。外の道具や文字ごとの子のプロセスを使わない。
 # 読めないバイトは一桁にし、次のバイトから読み直す。
 ui_width() {
-	local LC_ALL=C
-	local text=$1 offset=0 width=0 byte code count next part valid minimum i
-	while ((offset < ${#text})); do
-		printf -v byte '%d' "'${text:offset:1}"
-		# bash 3.2 が負の値で返すバイトも、0〜255 にそろえる。
-		byte=$((byte & 255))
-		code=$byte count=1 minimum=0
-		if ((byte >= 194 && byte <= 223)); then
-			count=2 code=$((byte & 31)) minimum=128
-		elif ((byte >= 224 && byte <= 239)); then
-			count=3 code=$((byte & 15)) minimum=2048
-		elif ((byte >= 240 && byte <= 244)); then
-			count=4 code=$((byte & 7)) minimum=65536
-		fi
-		valid=yes
-		for ((i = 1; i < count; i++)); do
-			next=$((offset + i))
-			if ((next >= ${#text})); then valid=no; break; fi
-			printf -v part '%d' "'${text:next:1}"
-			part=$((part & 255))
-			if ((part < 128 || part > 191)); then valid=no; break; fi
-			code=$(((code << 6) | (part & 63)))
-		done
-		if [[ $valid == no ]] || ((code < minimum || code > 1114111 || (code >= 55296 && code <= 57343))); then
-			count=1
-		fi
-		if ((count == 4 || (count == 3 && (
-			(code >= 0x1100 && code <= 0x115f) ||
-			(code >= 0x2e80 && code <= 0xa4cf) ||
-			(code >= 0xac00 && code <= 0xd7a3) ||
-			(code >= 0xf900 && code <= 0xfaff) ||
-			(code >= 0xfe30 && code <= 0xfe4f) ||
-			(code >= 0xff00 && code <= 0xff60) ||
-			(code >= 0xffe0 && code <= 0xffe6))))); then
-			width=$((width + 2))
-		else
-			width=$((width + 1))
-		fi
-		offset=$((offset + count))
-	done
-	printf '%s\n' "$width"
+	_ui_text_width "$1"
+	printf '%s\n' "$ui_text_width"
 }
 
 # ui_pad <幅> <本文>: 表示の幅をそろえる。長い本文は切らない。
@@ -155,17 +174,414 @@ ui_pad() {
 	printf '%s%*s' "$text" "$padding" ''
 }
 
-# ui_rows <本文>: 端末の幅で折り返す行の数。幅が取れないときは COLUMNS、次に 80。
+ui_lines=
+ui_columns=
+
+# _ui_positive <値>: 正の整数か。
+_ui_positive() {
+	[[ $1 =~ ^[0-9]+$ ]] && ((10#$1 > 0))
+}
+
+# ui_size <out|err>: その出す先の端末の高さと幅を、ui_lines と ui_columns に置く。標準出力には
+# 何も出さない。コマンド置換の中で呼ぶと標準出力がパイプになり、out の端末を読めないので、
+# 書き換える部品は今のシェルで呼ぶ。出す先の fd を stty の標準入力に渡して読む。macOS の
+# tput は、出力をパイプへつなぐと端末の定義の 80 桁・24 行を返すため、先には使わない。
+# 読めない値は、行と桁を別々に、tput、LINES と COLUMNS、24 行と 80 桁の順に決める。
+ui_size() {
+	local size= lines columns
+	case ${1-} in
+	out) { size=$(stty size <&3 2>/dev/null) || size=; } 3>&1 ;;
+	err) { size=$(stty size <&3 2>/dev/null) || size=; } 3>&2 ;;
+	*) return 1 ;;
+	esac
+	lines=${size%% *}
+	columns=
+	if [[ $size == *' '* ]]; then columns=${size#* }; fi
+	if ! _ui_positive "$lines"; then lines=$(tput lines 2>/dev/null) || lines=; fi
+	if ! _ui_positive "$lines"; then lines=${LINES-}; fi
+	if ! _ui_positive "$lines"; then lines=24; fi
+	if ! _ui_positive "$columns"; then columns=$(tput cols 2>/dev/null) || columns=; fi
+	if ! _ui_positive "$columns"; then columns=${COLUMNS-}; fi
+	if ! _ui_positive "$columns"; then columns=80; fi
+	ui_lines=$((10#$lines)) ui_columns=$((10#$columns))
+}
+
+# ui_rows <本文>: 本文が端末で占める行の数。表示の幅を、最後に ui_size で読んだ幅で割って
+# 切り上げる。まだ読んでいなければ、標準エラー出力の端末で読む。
 ui_rows() {
-	local text=$1 columns width
-	columns=$(tput cols 2>/dev/null) || columns=
-	if [[ ! $columns =~ ^[0-9]+$ ]] || ((10#$columns == 0)); then
-		columns=${COLUMNS:-80}
+	if [[ -z ${ui_columns-} ]]; then ui_size err; fi
+	_ui_text_width "$1"
+	printf '%s\n' "$(((ui_text_width + ui_columns - 1) / ui_columns))"
+}
+
+# チェックリスト。1 つの出す先に出し、一度に一つだけ動かす。呼ぶ側は、終わるときの片付け
+# （trap）でも ui_steps_cleanup を呼ぶ。
+ui_steps_active=no
+ui_steps_live=no
+ui_steps_count=0
+ui_steps_wait_interval=30
+ui_spinner_pid=
+ui_steps_dir=
+
+ui_steps_cleanup() {
+	_ui_spinner_stop
+	if [[ -n ${ui_steps_dir:-} ]]; then rm -rf -- "$ui_steps_dir"; fi
+	ui_steps_dir= ui_steps_active=no ui_steps_live=no
+}
+
+_ui_spinner_stop() {
+	if [[ -n ${ui_spinner_pid:-} ]]; then
+		kill -TERM "$ui_spinner_pid" 2>/dev/null || :
+		{ wait "$ui_spinner_pid"; } 2>/dev/null || :
+		ui_spinner_pid=
 	fi
-	if [[ ! $columns =~ ^[0-9]+$ ]] || ((10#$columns == 0)); then columns=80; fi
-	columns=$((10#$columns))
-	width=$(ui_width "$text")
-	printf '%s\n' "$(((width + columns - 1) / columns))"
+}
+
+# _ui_steps_clip <色の列を含む行> <幅>: 行を幅に収めて ui_steps_clipped に置く。収まらないときは、
+# 色の列を保ち、全角を途中で分けずに切って、灰の … を付けた全体を幅に収める。
+_ui_steps_clip() {
+	local LC_ALL=C
+	local text=$1 limit=$2 rest=$1 plain= offset=0 width=0 chunk budget
+	while [[ $rest == *$'\033['* ]]; do
+		plain+=${rest%%$'\033['*}
+		rest=${rest#*$'\033['}
+		rest=${rest#*m}
+	done
+	plain+=$rest
+	_ui_text_width "$plain"
+	if ((ui_text_width <= limit)); then ui_steps_clipped=$text; return 0; fi
+	budget=$((limit - 1))
+	if ((budget < 0)); then budget=0; fi
+	ui_steps_clipped=
+	while ((offset < ${#text})); do
+		if [[ ${text:offset:1} == $'\033' ]]; then
+			chunk=${text:offset}
+			chunk=${chunk%%m*}m
+			ui_steps_clipped+=$chunk
+			offset=$((offset + ${#chunk}))
+			continue
+		fi
+		_ui_character "$text" "$offset"
+		if ((width + ui_character_width > budget)); then break; fi
+		ui_steps_clipped+=${text:offset:ui_character_bytes}
+		width=$((width + ui_character_width))
+		offset=$((offset + ui_character_bytes))
+	done
+	ui_steps_clipped+=$'\033[0m'$(ui_paint "$ui_steps_target" default '…')
+}
+
+# _ui_steps_time <秒>: 48s、1m12s の形を ui_steps_time_text に置く。
+_ui_steps_time() {
+	if (($1 < 60)); then ui_steps_time_text="$1s"
+	else ui_steps_time_text="$(($1 / 60))m$(($1 % 60))s"; fi
+}
+
+# 手順 <番号> の行を、改行なしで標準出力へ出す。
+_ui_steps_main() {
+	local index=$1 state=${ui_steps_states[$1]} name=${ui_steps_names[$1]} value=${ui_steps_values[$1]}
+	local frames=(⠋ ⠙ ⠹ ⠸ ⠼ ⠴ ⠦ ⠧ ⠇ ⠏) filled bar_done= bar_rest= i
+	printf '%*s' "$ui_steps_indent" ''
+	case $state in
+	todo) ui_mark "$ui_steps_target" todo "$name" ;;
+	ok | fail)
+		if [[ -n $value ]]; then name=${ui_steps_padded[$index]}; fi
+		ui_mark "$ui_steps_target" "$state" "$name" "$value"
+		;;
+	active)
+		ui_paint "$ui_steps_target" active "${frames[$((ui_steps_frame % 10))]}"
+		if ((ui_steps_total > 0)) || [[ -n $ui_steps_elapsed || -n $ui_steps_subname ]]; then name=${ui_steps_padded[$index]}; fi
+		printf ' %s' "$name"
+		if ((ui_steps_total > 0)); then
+			filled=$((18 * ui_steps_progress / ui_steps_total))
+			for ((i = 0; i < 18; i++)); do
+				if ((i < filled)); then bar_done+=━; else bar_rest+=─; fi
+			done
+			printf '  '
+			if [[ -n $bar_done ]]; then ui_paint "$ui_steps_target" active "$bar_done"; fi
+			if [[ -n $bar_rest ]]; then ui_paint "$ui_steps_target" default "$bar_rest"; fi
+			ui_paint "$ui_steps_target" default " $ui_steps_progress/$ui_steps_total"
+		fi
+		if [[ -n $ui_steps_elapsed ]]; then printf '  '; ui_paint "$ui_steps_target" default "$ui_steps_elapsed"; fi
+		if [[ -n $ui_steps_subname ]]; then printf '  '; ui_paint "$ui_steps_target" default "$ui_steps_subname"; fi
+		printf '\n'
+		;;
+	esac
+}
+
+# 続きの行 <番号> を、手順の名前より 2 桁深く、改行なしで標準出力へ出す。
+_ui_steps_extra() {
+	local index=$1 mark=${ui_steps_extra_marks[$1]} text=${ui_steps_extra_texts[$1]} value=${ui_steps_extra_values[$1]}
+	printf '%*s' "$((ui_steps_indent + 4))" ''
+	if [[ $mark != - ]]; then
+		ui_mark "$ui_steps_target" "$mark" "$text" "$value"
+		return
+	fi
+	printf '%s' "$text"
+	if [[ -n $value ]]; then
+		if [[ -n $text ]]; then printf '  '; fi
+		ui_paint "$ui_steps_target" default "$value"
+	fi
+	printf '\n'
+}
+
+# ui_steps_buffer に、手順 <番号> の行と続きの行を、切らずに足す。終わった手順の続きの行は、
+# 出したことを覚える。
+_ui_steps_append_full() {
+	local i=$1 j
+	ui_steps_text=$(_ui_steps_main "$i" 2>&1)
+	ui_steps_buffer+=$ui_steps_text$'\n'
+	for ((j = 0; j < ui_steps_extra_count; j++)); do
+		((ui_steps_extra_steps[j] == i)) || continue
+		ui_steps_text=$(_ui_steps_extra "$j" 2>&1)
+		ui_steps_buffer+=$ui_steps_text$'\n'
+		if [[ ${ui_steps_states[$i]} == ok || ${ui_steps_states[$i]} == fail ]]; then ui_steps_extra_printed[$j]=yes; fi
+	done
+}
+
+# 書き換える範囲（手順 <番号> から下）の行を、幅から 1 を引いた幅に切って ui_steps_cache に置く。
+_ui_steps_build_cache() {
+	local i=$1 j k=0
+	ui_steps_cache=() ui_steps_cache_active=-1
+	for ((; i < ui_steps_count; i++)); do
+		if [[ ${ui_steps_states[$i]} == active ]]; then ui_steps_cache_active=$k; fi
+		ui_steps_text=$(_ui_steps_main "$i" 2>&1)
+		_ui_steps_clip "$ui_steps_text" "$((ui_columns - 1))"
+		ui_steps_cache[$k]=$ui_steps_clipped
+		k=$((k + 1))
+		for ((j = 0; j < ui_steps_extra_count; j++)); do
+			((ui_steps_extra_steps[j] == i)) || continue
+			ui_steps_text=$(_ui_steps_extra "$j" 2>&1)
+			_ui_steps_clip "$ui_steps_text" "$((ui_columns - 1))"
+			ui_steps_cache[$k]=$ui_steps_clipped
+			k=$((k + 1))
+		done
+	done
+	ui_steps_cache_count=$k
+}
+
+# ui_steps_rewind に、描いた行の数だけ上へ戻って下を消す制御文字を置く。自分が出した行より
+# 上へは戻らない。
+_ui_steps_rewind_text() {
+	ui_steps_rewind=
+	if ((ui_steps_drawn > 0)); then ui_steps_rewind=$'\033['$ui_steps_drawn$'A\r\033[J'; fi
+}
+
+_ui_steps_write() {
+	if [[ $ui_steps_target == out ]]; then printf '%s' "$1"; else printf '%s' "$1" >&2; fi
+}
+
+# 書き換える範囲を描き直す。終わった手順は切らずに出して残し、範囲はまだ終わっていない最初の
+# 手順から下にする。大きさが変わったとき、範囲が高さ - 1 を超えるとき、<final> を渡されたとき
+# （失敗の描き直し）は、一覧を切らずに 1 回出して、以後は書き換えない。
+_ui_steps_refresh() {
+	local mode=${1-live} next=$ui_steps_first pending=0 i j changed=no insert=$ui_steps_insert
+	ui_steps_insert= ui_steps_flushed=no
+	[[ $ui_steps_live == yes ]] || return 0
+	ui_size "$ui_steps_target"
+	if [[ $ui_columns != "$ui_steps_columns" || $ui_lines != "$ui_steps_lines" ]]; then changed=yes; fi
+	if [[ -n $ui_steps_dir && -f $ui_steps_dir/resized ]]; then changed=yes; fi
+	while ((next < ui_steps_count)) && [[ ${ui_steps_states[$next]} == ok ]]; do next=$((next + 1)); done
+	for ((i = next; i < ui_steps_count; i++)); do
+		pending=$((pending + 1))
+		for ((j = 0; j < ui_steps_extra_count; j++)); do
+			if ((ui_steps_extra_steps[j] == i)); then pending=$((pending + 1)); fi
+		done
+	done
+	_ui_steps_rewind_text
+	ui_steps_buffer=
+	if [[ $changed == yes || $mode == final ]] || ((pending > ui_lines - 1)); then
+		# 大きさが変わると、端末が前の行を折り返し直すので、戻らずにその下へ出す。
+		if [[ $changed == yes ]]; then ui_steps_rewind=; fi
+		ui_steps_buffer=$ui_steps_rewind$insert
+		for ((i = ui_steps_first; i < ui_steps_count; i++)); do _ui_steps_append_full "$i"; done
+		_ui_steps_write "$ui_steps_buffer"
+		ui_steps_live=no ui_steps_drawn=0 ui_steps_flushed=yes
+		return 0
+	fi
+	ui_steps_frame=$((ui_steps_frame + 1))
+	ui_steps_buffer=$ui_steps_rewind$insert
+	for ((i = ui_steps_first; i < next; i++)); do _ui_steps_append_full "$i"; done
+	_ui_steps_build_cache "$next"
+	for ((i = 0; i < ui_steps_cache_count; i++)); do ui_steps_buffer+=${ui_steps_cache[$i]}$'\n'; done
+	_ui_steps_write "$ui_steps_buffer"
+	ui_steps_first=$next ui_steps_drawn=$pending
+	ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines
+}
+
+# 動いている手順の行のスピナーを、0.1 秒ごとに裏で回す。回すたびに大きさを読み、変わっていたら
+# 回すのをやめて、表に書き換えをやめさせる印のファイルを置く。
+_ui_spinner_start() {
+	[[ $ui_steps_live == yes && $ui_steps_active == yes ]] || return 0
+	((ui_steps_cache_active >= 0)) || return 0
+	local owner=$$
+	(
+		stop=no ticks=0
+		trap 'stop=yes' TERM HUP INT
+		while [[ $stop != yes ]]; do
+			sleep 0.1
+			[[ $stop != yes ]] || break
+			kill -0 "$owner" 2>/dev/null || break
+			# 親が終わってもまだ受け取られていない（zombie）あいだは kill -0 が通るので、1 秒おきに状態も見る。
+			ticks=$((ticks + 1))
+			if ((ticks % 10 == 0)); then
+				state=$(ps -o stat= -p "$owner" 2>/dev/null) || state=
+				[[ $state != Z* ]] || break
+			fi
+			ui_size "$ui_steps_target"
+			if [[ $ui_columns != "$ui_steps_columns" || $ui_lines != "$ui_steps_lines" ]]; then
+				if [[ -n $ui_steps_dir ]]; then : >"$ui_steps_dir/resized"; fi
+				break
+			fi
+			ui_steps_frame=$((ui_steps_frame + 1))
+			ui_steps_text=$(_ui_steps_main "$ui_steps_current" 2>&1)
+			_ui_steps_clip "$ui_steps_text" "$((ui_columns - 1))"
+			ui_steps_cache[$ui_steps_cache_active]=$ui_steps_clipped
+			_ui_steps_rewind_text
+			ui_steps_buffer=$ui_steps_rewind
+			for ((i = 0; i < ui_steps_cache_count; i++)); do ui_steps_buffer+=${ui_steps_cache[$i]}$'\n'; done
+			_ui_steps_write "$ui_steps_buffer"
+		done
+	) &
+	ui_spinner_pid=$!
+}
+
+# ui_steps_begin <out|err> <字下げ> <名前…>: 手順の名前を覚える。書き換えるときは、すべての手順を
+# ○ と灰の名前で並べる。書き換えないときは何も出さない。
+ui_steps_begin() {
+	local i width longest=0
+	ui_steps_cleanup
+	ui_steps_target=${1-} ui_steps_indent=${2-0}
+	case $ui_steps_target in
+	out) ui_steps_live=$ui_live_out ;;
+	err) ui_steps_live=$ui_live_err ;;
+	*) return 1 ;;
+	esac
+	shift 2
+	ui_steps_names=("$@") ui_steps_padded=() ui_steps_states=() ui_steps_values=()
+	ui_steps_extra_steps=() ui_steps_extra_marks=() ui_steps_extra_texts=() ui_steps_extra_values=() ui_steps_extra_printed=()
+	ui_steps_cache=()
+	ui_steps_count=$# ui_steps_extra_count=0 ui_steps_current=0 ui_steps_first=0 ui_steps_drawn=0 ui_steps_frame=0
+	ui_steps_cache_active=-1 ui_steps_cache_count=0 ui_steps_insert= ui_steps_flushed=no ui_steps_buffer=
+	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0
+	for ((i = 0; i < ui_steps_count; i++)); do
+		_ui_text_width "${ui_steps_names[$i]}"
+		if ((ui_text_width > longest)); then longest=$ui_text_width; fi
+	done
+	for ((i = 0; i < ui_steps_count; i++)); do
+		ui_steps_states[$i]=todo ui_steps_values[$i]=
+		ui_steps_padded[$i]=$(ui_pad "$longest" "${ui_steps_names[$i]}")
+	done
+	ui_steps_active=yes
+	if [[ $ui_steps_live == yes ]]; then
+		ui_steps_dir=$(mktemp -d "${TMPDIR:-/tmp}/squad-ui.XXXXXX" 2>/dev/null) || ui_steps_dir=
+		ui_size "$ui_steps_target"
+		ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines
+		_ui_steps_refresh
+	fi
+}
+
+# ui_steps_show: 書き換えるかによらず、今の一覧を出す。
+ui_steps_show() {
+	local i
+	_ui_spinner_stop
+	if [[ $ui_steps_live == yes ]]; then
+		_ui_steps_refresh
+		_ui_spinner_start
+		return 0
+	fi
+	ui_steps_buffer=
+	for ((i = 0; i < ui_steps_count; i++)); do _ui_steps_append_full "$i"; done
+	_ui_steps_write "$ui_steps_buffer"
+}
+
+ui_step_start() {
+	_ui_spinner_stop
+	ui_steps_current=$(($1 - 1))
+	((ui_steps_current >= 0 && ui_steps_current < ui_steps_count)) || return 1
+	ui_steps_states[$ui_steps_current]=active
+	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0
+	_ui_steps_refresh
+	_ui_spinner_start
+}
+
+# ui_step_progress <済んだ数> <全体の数> [名前]
+ui_step_progress() {
+	_ui_spinner_stop
+	ui_steps_progress=$1 ui_steps_total=$2 ui_steps_subname=${3-}
+	if ((ui_steps_progress < 0)); then ui_steps_progress=0; fi
+	if ((ui_steps_progress > ui_steps_total)); then ui_steps_progress=$ui_steps_total; fi
+	_ui_steps_refresh
+	_ui_spinner_start
+}
+
+# ui_step_wait <経過の秒>: 書き換えないときは、ui_steps_wait_interval 秒ごとに 1 行だけ足す。
+ui_step_wait() {
+	_ui_spinner_stop
+	_ui_steps_time "$1"
+	ui_steps_elapsed=$ui_steps_time_text
+	_ui_steps_refresh
+	if [[ $ui_steps_live == no && $ui_steps_flushed == no ]] && (($1 - ui_steps_last_wait >= ui_steps_wait_interval)); then
+		ui_steps_text=$(printf '%*s' "$ui_steps_indent" ''; ui_paint "$ui_steps_target" default "… ${ui_steps_names[$ui_steps_current]}  $ui_steps_elapsed")
+		_ui_steps_write "$ui_steps_text"$'\n'
+		ui_steps_last_wait=$1
+	fi
+	_ui_spinner_start
+}
+
+# 書き換えないときに、今の手順の行と、まだ出していない続きの行を順に出す。
+_ui_steps_plain_done() {
+	local j
+	ui_steps_buffer=
+	ui_steps_text=$(_ui_steps_main "$ui_steps_current" 2>&1)
+	ui_steps_buffer+=$ui_steps_text$'\n'
+	for ((j = 0; j < ui_steps_extra_count; j++)); do
+		if ((ui_steps_extra_steps[j] == ui_steps_current)) && [[ ${ui_steps_extra_printed[$j]} == no ]]; then
+			ui_steps_text=$(_ui_steps_extra "$j" 2>&1)
+			ui_steps_buffer+=$ui_steps_text$'\n'
+			ui_steps_extra_printed[$j]=yes
+		fi
+	done
+	_ui_steps_write "$ui_steps_buffer"
+}
+
+# ui_step_done <値>
+ui_step_done() {
+	_ui_spinner_stop
+	ui_steps_states[$ui_steps_current]=ok ui_steps_values[$ui_steps_current]=${1-}
+	_ui_steps_refresh
+	if [[ $ui_steps_live == no && $ui_steps_flushed == no ]]; then _ui_steps_plain_done; fi
+}
+
+# ui_step_fail [名前]: 動いている手順を ✖ にして、以後は書き換えない。
+ui_step_fail() {
+	_ui_spinner_stop
+	ui_steps_states[$ui_steps_current]=fail ui_steps_values[$ui_steps_current]=${1-}
+	_ui_steps_refresh final
+	if [[ $ui_steps_live == no && $ui_steps_flushed == no ]]; then _ui_steps_plain_done; fi
+	ui_steps_live=no ui_steps_drawn=0
+}
+
+# ui_step_line <印|-> <本文> [値]: 今の手順の行の下に続きの行を足す。
+ui_step_line() {
+	local index=$ui_steps_extra_count
+	_ui_spinner_stop
+	ui_steps_extra_steps[$index]=$ui_steps_current ui_steps_extra_marks[$index]=$1
+	ui_steps_extra_texts[$index]=$2 ui_steps_extra_values[$index]=${3-} ui_steps_extra_printed[$index]=no
+	ui_steps_extra_count=$((index + 1))
+	if [[ $ui_steps_live == yes && $ui_steps_current -lt $ui_steps_first ]]; then
+		# 終わって画面に残した手順の下に足すので、範囲を戻したところへ、切らずに出す。
+		ui_steps_text=$(_ui_steps_extra "$index" 2>&1)
+		ui_steps_insert=$ui_steps_text$'\n'
+		ui_steps_extra_printed[$index]=yes
+		_ui_steps_refresh
+	elif [[ $ui_steps_live == yes ]]; then
+		_ui_steps_refresh
+	elif [[ ${ui_steps_states[$ui_steps_current]} != active && ${ui_steps_states[$ui_steps_current]} != todo ]]; then
+		ui_steps_text=$(_ui_steps_extra "$index" 2>&1)
+		_ui_steps_write "$ui_steps_text"$'\n'
+		ui_steps_extra_printed[$index]=yes
+	fi
+	_ui_spinner_start
 }
 
 # ui_result <結果の語>: 完了の表示の結果の語に、種類の色を付けて改行なしで標準出力へ出す。

@@ -44,6 +44,8 @@ tests/runtime-selection-test.sh 17
 tests/setup-version-test.sh 15
 tests/release-screens-test.sh 16
 tests/project-changes-test.sh 14
+tests/ui-test.sh 12
+tests/ui-steps-test.sh 11
 tests/build-assets-test.sh 10
 tests/ci-install-test.sh 10
 tests/manual-test.sh 10
@@ -58,7 +60,6 @@ tests/capture-cli-fixtures-test.sh 2
 tests/completion-colors-test.sh 2
 tests/setup-tag-test.sh 2
 tests/terms-test.sh 2
-tests/ui-test.sh 2
 tests/content-test.sh 1
 tests/doc-lines-test.sh 1
 tests/extensions-test.sh 1

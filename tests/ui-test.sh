@@ -181,31 +181,140 @@ echo 'PASS ui: 外の道具なしでUTF-8の幅を数え、全角の範囲と読
 
 cat >"$test_dir/bin/tput" <<'SH'
 #!/bin/bash
-[[ $1 == cols ]] || exit 1
-printf '%s\n' "${UI_TEST_COLS-}"
-exit "${UI_TEST_COLS_STATUS:-0}"
+case $1 in
+lines) value=${UI_TEST_LINES-} ;;
+cols) value=${UI_TEST_COLS-} ;;
+*) exit 1 ;;
+esac
+printf '%s\n' "$value"
+exit "${UI_TEST_TPUT_STATUS:-0}"
 SH
-chmod +x "$test_dir/bin/tput"
+cat >"$test_dir/bin/stty" <<'SH'
+#!/bin/bash
+[[ $1 == size ]] || exit 2
+printf '%s\n' "${UI_TEST_STTY-}"
+exit "${UI_TEST_STTY_STATUS:-0}"
+SH
+chmod +x "$test_dir/bin/tput" "$test_dir/bin/stty"
+
+# ui_size は、行と桁を別々に、stty、tput、LINES と COLUMNS、24 行と 80 桁の順に決める。
 PATH="$test_dir/bin" /bin/bash -euo pipefail -c '
 source "$1/lib/ui.sh"
-export UI_TEST_COLS=3 COLUMNS=20
+check() {
+    [[ $ui_lines-$ui_columns == "$1" ]] || { printf "size: %s != %s\n" "$ui_lines-$ui_columns" "$1"; exit 1; }
+}
+export UI_TEST_STTY="12 40" UI_TEST_LINES=7 UI_TEST_COLS=33 LINES=9 COLUMNS=44
+ui_size out
+check 12-40
+ui_size err
+check 12-40
+export UI_TEST_STTY="0012 0040"
+ui_size err
+check 12-40
+export UI_TEST_STTY="0 50"
+ui_size err
+check 7-50
+export UI_TEST_STTY="30 0"
+ui_size out
+check 30-33
+export UI_TEST_STTY="bad" UI_TEST_STTY_STATUS=1
+ui_size out
+check 7-33
+export UI_TEST_TPUT_STATUS=1
+ui_size out
+check 9-44
+export UI_TEST_LINES=0 UI_TEST_COLS=unknown LINES=bad COLUMNS=0
+ui_size err
+check 24-80
+unset LINES COLUMNS
+ui_size err
+check 24-80
+export LINES=0050 COLUMNS=0120 UI_TEST_STTY_STATUS=0 UI_TEST_STTY="3"
+ui_size err
+check 3-120
+export UI_TEST_STTY="x"
+ui_size err
+check 50-120
+if ui_size file; then exit 1; fi
+[[ -z $(ui_size out 2>&1) ]]
+' _ "$root"
+
+# ui_rows は、最後に読んだ幅で割って切り上げる。まだ読んでいなければ、標準エラー出力で読む。
+PATH="$test_dir/bin" /bin/bash -euo pipefail -c '
+source "$1/lib/ui.sh"
+export UI_TEST_STTY="10 3" LINES=1 COLUMNS=1
+ui_size err
 [[ $(ui_rows ab界) == 2 ]]
 [[ $(ui_rows abc) == 1 ]]
 [[ $(ui_rows "") == 0 ]]
-export UI_TEST_COLS=0010 COLUMNS=1
-[[ $(ui_rows abc) == 1 ]]
-export UI_TEST_COLS_STATUS=1 COLUMNS=2
+export UI_TEST_STTY="10 80"
 [[ $(ui_rows ab界) == 2 ]]
-export UI_TEST_COLS_STATUS=0 UI_TEST_COLS=0 COLUMNS=3
-[[ $(ui_rows ab界) == 2 ]]
-export UI_TEST_COLS=unknown COLUMNS=2
-[[ $(ui_rows abc) == 2 ]]
-unset COLUMNS
+ui_size out
+[[ $(ui_rows ab界) == 1 ]]
+unset ui_columns
+export UI_TEST_STTY_STATUS=1 UI_TEST_COLS=5 UI_TEST_LINES=5
+[[ $(ui_rows abcdef) == 2 ]]
+export UI_TEST_COLS=0 COLUMNS=bad
 printf -v long "%081d" 0
-[[ $(ui_rows "$long") == 2 ]]
-export COLUMNS=0
-[[ $(ui_rows "$long") == 2 ]]
-export COLUMNS=bad
+unset ui_columns
 [[ $(ui_rows "$long") == 2 ]]
 ' _ "$root"
-echo 'PASS ui: 行の数は端末の幅、COLUMNS、80桁の順に求め、幅が割り切れないときは切り上げる'
+
+# 端末の高さと幅は、macOS の tput が出力のパイプで返す 80 桁・24 行より、出す先の端末を優先して読む。
+cat >"$test_dir/size-probe.sh" <<'SH'
+source "$1/lib/ui.sh"
+case $2 in
+out) ui_size out ;;
+err) ui_size err ;;
+esac
+printf 'size=%s-%s\n' "$ui_lines" "$ui_columns"
+SH
+cat >"$test_dir/resize-probe.sh" <<'SH'
+source "$1/lib/ui.sh"
+ui_size out
+printf 'size=%s-%s\n' "$ui_lines" "$ui_columns"
+printf 'resize-here\n'
+sleep 0.6
+ui_size out
+printf 'size=%s-%s\n' "$ui_lines" "$ui_columns"
+ui_size err
+printf 'err=%s-%s\n' "$ui_lines" "$ui_columns"
+SH
+pty_size() {
+	local mode=$1 target=$2
+	shift 2
+	env -i PATH="$test_dir/bin:$PATH" HOME="$test_dir" TERM=xterm-256color UI_TEST_STTY_STATUS=0 UI_TEST_LINES=24 UI_TEST_COLS=80 "$@" \
+		python3 "$root/tests/ui-pty.py" "$mode" "$test_dir/out" "$test_dir/err" -- bash "$test_dir/size-probe.sh" "$root" "$target"
+}
+rm "$test_dir/bin/stty"
+pty_size out out
+tr -d '\r' <"$test_dir/out" | grep -qx 'size=40-100'
+pty_size err err
+tr -d '\r' <"$test_dir/out" | grep -qx 'size=40-100'
+env -i PATH="$test_dir/bin:$PATH" HOME="$test_dir" TERM=xterm-256color UI_TEST_LINES=24 UI_TEST_COLS=80 \
+	python3 "$root/tests/ui-pty.py" out "$test_dir/out" "$test_dir/err" --resize-on resize-here 40 10 -- bash "$test_dir/resize-probe.sh" "$root"
+tr -d '\r' <"$test_dir/out" >"$test_dir/lines"
+printf 'size=40-100\nresize-here\nsize=10-40\nerr=24-80\n' >"$test_dir/expected"
+cmp "$test_dir/lines" "$test_dir/expected"
+# 出力がパイプでも、標準エラー出力が端末ならその大きさを読み、tput の 24 行・80 桁にしない。
+env -i PATH="$test_dir/bin:$PATH" HOME="$test_dir" TERM=xterm-256color UI_TEST_LINES=24 UI_TEST_COLS=80 \
+	python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- bash -c 'source "$1/lib/ui.sh"; ui_size err; printf "size=%s-%s\n" "$ui_lines" "$ui_columns" >&2; ui_size out; printf "out=%s-%s\n" "$ui_lines" "$ui_columns" >&2' _ "$root"
+tr -d '\r' <"$test_dir/err" >"$test_dir/lines"
+printf 'size=40-100\nout=24-80\n' >"$test_dir/expected"
+cmp "$test_dir/lines" "$test_dir/expected"
+echo 'PASS ui: ui_size は出す先の端末を stty で優先して読み、行と桁を別々に tput、LINES と COLUMNS、24×80 の順で決め、ui_rows は最後に読んだ幅で数える'
+
+# 色と書き換えの判定: ui_live_* は、端末で色が付くときだけ yes になる。
+live_probe='source "$1/lib/ui.sh"; ui_init; printf "%s %s %s %s\n" "$ui_color_out" "$ui_color_err" "$ui_live_out" "$ui_live_err"'
+live_state() {
+	local mode=$1
+	shift
+	env -i PATH="$PATH" HOME="$test_dir" "$@" python3 "$root/tests/ui-pty.py" "$mode" "$test_dir/out" "$test_dir/err" -- bash -c "$live_probe" _ "$root" >/dev/null
+	if [[ $mode == err ]]; then tr -d '\r' <"$test_dir/err"; else tr -d '\r' <"$test_dir/out"; fi
+}
+[[ $(env -i PATH="$PATH" HOME="$test_dir" bash -c "$live_probe" _ "$root") == 'no no no no' ]]
+[[ $(live_state out TERM=xterm-256color) == 'yes no yes no' ]]
+[[ $(live_state out NO_COLOR=1 TERM=xterm-256color) == 'no no no no' ]]
+[[ $(live_state out TERM=dumb) == 'no no no no' ]]
+[[ $(live_state out TERM=) == 'no no no no' ]]
+echo 'PASS ui: ui_live_out と ui_live_err は、その出す先が端末で色が付くときだけ yes で、NO_COLOR・dumb・端末でないときは no'
