@@ -70,7 +70,7 @@ curl -fsSL https://github.com/AnD00/multica-squad-kit/releases/latest/download/i
 ```
 
 - 取得元は、最新の Release の `install.sh` の配布物にする。`main` のブランチのファイルにしないのは、公開の前の変更を流さず、不変の Release で守られた物だけを流すため（[防げることと残るリスク](#防げることと残るリスク)）
-- 入口への引数は、`bash -s --` のあとに渡す。特定のバージョンは `| bash -s -- v1.8.0`、拡張は `| bash -s -- --extension <拡張のディレクトリ>` のように書く
+- 入口への引数は、`bash -s --` のあとに渡す。特定のバージョンは `| bash -s -- v1.10.0`、拡張は `| bash -s -- --extension <拡張のディレクトリ>` のように書く
 - `curl` の `-f` で、HTTP の誤りのときに何も流さない。途中で切れたときに一部だけを流さない手当ては、入口の側で行う（[標準入力から流すとき](#標準入力から流すとき)）
 
 コマンドは、macOS の既定の zsh と、Linux の bash のどちらに貼っても同じに動く。パイプの先は、どちらでも `bash` が読むため。`curl` は、macOS と Ubuntu の標準に入っている。
