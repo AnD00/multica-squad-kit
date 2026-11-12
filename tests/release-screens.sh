@@ -56,6 +56,11 @@ for scene in 1 2 3 4 5; do
 	(cd "$work" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" \
 		python3 "$root/tests/ui-pty.py" screen "$output_dir/$scene-confirm.ansi" "$output_dir/$scene-after.ansi" \
 		--stdin-tty "$test_dir/answer" --wait-for '公開しますか [y/N]: ' -- /bin/bash scripts/release.sh) || status=$?
+	# 125 は、時間切れや問いが出なかったときの、出力を取れなかった印。公開が止まる場面の終了コード（1）と分ける。
+	if [[ $status == 125 ]]; then
+		printf '場面 %s の出力を取れませんでした。画像を作りません。\n' "$scene" >&2
+		exit 1
+	fi
 	printf '%s\n' "$status" >"$output_dir/$scene-status"
 	if [[ $capture_only != yes ]]; then
 		"$screens_python" "$root/tests/ansi-to-png.py" "$output_dir/$scene-confirm.ansi" "$output_dir/$scene-confirm.png" --last-lines 40

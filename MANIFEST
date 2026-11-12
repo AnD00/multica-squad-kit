@@ -9,7 +9,7 @@ ccbc66e193c43c07f5918fa8a21c88d8ec374b820063598cf1b3182564c4af25  ./.github/work
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 9e31f50f1ec32243a5d62248c6326729552844139dc6df714a3e002f4bc2637a  ./AGENTS.md
 062793825d85726aff7fa948387084348a726e6cb46ec7f96578e79ced05e914  ./CHANGELOG.md
-4982f0393de9df02350bcd7541875981eac9cef853fcba006e66dfcbe05c2b4f  ./CONTRIBUTING.md
+c34f9d48c958818d2a7947e839803796ef92e0d9b5103c1302c35b1c626a6ebb  ./CONTRIBUTING.md
 02c000ace7a2ae0b9c6fa8379fd2aa1e3cf8c3e4871ec14a9b3e2082ff2512ef  ./EXTENSIONS.md
 3efd82a186b980b30baf37b965210aa5fd1b3e9e595a8af336dde093c15f7743  ./README.md
 a6bc7b3029e8fce019c216def75e3b84307c90081d3ffeca654fd3d507878ff2  ./VERSION
@@ -69,7 +69,7 @@ ff0e5faa1ff0c0ac18368e3f31df058707c5ae929df29f226c281de8e29bbd0b  ./docs/local-v
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
 5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
-67ec8ad5a67d92ac469b0c011e477a087b2254e3f232e3adf048f0056ed64102  ./docs/release.md
+12470edcb301da9c64cf3ecf1858e40725ad2c5d931ce91386aac8c54e4ac59a  ./docs/release.md
 965a009c6f8e3262c6d33ab09d7288b066b6282ee66bcd8472f6c45a56b8cabc  ./docs/review-wait.md
 2e01bc767f204b6a3c5fd70b01bdfa5e3ef5457bc7887e9a0a8ba615b75c0435  ./docs/run-status.md
 f143db33f27306e423972794d20579013c91e33d26dec8f970876742fbc53747  ./docs/screens.md
@@ -111,7 +111,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/project.md
 8144c1ca0d6dd5632a64dc48f16a79f276e035e772a97c02e7f43bef10756352  ./skeleton/verify-repository.md
 0a0487caa2c6456e9ac85628368ed93f2badedfe38bb84eed4a1e816f1f1b6d9  ./tests/agent-templates-test.sh
-feca3252ae9cd32fea5ed35aac6dd125077d2ab7eeec0d42c426bf9530329722  ./tests/ansi-to-png.py
+84d56e72a684628f91d575ca48a41f67cbed0bf47e217b23be2fed4a09c40ec5  ./tests/ansi-to-png.py
 c0a4918cf140c51fec5a0a619a09714411551361dd8acf0f749237f79d8f4e46  ./tests/build-assets-test.sh
 33716690201522a64b8217a9175469202605860a45c7ae3c1f89fc50320ebb89  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
@@ -257,8 +257,8 @@ be0aaaeab1492b83dbab64d6e0edb6af0693abf5db869bd1ac826e9fd090c888  ./tests/questi
 3a4d980d4d064ac1e38653eef628f0cb1b20f7c7a0001417d5e2e97cedafa9d1  ./tests/release-assertions.sh
 aa53ae265be7d9753c57f7563ba3766cee0fced62f39bf855e4e23c6ac7df826  ./tests/release-display-test.sh
 ae3337e5ae362bf1fad83355272ff595b58aae13d7a7ac67617f6f3161fa0c07  ./tests/release-screens-requirements.txt
-45cdf6572f131ab62370fa7c11762d28501cb48bf93ca77151b3387727b53059  ./tests/release-screens-test.sh
-9fabf42af0ec74f88e96af325f22408363963684106d44da7be971fbdbfea3af  ./tests/release-screens.sh
+27aed0a3ea9864c85d56bd05c5d150fb51a7927b3375e22dfb525a60605dfaf6  ./tests/release-screens-test.sh
+07165a079e9eba7d71e7fcf73bba9ac363151e9f86ff805ac456cd195cae3eee  ./tests/release-screens.sh
 f59a2ca06ba0734d040171e82a246de0735219665cbf6f89b1b05a9c1473ba4c  ./tests/release-test-lib.sh
 1eb6ee707764f677aaf2f065b1ce0d19269e404b6342de4fce2390bce01eda1a  ./tests/release-test.sh
 e676ddae52c4c2173140a0905b5752315cd041654670608396896d397b76491d  ./tests/release-workflow-test.sh
@@ -307,7 +307,7 @@ b212af80366faa54e2a8e9183179a9dea4321f9228d3c33fea49adc6ae1e3a47  ./tests/termin
 f28ae55cfcf1eb74bb1573c6111ad36207f176592835f1ef8753fe3b83d63309  ./tests/test-runner-test.sh
 151c1ad19d9cb5240489334f9da73501f097d91e5c3f467005b91761291cd83a  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
-509fb1c7732cab6832a3fec61c7a1ab6d0b8e050ad5a5277a5a2911cdf6922a6  ./tests/ui-pty.py
+318b7373d24df9969728c1e9effd14bf03c0dc0f17fd1b4aa92bc9dfeced3d0f  ./tests/ui-pty.py
 943f6d898984025f053cd0458baf1d92891e20355208e01ada14b23866ab92fd  ./tests/ui-steps-test.sh
 cd316faf3c379f73a31317b9d3b8e231ec347366ec4aaf01be93f7d92b1cfbb9  ./tests/ui-test.sh
 5ed8e11099875df22e4ac7f26be25561489d0939111df11a8d1c4e1d437f6809  ./tests/usage-fixture.py

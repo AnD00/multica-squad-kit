@@ -31,6 +31,18 @@ assert (p / 'probe-after').read_bytes() == b'y\r\ndone\r\n'
 PY
 echo 'PASS release-screens: 同じ疑似端末で入出力を順に取り、100 桁と問いのあとの入力を確かめた'
 
+# 子が終わった終了コードはそのまま返し、問いが出ないなど取れなかったときは 125 にして分ける。
+status=0
+python3 "$root/tests/ui-pty.py" screen "$test_dir/exit-confirm" "$test_dir/exit-after" \
+	--stdin-tty "$test_dir/answer" --wait-for 'ready: ' -- python3 -c 'print("ready: ", end="", flush=True); input(); raise SystemExit(1)' || status=$?
+[[ $status == 1 ]] || { echo "FAIL release-screens: 子の終了コード 1 がそのまま返らない（$status）" >&2; exit 1; }
+status=0
+python3 "$root/tests/ui-pty.py" screen "$test_dir/lost-confirm" "$test_dir/lost-after" \
+	--stdin-tty "$test_dir/answer" --wait-for 'ready: ' -- python3 -c 'raise SystemExit(1)' 2>"$test_dir/lost-err" || status=$?
+[[ $status == 125 ]] || { echo "FAIL release-screens: 問いが出ないときに 125 を返さない（$status）" >&2; exit 1; }
+grep -q '疑似端末で問いが見つかりませんでした' "$test_dir/lost-err" || { echo 'FAIL release-screens: 取れなかった理由が出ない' >&2; exit 1; }
+echo 'PASS release-screens: 取れなかったときの 125 と、子の終了コードを分けた'
+
 # 描画前の読み取りは Pillow を入れずに確かめる。CI では PNG を描かない。
 python3 - "$root/tests/ansi-to-png.py" <<'PY'
 import importlib.util
@@ -99,4 +111,14 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
         assert 'ここから】' not in plain
 assert not list(screens.glob('*.png'))
 PY
+# 書き換えた一覧の先頭から残る。成功は完了した手順、失敗は ✖ が、後の画像の文字に残る。
+text() { python3 "$root/tests/ansi-to-png.py" "$test_dir/screens/$1-after.ansi" --before "$test_dir/screens/$1-confirm.ansi" --text; }
+for scene in 1 3 4 5; do
+	text "$scene" | grep -F 'タグを作って push する' >/dev/null || { echo "FAIL release-screens: 場面 $scene の後の画像の文字に、一覧の先頭の手順がない" >&2; exit 1; }
+done
+text 1 | grep -F '✔ 下書きの Release を作る' >/dev/null || { echo 'FAIL release-screens: 場面 1 の後の画像の文字に、完了した手順がない' >&2; exit 1; }
+text 1 | grep -F '✔ 発行のワークフローに配布物を作らせ、終わるまで待つ' >/dev/null || { echo 'FAIL release-screens: 場面 1 の後の画像の文字に、ワークフローの完了がない' >&2; exit 1; }
+text 3 | grep -F '✖ 発行のワークフローに配布物を作らせ、終わるまで待つ' >/dev/null || { echo 'FAIL release-screens: 場面 3 の後の画像の文字に、失敗の印がない' >&2; exit 1; }
+text 4 | grep -F '✖ 配布物を確かめる' >/dev/null || { echo 'FAIL release-screens: 場面 4 の後の画像の文字に、失敗の印がない' >&2; exit 1; }
+! text 3 | grep '○ タグを作って push する' >/dev/null || { echo 'FAIL release-screens: 場面 3 の後の画像に、書き換える前の行が残る' >&2; exit 1; }
 echo 'PASS release-screens: 5 場面の終了コード、問い、長い本文、色、成功と失敗の画面を取れた'

@@ -190,8 +190,9 @@ RELEASE_SCREENS_PYTHON=tmp/screens-venv/bin/python bash tests/release-screens.sh
 - 画像は、リポジトリに入れない。`tmp/` は Git に入れない
 
 PR のコメントに、場面ごとの前と後の画像の組、上のコマンド、前に使った `main` のコミットを書く。  
-`gh` には PR のコメントに画像を載せる口がないので、画像は GitHub の画面でそのコメントに添える。  
-エージェントが作ったときは、画像をタスクのコメントに添え、人が PR のコメントに移す。
+画像は、作った人が `gh pr comment <PR> --body-file <本文> --attach '<画像>#<説明>'` で、10 枚を 1 つのコメントに載せる。  
+載せたあとに `gh pr view <PR> --json comments` で、コメントに画像の URL があり、手元のパスが残っていないことを確かめる。  
+載せられなかったときだけ、画像を Multica のタスクのコメントに添え、試したコマンドと終了コードと出力も添えて、人に頼む。
 
 ## 文書の改行
 

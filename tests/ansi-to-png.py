@@ -56,10 +56,15 @@ class Terminal:
         self.color, self.bold = FOREGROUND, False
         self.wrap = False
         self.pending = ""
+        self.reached = None
 
     @property
     def absolute_row(self):
         return len(self.history) + self.row
+
+    def mark(self):
+        """ここから先でカーソルが届いた一番上の行を、数え始める。"""
+        self.reached = self.absolute_row
 
     def _down(self):
         if self.row == self.rows - 1:
@@ -122,6 +127,8 @@ class Terminal:
             self._sgr(parameters)
         elif command == "A" and (not parameters or parameters.isdecimal()):
             self.row = max(0, self.row - (int(parameters or 1) or 1))
+            if self.reached is not None:
+                self.reached = min(self.reached, self.absolute_row)
             self.wrap = False
         elif command == "K" and parameters == "2":
             self.screen[self.row] = [None] * self.columns
@@ -230,7 +237,7 @@ def main():
     parser.add_argument("input", type=Path)
     parser.add_argument("output", type=Path, nargs="?", help="PNG または文字の保存先。--text では省略すると標準出力")
     parser.add_argument("--text", action="store_true", help="PNG を描かず、画面に残る文字を出す")
-    parser.add_argument("--before", type=Path, help="答えを送る前の出力。この画面に続けて input を読み、問いの行から残す")
+    parser.add_argument("--before", type=Path, help="答えを送る前の出力。この画面に続けて input を読み、書き換えた一覧の先頭から残す")
     parser.add_argument("--last-lines", type=int, help="折り返したあとに残す行数（確認の画面は 40）")
     parser.add_argument("--font", help="半角用の等幅フォントのパス")
     parser.add_argument("--wide-font", help="全角用の日本語フォントのパス")
@@ -241,11 +248,11 @@ def main():
         parser.error("PNG の保存先を指定してください")
     terminal = Terminal()
     decoder = codecs.getincrementaldecoder("utf-8")("replace")
-    start_row = 0
     if args.before:
         terminal.feed(decoder.decode(args.before.read_bytes()))
-        start_row = terminal.absolute_row
+        terminal.mark()
     terminal.feed(decoder.decode(args.input.read_bytes(), final=True), final=True)
+    start_row = terminal.reached or 0
     lines = terminal.lines(trim=not bool(args.last_lines))[start_row:]
     if args.last_lines:
         lines = lines[-args.last_lines:]

@@ -137,7 +137,12 @@ def capture_screen():
 
 
 if mode == "screen":
-    sys.exit(capture_screen())
+    # 子の終了コードはそのまま返す。取れなかったとき（時間切れ、問いが出ない）は、子の終了コードと分けて 125 を返す。
+    try:
+        sys.exit(capture_screen())
+    except Exception as error:
+        print(f"疑似端末の出力を取れませんでした: {error}", file=sys.stderr)
+        sys.exit(125)
 
 
 def attach(use_tty):
