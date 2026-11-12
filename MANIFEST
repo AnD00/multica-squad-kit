@@ -3,13 +3,13 @@ a6075c06025d8c2d6445a942619b5062fd172e5402b77fe4c294029707e0dcba  ./.agents/rule
 7ec8af9fdbda60aacfcd7510d9e44ebc478f79feae2fd586d0393fd396da39c1  ./.agents/rules/tests.md
 63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 41bafe24a022abcb3d82e5547a3ac0cb5a50f42e950868873dcd5d867df7a23f  ./.github/pull_request_template.md
-ccbc66e193c43c07f5918fa8a21c88d8ec374b820063598cf1b3182564c4af25  ./.github/workflows/check.yml
+3ea247715de119c5bfad430217d114e8a1ad1ba4e3e7a25c41284e03f23c45d9  ./.github/workflows/check.yml
 84c6d113ac418d9812edad92f27dfe8af5a645de6e5bf5914af361ffca807aeb  ./.github/workflows/release-assets.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 9e31f50f1ec32243a5d62248c6326729552844139dc6df714a3e002f4bc2637a  ./AGENTS.md
 062793825d85726aff7fa948387084348a726e6cb46ec7f96578e79ced05e914  ./CHANGELOG.md
-4ad20bf47a691a620110eca6b0477072c56fb0e837acf204cb04021d5163115b  ./CONTRIBUTING.md
+abb439b0f17bfc90ff92585a14ff16ec3c0846a3f7bd50611cea596edc32a0e0  ./CONTRIBUTING.md
 02c000ace7a2ae0b9c6fa8379fd2aa1e3cf8c3e4871ec14a9b3e2082ff2512ef  ./EXTENSIONS.md
 ee460193b71b558dab06988ee906dadf8ad57554399fc1d082e781067a1491fc  ./README.md
 a6bc7b3029e8fce019c216def75e3b84307c90081d3ffeca654fd3d507878ff2  ./VERSION
@@ -257,7 +257,7 @@ e702e1dd459c4239b74c2538b549604dc3c961531fb2249df16b66dca231e8f7  ./tests/questi
 ba1f6c8fcba7db5c7b695c28b61f76600993eae20129bfb2df93498859923dde  ./tests/release-failure-test.sh
 d6845161d0097a56c11e8607b4ebdd9efe32efe0ccb0691e1d3227ceebb2e53f  ./tests/release-test-lib.sh
 2845491562c0b390a2398264e76b6bf93b6ed23715e52bdc34f4129a3ee249db  ./tests/release-test.sh
-e676ddae52c4c2173140a0905b5752315cd041654670608396896d397b76491d  ./tests/release-workflow-test.sh
+b3294d76761ef637231fa8d6e593c4efecb08d6ec4f7e2883f195a0a47e616e9  ./tests/release-workflow-test.sh
 9059bbcc14118aed461e95965f261959c381780b25ddee5c9372d929c1d46010  ./tests/review-wait-fixture.py
 2b8cc440684e9d84ca041c9aca96efa13d8c4572ee4d5e5c5956a56dfdc826e8  ./tests/review-wait-test-lib.sh
 22335a35b9856427b72f799ac27e7f4e16905baa5c0b7146ebc07897de7806ee  ./tests/role-choices-test.sh
@@ -313,7 +313,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-b9f314b2fe2bbd8c62e9257b2e9a75c7e1ccba69f6e9926738d3b2ad7de87ddb  ./tests/test-weights
+0d108a7c4c8719f43a84cdb3fc01366ea0152e4344ceb6e66d49a261ceabdc6a  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
