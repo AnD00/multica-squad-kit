@@ -9,7 +9,7 @@ make_completed
 make_extension
 
 # 同じエージェントを両方から片方へ移し、以前のランタイムの環境を残さない。
-export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=15
+export TEST_EXCLUDED='[]' TEST_ROLE_COUNT=17
 rm -rf "$TEST_DB" "$TEMPLATE_AGENT_HOME"
 cp -R "$test_dir/completed/db" "$TEST_DB"
 cp -R "$test_dir/completed/host" "$TEMPLATE_AGENT_HOME"
@@ -22,7 +22,7 @@ for selected in claude codex; do
  if [[ $selected == claude ]]; then absent=codex; expected=claude-sonnet-5-5; else absent=claude; expected=gpt-6.1-sol; fi
  : >"$TEST_DB/calls"
  run
- grep -qF 'エージェント 13 件の既存設定' "$test_dir/err"
+ grep -qF 'エージェント 14 件の既存設定' "$test_dir/err"
  grep -qF '今回作った件数: エージェント 0 件' "$test_dir/out"
  ! jq -es --arg prefix "agent-demo-$absent-" 'any(.[]; .[0]=="agent" and (.[2] // ""|startswith($prefix)))' "$TEST_DB/calls" >/dev/null
  for role in orchestrator planner designer qa code-reviewer security-reviewer ux-reviewer performance-reviewer ci-monitor usage-monitor dependabot-merger; do
@@ -34,6 +34,7 @@ for selected in claude codex; do
   if [[ $role == orchestrator ]]; then role_args='["--keep","value"]'; fi
   jq -e --arg selected "$selected" --argjson prefix "$role_args" '.custom_args==($prefix+(if $selected=="codex" then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end))' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
  done
+ jq -e --arg selected "$selected" --arg model "$(if [[ $selected == claude ]]; then echo claude-fable-5-2; else echo gpt-6-astra; fi)" '.model==$model and .runtime_id==("runtime-"+$selected) and .thinking_level=="high"' "$TEST_DB/agents/agent-demo-$selected-principal-owner.json" >/dev/null
  jq -e '.EXTRA=="keep"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
  if [[ $selected == codex ]]; then
   for role in orchestrator usage-monitor ci-monitor; do

@@ -283,14 +283,14 @@ jq -e '[.repositories[].repository]==["example/two","example/one"]' "$TEMPLATE_S
 [[ $(grep -c '1つ以上の番号' "$test_dir/err") == 4 ]]
 echo 'PASS repositories: 0・候補外・文字・空の選択は同じ質問へ戻り、1つ以上の選択だけを受け付ける'
 
-for damage in '.repositories=[]' '.repositories[0].repository="example/other"' '.schema=9'; do
+for damage in '.repositories=[]' '.repositories[0].repository="example/other"' '.schema=9' '.excluded_roles=["claude-principal"]' '.excluded_roles=["codex-principal"]'; do
  jq "$damage" "$test_dir/multi-safe" >"$multiple"
  cp "$multiple" "$test_dir/damaged"
  printf '1\n1\nmulti\n' >"$test_dir/input"
  deny
  cmp "$multiple" "$test_dir/damaged"
 done
-echo 'PASS repositories: 空の保存一覧・URL と違うリポジトリ名・未知の保存形式は拒否して上書きしない'
+echo 'PASS repositories: 空の保存一覧・URL と違うリポジトリ名・未知の保存形式・外せない最上位の役の除外は拒否して上書きしない'
 
 # Linux と WSL 2 も、同じ回答で新規導入と再実行を通す。
 unset TEST_REPOS_FILE

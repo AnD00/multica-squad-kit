@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # multica-squad-kit-managed
-# 実装・修正を回す側を、その場で読んだ使用率から選ぶ（macOS・Linux 用）。
+# 実装・修正・最上位の役を回す側を、その場で読んだ使用率から選ぶ（macOS・Linux 用）。
 # 0: 選択、2: 両方とも使用上限、1: 使い方などの誤り。Multica には書き込まない。
 set -euo pipefail
 
 dispatch_pick_main() (
 	local kind=${1:-} size=${2:-大きな}
-	if [[ "$kind" != implement && "$kind" != fix ]] || (($# > 2)) \
-		|| { [[ "$kind" == fix ]] && (($# != 1)); }; then
-		echo '使い方: squad-dispatch-pick implement [小さな|大きな] または squad-dispatch-pick fix' >&2
+	if [[ "$kind" != implement && "$kind" != fix && "$kind" != principal ]] || (($# > 2)) \
+		|| { [[ "$kind" != implement ]] && (($# != 1)); }; then
+		echo '使い方: squad-dispatch-pick implement [小さな|大きな]、squad-dispatch-pick fix、または squad-dispatch-pick principal' >&2
 		return 1
 	fi
 	command -v jq >/dev/null 2>&1 || { echo 'jq が見つからない' >&2; return 1; }
@@ -102,14 +102,15 @@ dispatch_pick_main() (
 		| (if $c.excluded != null and $c.excluded != "" and $x.excluded != null and $x.excluded != "" then "なし"
 			elif $c.excluded != null and $c.excluded != "" then "Codex"
 			elif $x.excluded != null and $x.excluded != "" then "Claude"
-			elif $fallback then (if $kind == "fix" or $size == "小さな" then "Codex" else "Claude" end)
+			elif $fallback then (if $kind == "principal" then (if $c.error == null and $x.error != null then "Claude" else "Codex" end)
+				elif $kind == "fix" or $size == "小さな" then "Codex" else "Claude" end)
 			elif $c.margin >= $x.margin then "Claude" else "Codex" end) as $chosen
 		| ((if $fallback then
-			["使用率を読めないため、" + (if $kind == "fix" then "修正の代わりの決まり" else "大きさ「" + $size + "」" end) + "で決めた。"
+			["使用率を読めないため、" + (if $kind == "fix" then "修正の代わりの決まり" elif $kind == "principal" then "最上位の役の代わりの決まり" else "大きさ「" + $size + "」" end) + "で決めた。"
 				+ (if $global != "" then $global else
 					([$c.error, $x.error] | map(select(. != null)) | if length == 0 then ["使用率の読み取りに失敗した"] else . end | join("、")) end)]
 			else [] end) + $excluded) as $reasons
-		| {chosen: $chosen, role: (if $chosen == "なし" then "なし" else ($chosen | ascii_downcase) + "-" + (if $kind == "fix" then "fixer" else "implementer" end) end),
+		| {chosen: $chosen, role: (if $chosen == "なし" then "なし" else ($chosen | ascii_downcase) + "-" + (if $kind == "fix" then "fixer" elif $kind == "principal" then "principal" else "implementer" end) end),
 			line: ("振り分け: " + $chosen + (if $reasons | length > 0 then "（" + ($reasons | join("。")) + "）" else "" end)
 				+ "。" + ([($c | summary("Claude")), ($x | summary("Codex"))] | join("、")))}')
 	jq -r '"役: " + .role, .line' <<<"$result"

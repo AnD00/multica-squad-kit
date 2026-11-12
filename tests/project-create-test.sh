@@ -8,15 +8,15 @@ source "$root/tests/project-test-lib.sh"
 reset_db
 run
 grep -qx "followup after agents" "$test_dir/out"
-for index in $(seq 0 15); do grep -qF "エージェント $index/15（ID の準備" "$test_dir/err"; done
+for index in $(seq 0 17); do grep -qF "エージェント $index/17（ID の準備" "$test_dir/err"; done
 for phase in 設定 公開; do
- for index in $(seq 0 15); do grep -qF "エージェントの$phase $index/15" "$test_dir/err"; done
+ for index in $(seq 0 17); do grep -qF "エージェントの$phase $index/17" "$test_dir/err"; done
 done
-[[ $(grep -c '^エージェント [0-9]*/15（ID の準備' "$test_dir/err") == 16 ]]
-echo 'PASS progress: 15役のID準備・指示設定・公開を0から順に表示し、未公開のID準備を全体完了と表示しない'
+[[ $(grep -c '^エージェント [0-9]*/17（ID の準備' "$test_dir/err") == 18 ]]
+echo 'PASS progress: 17役のID準備・指示設定・公開を0から順に表示し、未公開のID準備を全体完了と表示しない'
 
-grep -qF "今回作った件数: エージェント 15 件、スクワッド 1 件、オートパイロット 0 件" "$test_dir/out"
-[[ $(jq -s 'length' "$TEST_DB"/agents/*.json) == 16 ]]
+grep -qF "今回作った件数: エージェント 17 件、スクワッド 1 件、オートパイロット 0 件" "$test_dir/out"
+[[ $(jq -s 'length' "$TEST_DB"/agents/*.json) == 18 ]]
 jq -es 'all(.[]|select(.name|startswith("demo-")); .permission_mode=="public_to" and (.instructions|contains("squad-a")) and (.instructions|contains("agent-demo-orchestrator-owner")) and (.instructions|contains("{{")|not))' "$TEST_DB"/agents/*.json >/dev/null
 printf 'example/project\nexample/second\nexample/third\n' >"$test_dir/expected-repos"
 cmp "$test_dir/expected-repos" "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a"
@@ -28,7 +28,7 @@ jq -e --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" '.CLAUDE_
 jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE=="1"' "$TEST_DB/env/agent-demo-dependabot-merger-owner.json" >/dev/null
 jq -e '.SQUAD_KIT_GH_DEPENDABOT_MERGE==null' "$TEST_DB/env/agent-demo-codex-implementer-owner.json" >/dev/null
 jq -e '[.skills[].id]|sort==["handoff-a","verify-a"]' "$TEST_DB/agents/agent-demo-codex-implementer-owner.json" >/dev/null
-echo 'PASS completion: 成功したエージェント15件とスクワッド1件だけを作成件数に出す'
+echo 'PASS completion: 成功したエージェント17件とスクワッド1件だけを作成件数に出す'
 echo 'PASS project: 初回はホスト準備後に private と停止指示と環境を作り、全 ID と指示検証後に割り当て、最後に公開する'
 ! jq -es 'any(.[]; .[0:2]==["squad","update"] or .[0:2]==["squad","member"] or .[0]=="autopilot")' "$TEST_DB/calls" >/dev/null
 echo 'PASS project: プロジェクトの登録でスクワッドの器を作り、設定の反映を最後に行う'
@@ -41,6 +41,7 @@ for repo in example/project example/second example/third; do
 done
 jq -e '.content|split("\n")|map(select(startswith("## `")))|length==3' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.description|contains("{{")|not' "$TEST_DB/projects/project-a.json" >/dev/null
+jq -e '.description|split("\n")|index("## 重要の基準")!=null and any(.[]; startswith("[記入: このプロジェクトで重要なタスクとみなす条件"))' "$TEST_DB/projects/project-a.json" >/dev/null
 jq -e '.content|contains("{{")|not' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.content|contains("[記入: 実際に使うコマンドと実行順]")' "$TEST_DB/skills/verify.json" >/dev/null
 for repo in example/project example/second example/third; do
@@ -49,7 +50,7 @@ done
 jq -e '.content|split("\n")|map(select(startswith("### コンフリクトを解消したときの検証（")))|length==3' "$TEST_DB/skills/verify.json" >/dev/null
 jq -e '.content|contains("[記入: 衝突したファイルと PR が変えたファイルから、関わるテストを選ぶ方法とコマンド。")' "$TEST_DB/skills/verify.json" >/dev/null
 echo 'PASS project: 全役へ全リポジトリを渡し、説明は各役割の行、検証スキルは各リポジトリの節へ展開する'
-# 環境の修復試験の準備には、ここで本体から作った全15役の状態を使う。
+# 環境の修復試験の準備には、ここで本体から作った全17役の状態を使う。
 mkdir -p "$test_dir/completed"
 cp -R "$TEST_DB" "$test_dir/completed/db"
 cp -R "$TEMPLATE_AGENT_HOME" "$test_dir/completed/host"
