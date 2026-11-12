@@ -2,7 +2,7 @@
 
 人間がスクワッドの進捗や遅延をリーダーに聞いたとき、リーダーが実行の状態と記録を確かめてから答えるようにする。実行を止める・やり直すときは、人間の指示か承認を受けてから行い、未 push の作業を失うかを人間が判断できるようにする。
 
-この文書は、リーダーの役のひな形（`common/agents/orchestrator.md`）に足す手順の設計と、その理由を書く。リーダーの指示に置いた手順は、のちに squad-handoff の参照のファイルへ移した（[leader-principles.md](leader-principles.md) の「手順の移し先」）。
+この文書は、リーダーの役のひな形（`common/agents/orchestrator.md`）に足す手順の設計と、その理由を書く。現在のリーダーの手順は、squad-handoff の参照ファイル [leader-run-status.md](../common/skills/squad-handoff/references/leader-run-status.md) にある。指示の構成と移した理由は、[leader-principles.md の手順の移し先](leader-principles.md#手順の移し先)を参照する。
 
 ## 目的と範囲
 

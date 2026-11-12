@@ -8,7 +8,7 @@ ccbc66e193c43c07f5918fa8a21c88d8ec374b820063598cf1b3182564c4af25  ./.github/work
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 9e31f50f1ec32243a5d62248c6326729552844139dc6df714a3e002f4bc2637a  ./AGENTS.md
-e7bc0909e0c730c62aedc85a39b0bf2d8664049d784c78ec91fde6de2a4bb953  ./CHANGELOG.md
+fb86c6f816bcbe2d2dd38e58e53f524d6652fed66d6dc0b51442d345a3c50893  ./CHANGELOG.md
 4648f81cf86a5c7231559d3de40832c5959dc2ce564d0551df466fc962b716a2  ./CONTRIBUTING.md
 02c000ace7a2ae0b9c6fa8379fd2aa1e3cf8c3e4871ec14a9b3e2082ff2512ef  ./EXTENSIONS.md
 ee460193b71b558dab06988ee906dadf8ad57554399fc1d082e781067a1491fc  ./README.md
@@ -57,7 +57,7 @@ eb490215ee995135a77146f5d0bde9a1fdd969c234e8ab31b1e28b3ba1fd4880  ./common/skill
 23557d062565bea1d38eadcb99ff18327f10fbd5a435d36a1d83f8f553eba704  ./common/skills/squad-handoff/references/leader-principal.md
 bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skills/squad-handoff/references/leader-review-wait.md
 72f290e2794488ba8d0b1bfc7d8b2dfd9602df9fe88c8574fa41e8fe1426933c  ./common/skills/squad-handoff/references/leader-run-status.md
-adfb0e15a2f23706c8ac822ef3c6e14e632d1c5af5862d5f1cc0c79a90847d55  ./common/squad.md
+8093bc2d5d0099ee21b373099ae4334be5463fa542c2afce4e0df82dbdd26dc3  ./common/squad.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
 35850b8f5d56de2877620f4abbc966648eff0ec6a25a0d275e0521104e0c41e6  ./docs/ci.md
 680d4a0a72f93f6137416efdf36f1ee49665a350f49288456af87e671a802c28  ./docs/conflict-resolution.md
@@ -65,12 +65,12 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 9e16d28fee953be91a85ada3c4fa00970cc04b2e3b3f1f51a2b03884f5fb5b57  ./docs/install.md
 a59647f7500b28c7b7afd1d5f1a203a7e61b92322f3aad166bc10bf2f314419e  ./docs/leader-principles.md
 ff0e5faa1ff0c0ac18368e3f31df058707c5ae929df29f226c281de8e29bbd0b  ./docs/local-verification.md
-a19c8d845eac7ce4e1a0888ad1aca23b1acf0782191514826dd3aea7595f4d29  ./docs/pr-conflict-check.md
+940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
-27a42972dc96945116089e71fe8f746f80a82faf2df3fd68b689c50ca822acb8  ./docs/principal-review.md
+5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
 0ae20574a597df6ac09c8a9f2eacfc4badc7b2b3d2edaa14e324b8a175c183ed  ./docs/release.md
-38af1dd1ee9bba0e276f30163944d7f16af0dc2c437f19fcda3be11a77b07b3b  ./docs/review-wait.md
-2c1018592b5f7d33b44423fdcce931cc909bdc35fa8d17446913f66d7222a8e8  ./docs/run-status.md
+965a009c6f8e3262c6d33ab09d7288b066b6282ee66bcd8472f6c45a56b8cabc  ./docs/review-wait.md
+2e01bc767f204b6a3c5fd70b01bdfa5e3ef5457bc7887e9a0a8ba615b75c0435  ./docs/run-status.md
 d92c09520ff698c6240542eb4f71b60e6f6ff3f6a4f680638965cef32002ccde  ./docs/setup-completion.md
 33392749d2bddf1b063820bdda3df3809340f16d36f3616f40ec5f6c8a1f0bb8  ./docs/terms.md
 a19c253fe604c48bfcd591479cba51b178ffd81ec46a8865ac0a42b36dff89d0  ./docs/unfilled-stop.md
