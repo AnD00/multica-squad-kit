@@ -277,7 +277,7 @@ a4def5e327f858c5cc07f9b65635876716e4d0180ecde457776592bbbce38424  ./tests/setup-
 bca2095200cf3e3eef685159dd9416e5f3dfca75e09a74d96212112dcb9759d6  ./tests/setup-runtimes-both-test.sh
 1ce45122fecfaa84dcd9d5592b63c982aafdfa1b49e0bb5817a9f9f7e5345ff6  ./tests/setup-runtimes-claude-test.sh
 c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-runtimes-codex-test.sh
-e87f64d039008b79d3b469c7ab8973a37d7c77051982d28c79d617bf9fc1a312  ./tests/setup-runtimes-test-lib.sh
+da07199649917770eb7c4e1929588a8582c4c29515c84b4e72927cc481b2d013  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 171e91886f26dc0c17d735215e86ce8ccaa542e7dc3bc42dd82b1bd3b3bb7f7f  ./tests/setup-test.sh
 ef814b62ffacdfe1963876bb35a0a13bb8532cb65d44b38fd1658ccf721740d1  ./tests/setup-version-test.sh

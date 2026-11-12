@@ -226,7 +226,7 @@ PY
     elif .name=="demo-verify" then .content += "\n## `example/removed`\n前からある検証手順\n" else . end)' "$scenario_dir/db.json" >"$scenario_dir/new"
   mv "$scenario_dir/new" "$scenario_dir/db.json"
   /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
-  grep -qF '更新を飛ばしました: squad-handoff' "$scenario_dir/err"
+  grep -qF '! squad-handoff  更新を飛ばしました。更新できる人' "$scenario_dir/err"
   jq -e 'any(.issues[]; .metadata.squad_kit_task=="handoff-skill-update" and .assignee_id=="creator" and .status=="todo") and
    any(.issues[]; .metadata.squad_kit_task=="repository-change" and .metadata.squad_kit_targets=="[\"removed:example/removed\"]") and
    any(.skills[]; .name=="demo-verify" and (.content|contains("前からある検証手順")))' "$scenario_dir/db.json" >/dev/null
