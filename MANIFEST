@@ -240,7 +240,11 @@ b3c517bcadfc4300777ee25be8dc2e4c6e5624774127054ad43da9d865113fc3  ./tests/pre-pu
 d1676565f755e0d153c7b72d3af400ed89e73442d8b073c89687c3e2440b0589  ./tests/project-create-test.sh
 03695b7195d4e55a905c477dbeff96fb6164d5b44795d557fba54ef1844b1fc3  ./tests/project-environment-test.sh
 14d8be867eeda1d83219afaa109a316ddc648d6c399f7591b8a633031611e5aa  ./tests/project-failure-test.sh
-0de613419072ffa1821d23f8b6e83bedcba7d0c503ddc28ebf42c99017e1be8a  ./tests/project-followup-test.sh
+caa58464c53d717ee5c0452a3cf122a5a64d748063fc3614972c9635d0585d87  ./tests/project-followup-failure-test.sh
+f09d51d3f1a15966f11044703c44777f2e6a3ff102b61262fce5ca6a9bd948b9  ./tests/project-followup-repositories-test.sh
+eb377bb4e0cc3d3f11cbdd2e4d4130cd60d0cb60e8ac0e50a615e5b5efd11b4b  ./tests/project-followup-test-lib.sh
+9d62081f612e9027fbbf4209a9e5452aee6ae641e48f2172f18be146a79e97f5  ./tests/project-followup-test.sh
+6fe6208cdc965a8d5d01daae573e5ecccb2138a762ba64384dd5a763d1e5c8d0  ./tests/project-followup-webhook-test.sh
 e43298107b9fb7f0c83dc3ed1134a279816f0b49f0435f2efcacd965b90c6303  ./tests/project-issues-fixture.py
 69b8f4e368c0126de7ab034bc303826ad10699b97a79024017aea93bb5d6d268  ./tests/project-issues-test.sh
 e2141527ff9e7280bce9dd9dd161bec702edca9d55658c078e487cae802c9ab2  ./tests/project-linking-test.sh
@@ -295,7 +299,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 6feb0540f0f56ae34d8383036d982c2a0e4d8f36ca33b1b9715a90748b282ca7  ./tests/test-runner-test.sh
-25a9a877b6d39cdeae3eda5ad819fa1852f8ada0052c9cd7a65fe6a0375a3d6a  ./tests/test-weights
+8f6dc6e23ff5051fa2797a71efdd23ab826a15a9ca07923f8f1a7a96024e44d8  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh
