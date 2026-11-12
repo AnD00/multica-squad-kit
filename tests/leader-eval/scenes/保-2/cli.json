@@ -1,0 +1,28 @@
+{
+  "commands": [
+    {
+      "match": "squad-preflight",
+      "stdout": "squad-preflight: ok"
+    },
+    {
+      "match": "multica issue get issue-shop-1",
+      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"カートに商品数を出す\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\",\n    \"pr_url\": \"https://github.com/example/shop/pull/7\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
+    },
+    {
+      "match": "multica issue comment list issue-shop-1",
+      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"member\",\n    \"author_id\": \"member1\",\n    \"parent_id\": null,\n    \"content\": \"カートのアイコンに、入っている商品の数を出したい\",\n    \"created_at\": \"2026-01-10T09:00:00Z\"\n  },\n  {\n    \"id\": \"comment-2\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-designer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 設計の draft PR を作りました。https://github.com/example/shop/pull/7\\n\\n確かめたこと:\\n- 設計文書の差分を確認した\\n\\n残っていること:\\n- 人間の承認\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  }\n]"
+    },
+    {
+      "match": "multica issue pull-requests issue-shop-1",
+      "stdout": "{\n  \"pull_requests\": [\n    {\n      \"url\": \"https://github.com/example/shop/pull/7\",\n      \"state\": \"open\",\n      \"draft\": true\n    }\n  ]\n}"
+    },
+    {
+      "match": "multica repo list",
+      "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    },
+    {
+      "match": "multica issue label list issue-shop-1",
+      "stdout": "[]"
+    }
+  ]
+}

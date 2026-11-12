@@ -1,0 +1,75 @@
+{
+  "commands": [
+    {
+      "match": "squad-preflight",
+      "stdout": "squad-preflight: 関所の gh と、すべての見張りが使えます。"
+    },
+    {
+      "match": "multica issue get issue-shop-1",
+      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"カートに商品数を出す\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\",\n    \"pr_url\": \"https://github.com/example/shop/pull/7\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
+    },
+    {
+      "match": "multica issue comment list issue-shop-1",
+      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-claude-implementer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。PR: https://github.com/example/shop/pull/7\\n\\n確かめたこと:\\n- 単体テストが通った\\n\\n残っていること:\\n- レビュー\",\n    \"created_at\": \"2026-01-10T09:00:00Z\"\n  },\n  {\n    \"id\": \"comment-2\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-code-reviewer\",\n    \"parent_id\": null,\n    \"content\": \"/note\\n❌ shop-code-reviewer-member1: 必須 1 件\\n確かめたコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n    \"created_at\": \"2026-01-10T09:40:00Z\"\n  },\n  {\n    \"id\": \"comment-5\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-orchestrator\",\n    \"parent_id\": null,\n    \"content\": \"[@shop-claude-fixer-member1](mention://agent/agent-claude-fixer) レビューの指摘（必須 1 件）の修正を頼みます。\\n\\n修正の依頼: 1 回目\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  },\n  {\n    \"id\": \"comment-6\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-ci-monitor\",\n    \"parent_id\": null,\n    \"content\": \"/note\\nCI 9c4b7a2: 失敗あり（shop-claude-fixer-member1 の作業中なので保留）\",\n    \"created_at\": \"2026-01-10T10:50:00Z\"\n  }\n]"
+    },
+    {
+      "match": "multica issue pull-requests issue-shop-1",
+      "stdout": "{\n  \"pull_requests\": [\n    {\n      \"url\": \"https://github.com/example/shop/pull/7\",\n      \"state\": \"open\",\n      \"draft\": true\n    }\n  ]\n}"
+    },
+    {
+      "match": "multica issue pull-requests --help",
+      "stdout": "Usage: multica issue pull-requests <issue-id> [--output json]\n\nList the pull requests linked to an issue. Read-only."
+    },
+    {
+      "match": "multica issue --help",
+      "stdout": "Usage: multica issue <command>\n\nCommands:\n  get, list, search, create, comment, status, assign, update, pull-requests, runs, run-messages, cancel-task, rerun, label, metadata\n\n`multica issue pull-requests <id>` lists the pull requests linked to an issue. There is no command that links a pull request."
+    },
+    {
+      "match": "multica issue label list issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica label list",
+      "stdout": "[\n  {\n    \"id\": \"label-important\",\n    \"name\": \"重要\"\n  },\n  {\n    \"id\": \"label-dev\",\n    \"name\": \"開発\"\n  },\n  {\n    \"id\": \"label-ops\",\n    \"name\": \"運用\"\n  },\n  {\n    \"id\": \"label-instruction\",\n    \"name\": \"指示の改善\"\n  },\n  {\n    \"id\": \"label-qa\",\n    \"name\": \"検証\"\n  }\n]"
+    },
+    {
+      "match": "multica issue children issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica repo list",
+      "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    },
+    {
+      "match": "multica issue runs issue-shop-1 --active",
+      "stdout": "[\n  {\n    \"id\": \"run-leader-2\",\n    \"agent_id\": \"agent-orchestrator\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:50:10Z\",\n    \"trigger_comment_id\": \"comment-6\"\n  },\n  {\n    \"id\": \"run-fix-1\",\n    \"agent_id\": \"agent-claude-fixer\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:00:30Z\",\n    \"trigger_comment_id\": \"comment-5\"\n  }\n]"
+    },
+    {
+      "match": "multica issue runs issue-shop-1",
+      "stdout": "[\n  {\n    \"id\": \"run-leader-2\",\n    \"agent_id\": \"agent-orchestrator\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:50:10Z\",\n    \"trigger_comment_id\": \"comment-6\"\n  },\n  {\n    \"id\": \"run-fix-1\",\n    \"agent_id\": \"agent-claude-fixer\",\n    \"status\": \"running\",\n    \"started_at\": \"2026-01-10T10:00:30Z\",\n    \"trigger_comment_id\": \"comment-5\"\n  }\n]"
+    },
+    {
+      "match": "multica issue run-messages run-fix-1",
+      "stdout": "[\n  {\n    \"seq\": 60,\n    \"type\": \"tool_use\",\n    \"tool\": \"Bash\",\n    \"input\": {\n      \"command\": \"git push origin HEAD:feat/cart-badge\"\n    },\n    \"created_at\": \"2026-01-10T10:21:09Z\"\n  },\n  {\n    \"seq\": 61,\n    \"type\": \"tool_result\",\n    \"content\": \"feat/cart-badge -> feat/cart-badge\",\n    \"created_at\": \"2026-01-10T10:21:15Z\"\n  },\n  {\n    \"seq\": 62,\n    \"type\": \"tool_use\",\n    \"tool\": \"Edit\",\n    \"input\": {\n      \"file_path\": \"src/cart/Badge.tsx\"\n    },\n    \"created_at\": \"2026-01-10T10:40:02Z\"\n  },\n  {\n    \"seq\": 63,\n    \"type\": \"tool_use\",\n    \"tool\": \"Bash\",\n    \"input\": {\n      \"command\": \"npm test -- Badge\"\n    },\n    \"created_at\": \"2026-01-10T10:48:31Z\"\n  }\n]"
+    },
+    {
+      "match": "squad-pr-watch ci-held issue-shop-1"
+    },
+    {
+      "match": "gh pr view",
+      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f\",\n  \"mergeable\": \"CONFLICTING\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
+    },
+    {
+      "match": "gh api repos/example/shop/branches/feat/cart-badge",
+      "stdout": "{\n  \"name\": \"feat/cart-badge\",\n  \"commit\": {\n    \"sha\": \"9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f\"\n  }\n}"
+    },
+    {
+      "match": "squad-review-wait status issue-shop-1",
+      "stdout": "返事の待ち: 登録なし"
+    },
+    {
+      "match": "squad-pr-watch conflicts-check issue-shop-1",
+      "stdout": "コンフリクト: CONFLICTING head: 9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f"
+    }
+  ]
+}

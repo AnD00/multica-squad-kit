@@ -38,15 +38,21 @@ for family in claude codex; do
 				("agent."+$role+".name"): ("demo-"+$role+"-member-a"),
 				("agent."+$role+".mention"): ("[@Role](mention://agent/agent-"+$role+")")}))' >"$test_dir/template-values.json"
 	template_apply "$test_dir/template-values.json" "$test_dir/orchestrator-filtered" >"$test_dir/orchestrator"
-	awk -v heading="## $section" '$0==heading {inside=1; next} inside && /^## / {exit} inside {print}' \
-		"$test_dir/orchestrator" >"$test_dir/dispatch-instructions"
+	# 通知の手順名は参照の題名に残り、索引から案内される。
+	ref="$root/common/skills/squad-handoff/references/leader-dispatch.md"
+	grep -qxF "# リーダーの手順: $section" "$ref"
+	grep -qF 'leader-dispatch.md' "$test_dir/orchestrator"
+	if [[ $family == claude ]]; then family_name=Claude; else family_name=Codex; fi
+	grep -qF "$family_name 系統だけがある" "$test_dir/orchestrator"
+	awk -v heading="### $family_name 系統だけのとき" '$0==heading {inside=1; next} inside && /^##/ {exit} inside {print}' \
+		"$ref" >"$test_dir/dispatch-instructions"
 	grep -qF 'squad-usage-read' "$test_dir/dispatch-instructions"
 	grep -qF '80%' "$test_dir/dispatch-instructions"
 	grep -qF 'それ以外はこの系統の対応する実装・修正の役へ回す' "$test_dir/dispatch-instructions"
 	grep -qF '読めなければこの系統に固定して選んだことと理由を書く' "$test_dir/dispatch-instructions"
 	# 両系統用の選択コマンドも、外した系統の役も残らない。
 	if grep -qF 'squad-dispatch-pick' "$test_dir/dispatch-instructions"; then exit 1; fi
-	fixers=$(awk '/^- `[^`]+-fixer`:/ {print}' "$test_dir/dispatch-instructions")
+	fixers=$(awk '/^- `[^`]+-fixer`:/ {print}' "$test_dir/orchestrator")
 	[[ $fixers == "- \`$family-fixer\`: [@Role](mention://agent/agent-$family-fixer)" ]]
 	other=codex
 	[[ $family != codex ]] || other=claude

@@ -54,6 +54,7 @@ tests/link-scope-questions-test.sh 9
 tests/install-command-test.sh 7
 tests/gh-test.sh 5
 tests/error-marks-test.sh 3
+tests/leader-eval-test.sh 3
 tests/capture-cli-fixtures-test.sh 2
 tests/completion-colors-test.sh 2
 tests/setup-tag-test.sh 2
