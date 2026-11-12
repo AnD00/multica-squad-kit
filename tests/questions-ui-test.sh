@@ -11,7 +11,7 @@ no_state
 for entry in '質問 (1/9) ワークスペース' '質問 (2/9) プロジェクト' '質問 (3/9) プロジェクトの区別' '質問 (4/9) リポジトリ' '質問 (5/9) メンバーの区別' '質問 (6/9) スクワッドに入れる人間' '質問 (7/9) 使うランタイム' '質問 (8/9) 外す役' '質問 (9/9) Dependabot の PR の Webhook'; do grep -qF "$entry" "$test_dir/err"; done
 [[ $(grep -c '^例:' "$test_dir/err") == 9 ]]
 [[ $(grep -c '^既定値:' "$test_dir/err") == 9 ]]
-grep -qF 'エージェント: 15件（新規15件、既存0件）' "$test_dir/err"
+grep -qF 'エージェント: 17件（新規17件、既存0件）' "$test_dir/err"
 grep -qF '名前の規則: shop-<役>-owner' "$test_dir/err"
 grep -qF 'SHOP-OWNER（新しく作る）' "$test_dir/err"
 grep -qF 'shop-verify（新しく作る）' "$test_dir/err"
@@ -105,7 +105,7 @@ echo '{"autopilots":[{"id":"auto-a","title":"Dependabot の PR の週次の確�
 printf '1\n1\nshop\n1\nowner\n1\n1\n0\n\nno\n' >"$test_dir/input"
 deny; no_state
 grep -qF 'SHOP-OWNER（今あるものを直す）' "$test_dir/err"
-grep -qF 'エージェント: 15件（新規14件、既存1件）' "$test_dir/err"
+grep -qF 'エージェント: 17件（新規16件、既存1件）' "$test_dir/err"
 grep -qF 'example/one（既存の紐付けを使う）' "$test_dir/err"
 grep -qF 'shop-verify（今あるものを使う。内容は保持）' "$test_dir/err"
 grep -qF 'オートパイロット: 3件（新規2件、既存1件）' "$test_dir/err"
@@ -130,7 +130,7 @@ cat >"$TEST_AUTOPILOTS_FILE" <<'AUTOS'
 ]}
 AUTOS
 deny; no_state
-grep -qF 'エージェント: 15件（新規0件、既存15件）' "$test_dir/err"
+grep -qF 'エージェント: 17件（新規0件、既存17件）' "$test_dir/err"
 grep -qF 'オートパイロット: 3件（新規0件、既存3件）' "$test_dir/err"
 ! grep -qF '保持する既存の設定:' "$test_dir/err"
 echo 'PASS display: 全件が既存のときも正しく集計し、作り直す予定と表示しない'
@@ -182,7 +182,7 @@ grep -qxF '  使用上限の見張り: AI の使用上限を見張る。' "$test
 grep -qxF '    オートパイロット: 使用上限の見張り shop-owner' "$test_dir/summary"
 awk '/^外す役と、一緒に外れるもの:/ {exit} {print}' "$test_dir/summary" >"$test_dir/summary-plan"
 if grep -qE 'shop-(security-reviewer|usage-monitor)-owner' "$test_dir/summary-plan"; then exit 1; fi
-grep -qF 'エージェント: 13件（新規13件、既存0件）' "$test_dir/summary"
+grep -qF 'エージェント: 15件（新規15件、既存0件）' "$test_dir/summary"
 grep -qF 'オートパイロット: 1件（新規1件、既存0件）' "$test_dir/summary"
 ! grep -qF '名前の規則: 使用上限の見張り' "$test_dir/summary"
 ! grep -qF '名前の規則: 週 1 回の依存ライブラリ' "$test_dir/summary"
@@ -190,7 +190,7 @@ echo 'PASS questions: 役は番号で説明と一緒に選び、両系統の除�
 
 printf '1\nShop\nshop\n1\nowner\n0\n1\n1 2 3 5 6 7 8 9 10 11 12\nno\n' >"$test_dir/input"
 deny; no_state
-grep -qF 'エージェント: 3件（新規3件、既存0件）' "$test_dir/err"
+grep -qF 'エージェント: 5件（新規5件、既存0件）' "$test_dir/err"
 grep -qF 'オートパイロット: 0件（新規0件、既存0件）' "$test_dir/err"
 # Dependabot の役を外したら、Webhook は番号の見出しだけで聞かず、確認にも出さない。
 grep -qxF '質問 (9/9) Dependabot の PR の Webhook: Dependabot の役を外したので聞きません。' "$test_dir/err"

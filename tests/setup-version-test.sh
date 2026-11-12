@@ -48,7 +48,9 @@ grep -qF "導入済みのバージョンは v1.0.0 です。この実行で最�
 echo 'PASS version-notice: 最新が導入済みより新しく今流しているものと同じなら、更新することを印なしで出す'
 
 # 最新が今流しているバージョンよりも新しいとき: 警告で README の更新の手順を示し、流している分は続ける。
-for latest in v1.9.0 v2.0.0 v1.8.1 v1.10.0; do
+# 新しいと見なす値は、今流しているバージョンから作る（バージョンを上げても固定の値が古くならないように）。
+IFS=. read -r run_major run_minor run_patch <<<"${running#v}"
+for latest in "v$((run_major + 1)).0.0" "v$run_major.$((run_minor + 1)).0" "v$run_major.$run_minor.$((run_patch + 1))" "v$run_major.$((run_minor + 10)).0"; do
 	fresh
 	seed v1.0.0
 	TEST_LATEST_TAG=$latest run
