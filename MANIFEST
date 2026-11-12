@@ -128,6 +128,7 @@ f6b5febce120c2de48411ed659d1a89b5da2b9d11aec3d54325f48f4b9176b51  ./tests/cli-st
 33249cf34f5322e723bbef995c5bf16464e3aebcd61e0f50927948c66baaf1b5  ./tests/completion-colors-test.sh
 0dc1ed5f1fea04eb14614dba2e98fd88d5ab76cafa79240f71d2633fb8742693  ./tests/content-test.sh
 d0a1670ec140dbabb74467738f04d0a121465aecca25a82a0c062a2821b378c9  ./tests/dependabot-merge-advance-test-lib.sh
+1ca031059ebd3ccb087611cc853dfd6d7f5a6e4d11d2a0c49bb2bfcf776c6781  ./tests/dependabot-merge-escalate-test-lib.sh
 e8368dbbd8991557806ad104ab9195cdbf35e29f5a28fcfb02f385cdbfe0f2e3  ./tests/dependabot-merge-test-lib.sh
 ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-lines-test.sh
 125fb78955f74eadf4de21203121e8ac58a174e1d881bb90e9a868a8a8c4aa3e  ./tests/error-marks-test.sh
@@ -291,7 +292,10 @@ b51049f27799415d5e787648dee693733e3d2b641dccb806adb3c4efa449d70b  ./tests/squad-
 83e5df82da76f6a04d0a7407b9c65fd95b32562f7bfb954bf321bfc8ce8348b2  ./tests/squad-dependabot-merge-advance-request-test.sh
 fea5fd1ec138f57f143103f00704d20bedbbe950ddd5494f99f3219fe7a40834  ./tests/squad-dependabot-merge-advance-retry-limit-test.sh
 12208088e627c794d5a27e6cefbbfb30d6033fb7ec63a19f65732c352cf8bab9  ./tests/squad-dependabot-merge-advance-retry-test.sh
-17a668aba34cab54c5a32e90bd0a7b32e3f465f236c790bbb70c7163c9f2d385  ./tests/squad-dependabot-merge-escalate-test.sh
+81a0fd637ca502a9c41f7c909fc1419d41d4fdba7434b223c1389bb61733d0ce  ./tests/squad-dependabot-merge-escalate-contract-test.sh
+e349e8fb5b0bd3147b5af709aedeb08e872e79203665461da77a7a6f5e2b15b3  ./tests/squad-dependabot-merge-escalate-failure-test.sh
+03e6ccf9271958cd8762ad1e3899906465bef135f0c4f01605a8f03360ab4c6c  ./tests/squad-dependabot-merge-escalate-scope-test.sh
+492c7bad6ed3956a7abe5f44e32d8432b6cc2d4106802ac3c2da3676f1494a20  ./tests/squad-dependabot-merge-escalate-test.sh
 328f4914482040c8770a282a5b9394530fdf3f97e05648d2f6f0408341006168  ./tests/squad-dependabot-merge-list-test.sh
 7a2bd75276db60c6dc8e4c0d4c54e7ef8a1edb338dff963daaa45b0c3c5e37fa  ./tests/squad-dispatch-pick-test.sh
 1a3b44bc56feea7b5aa32fa29f7380836cdc961fb3aebc5bdebaa9baf8eda027  ./tests/squad-pr-link-test.sh
@@ -308,7 +312,7 @@ a472885c8e28bed63ce90fda71b3684dee9a4036fc63d5f7569ccac09517c30a  ./tests/stdin-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-02d225d0cb706ae8f328dffab95812197a605b95234c59daa2be96b9b7959bac  ./tests/test-weights
+3bd7ce9d3f06576e986a423c8f04631ba5f08490fa2f1b4e61c317042dc59796  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 08e9ced5ab8ed137160240746cc480099421f053681ea2035f42b1aca9265edf  ./tests/ui-pty.py
 5276af8f65e51018ed637b37dba5118a18fbdf9edad5c5f73490fa9ee52cc8cb  ./tests/ui-test.sh

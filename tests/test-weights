@@ -28,6 +28,9 @@ tests/squad-dependabot-merge-advance-diff-test.sh 141
 tests/squad-dependabot-merge-advance-diff-request-test.sh 141
 tests/squad-dependabot-merge-advance-diff-binary-test.sh 141
 tests/squad-dependabot-merge-escalate-test.sh 141
+tests/squad-dependabot-merge-escalate-failure-test.sh 141
+tests/squad-dependabot-merge-escalate-scope-test.sh 141
+tests/squad-dependabot-merge-escalate-contract-test.sh 141
 tests/setup-test.sh 136
 tests/squad-dependabot-merge-list-test.sh 112
 tests/webhooks-test.sh 108
