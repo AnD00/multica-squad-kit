@@ -366,7 +366,21 @@ done
 for role in claude-fixer codex-fixer; do
 	grep -qF 'PR の本文を修正後の状態の要約に書き直す' "$test_dir/all/$role"
 	grep -qF '「本来どうあるべきか」' "$test_dir/all/$role"
+	grep -qF 'git diff --name-only --diff-filter=U' "$test_dir/all/$role"
+	grep -qF 'git diff --name-only origin/main...HEAD' "$test_dir/all/$role"
+	grep -qF '検証のスキルの節「コンフリクトを解消したときの検証」' "$test_dir/all/$role"
+	grep -qF 'テスト全体は手元で流さず、push のあとの CI で確かめる' "$test_dir/all/$role"
+	grep -qF '落ちたテストは流し直さない' "$test_dir/all/$role"
+	grep -qF '落ちたテストの名前と出力を添える' "$test_dir/all/$role"
+	grep -qF 'git show --remerge-diff <マージのコミット>' "$test_dir/all/$role"
+	grep -qF '見直し: 新しいコンテキストで、両方の変更の意図に照らした。直したもの:' "$test_dir/all/$role"
+	grep -qF '見直し: しなかった（文字の上の衝突を取り込んだだけ）' "$test_dir/all/$role"
+	grep -qF '見直し: できなかった（<理由>）。直したもの: なし' "$test_dir/all/$role"
+	! grep -qF '{{' "$test_dir/all/$role"
 done
+grep -qF 'Agent ツールで、新しいコンテキスト（fork ではないもの）のサブエージェント' "$test_dir/all/claude-fixer"
+grep -qF 'codex exec --sandbox read-only --ephemeral' "$test_dir/all/codex-fixer"
+! grep -qF 'Agent ツールで' "$test_dir/all/codex-fixer"
 for role in code-reviewer performance-reviewer security-reviewer ux-reviewer qa; do
 	grep -qF 'スキル squad-handoff の「本文の書き方」に従う' "$test_dir/all/$role"
 	grep -qF '「引き継ぐとき」の形と順序にそろえる' "$test_dir/all/$role"
