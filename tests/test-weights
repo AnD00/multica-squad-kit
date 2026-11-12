@@ -1,10 +1,14 @@
 # ファイル 秒（macOS の CI での目安）
 # 追記と更新の決まりは CONTRIBUTING.md の「テストを書く決まり」を参照する。
 tests/squad-dependabot-merge-advance-ci-wait-test.sh 211
+tests/squad-dependabot-merge-advance-ci-origin-test.sh 211
+tests/squad-dependabot-merge-advance-mergeability-test.sh 211
 tests/setup-runtimes-both-changes-test.sh 105
 tests/setup-runtimes-both-test.sh 140
 tests/project-followup-test.sh 181
 tests/squad-dependabot-merge-advance-request-test.sh 172
+tests/squad-dependabot-merge-advance-retry-test.sh 172
+tests/squad-dependabot-merge-advance-retry-limit-test.sh 172
 tests/squad-pr-watch-ci-test.sh 161
 tests/squad-cli-lib-test.sh 156
 tests/release-test.sh 155
