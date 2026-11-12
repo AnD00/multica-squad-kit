@@ -197,7 +197,8 @@ e2141527ff9e7280bce9dd9dd161bec702edca9d55658c078e487cae802c9ab2  ./tests/projec
 c2ceb8dd3561ee8adeaca790ebc1594cb1ad442522bb2a39334276306999f1ad  ./tests/project-select-test.sh
 6a75439aa217c567d6a63178cd759c189f00187e19758d806819eb5dd601b931  ./tests/project-test-lib.sh
 e702e1dd459c4239b74c2538b549604dc3c961531fb2249df16b66dca231e8f7  ./tests/questions-ui-test.sh
-dc07b1395e1a600cb215f3119e50ba31dd72e207b9596c85e118ef2c793ef7f0  ./tests/release-test.sh
+74a7a2e6fa03422c49c738ee517c5e5e3d7cf382c455fe1a17c5044e7a4b943e  ./tests/release-test-lib.sh
+b72f0a0f419a45cf662c341746c819c49bf6be6452958569431aaa139a157241  ./tests/release-test.sh
 e676ddae52c4c2173140a0905b5752315cd041654670608396896d397b76491d  ./tests/release-workflow-test.sh
 9059bbcc14118aed461e95965f261959c381780b25ddee5c9372d929c1d46010  ./tests/review-wait-fixture.py
 2b8cc440684e9d84ca041c9aca96efa13d8c4572ee4d5e5c5956a56dfdc826e8  ./tests/review-wait-test-lib.sh
