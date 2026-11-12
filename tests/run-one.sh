@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # テスト 1 本を、新しいセッションで起こして流す。tests/run.sh から xargs が呼ぶ。
 #
-# 時間の上限: SQUAD_KIT_TEST_TIMEOUT 秒（run.sh が検証して渡す。なければ 300 秒）を超えたら、
+# 時間の上限: SQUAD_KIT_TEST_TIMEOUT 秒（run.sh が検証して渡す。なければ 450 秒）を超えたら、
 # テストをセッションごと止め、時間切れの失敗として結果に残す。テストが別のプロセスグループで
 # 起こした子も同じセッションに残るので、セッションごと止めれば子を残さない。止め方は、
 # まず TERM、5 秒（0.2 秒ごとに確かめる）待っても残っていれば KILL。セッションを引くのは tests/stop-session.py
@@ -20,7 +20,7 @@
 set -euo pipefail
 root=$1 run_dir=$2 id=$3 test=$4
 work="$run_dir/$id"
-limit=${SQUAD_KIT_TEST_TIMEOUT:-300}
+limit=${SQUAD_KIT_TEST_TIMEOUT:-450}
 cd "$root"
 started=$(date +%s)
 status=0

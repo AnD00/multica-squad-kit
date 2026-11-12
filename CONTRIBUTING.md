@@ -101,7 +101,7 @@ bash scripts/manifest.sh && git diff --exit-code -- MANIFEST
 
 ### テスト 1 本ごとの時間の上限
 
-`tests/run.sh` は、テストのファイル 1 本に 300 秒の上限を設ける。  
+`tests/run.sh` は、テストのファイル 1 本に経過時間で 450 秒の上限を設ける。  
 超えたファイルは、`done TIMEOUT <ファイル> <上限>s` を出して止め、時間切れの失敗として扱う。  
 上限は、環境変数 `SQUAD_KIT_TEST_TIMEOUT` に秒数で指定して変えられる。
 

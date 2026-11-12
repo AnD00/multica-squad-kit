@@ -234,6 +234,55 @@ for name in sleeper stubborn; do
 done
 echo 'PASS runner: 上限を超えたファイルを、別のグループの子ごと止めて時間切れの失敗にし、ほかのファイルは流す'
 
+# 既定の上限は、時計だけを進めて確かめ、実際には 450 秒待たない。
+mkdir -p "$test_dir/clock"
+cat >"$test_dir/clock/date" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $* == +%s ]]
+clock="$TEST_RUNNER_STATE/clock.$PPID"
+if [[ ! -f $clock ]]; then
+	echo 0 >"$clock"
+	echo 0
+	exit 0
+fi
+# テストとその子が起きてから時計を進め、起動前の時間切れを避ける。
+for ((attempt=0; attempt<200; attempt++)); do
+	[[ -s $TEST_RUNNER_STATE/child.pid && -s $TEST_RUNNER_STATE/test.pid ]] && break
+	sleep 0.1
+done
+[[ -s $TEST_RUNNER_STATE/child.pid && -s $TEST_RUNNER_STATE/test.pid ]]
+read -r seconds <"$clock"
+seconds=$((seconds + 450))
+printf '%s\n' "$seconds" | tee "$clock"
+STUB
+chmod +x "$test_dir/clock/date"
+(
+	# このテスト自身を流す外側のランナーから渡された上限も外す。
+	unset SQUAD_KIT_TEST_TIMEOUT
+	export PATH="$test_dir/clock:$PATH"
+	rm -rf -- "$TEST_RUNNER_STATE"
+	mkdir -p "$TEST_RUNNER_STATE"
+	GITHUB_ACTIONS=true run_suite 1 1 "$fixtures/sleeper.sh"
+	grep -qxF "done TIMEOUT $fixtures/sleeper.sh 450s" "$test_dir/out"
+	grep -qxF "==== FAIL $fixtures/sleeper.sh（時間切れ: 450 秒で止めた）" "$test_dir/out"
+	grep -qF "::error file=$fixtures/sleeper.sh," "$test_dir/out"
+	grep -qF '時間切れ%3A 450 秒で止めた' "$test_dir/out"
+	grep -qxF "FAIL suite: 1 本が失敗: $fixtures/sleeper.sh" "$test_dir/out"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/test.pid")"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
+	# run-one.sh を直接呼んだときの既定も、同じ値である。
+	rm -rf -- "$TEST_RUNNER_STATE"
+	mkdir -p "$TEST_RUNNER_STATE" "$test_dir/direct/0/home" "$test_dir/direct/0/tmp"
+	bash "$kit/tests/run-one.sh" "$kit" "$test_dir/direct" 0 "$fixtures/sleeper.sh" >"$test_dir/out" 2>"$test_dir/err"
+	grep -qxF "done TIMEOUT $fixtures/sleeper.sh 450s" "$test_dir/out"
+	read -r status elapsed limit <"$test_dir/direct/0/result"
+	[[ $status == 124 && $limit == 450 ]]
+	pid_gone "$(cat "$TEST_RUNNER_STATE/test.pid")"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
+)
+echo 'PASS runner: 上限の指定がなければ run.sh と run-one.sh は 450 秒で止め、見出し・進み具合・注釈に出す'
+
 # 上限の中で終わるファイルは、上限を設ける前と同じ結果と出力になる。
 SQUAD_KIT_TEST_TIMEOUT=2 run_suite 0 1 "$fixtures/pass.sh"
 grep -qE "^done PASS $fixtures/pass.sh [0-9]+s$" "$test_dir/out"
