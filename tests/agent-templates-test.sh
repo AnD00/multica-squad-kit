@@ -124,7 +124,7 @@ PY_SIZE
 image_skill="$root/common/skills/squad-handoff/SKILL.md"
 grep -qxF '## 画像を載せる' "$image_skill"
 grep -qxF '## 人間に操作を頼む前に' "$image_skill"
-awk '$0=="## 画像を載せる" {inside=1; next} inside && /^## / {exit} inside {print}' "$image_skill" >"$test_dir/image-section"
+awk '/^## 画像を載せる$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$image_skill" >"$test_dir/image-section"
 for text in 'gh pr comment' --attach 'multica issue comment add' --attachment; do
 	grep -qF -- "$text" "$test_dir/image-section"
 done
@@ -141,7 +141,7 @@ echo 'PASS image templates: 共通スキルの添付手順と、全構成の実�
 
 # 開始時の確認は、全構成で見張りの呼び出しと返事待ちの分岐より前に残す。
 preflight_section() {
-	awk '$0=="## 実行の始めの確認" {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
+	awk '/^## 実行の始めの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$1"
 }
 assert_preflight() {
 	preflight_section "$1" >"$test_dir/preflight"
