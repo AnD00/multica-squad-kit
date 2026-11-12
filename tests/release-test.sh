@@ -61,6 +61,32 @@ steps_expected() {
 expect_steps() {
 	[[ $(sed -n '/^すること:$/,$p' "$case_dir/out" | head -n "$((7 - $1))") == "$(steps_expected "$1")" ]]
 }
+# 承認したあとの見出しは、確認の一覧と同じ番号・総数・名前にする。
+expect_headings() {
+	local first=$1 no=0 total=$((6 - $1)) expected
+	expected=$(
+		while [[ $first -le 5 ]]; do
+			no=$((no + 1))
+			printf '[%d/%d] %s\n' "$no" "$total" "${step_names[$((first - 1))]}"
+			first=$((first + 1))
+		done
+	)
+	[[ $(grep '^\[[0-9]/[0-9]\] ' "$case_dir/out") == "$expected" ]]
+}
+# 失敗のときは、受けた内容がそのまま区切りの中にあり、そのあとにエラーの案内がある。
+expect_command_output() {
+	python3 - "$case_dir/err" "$1" "$2" <<'PY'
+from pathlib import Path
+import sys
+output = Path(sys.argv[1]).read_bytes()
+command, raw = sys.argv[2:]
+start = f'【{command} の出力 ここから】\n'.encode()
+end = f'【{command} の出力 ここまで】\n'.encode()
+assert output.index(start) < output.index(end) < output.index('エラー:'.encode())
+captured = output.split(start, 1)[1].split(end, 1)[0]
+assert captured == Path(raw).read_bytes() + b'\n'
+PY
+}
 # expect_screen <結果の語> <タグと Release の値> <タグを付けるコミット> <最初の手順の番号>: 確認の前の画面の全体（確かめの一覧から、することの一覧まで）が設計のとおり。
 expect_screen() {
 	local head12 commit12
@@ -119,9 +145,15 @@ done
 grep -qxF '出すバージョン: v1.6.0' "$case_dir/out"
 grep -qF "タグを付けるコミット: ${main_head:0:12} Release content" "$case_dir/out"
 expect_steps 1
+expect_headings 1
 grep -qxF '新しいバージョンの 1 段落目。' "$case_dir/out"
-grep -qxF "下書きの Release を作りました: $draft_url" "$case_dir/out"
-grep -qxF "発行のワークフローを待ちます: $run_url" "$case_dir/out"
+grep -qxF "  成功  タグの push: v1.6.0 を origin に push しました（${main_head:0:12}）" "$case_dir/out"
+grep -qxF "  作成  下書きの Release: $draft_url" "$case_dir/out"
+draft_note="        下書きの間だけの URL です。公開すると、タグの名前の URL（${published_url}）に変わります。"
+grep -A1 -xF "  作成  下書きの Release: $draft_url" "$case_dir/out" | tail -n1 | grep -qxF "$draft_note"
+grep -qxF "  実行: $run_url" "$case_dir/out"
+grep -qE '^  成功  発行のワークフロー: ([0-9]+ 秒|[0-9]+ 分 [0-9]+ 秒)$' "$case_dir/out"
+! grep -qE 'Enumerating objects|Writing objects|To https://|\[new tag\]|Created workflow_dispatch event|To see|JOBS|Set up job|completed with' "$case_dir/out" "$case_dir/err"
 grep -qxF '配布物の確かめが通りました。' "$case_dir/out"
 grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
 grep -qF '公開しますか [y/N]: ' "$case_dir/err"
@@ -336,6 +368,7 @@ run_release "$test_dir/answer-y"
 [[ $(log_count '^release create') == 1 ]]
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
 expect_steps 2
+expect_headings 2
 grep -qF "タグを付けるコミット: ${tag_commit:0:12} Release content" "$case_dir/out"
 [[ $(draft_flag) == false ]]
 # 配布物は、main のあとのファイルを含まない（タグの中身から作られている）。
@@ -361,6 +394,7 @@ log_lacks '^release create'
 before_in_log '^workflow run' '^run watch'
 before_in_log '^run watch' '^release edit'
 expect_steps 3
+expect_headings 3
 [[ $(draft_flag) == false ]]
 no_leftover
 
@@ -378,6 +412,7 @@ log_lacks '^run watch'
 [[ $(log_count 'releases/assets/') == 4 ]]
 before_in_log 'releases/assets/' '^release edit'
 expect_steps 4
+expect_headings 4
 grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
 [[ $(draft_flag) == false ]]
 no_leftover
@@ -391,6 +426,7 @@ edit_assets 'map(select(.name != "SHA256SUMS"))'
 expect_stop_keep '4 つそろっていないか、余分なものがあります'
 grep -qF '下書きの配布物を消してから流し直してください' "$case_dir/err"
 grep -qF "$draft_url" "$case_dir/err"
+grep -qxF "$draft_note" "$case_dir/err"
 [[ $(draft_flag) == true ]]
 make_case draft-extra
 tag_here
@@ -464,11 +500,13 @@ make_case release-without-tag
 add_release true
 expect_stop_keep 'Release があります'
 grep -qF "$draft_url" "$case_dir/err"
+grep -qxF "$draft_note" "$case_dir/err"
 no_tag
 make_case release-without-tag-published
 add_release false
 expect_stop_keep 'Release があります'
 no_tag
+! grep -qF '下書きの間だけの URL' "$case_dir/err"
 
 # 同じタグの Release が 2 つある
 make_case release-twice
@@ -562,6 +600,7 @@ no_tag
 no_write
 grep -qF 'push に失敗しました' "$case_dir/err"
 grep -qF '手元のタグを消したので、流し直せます' "$case_dir/err"
+expect_command_output 'git push' "$GH_STATE/git-push.log"
 
 # 下書きの作成が失敗する: タグは残り、1 で終わる。流し直すと、タグを変えずに下書きの作成から続ける。
 make_case release-fails
@@ -596,6 +635,8 @@ make_case workflow-fails
 GH_WORKFLOW_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 grep -qF '発行のワークフローを起こせませんでした' "$case_dir/err"
+printf 'intentional workflow failure\n' >"$case_dir/workflow-expected"
+expect_command_output 'gh workflow run' "$case_dir/workflow-expected"
 log_lacks '^run list'
 log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
@@ -609,10 +650,25 @@ expect_steps 3
 
 # 起こした実行が、一覧に出るまで間がある: 決まった回数のうちは読み直して、見つかれば続ける。
 make_case runs-delayed
-GH_RUNS_DELAY=3 run_release "$test_dir/answer-y"
+GH_RUNS_DELAY=3 GH_WATCH_DELAY=2 RELEASE_RUN_FIND_INTERVAL=1 RELEASE_WATCH_TICK_INTERVAL=1 run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 [[ $(log_count '^run list') == 4 ]]
 [[ $(draft_flag) == false ]]
+python3 - "$case_dir/out" <<'PY'
+from pathlib import Path
+import re
+import sys
+output = Path(sys.argv[1]).read_text()
+def seconds(text):
+    parts = [int(n) for n in re.findall(r'\d+', text)]
+    return parts[0] if len(parts) == 1 else parts[0] * 60 + parts[1]
+ticks = re.findall(r'^  待っています（経過 (.+)）$', output, re.M)
+assert ticks
+elapsed = seconds(re.search(r'^  成功  発行のワークフロー: (.+)$', output, re.M)[1])
+assert elapsed >= 5  # 実行の一覧を探す 3 秒と、見張りの 2 秒を含む。
+assert all(3 <= seconds(tick) <= elapsed for tick in ticks)
+PY
+no_leftover
 # 実行が見つからない: 決まった回数（10 回）で止まり、watch も release edit も呼ばない。
 make_case runs-not-found
 GH_RUNS_MODE=none run_release "$test_dir/answer-y"
@@ -640,6 +696,15 @@ make_case workflow-run-fails
 GH_WATCH_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 grep -qF "発行のワークフローが失敗しました: $run_url" "$case_dir/err"
+python3 - "$case_dir/err" <<'PY'
+from pathlib import Path
+import sys
+output = Path(sys.argv[1]).read_text()
+start = output.index('【gh run watch の出力 ここから】\n')
+end = output.index('【gh run watch の出力 ここまで】\n')
+assert start < output.index('JOBS\n') < output.index("X Run Release assets (4242) completed with 'failure'") < end
+assert start < output.index('intentional run failure\n') < end < output.index('エラー:')
+PY
 no_download
 log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
@@ -648,6 +713,45 @@ run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 log_lacks '^release create'
 [[ $(draft_flag) == false ]]
+
+# 中断すると、裏で待つ見張りも止まり、一時の置き場が残らない。
+# このケースだけ見張りを長く待たせ、実際の PID が消えることを確かめる。
+make_case workflow-interrupt
+tag_here
+add_release true
+export RELEASE_TEST_ORIGINAL_GH="$test_dir/bin/gh-original"
+mv "$test_dir/bin/gh" "$RELEASE_TEST_ORIGINAL_GH"
+cat >"$test_dir/bin/gh" <<'STUB'
+#!/bin/bash
+if [[ ${1:-} == run && ${2:-} == watch ]]; then
+	printf '%s %s\n' "$$" "$PPID" >"$GH_STATE/watch-process"
+	exec sleep 30
+fi
+exec "$RELEASE_TEST_ORIGINAL_GH" "$@"
+STUB
+chmod +x "$test_dir/bin/gh"
+(
+	for ((attempt=0; attempt<200; attempt++)); do
+		if [[ -s $GH_STATE/watch-process ]]; then
+			read -r watch_process release_process <"$GH_STATE/watch-process"
+			kill -TERM "$release_process"
+			exit 0
+		fi
+		sleep 0.1
+	done
+	exit 1
+) &
+interrupter=$!
+run_release "$test_dir/answer-y"
+interrupt_status=0
+wait "$interrupter" || interrupt_status=$?
+mv "$RELEASE_TEST_ORIGINAL_GH" "$test_dir/bin/gh"
+[[ $interrupt_status == 0 && $rc == 143 ]]
+read -r watch_process release_process <"$GH_STATE/watch-process"
+! kill -0 "$watch_process" 2>/dev/null
+[[ $(draft_flag) == true ]]
+log_lacks '^release edit'
+no_leftover
 
 # 公開の前の確かめが失敗する: 何が合わなかったかを出し、release edit も削除も呼ばない。下書きと配布物は残り、流し直さないことを出す。
 # expect_verify_stop <理由に含む文字>: 配布物のそろった下書きから流して、確かめで止まったことを確かめる。

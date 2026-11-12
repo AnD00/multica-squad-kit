@@ -16,6 +16,7 @@ workflow_file=release-assets.yml
 # 起こしたワークフローの実行を探す回数と間隔（秒）。間隔は、テストで 0 にするために環境変数で変えられる。
 run_find_tries=10
 run_find_interval=${RELEASE_RUN_FIND_INTERVAL:-3}
+watch_tick_interval=${RELEASE_WATCH_TICK_INTERVAL:-30}
 
 usage() {
 	cat <<'USAGE'
@@ -27,6 +28,29 @@ USAGE
 stop() {
 	ui_error "$*"
 	exit 1
+}
+draft_url_note() {
+	printf '        下書きの間だけの URL です。公開すると、タグの名前の URL（https://github.com/%s/releases/tag/%s）に変わります。\n' "$repo" "$version"
+}
+stop_with_draft_url() {
+	ui_error "$*"
+	draft_url_note >&2
+	exit 1
+}
+# 失敗したコマンドの出力は、受けたままの内容を区切りの行で挟む。
+show_command_output() {
+	printf '【%s の出力 ここから】\n' "$1" >&2
+	cat "$2" >&2
+	printf '\n【%s の出力 ここまで】\n' "$1" >&2
+}
+result_row() {
+	printf '  '
+	ui_result "$1"
+	printf '  %s: %s\n' "$2" "$3"
+}
+duration() {
+	if [[ $1 -lt 60 ]]; then printf '%d 秒' "$1"
+	else printf '%d 分 %d 秒' "$(($1 / 60))" "$(($1 % 60))"; fi
 }
 
 case $# in
@@ -121,7 +145,22 @@ version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || version=
 
 # 一時の置き場。macOS の mktemp -d は TMPDIR を見ないので、名前の型を渡して、TMPDIR の下に作らせる。
 work_tmp=$(mktemp -d "${TMPDIR:-/tmp}/release.XXXXXX") || stop '一時の置き場を作れません。'
+watch_pid=
+watch_tick_pid=
+stop_watch() {
+	if [[ -n $watch_pid ]]; then
+		kill "$watch_pid" 2>/dev/null || true
+		wait "$watch_pid" 2>/dev/null || true
+		watch_pid=
+	fi
+	if [[ -n $watch_tick_pid ]]; then
+		kill "$watch_tick_pid" 2>/dev/null || true
+		wait "$watch_tick_pid" 2>/dev/null || true
+		watch_tick_pid=
+	fi
+}
 cleanup() {
+	stop_watch
 	chmod -R u+rwX "$work_tmp" 2>/dev/null || true
 	rm -rf -- "$work_tmp"
 }
@@ -221,6 +260,9 @@ if [[ -n $local_tag && $local_tag != "$remote_tag" ]]; then
 fi
 read_release
 if [[ -z $local_tag && $release != none ]]; then
+	if [[ $release == draft ]]; then
+		stop_with_draft_url "$version のタグはありませんが、Release があります: $release_url"
+	fi
 	stop "$version のタグはありませんが、Release があります: $release_url"
 fi
 # することと、タグを付けるコミット: タグがなければ main の先頭、あればそのタグが指すコミット。
@@ -234,7 +276,7 @@ if [[ -n $local_tag ]]; then
 		case $asset_status in
 		empty) action=workflow ;;
 		complete) action=verify ;;
-		*) stop "$version の下書きの Release の配布物が、4 つそろっていないか、余分なものがあります（今: ${asset_names:-なし}）。GitHub の画面で、下書きの配布物を消してから流し直してください: $release_url" ;;
+		*) stop_with_draft_url "$version の下書きの Release の配布物が、4 つそろっていないか、余分なものがあります（今: ${asset_names:-なし}）。GitHub の画面で、下書きの配布物を消してから流し直してください: $release_url" ;;
 		esac
 		;;
 	esac
@@ -311,6 +353,35 @@ printf '公開しますか [y/N]: ' >&2
 answer=
 read -r answer || :
 [[ $answer == y || $answer == Y ]] || stop '公開を取りやめました。'
+# 確認で並べた手順と、同じ名前・番号・総数で進み具合を出す。
+step_total=$step_no
+step_no=0
+step_heading() {
+	step_no=$((step_no + 1))
+	printf '\n[%d/%d] %s\n' "$step_no" "$step_total" "${step_names[$(($1 - 1))]}"
+}
+
+# 見張りと経過の間隔を別々に待つ。見張りがすぐ終わったときは、30 秒を待たずに続ける。
+watch_workflow() {
+	local status=0
+	gh run watch "$run_id" --repo "$repo" --exit-status >"$work_tmp/watch-output" 2>&1 </dev/null &
+	watch_pid=$!
+	sleep "$watch_tick_interval" &
+	watch_tick_pid=$!
+	while kill -0 "$watch_pid" 2>/dev/null; do
+		if ! kill -0 "$watch_tick_pid" 2>/dev/null; then
+			wait "$watch_tick_pid" 2>/dev/null || true
+			printf '  待っています（経過 %s）\n' "$(duration "$((SECONDS - workflow_started))")"
+			sleep "$watch_tick_interval" &
+			watch_tick_pid=$!
+		fi
+		sleep 0.1
+	done
+	wait "$watch_pid" || status=$?
+	watch_pid=
+	stop_watch
+	return "$status"
+}
 
 # find_run <起こした時刻>: 起こした時刻のあとに作られた、workflow_dispatch の実行で、headBranch がバージョンのものを探す。
 # 起こしてから一覧に出るまで間があるので、決まった回数だけ間を空けて読み直す。見つかった実行を run_id と run_url に置く。
@@ -411,35 +482,51 @@ verify_draft() {
 printf '%s\n' "$notes" >"$work_tmp/notes"
 # 1〜2: タグを作り、push する。
 if [[ $action == tag ]]; then
+	step_heading 1
 	git tag -a "$version" -m "$version" "$commit" || stop 'タグを作れませんでした。'
-	if ! git push origin "refs/tags/$version"; then
+	if ! git push origin "refs/tags/$version" >"$work_tmp/push-output" 2>&1; then
+		show_command_output 'git push' "$work_tmp/push-output"
 		git tag -d "$version" >/dev/null
 		stop "タグの push に失敗しました。手元のタグを消したので、流し直せます。"
 	fi
+	result_row 成功 'タグの push' "$version を origin に push しました（${commit:0:12}）"
 fi
 # 3: 下書きの Release を作る。
 if [[ $action == tag || $action == draft ]]; then
+	step_heading 2
 	if ! url=$(gh release create "$version" --repo "$repo" --draft --verify-tag --title "$version" --notes-file "$work_tmp/notes" </dev/null); then
 		if [[ $action == draft ]]; then
 			stop "下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。"
 		fi
 		stop "タグは push しましたが、下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。"
 	fi
-	printf '下書きの Release を作りました: %s\n' "$url"
+	result_row 作成 '下書きの Release' "$url"
+	draft_url_note
 fi
 # 4: 配布物を作らせ、終わるまで待つ。
 if [[ $action != verify ]]; then
+	step_heading 3
+	workflow_started=$SECONDS
 	since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-	gh workflow run "$workflow_file" --repo "$repo" --ref "$version" </dev/null || stop "発行のワークフローを起こせませんでした。下書きは残してあります。同じコマンドを流し直すと、配布物を作らせ直します。"
+	gh workflow run "$workflow_file" --repo "$repo" --ref "$version" >"$work_tmp/workflow-output" 2>&1 </dev/null || {
+		show_command_output 'gh workflow run' "$work_tmp/workflow-output"
+		stop "発行のワークフローを起こせませんでした。下書きは残してあります。同じコマンドを流し直すと、配布物を作らせ直します。"
+	}
 	find_run "$since"
-	printf '発行のワークフローを待ちます: %s\n' "$run_url"
-	gh run watch "$run_id" --repo "$repo" --exit-status </dev/null || stop "発行のワークフローが失敗しました: ${run_url}。下書きは残してあります。配布物が 1 つも載っていなければ、流し直すと配布物を作らせ直します。途中まで載っているときは、GitHub の画面で下書きの配布物を消してから流し直してください。"
+	printf '  実行: %s\n' "$run_url"
+	watch_workflow || {
+		show_command_output 'gh run watch' "$work_tmp/watch-output"
+		stop "発行のワークフローが失敗しました: ${run_url}。下書きは残してあります。配布物が 1 つも載っていなければ、流し直すと配布物を作らせ直します。途中まで載っているときは、GitHub の画面で下書きの配布物を消してから流し直してください。"
+	}
+	result_row 成功 '発行のワークフロー' "$(duration "$((SECONDS - workflow_started))")"
 fi
 # 5: 配布物を確かめる。
+step_heading 4
 printf '配布物を確かめます。\n'
 verify_draft
 printf '配布物の確かめが通りました。\n'
 # 6: 公開する。
+step_heading 5
 if ! url=$(gh release edit "$version" --repo "$repo" --draft=false </dev/null); then
 	stop "Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を確かめ直して公開します。"
 fi
