@@ -165,7 +165,7 @@ for runtime in claude codex; do
 		model=$(template_field "$file" model)
 		if [[ $role == *-principal ]]; then
 			[[ $model == "$(template_field "$test_dir/all/$role" model)" ]]
-		elif [[ $runtime == claude && ( $role == planner || $role == designer || $role == orchestrator ) ]]; then
+		elif [[ $runtime == claude && ( $role == planner || $role == designer ) ]]; then
 			[[ $model == claude-opus-5-5 ]]
 		else [[ $model == "$expected" ]]; fi
 		for field in thinking_level max_concurrent_tasks skills; do

@@ -8,7 +8,7 @@ ccbc66e193c43c07f5918fa8a21c88d8ec374b820063598cf1b3182564c4af25  ./.github/work
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 9e31f50f1ec32243a5d62248c6326729552844139dc6df714a3e002f4bc2637a  ./AGENTS.md
-fb86c6f816bcbe2d2dd38e58e53f524d6652fed66d6dc0b51442d345a3c50893  ./CHANGELOG.md
+1068513ef09aae4477bcc26759051bbfb0c1b98353bcc4d8a418a65e4d1ae2d1  ./CHANGELOG.md
 4648f81cf86a5c7231559d3de40832c5959dc2ce564d0551df466fc962b716a2  ./CONTRIBUTING.md
 02c000ace7a2ae0b9c6fa8379fd2aa1e3cf8c3e4871ec14a9b3e2082ff2512ef  ./EXTENSIONS.md
 ee460193b71b558dab06988ee906dadf8ad57554399fc1d082e781067a1491fc  ./README.md
@@ -24,7 +24,7 @@ b094346d398b71ead5dfa83633c0ff6cf65efc5bd0c4429d33fd38b63a5df4bf  ./common/agent
 0e3e40df8d63f2a663e2346a48a1dca02bf17d0d2e8e3dc7b5e6bb846718282b  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 c469e87e9ef355cad173fa9894e020717ab24efa252f54e3b353c7b8bdef050e  ./common/agents/designer.md
-6feba4c8a7d82346a6bfc59f31dfe1c4b2eee255f1e71e4ab1ddf31d7c676a71  ./common/agents/orchestrator.md
+72d9809f22feece16a45f4597e959d76e2f500b000215d3ac39f5bc886d11026  ./common/agents/orchestrator.md
 775341f7a54fed2c0ec77b03b8047b88aa557ffe627f6a7b6d0983f759237270  ./common/agents/performance-reviewer.md
 792447cdc0b16290d0a7af7e10f63836a652dbd3fc8837b51304d6b903316ad8  ./common/agents/planner.md
 c390705b43bda9ecee8aed75ea1a406b16ae6b753c3161f37040c5e9da97ea96  ./common/agents/qa.md
@@ -63,7 +63,7 @@ bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skill
 680d4a0a72f93f6137416efdf36f1ee49665a350f49288456af87e671a802c28  ./docs/conflict-resolution.md
 c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate-path.md
 9e16d28fee953be91a85ada3c4fa00970cc04b2e3b3f1f51a2b03884f5fb5b57  ./docs/install.md
-a59647f7500b28c7b7afd1d5f1a203a7e61b92322f3aad166bc10bf2f314419e  ./docs/leader-principles.md
+6afd620b0263feb205c93e2910def467b84055023bdbcbabded5373521131839  ./docs/leader-principles.md
 ff0e5faa1ff0c0ac18368e3f31df058707c5ae929df29f226c281de8e29bbd0b  ./docs/local-verification.md
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
@@ -108,7 +108,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 8c491e62719b72b6c895199808c2320d960e946d8e883c4fd48d8a9a25f5ef4d  ./skeleton/README.md
 c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/project.md
 8144c1ca0d6dd5632a64dc48f16a79f276e035e772a97c02e7f43bef10756352  ./skeleton/verify-repository.md
-2e0a6567f543623e0742450b1e83d9285e62a8186b232ef2fe8af246aab6a1a5  ./tests/agent-templates-test.sh
+a9a01191623b9431918e12fb81f182dbb9f894345ca26d3749bfbbb9eed70727  ./tests/agent-templates-test.sh
 c0a4918cf140c51fec5a0a619a09714411551361dd8acf0f749237f79d8f4e46  ./tests/build-assets-test.sh
 33716690201522a64b8217a9175469202605860a45c7ae3c1f89fc50320ebb89  ./tests/capture-cli-fixtures-test.sh
 1781c87b593d5183817b49b6304d2e67ee89d33c7bbb342cfa9f4a216f932fce  ./tests/capture-cli-fixtures.py
@@ -186,7 +186,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 75613607387b2673bb5b47c17acdfd721308274a943b221999f29c04d8709a97  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 c99a0a2782ab7e2ec088ac3689ab43f5a81f37fa067c5b9b46234b1cb3d84fb2  ./tests/installation-test.sh
-94a9d88798c58ee5be2292babd6289596360190eafb35ecc9e7724660b97a82a  ./tests/leader-eval-test.sh
+0d05b66e7a6849f91e2ccb870686365bbf1432ec10e16d2341f77b7279798afa  ./tests/leader-eval-test.sh
 b494df6c94e63b15d37369c9ae2177b76e3a06ba28d52714bf164b2dabd8b4c2  ./tests/leader-eval/leader_eval.py
 309a8ca02090d4d2f65abd3fae2715fb88e39331351b073bc569369b4034083e  ./tests/leader-eval/run.sh
 3370b1172bd48a18ca61f592f375ebef86fbaa5027d60b7ddeb232c25aa790e3  ./tests/leader-eval/runtime-brief.md
@@ -263,7 +263,7 @@ d768543b212a628d444d7288ca18f08803071ff2a52506dd35c6e353a4b0626a  ./tests/run.sh
 bca2095200cf3e3eef685159dd9416e5f3dfca75e09a74d96212112dcb9759d6  ./tests/setup-runtimes-both-test.sh
 1ce45122fecfaa84dcd9d5592b63c982aafdfa1b49e0bb5817a9f9f7e5345ff6  ./tests/setup-runtimes-claude-test.sh
 c9a3dd2a06df79e133388c1515822af349c07d7c285afc92caf8b958cef729c3  ./tests/setup-runtimes-codex-test.sh
-59d04ec03721af3d8087cc0b358fb285a9a32a6448614cc5dfc66f4226742696  ./tests/setup-runtimes-test-lib.sh
+6d6fe706ac60c2a9012611c4d39a33960a50a5d939cd307f20ab73687a3c6941  ./tests/setup-runtimes-test-lib.sh
 2a247313f1713158f6624f3b4022f23177d8c2d0a23493239fd110ae6c8d2e3f  ./tests/setup-tag-test.sh
 0c4103e12fa03a3be5861e0f81276239ef7a70cd83533a724368dde6c6f58d65  ./tests/setup-test.sh
 7f7478ec6dee2f4986869e1074ae655095e414edfa775f51daa75bdb1a1d9b74  ./tests/setup-version-test.sh

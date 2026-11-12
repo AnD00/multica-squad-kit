@@ -231,7 +231,7 @@ grep -q '^| 保-2 | 保 | 2/2 | 2/2 | - |$' "$out/summary.md"
 grep -q '^| 1-1 | 1 | 2/2 | 2/2 | - |$' "$out/summary.md"
 echo "PASS leader-eval: スタブのコマンドが呼び出しを記録し、runs.jsonl と summary.md が決まった形で出る"
 
-grep -q '^leader claude-opus-5-5 high' "$test_dir/stub.log"
+grep -q '^leader claude-sonnet-5-5 high' "$test_dir/stub.log"
 grep -q '^scorer claude-opus-5-5 high' "$test_dir/stub.log"
 echo "PASS leader-eval: モデルと思考の深さは展開した front matter から、採点は opus の high で流す"
 

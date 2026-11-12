@@ -3,7 +3,7 @@ name: "{{project_key}}-orchestrator-{{member_key}}"
 description: プロジェクトの進行を管理し、仕事を有効な役へ振り分ける
 role: スクワッドのリーダー
 <!-- IF runtime-claude -->
-model: claude-opus-5-5
+model: claude-sonnet-5-5
 <!-- ELSE -->
 model: gpt-6.1-sol
 <!-- ENDIF -->
