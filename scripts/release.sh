@@ -244,6 +244,20 @@ notes=$(printf '%s\n' "$changelog" | awk -v heading="## $version" '$0 == heading
 [[ -n $(printf '%s' "$notes" | tr -d '[:space:]') ]] || stop "CHANGELOG.md の $version の節が空です。"
 notes=$(printf '%s\n' "$notes" | awk 'NF {if (started) for (; blank > 0; blank--) print ""; started = 1; blank = 0; print; next} started {blank++}')
 
+# 9: これから配布物を作らせる状態だけ、タグを付けるコミットを発行と同じ道で確かめる。
+# そろった下書きは公開の前の確かめに任せ、公開済みでは行わない。
+case $action in
+tag | draft | workflow)
+	printf 'タグを付ける前に、配布物を作って確かめます（確かめの 9）。\n'
+	if ! bash scripts/build-assets.sh --commit "$commit" "$work_tmp/preflight-assets"; then
+		if [[ -n $local_tag ]]; then
+			ui_error "$version のタグでは出せません。直したコミットを新しいバージョンで出してください。"
+		fi
+		stop 'タグを付ける前の配布物の確かめ（9）で止まりました。CONTRIBUTING.md の「ファイルとディレクトリの名前」を確認してください。'
+	fi
+	;;
+esac
+
 # 公開済みのバージョンは、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
 if [[ $action == published ]]; then
 	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"

@@ -10,6 +10,7 @@ make_case approve
 main_head=$(git -C "$work" rev-parse HEAD)
 run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
+grep -qF '確かめの 9' "$case_dir/out"
 [[ $(git -C "$bare" cat-file -t v1.6.0) == tag ]]
 [[ $(git -C "$bare" rev-parse 'v1.6.0^{commit}') == "$main_head" ]]
 [[ $(git -C "$bare" tag -l --format='%(contents:subject)' v1.6.0) == v1.6.0 ]]
@@ -184,6 +185,102 @@ rc=0
 [[ $rc == 1 ]]
 grep -qF 'ルートで流してください' "$case_dir/err"
 no_write
+
+# 9: 名前の検査は、問い・タグ・push・下書きの作成より前に行う。
+# 既存のタグでは、その後の main が直っていても、タグのコミットを確かめる。
+for state in tag draft workflow; do
+	make_case "preflight-name-$state"
+	printf 'invalid name\n' >"$work/保.txt"
+	(cd "$work" && bash scripts/manifest.sh)
+	commit_work 'Non-ASCII name'
+	if [[ $state != tag ]]; then
+		tag_here
+		if [[ $state == workflow ]]; then add_release true; fi
+		rm "$work/保.txt"
+		(cd "$work" && bash scripts/manifest.sh)
+		commit_work 'Clean main after the tag'
+	fi
+	# 仕込みが終わってから hook を置き、同じタグへの push も呼んでいないか記録する。
+	cat >"$work/.git/hooks/pre-push" <<'HOOK'
+#!/bin/sh
+printf 'push\n' >>"$GH_STATE/push.log"
+HOOK
+	chmod +x "$work/.git/hooks/pre-push"
+	before=$(snapshot)
+	before_releases=$(cat "$GH_RELEASES")
+	run_release "$test_dir/answer-y"
+	[[ $rc == 1 && $(snapshot) == "$before" && $(cat "$GH_RELEASES") == "$before_releases" ]]
+	[[ ! -e $GH_STATE/push.log ]]
+	no_write
+	no_download
+	no_leftover
+	! grep -qF '公開しますか' "$case_dir/err"
+	grep -qF '保.txt' "$case_dir/err"
+	grep -qF '印字できる ASCII ではない文字がある' "$case_dir/err"
+	grep -qF '配布物の確かめ（9）で止まりました' "$case_dir/err"
+	grep -qF 'CONTRIBUTING.md の「ファイルとディレクトリの名前」' "$case_dir/err"
+	if [[ $state == tag ]]; then
+		no_tag
+	else
+		grep -qF 'v1.6.0 のタグでは出せません' "$case_dir/err"
+		grep -qF '直したコミットを新しいバージョンで出してください' "$case_dir/err"
+	fi
+done
+
+# 名前が正しくても、配布物の完全性の検査に通らなければ同じく 9 で止まる。
+make_case preflight-manifest
+printf 'changed\n' >>"$work/tracked.txt"
+commit_work 'Outdated MANIFEST'
+before=$(snapshot)
+run_release "$test_dir/answer-y"
+[[ $rc == 1 && $(snapshot) == "$before" ]]
+no_tag
+no_write
+no_download
+no_leftover
+grep -qF 'MANIFEST のハッシュと合いません' "$case_dir/err"
+grep -qF '配布物の確かめ（9）で止まりました' "$case_dir/err"
+! grep -qF '公開しますか' "$case_dir/err"
+
+# そろった下書きは 9 を省き、確認のあとに公開の前の確かめへ進む。
+# 名前が悪いタグでも、4 つの配布物の ID がそろっていれば同じ経路を選ぶ。
+# 配布物の取得を失敗させ、公開の前の確かめに入ったことまでを見る。
+make_case preflight-skip-complete
+printf 'invalid name\n' >"$work/保.txt"
+(cd "$work" && bash scripts/manifest.sh)
+commit_work 'Non-ASCII name'
+tag_here
+add_release true
+edit_assets '[{"id":101,"name":"multica-squad-kit-v1.6.0.tar.gz"},{"id":102,"name":"install.sh"},{"id":103,"name":"SHA256SUMS"},{"id":104,"name":"multica-squad-kit-v1.6.0.sigstore.json"}]'
+before=$(snapshot)
+GH_DL_FAIL=101 run_release "$test_dir/answer-y"
+[[ $rc == 1 && $(snapshot) == "$before" ]]
+! grep -qF '確かめの 9' "$case_dir/out"
+! grep -qF '配布物の確かめ（9）' "$case_dir/err"
+grep -qF '公開しますか' "$case_dir/err"
+grep -qF '配布物を確かめます' "$case_dir/out"
+log_has 'releases/assets/101'
+log_lacks '^workflow run'
+no_write
+no_leftover
+
+# 公開済みは、名前が悪くても 9 を省き、端末も書き込みもなしで成功する。
+make_case preflight-skip-published
+printf 'invalid name\n' >"$work/保.txt"
+(cd "$work" && bash scripts/manifest.sh)
+commit_work 'Non-ASCII name'
+tag_here
+add_release false
+before=$(snapshot)
+run_release_notty
+[[ $rc == 0 && $(snapshot) == "$before" ]]
+! grep -qF '確かめの 9' "$case_dir/out"
+! grep -qF '配布物の確かめ（9）' "$case_dir/err"
+! grep -qF '公開しますか' "$case_dir/err"
+grep -qF 'すでに出してあります' "$case_dir/out"
+no_write
+no_download
+no_leftover
 
 # タグがあって Release がない: 承認すると、タグを変えずに、下書きの作成から続ける。
 # タグのあとに main に別のコミットがあっても、本文と配布物はタグの中身から作る。
