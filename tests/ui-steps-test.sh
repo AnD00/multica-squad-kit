@@ -384,3 +384,36 @@ printf '  ✔ push          1.2.3\n  ✔ draft を作る  PR #1\n      補足の
 ! grep -qF "$esc" "$test_dir/out"
 cmp <(grep -v '…' "$test_dir/screen") "$test_dir/expected"
 echo 'PASS ui-steps: NO_COLOR の端末では書き換えの制御文字を出さず、行の並びだけで進みが分かる'
+
+# ゲージの件数は、4 つ目の引数 nocount で隠せる。ゲージと名前は残り、次の手順では件数を戻す。
+cat >"$test_dir/nocount.sh" <<'SH'
+source "$1/lib/ui.sh"
+ui_init
+ui_steps_begin out 0 s1 s2
+ui_step_start 1
+ui_step_progress 0 1 "" nocount
+sleep 0.35
+ui_step_progress 3 10 "名前" nocount
+sleep 0.35
+ui_step_done v1
+ui_step_start 2
+ui_step_progress 3 10 "名前"
+sleep 0.35
+ui_step_done v2
+SH
+run_steps out "$test_dir/nocount.sh"
+python3 - "$test_dir/out" <<'PY'
+from pathlib import Path
+import sys
+data = Path(sys.argv[1]).read_bytes().decode()
+esc = '\x1b'
+gauge = lambda n: '━' * n + '─' * (18 - n)
+assert f'{esc}[38;5;32m' + '─' * 18 not in data  # 0 のときは青の部分がない
+assert f'{esc}[38;5;244m' + '─' * 18 + f'{esc}[0m' in data
+# 3/10 のゲージ（5 セル）は、件数なしの手順では名前だけが続き、次の手順では件数が付く。
+first = data[:data.index('v1')]
+assert f'{esc}[38;5;32m━━━━━{esc}[0m{esc}[38;5;244m─────────────{esc}[0m  {esc}[38;5;244m名前{esc}[0m' in first
+assert ' 3/10' not in first
+assert f'{esc}[38;5;244m 3/10{esc}[0m  {esc}[38;5;244m名前{esc}[0m' in data[data.index('v1'):]
+PY
+echo 'PASS ui-steps: ゲージの件数を nocount で隠せ、次の手順では件数が戻る'

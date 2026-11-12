@@ -310,7 +310,7 @@ _ui_steps_main() {
 			printf '  '
 			if [[ -n $bar_done ]]; then ui_paint "$ui_steps_target" active "$bar_done"; fi
 			if [[ -n $bar_rest ]]; then ui_paint "$ui_steps_target" default "$bar_rest"; fi
-			ui_paint "$ui_steps_target" default " $ui_steps_progress/$ui_steps_total"
+			if [[ $ui_steps_hide_count != yes ]]; then ui_paint "$ui_steps_target" default " $ui_steps_progress/$ui_steps_total"; fi
 		fi
 		if [[ -n $ui_steps_elapsed ]]; then printf '  '; ui_paint "$ui_steps_target" default "$ui_steps_elapsed"; fi
 		if [[ -n $ui_steps_subname ]]; then printf '  '; ui_paint "$ui_steps_target" default "$ui_steps_subname"; fi
@@ -485,7 +485,7 @@ ui_steps_begin() {
 	ui_steps_tail_lines=() ui_steps_tail_count=0 ui_steps_shown_rows=0 ui_steps_shown_columns=0 ui_steps_shown_lines=0
 	ui_steps_count=$# ui_steps_extra_count=0 ui_steps_current=0 ui_steps_first=0 ui_steps_drawn=0 ui_steps_frame=0
 	ui_steps_cache_active=-1 ui_steps_cache_count=0 ui_steps_insert= ui_steps_flushed=no ui_steps_buffer=
-	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0
+	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0 ui_steps_hide_count=no
 	for ((i = 0; i < ui_steps_count; i++)); do
 		_ui_text_width "${ui_steps_names[$i]}"
 		if ((ui_text_width > longest)); then longest=$ui_text_width; fi
@@ -559,15 +559,17 @@ ui_step_start() {
 	ui_steps_current=$(($1 - 1))
 	((ui_steps_current >= 0 && ui_steps_current < ui_steps_count)) || return 1
 	ui_steps_states[$ui_steps_current]=active
-	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0
+	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0 ui_steps_hide_count=no
 	_ui_steps_refresh
 	_ui_spinner_start
 }
 
-# ui_step_progress <済んだ数> <全体の数> [名前]
+# ui_step_progress <済んだ数> <全体の数> [名前] [nocount]: ゲージを描く。4 つ目に nocount を渡すと、
+# ゲージのあとの「済んだ数/全体の数」を出さない（数を読めても、画面に出したくないとき）。
 ui_step_progress() {
 	_ui_spinner_stop
-	ui_steps_progress=$1 ui_steps_total=$2 ui_steps_subname=${3-}
+	ui_steps_progress=$1 ui_steps_total=$2 ui_steps_subname=${3-} ui_steps_hide_count=no
+	if [[ ${4-} == nocount ]]; then ui_steps_hide_count=yes; fi
 	if ((ui_steps_progress < 0)); then ui_steps_progress=0; fi
 	if ((ui_steps_progress > ui_steps_total)); then ui_steps_progress=$ui_steps_total; fi
 	_ui_steps_refresh

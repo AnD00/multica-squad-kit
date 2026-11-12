@@ -205,6 +205,19 @@ OUTPUT
 	exit $?
 fi
 
+# 実行のジョブ: ゲージの元。GH_JOBS_MODE が fail なら失敗し、empty ならステップがない。
+# それ以外は、ステップが 10 件で、GH_JOBS_DONE 件（既定は 4）が終わっている。
+if [[ ${1:-} == run && ${2:-} == view ]]; then
+	[[ ${3:-} == 4242 && ${4:-} == --repo && ${5:-} == example/kit && ${6:-} == --json && ${7:-} == jobs && ${8:-} == --jq ]] || { echo "unexpected run view: $*" >&2; exit 1; }
+	[[ ${GH_JOBS_MODE:-} != fail ]] || { echo 'gh: run view failed' >&2; exit 1; }
+	if [[ ${GH_JOBS_MODE:-} == empty ]]; then
+		echo '{"jobs":[]}' | jq -r "${9:-.}"
+	else
+		jq -n --argjson done "${GH_JOBS_DONE:-4}" '{jobs: [{steps: [range(0; 10) | {name: "step \(.)", status: (if . < $done then "completed" else "in_progress" end)}]}]}' | jq -r "${9:-.}"
+	fi
+	exit 0
+fi
+
 if [[ ${1:-} == release && ${2:-} == edit ]]; then
 	[[ -z ${GH_EDIT_FAIL:-} ]] || { echo 'intentional edit failure' >&2; exit 1; }
 	[[ ${3:-} == v1.6.0 && ${4:-} == --repo && ${5:-} == example/kit && ${6:-} == --draft=false ]] || { echo "unexpected release edit: $*" >&2; exit 1; }
@@ -256,7 +269,7 @@ notes_expected=$'新しいバージョンの 1 段落目。\n\n- 項目 1\n- 項
 draft_url=https://github.com/example/kit/releases/tag/untagged-0123456789ab
 published_url=https://github.com/example/kit/releases/tag/v1.6.0
 run_url=https://github.com/example/kit/actions/runs/4242
-gh_env_vars='GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY GH_WATCH_DELAY'
+gh_env_vars='GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY GH_WATCH_DELAY GH_JOBS_MODE GH_JOBS_DONE'
 
 # make_case <名前> [origin の URL]: bare の origin と、その URL を insteadOf で bare に向けた作業コピーを作る。
 # 作業コピーは、配布物を作るスクリプトと本物の install.sh を持つ。一覧には、別のバージョンの公開済みの Release だけがある。

@@ -38,6 +38,8 @@ no_tag() { [[ -z $(git -C "$work" tag) && -z $(git -C "$bare" tag) ]]; }
 # no_leftover: 流したあとに、一時の置き場が残っていない。
 no_leftover() { [[ -z $(ls -A "$case_dir/tmp") ]]; }
 
+# 止まるときの案内に下書きの URL を出すときは、その次の行に、→ の付いたタグの名前の URL が出る。
+draft_note="      → ${published_url}"
 # 公開の手順の名前（docs/release.md の「公開」の表）。確認の「すること」の一覧は、することに応じて、この名前を 1 から振り直した番号で並べる。
 step_names=(
 	'タグを作って push する'
@@ -57,42 +59,52 @@ steps_expected() {
 expect_steps() {
 	[[ $(grep '^  ○ ' "$case_dir/out") == "$(steps_expected "$1")" ]]
 }
-# 承認したあとの見出しは、確認の一覧と同じ番号・総数・名前にする。
+# 承認したあとは、確認の一覧と同じ名前の手順が、同じ順に ✔ で出る（番号の見出しは出ない）。
 expect_headings() {
-	local first=$1 no=0 total=$((6 - $1)) expected
+	local first=$1 pattern= expected actual
 	expected=$(
 		while [[ $first -le 5 ]]; do
-			no=$((no + 1))
-			printf '[%d/%d] %s\n' "$no" "$total" "${step_names[$((first - 1))]}"
+			printf '%s\n' "${step_names[$((first - 1))]}"
 			first=$((first + 1))
 		done
 	)
-	[[ $(grep '^\[[0-9]/[0-9]\] ' "$case_dir/out") == "$expected" ]]
+	first=$1
+	while [[ $first -le 5 ]]; do
+		pattern="$pattern${pattern:+|}${step_names[$((first - 1))]}"
+		first=$((first + 1))
+	done
+	actual=$(grep -E "^  ✔ ($pattern)( |\$)" "$case_dir/out" | sed -E 's/^  ✔ //; s/  +.*$//')
+	[[ $actual == "$expected" ]]
+	! grep -qE '^\[[0-9]/[0-9]\] ' "$case_dir/out"
 }
-# 失敗のときは、受けた内容がそのまま区切りの中にあり、そのあとにエラーの案内がある。
+# 失敗のときは、灰の「$ コマンドの 1 行」と、受けた内容がそのまま標準エラー出力にあり、そのあとにエラーの案内がある。
+# 区切りの文字の行は出ない。
 expect_command_output() {
 	python3 - "$case_dir/err" "$1" "$2" <<'PY'
 from pathlib import Path
 import sys
 output = Path(sys.argv[1]).read_bytes()
 command, raw = sys.argv[2:]
-start = f'【{command} の出力 ここから】\n'.encode()
-end = f'【{command} の出力 ここまで】\n'.encode()
-assert output.index(start) < output.index(end) < output.index('エラー:'.encode())
-captured = output.split(start, 1)[1].split(end, 1)[0]
-assert captured == Path(raw).read_bytes() + b'\n'
+start = f'$ {command}\n'.encode()
+body = Path(raw).read_bytes()
+if body and not body.endswith(b'\n'):
+    body += b'\n'
+at = output.index(start)
+assert output[at + len(start):].startswith(body)
+assert at + len(start) + len(body) <= output.index('エラー:'.encode())
+assert '出力 ここから'.encode() not in output and '出力 ここまで'.encode() not in output
 PY
 }
-# 配布物の確かめは、4 項目が 1 行ずつ出る。タグの install.sh の出力と、「展開も実行もしていません」は出ない。
+# 配布物の確かめは、4 項目が 1 行ずつ、4 の手順の続きの行として出る。タグの install.sh の出力と、「展開も実行もしていません」は出ない。
 expect_verify_rows() {
 	local expected
 	expected=$(
-		printf '  一致  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧\n'
-		printf '  一致  配布物の install.sh: 証明、SHA256SUMS の行、タグの install.sh と同じ\n'
-		printf '  一致  配布物の中身: タグから取り出した中身と同じ\n'
-		printf '  一致  証明: 配布物と SHA256SUMS\n'
+		printf '      ✔ タグの install.sh    証明  チェックサム  tar.gz の中の一覧\n'
+		printf '      ✔ 配布物の install.sh  証明  SHA256SUMS の行  タグの install.sh\n'
+		printf '      ✔ 配布物の中身         git archive v1.6.0\n'
+		printf '      ✔ 証明                 配布物  SHA256SUMS\n'
 	)
-	[[ $(sed -n '/^\[[0-9]\/[0-9]\] 配布物を確かめる$/,/^\[[0-9]\/[0-9]\] Release を公開する$/p' "$case_dir/out" | grep '^  一致  ') == "$expected" ]]
+	[[ $(grep '^      ✔ ' "$case_dir/out") == "$expected" ]]
 	! grep -qF '展開も実行もしていません' "$case_dir/out" "$case_dir/err"
 	! grep -qF '確かめが通りました' "$case_dir/out" "$case_dir/err"
 }
@@ -111,7 +123,7 @@ expect_summary() {
 		printf '  発行のワークフロー: %s\n' "$run_line"
 	)
 	[[ $(tail -n 11 "$case_dir/out") == "$expected" ]]
-	grep -qxF '  成功  公開: 下書きから公開に切り替えました' "$case_dir/out"
+	grep -qE '^  ✔ Release を公開する$' "$case_dir/out"
 }
 # expect_screen <結果の語> <タグと Release の値> <タグを付けるコミット> <最初の手順の番号>: 確認の前の画面の全体（確かめの一覧から、することの一覧まで）が設計のとおり。
 expect_screen() {
@@ -175,12 +187,11 @@ grep -qF "  ${main_head:0:12}  Release content" "$case_dir/out"
 expect_steps 1
 expect_headings 1
 grep -qxF '  │ 新しいバージョンの 1 段落目。' "$case_dir/out"
-grep -qxF "  成功  タグの push: v1.6.0 を origin に push しました（${main_head:0:12}）" "$case_dir/out"
-grep -qxF "  作成  下書きの Release: $draft_url" "$case_dir/out"
-draft_note="        下書きの間だけの URL です。公開すると、タグの名前の URL（${published_url}）に変わります。"
-grep -A1 -xF "  作成  下書きの Release: $draft_url" "$case_dir/out" | tail -n1 | grep -qxF "$draft_note"
-grep -qxF "  実行: $run_url" "$case_dir/out"
-grep -qE '^  成功  発行のワークフロー: ([0-9]+ 秒|[0-9]+ 分 [0-9]+ 秒)$' "$case_dir/out"
+grep -qE "^  ✔ タグを作って push する +v1\.6\.0  ${main_head:0:12}\$" "$case_dir/out"
+# 下書きの URL は 6 字の字下げの続きの行で、その次の行が、→ の付いたタグの名前の URL。
+grep -A2 -xE '  ✔ 下書きの Release を作る' "$case_dir/out" | tail -n2 | cmp -s - <(printf '      %s\n      → %s\n' "$draft_url" "$published_url")
+grep -A1 -E '^  ✔ 発行のワークフローに配布物を作らせ、終わるまで待つ  ' "$case_dir/out" | tail -n1 | grep -qxF "      $run_url"
+grep -qE '^  ✔ 発行のワークフローに配布物を作らせ、終わるまで待つ  ([0-9]+s|[0-9]+m[0-9]+s)$' "$case_dir/out"
 ! grep -qE 'Enumerating objects|Writing objects|To https://|\[new tag\]|Created workflow_dispatch event|To see|JOBS|Set up job|completed with' "$case_dir/out" "$case_dir/err"
 expect_verify_rows
 expect_summary "$main_head" "$published_url" "$run_url"
@@ -562,7 +573,7 @@ make_case release-without-tag-published
 add_release false
 expect_stop_keep 'Release があります'
 no_tag
-! grep -qF '下書きの間だけの URL' "$case_dir/err"
+! grep -qF '→ ' "$case_dir/err"
 
 # 同じタグの Release が 2 つある
 make_case release-twice
@@ -656,7 +667,8 @@ no_tag
 no_write
 grep -qF 'push に失敗しました' "$case_dir/err"
 grep -qF '手元のタグを消したので、流し直せます' "$case_dir/err"
-expect_command_output 'git push' "$GH_STATE/git-push.log"
+expect_command_output 'git push origin refs/tags/v1.6.0' "$GH_STATE/git-push.log"
+grep -qxF '  ✖ タグを作って push する' "$case_dir/out"
 
 # 下書きの作成が失敗する: タグは残り、1 で終わる。流し直すと、タグを変えずに下書きの作成から続ける。
 make_case release-fails
@@ -692,7 +704,8 @@ GH_WORKFLOW_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 grep -qF '発行のワークフローを起こせませんでした' "$case_dir/err"
 printf 'intentional workflow failure\n' >"$case_dir/workflow-expected"
-expect_command_output 'gh workflow run' "$case_dir/workflow-expected"
+expect_command_output 'gh workflow run release-assets.yml --repo example/kit --ref v1.6.0' "$case_dir/workflow-expected"
+grep -qxF '  ✖ 発行のワークフローに配布物を作らせ、終わるまで待つ' "$case_dir/out"
 log_lacks '^run list'
 log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
@@ -718,9 +731,9 @@ output = Path(sys.argv[1]).read_text()
 def seconds(text):
     parts = [int(n) for n in re.findall(r'\d+', text)]
     return parts[0] if len(parts) == 1 else parts[0] * 60 + parts[1]
-ticks = re.findall(r'^  待っています（経過 (.+)）$', output, re.M)
+ticks = re.findall(r'^  … 発行のワークフローに配布物を作らせ、終わるまで待つ  (\S+)$', output, re.M)
 assert ticks
-elapsed = seconds(re.search(r'^  成功  発行のワークフロー: (.+)$', output, re.M)[1])
+elapsed = seconds(re.search(r'^  ✔ 発行のワークフローに配布物を作らせ、終わるまで待つ  (\S+)$', output, re.M)[1])
 assert elapsed >= 5  # 実行の一覧を探す 3 秒と、見張りの 2 秒を含む。
 assert all(3 <= seconds(tick) <= elapsed for tick in ticks)
 PY
@@ -756,11 +769,12 @@ python3 - "$case_dir/err" <<'PY'
 from pathlib import Path
 import sys
 output = Path(sys.argv[1]).read_text()
-start = output.index('【gh run watch の出力 ここから】\n')
-end = output.index('【gh run watch の出力 ここまで】\n')
-assert start < output.index('JOBS\n') < output.index("X Run Release assets (4242) completed with 'failure'") < end
-assert start < output.index('intentional run failure\n') < end < output.index('エラー:')
+start = output.index('$ gh run watch 4242 --repo example/kit --exit-status\n')
+assert start < output.index('JOBS\n') < output.index("X Run Release assets (4242) completed with 'failure'")
+assert output.index("X Run Release assets (4242) completed with 'failure'") < output.index('intentional run failure\n') < output.index('エラー:')
 PY
+# 失敗した手順は ✖ になり、灰の値に実行の URL が付く。
+grep -qxF "  ✖ 発行のワークフローに配布物を作らせ、終わるまで待つ  $run_url" "$case_dir/out"
 no_download
 log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
@@ -840,18 +854,21 @@ add_release true
 seed_assets
 GH_ATTEST_FAIL=SHA256SUMS GH_ATTEST_FAIL_WITH=nobundle expect_verify_stop 'タグの install.sh の --verify が通りませんでした。'
 grep -qF '証明を確かめられませんでした: SHA256SUMS' "$case_dir/err"
-# 隠していた install.sh の出力は、区切りの中にそのまま出て、そのあとに止まるときの案内が出る。確かめの行は 1 つも出ない。
+# 隠していた install.sh の出力は、灰の「$ コマンドの 1 行」の次にそのまま出て、そのあとに止まるときの案内が出る。確かめの行は 1 つも出ない。
 python3 - "$case_dir/err" <<'PY'
 from pathlib import Path
+import re
 import sys
 output = Path(sys.argv[1]).read_text(encoding='utf-8')
-start = output.index('【install.sh --verify の出力 ここから】\n')
-end = output.index('【install.sh --verify の出力 ここまで】\n')
-assert start < end
-assert '証明を確かめられませんでした: SHA256SUMS' in output[start:end]
-assert 'エラー: タグの install.sh の --verify が通りませんでした。' in output[end:]
+# 先頭は同じ行に続く確認の問い（端末なら入力の改行で終わる）なので、行頭には合わせない。
+command = re.search(r'\$ bash \S+/verify/tag-install\.sh --verify v1\.6\.0 \S+/verify/assets$', output, re.M)
+assert command
+guide = output.index('エラー: タグの install.sh の --verify が通りませんでした。')
+assert command.end() < output.index('証明を確かめられませんでした: SHA256SUMS') < guide
+assert '出力 ここから' not in output
 PY
-! sed -n '/^\[[0-9]\/[0-9]\] 配布物を確かめる$/,$p' "$case_dir/out" | grep -q '^  一致  '
+grep -qxF '  ✖ 配布物を確かめる' "$case_dir/out"
+! grep -q '^      ✔ ' "$case_dir/out"
 log_lacks '^attestation verify .* --bundle '
 # チェックサムが合わない: 配布物が SHA256SUMS と違う。
 make_case verify-checksum
@@ -867,8 +884,9 @@ add_release true
 seed_assets install
 expect_verify_stop '配布物の install.sh が、タグの install.sh と違います。'
 # 通った確かめの行だけが出る: タグの install.sh での確かめは通り、配布物の install.sh の行は出ない。
-grep -qxF '  一致  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧' "$case_dir/out"
-! grep -qF '配布物の install.sh: ' "$case_dir/out"
+grep -qxF '      ✔ タグの install.sh    証明  チェックサム  tar.gz の中の一覧' "$case_dir/out"
+! grep -qF '配布物の install.sh ' "$case_dir/out"
+grep -qxF '  ✖ 配布物を確かめる' "$case_dir/out"
 # 配布物の install.sh が SHA256SUMS と違う。
 make_case verify-install-sum
 tag_here
@@ -897,6 +915,42 @@ log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
 ! grep -qF 'Release を公開しました' "$case_dir/out"
 
+# ゲージ: 端末でだけ、ワークフローの待ちの間に run view でステップの進みを読み、件数を出さずにゲージで描く。
+# 読めない・ステップがないときは前の比率を保ち、成功かどうかは run watch の終了コードだけで決める。
+make_case gauge-live
+GH_WATCH_DELAY=3 GH_JOBS_DONE=4 run_release_tty "$test_dir/answer-y" RELEASE_PROGRESS_INTERVAL=1 GH_WATCH_DELAY=3 GH_JOBS_DONE=4
+[[ $rc == 0 ]]
+[[ $(log_count '^run view 4242 --repo example/kit --json jobs --jq ') -ge 2 ]]
+python3 - "$case_dir/out" <<'PY'
+from pathlib import Path
+import re
+import sys
+data = Path(sys.argv[1]).read_bytes().decode()
+esc = '\x1b'
+# 10 件のうち 4 件が済み: 18 セルのうち 7 セルが青い。件数（4/10）は出さない。
+assert f'{esc}[38;5;32m━━━━━━━{esc}[0m{esc}[38;5;244m───────────{esc}[0m' in data
+assert '4/10' not in data
+PY
+make_case gauge-live-fail
+GH_JOBS_MODE=fail GH_WATCH_DELAY=2 run_release_tty "$test_dir/answer-y" RELEASE_PROGRESS_INTERVAL=1 GH_WATCH_DELAY=2 GH_JOBS_MODE=fail
+[[ $rc == 0 ]]
+[[ $(log_count '^run view ') -ge 1 ]]
+grep -qF 'v1.6.0 の Release を公開しました' "$case_dir/out"
+make_case gauge-live-empty
+run_release_tty "$test_dir/answer-y" RELEASE_PROGRESS_INTERVAL=1 GH_WATCH_DELAY=2 GH_JOBS_MODE=empty
+[[ $rc == 0 ]]
+[[ $(log_count '^run view ') -ge 1 ]]
+# 端末でなければ、ゲージを読まない（run view を呼ばない）。
+make_case gauge-notty
+GH_WATCH_DELAY=2 run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+log_lacks '^run view '
+# 読む間隔は RELEASE_PROGRESS_INTERVAL で決まり、大きければ待ちの間に読まない。
+make_case gauge-interval
+run_release_tty "$test_dir/answer-y" RELEASE_PROGRESS_INTERVAL=600 GH_WATCH_DELAY=2
+[[ $rc == 0 ]]
+log_lacks '^run view '
+
 # 色: 端末では、結果の語が成功の色、終わりのまとめの見出しが完了の案内の色、止まるときの行がエラーの色になる。
 # 色の番号は manual.md の「表示の色と印」と同じ（成功 28、完了の案内 太字の 30、エラー 太字の 196）。
 esc=$(printf '\033')
@@ -910,12 +964,12 @@ tr -d '\r' <"$case_dir/out" >"$case_dir/screen"
 grep -qxF "  ${esc}[38;5;28m✔${esc}[0m 道具              ${esc}[38;5;244mgit gh tar shasum diff cmp  gh 2.102.0  2.102.0 以上${esc}[0m" "$case_dir/screen"
 grep -qxF "  ${esc}[1mv1.6.0${esc}[0m  ${esc}[38;5;244mexample/kit${esc}[0m" "$case_dir/screen"
 grep -qxF "  ${esc}[38;5;244m│${esc}[0m 新しいバージョンの 1 段落目。" "$case_dir/screen"
-grep -qxF "  ${esc}[38;5;28m一致${esc}[0m  タグの install.sh での確かめ: 証明、チェックサム、tar.gz の中の一覧" "$case_dir/screen"
-grep -qxF "  ${esc}[38;5;28m一致${esc}[0m  証明: 配布物と SHA256SUMS" "$case_dir/screen"
-grep -qxF "  ${esc}[38;5;28m成功${esc}[0m  公開: 下書きから公開に切り替えました" "$case_dir/screen"
+# 端末では、手順の行をその場で書き換えるので、動きの制御の文字が混ざる。終わった手順の緑の ✔ と名前が、最後の描き直しにある。
+grep -qF "${esc}[38;5;28m✔${esc}[0m Release を公開する" "$case_dir/screen"
+grep -qF "${esc}[38;5;28m✔${esc}[0m 配布物を確かめる" "$case_dir/screen"
 grep -qxF "${esc}[1;38;5;30mv1.6.0 の Release を公開しました${esc}[0m" "$case_dir/screen"
-# 色を付けるのは結果の語と見出しだけ。項目の名前と値、まとめの一覧には付けない。
-[[ $(sed "s/${esc}\[[0-9;]*m//g" "$case_dir/screen" | grep -c "$esc" || true) == 0 ]]
+# 色の制御以外の動きの文字（カーソルの移動、行の消去）は、色の文字と別に数える。
+[[ $(sed "s/${esc}\[[0-9;]*m//g" "$case_dir/screen" | grep -c "$esc" || true) -gt 0 ]]
 make_case color-stop
 tag_here
 add_release true
@@ -933,7 +987,7 @@ seed_assets
 run_release_tty "$test_dir/answer-y" NO_COLOR=1
 [[ $rc == 0 ]]
 ! grep -q "$esc" "$case_dir/out" "$case_dir/err"
-grep -qF '  一致  証明: 配布物と SHA256SUMS' "$case_dir/out"
+grep -qF '      ✔ 証明                 配布物  SHA256SUMS' "$case_dir/out"
 grep -qF 'v1.6.0 の Release を公開しました' "$case_dir/out"
 make_case color-none-stop
 tag_here

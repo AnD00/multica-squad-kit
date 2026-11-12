@@ -16,7 +16,10 @@ workflow_file=release-assets.yml
 # 起こしたワークフローの実行を探す回数と間隔（秒）。間隔は、テストで 0 にするために環境変数で変えられる。
 run_find_tries=10
 run_find_interval=${RELEASE_RUN_FIND_INTERVAL:-3}
+# 待つ間のゲージを読む間隔と、書き換えないときに経過の行を足す間隔（秒）。テストで短くするために環境変数で変えられる。
+progress_interval=${RELEASE_PROGRESS_INTERVAL:-5}
 watch_tick_interval=${RELEASE_WATCH_TICK_INTERVAL:-30}
+ui_steps_wait_interval=$watch_tick_interval
 
 usage() {
 	cat <<'USAGE'
@@ -25,32 +28,45 @@ usage() {
 下書きの Release を作り、配布物を作らせて確かめてから、公開する。
 USAGE
 }
+# 手順の一覧の中で動いている手順があるあいだは yes。止まるときに、その手順を ✖ にしてから案内を出す。
+step_running=no
 stop() {
+	fail_step
 	ui_error "$*"
 	exit 1
 }
-draft_url_note() {
-	printf '        下書きの間だけの URL です。公開すると、タグの名前の URL（https://github.com/%s/releases/tag/%s）に変わります。\n' "$repo" "$version"
+# 下書きの URL の次の行に、公開のあとのタグの名前の URL を足す。案内の文は変えない。
+tag_url() {
+	printf 'https://github.com/%s/releases/tag/%s' "$repo" "$version"
 }
 stop_with_draft_url() {
 	ui_error "$*"
-	draft_url_note >&2
+	printf '      → %s\n' "$(tag_url)" >&2
 	exit 1
 }
-# 失敗したコマンドの出力は、受けたままの内容を区切りの行で挟む。
-show_command_output() {
-	printf '【%s の出力 ここから】\n' "$1" >&2
+# fail_step [値]: 動いている手順を ✖ にする。続けて画面に出す前に呼ぶ（書き換えを止め、カーソルを一覧の下に置くため）。
+fail_step() {
+	[[ $step_running == yes ]] || return 0
+	step_running=no
+	ui_step_fail "${1-}"
+}
+# show_failure <コマンドの 1 行> <受けたファイル>: 灰の「$ コマンド」の行と、受けた中身をそのまま標準エラー出力に出す。
+# 外のコマンドの出力とスクリプトの行の境目はコマンドの行で示し、区切りの文字の行は出さない。
+show_failure() {
+	ui_line err default "\$ $1"
 	cat "$2" >&2
-	printf '\n【%s の出力 ここまで】\n' "$1" >&2
+	if [[ -s $2 && -n $(tail -c 1 "$2") ]]; then printf '\n' >&2; fi
 }
-result_row() {
-	printf '  '
-	ui_result "$1"
-	printf '  %s: %s\n' "$2" "$3"
+# command_failed <値> <コマンドの 1 行> <受けたファイル> <案内>: 手順を ✖ にし、コマンドの行と中身を出して、案内で止まる。
+command_failed() {
+	fail_step "$1"
+	show_failure "$2" "$3"
+	stop "$4"
 }
+# duration <秒>: 48s、1m12s の形。
 duration() {
-	if [[ $1 -lt 60 ]]; then printf '%d 秒' "$1"
-	else printf '%d 分 %d 秒' "$(($1 / 60))" "$(($1 % 60))"; fi
+	if [[ $1 -lt 60 ]]; then printf '%ds' "$1"
+	else printf '%dm%ds' "$(($1 / 60))" "$(($1 % 60))"; fi
 }
 
 case $# in
@@ -146,17 +162,11 @@ version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || version=
 # 一時の置き場。macOS の mktemp -d は TMPDIR を見ないので、名前の型を渡して、TMPDIR の下に作らせる。
 work_tmp=$(mktemp -d "${TMPDIR:-/tmp}/release.XXXXXX") || stop '一時の置き場を作れません。'
 watch_pid=
-watch_tick_pid=
 stop_watch() {
 	if [[ -n $watch_pid ]]; then
 		kill "$watch_pid" 2>/dev/null || true
 		wait "$watch_pid" 2>/dev/null || true
 		watch_pid=
-	fi
-	if [[ -n $watch_tick_pid ]]; then
-		kill "$watch_tick_pid" 2>/dev/null || true
-		wait "$watch_tick_pid" 2>/dev/null || true
-		watch_tick_pid=
 	fi
 }
 cleanup() {
@@ -350,7 +360,6 @@ step_names=(
 	'Release を公開する'
 )
 remaining_steps=("${step_names[@]:$((step_first - 1))}")
-step_no=${#remaining_steps[@]}
 # 確認の前は、端末でも切らずに順に出す。承認のあとの書き換えは、問いを覚えてから始める。
 release_live_out=$ui_live_out
 ui_live_out=no
@@ -365,27 +374,45 @@ read -r answer || :
 if [[ $ui_live_out == yes && $ui_live_err == yes ]]; then
 	ui_steps_tail $'\n'"公開しますか [y/N]: $answer"$'\n'
 fi
-# 確認で並べた手順と、同じ名前・番号・総数で進み具合を出す。
-step_total=$step_no
-step_no=0
-step_heading() {
-	step_no=$((step_no + 1))
-	printf '\n[%d/%d] %s\n' "$step_no" "$step_total" "${step_names[$(($1 - 1))]}"
+# 確認で並べた手順を、同じ名前で、その場で進める。<表の番号> は docs/release.md の「公開」の表の番号で、
+# 確認の一覧の番号（step_first から数え直したもの）に直して渡す。
+begin_step() {
+	ui_step_start "$(($1 - step_first + 1))"
+	step_running=yes
+}
+end_step() {
+	step_running=no
+	ui_step_done "${1-}"
 }
 
-# 見張りと経過の間隔を別々に待つ。見張りがすぐ終わったときは、30 秒を待たずに続ける。
+# read_gauge: 実行のジョブのステップのうち、終わったものの数と全体の数を gauge_done と gauge_total に置く。
+# 読めないときや、ステップがまだないときは、1 を返す。
+read_gauge() {
+	local out
+	out=$(gh run view "$run_id" --repo "$repo" --json jobs --jq '[.jobs[].steps[]?] | "\(map(select(.status == "completed")) | length)\t\(length)"' 2>/dev/null </dev/null) || return 1
+	gauge_done=${out%%$'\t'*}
+	gauge_total=${out#*$'\t'}
+	[[ $gauge_done =~ ^[0-9]+$ && $gauge_total =~ ^[0-9]+$ && $gauge_total -gt 0 ]]
+}
+
+# gh run watch を裏で流し、終わるまで、動いている手順の行のスピナー、ゲージ、経過の時間を更新する。
+# ゲージは書き換えるときだけ読む（書き換えないときは gh を余分に呼ばない）。読めなければ前の割合のまま。
+# 成否は gh run watch の終了コードだけで決める。出力はファイルに受けて、画面に出さない。
 watch_workflow() {
-	local status=0
-	gh run watch "$run_id" --repo "$repo" --exit-status >"$work_tmp/watch-output" 2>&1 </dev/null &
+	local status=0 elapsed last_elapsed=-1 last_gauge=$SECONDS
+	watch_command=(gh run watch "$run_id" --repo "$repo" --exit-status)
+	"${watch_command[@]}" >"$work_tmp/watch-output" 2>&1 </dev/null &
 	watch_pid=$!
-	sleep "$watch_tick_interval" &
-	watch_tick_pid=$!
+	ui_step_progress 0 1 '' nocount
 	while kill -0 "$watch_pid" 2>/dev/null; do
-		if ! kill -0 "$watch_tick_pid" 2>/dev/null; then
-			wait "$watch_tick_pid" 2>/dev/null || true
-			printf '  待っています（経過 %s）\n' "$(duration "$((SECONDS - workflow_started))")"
-			sleep "$watch_tick_interval" &
-			watch_tick_pid=$!
+		if [[ $ui_steps_live == yes ]] && ((SECONDS - last_gauge >= progress_interval)); then
+			last_gauge=$SECONDS
+			if read_gauge; then ui_step_progress "$gauge_done" "$gauge_total" '' nocount; fi
+		fi
+		elapsed=$((SECONDS - workflow_started))
+		if ((elapsed != last_elapsed)); then
+			last_elapsed=$elapsed
+			ui_step_wait "$elapsed"
 		fi
 		sleep 0.1
 	done
@@ -434,6 +461,7 @@ attest() {
 		--signer-workflow "$attest_signer_workflow" \
 		--source-ref "refs/tags/$version" \
 		--deny-self-hosted-runners 2>&1 </dev/null) || {
+		fail_step
 		printf '%s\n' "$result" >&2
 		verify_stop "証明の束で、${file##*/} の証明を確かめられませんでした。"
 	}
@@ -444,6 +472,11 @@ download_asset() {
 	local id=$1 name=$2 dir=$3
 	gh api -H 'Accept: application/octet-stream' "repos/$repo/releases/assets/$id" >"$dir/$name" 2>"$work_tmp/gh-err" </dev/null || verify_stop "配布物を取得できませんでした: $name"
 	[[ -f $dir/$name && ! -L $dir/$name ]] || verify_stop "配布物を取得できませんでした: $name"
+}
+
+# verify_row <項目の名前> <値>: 通った確かめの行を、4 の手順の続きの行に足す。名前は一番長いものにそろえる。
+verify_row() {
+	ui_step_line ok "$(ui_pad 19 "$1")" "$2"
 }
 
 # 公開の前の確かめ（docs/release.md の「公開の前の確かめ」）。
@@ -463,11 +496,13 @@ verify_draft() {
 	git ls-tree "$version" -- install.sh | grep -Eq '^100(644|755) blob ' || verify_stop 'タグの install.sh が、通常のファイルではありません。'
 	git show "$version:install.sh" >"$tag_install" || verify_stop 'タグの install.sh を読めません。'
 	# install.sh の文は導入する人に向けたものなので、画面に出さない。失敗したときだけ、そのまま出す。
-	if ! bash "$tag_install" --verify "$version" "$assets" >"$work_tmp/install-output" 2>&1 </dev/null; then
-		show_command_output 'install.sh --verify' "$work_tmp/install-output"
+	install_command=(bash "$tag_install" --verify "$version" "$assets")
+	if ! "${install_command[@]}" >"$work_tmp/install-output" 2>&1 </dev/null; then
+		fail_step
+		show_failure "${install_command[*]}" "$work_tmp/install-output"
 		verify_stop "タグの install.sh の --verify が通りませんでした。"
 	fi
-	result_row 一致 'タグの install.sh での確かめ' '証明、チェックサム、tar.gz の中の一覧'
+	verify_row 'タグの install.sh' '証明  チェックサム  tar.gz の中の一覧'
 	# 3: 配布物の install.sh の証明、SHA256SUMS の行、タグの install.sh との一致。
 	attest "$assets/install.sh" "$assets/$bundle_name"
 	sums_count=0
@@ -483,19 +518,20 @@ verify_draft() {
 	[[ $sums_count -eq 1 ]] || verify_stop "SHA256SUMS の install.sh の行が、1 行ではありません（$sums_count 行）。"
 	[[ $sums_line == "$actual" ]] || verify_stop "install.sh のチェックサムが、SHA256SUMS と違います。"
 	cmp -s "$assets/install.sh" "$tag_install" || verify_stop "配布物の install.sh が、タグの install.sh と違います。"
-	result_row 一致 '配布物の install.sh' '証明、SHA256SUMS の行、タグの install.sh と同じ'
+	verify_row '配布物の install.sh' '証明  SHA256SUMS の行  タグの install.sh'
 	# 4: 配布物を展開したものと、git archive を展開したものを比べる。
 	tar -xzf "$assets/$tar_name" -C "$vdir/archive" || verify_stop '配布物を展開できません。'
 	git archive --format=tar --prefix="multica-squad-kit-$version/" "$version" | tar -xf - -C "$vdir/expected" || verify_stop 'タグの中身を取り出せません。'
 	diff -r "$vdir/archive" "$vdir/expected" >"$vdir/diff" 2>&1 || {
+		fail_step
 		head -n 20 "$vdir/diff" >&2
 		verify_stop '配布物の中身が、git archive で取り出したタグの中身と違います。'
 	}
-	result_row 一致 '配布物の中身' 'タグから取り出した中身と同じ'
+	verify_row '配布物の中身' "git archive $version"
 	# 5: 証明の束で、3 つの証明を確かめる。
 	attest "$assets/$tar_name" "$assets/$bundle_name"
 	attest "$assets/SHA256SUMS" "$assets/$bundle_name"
-	result_row 一致 証明 '配布物と SHA256SUMS'
+	verify_row 証明 '配布物  SHA256SUMS'
 }
 
 # 確かめるところから続けたときは、この実行でワークフローを起こしていないので、成功した実行のうち最も新しいものを探す。
@@ -509,55 +545,59 @@ find_past_run() {
 
 # 公開: 確認で出したコミットを明示してタグを作る。--force は付けない。
 printf '%s\n' "$notes" >"$work_tmp/notes"
-# 1〜2: タグを作り、push する。
+# 1: タグを作り、push する。push の出力は画面に出さない。失敗したときは、この実行で作った手元のタグを消す。
 if [[ $action == tag ]]; then
-	step_heading 1
+	begin_step 1
 	git tag -a "$version" -m "$version" "$commit" || stop 'タグを作れませんでした。'
-	if ! git push origin "refs/tags/$version" >"$work_tmp/push-output" 2>&1; then
-		show_command_output 'git push' "$work_tmp/push-output"
+	push_command=(git push origin "refs/tags/$version")
+	if ! "${push_command[@]}" >"$work_tmp/push-output" 2>&1; then
 		git tag -d "$version" >/dev/null
-		stop "タグの push に失敗しました。手元のタグを消したので、流し直せます。"
+		command_failed '' "${push_command[*]}" "$work_tmp/push-output" 'タグの push に失敗しました。手元のタグを消したので、流し直せます。'
 	fi
-	result_row 成功 'タグの push' "$version を origin に push しました（${commit:0:12}）"
+	end_step "$version  ${commit:0:12}"
 fi
-# 3: 下書きの Release を作る。
+# 2: 下書きの Release を作る。標準出力は URL として読み、標準エラー出力は失敗したときだけ画面に出す。
 if [[ $action == tag || $action == draft ]]; then
-	step_heading 2
-	if ! url=$(gh release create "$version" --repo "$repo" --draft --verify-tag --title "$version" --notes-file "$work_tmp/notes" </dev/null); then
+	begin_step 2
+	create_command=(gh release create "$version" --repo "$repo" --draft --verify-tag --title "$version" --notes-file "$work_tmp/notes")
+	if ! url=$("${create_command[@]}" 2>"$work_tmp/create-error" </dev/null); then
 		if [[ $action == draft ]]; then
-			stop "下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。"
+			create_message='下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。'
+		else
+			create_message='タグは push しましたが、下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。'
 		fi
-		stop "タグは push しましたが、下書きの Release の作成に失敗しました。同じコマンドを流し直すと、下書きの作成から続けます。"
+		command_failed '' "${create_command[*]}" "$work_tmp/create-error" "$create_message"
 	fi
-	result_row 作成 '下書きの Release' "$url"
-	draft_url_note
+	# 灰の下書きの URL は今だけのもの。矢印の先が、公開のあとの URL。
+	if [[ -n $url ]]; then ui_step_line - '' "$url"; fi
+	ui_step_line - "→ $(tag_url)"
+	end_step
 fi
-# 4: 配布物を作らせ、終わるまで待つ。
+# 3: 配布物を作らせ、終わるまで待つ。
 if [[ $action != verify ]]; then
-	step_heading 3
+	begin_step 3
 	workflow_started=$SECONDS
 	since=$(date -u +%Y-%m-%dT%H:%M:%SZ)
-	gh workflow run "$workflow_file" --repo "$repo" --ref "$version" >"$work_tmp/workflow-output" 2>&1 </dev/null || {
-		show_command_output 'gh workflow run' "$work_tmp/workflow-output"
-		stop "発行のワークフローを起こせませんでした。下書きは残してあります。同じコマンドを流し直すと、配布物を作らせ直します。"
-	}
+	run_command=(gh workflow run "$workflow_file" --repo "$repo" --ref "$version")
+	"${run_command[@]}" >"$work_tmp/workflow-output" 2>&1 </dev/null ||
+		command_failed '' "${run_command[*]}" "$work_tmp/workflow-output" '発行のワークフローを起こせませんでした。下書きは残してあります。同じコマンドを流し直すと、配布物を作らせ直します。'
 	find_run "$since"
-	printf '  実行: %s\n' "$run_url"
-	watch_workflow || {
-		show_command_output 'gh run watch' "$work_tmp/watch-output"
-		stop "発行のワークフローが失敗しました: ${run_url}。下書きは残してあります。配布物が 1 つも載っていなければ、流し直すと配布物を作らせ直します。途中まで載っているときは、GitHub の画面で下書きの配布物を消してから流し直してください。"
-	}
-	result_row 成功 '発行のワークフロー' "$(duration "$((SECONDS - workflow_started))")"
+	ui_step_line - '' "$run_url"
+	watch_workflow ||
+		command_failed "$run_url" "${watch_command[*]}" "$work_tmp/watch-output" "発行のワークフローが失敗しました: ${run_url}。下書きは残してあります。配布物が 1 つも載っていなければ、流し直すと配布物を作らせ直します。途中まで載っているときは、GitHub の画面で下書きの配布物を消してから流し直してください。"
+	end_step "$(duration "$((SECONDS - workflow_started))")"
 fi
-# 5: 配布物を確かめる。
-step_heading 4
+# 4: 配布物を確かめる。
+begin_step 4
 verify_draft
-# 6: 公開する。
-step_heading 5
-if ! url=$(gh release edit "$version" --repo "$repo" --draft=false </dev/null); then
-	stop "Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を確かめ直して公開します。"
+end_step
+# 5: 公開する。
+begin_step 5
+edit_command=(gh release edit "$version" --repo "$repo" --draft=false)
+if ! url=$("${edit_command[@]}" 2>"$work_tmp/edit-error" </dev/null); then
+	command_failed '' "${edit_command[*]}" "$work_tmp/edit-error" 'Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を確かめ直して公開します。'
 fi
-result_row 成功 公開 '下書きから公開に切り替えました'
+end_step
 # 終わりのまとめ（docs/release.md の「終わりのまとめ」）。
 [[ $action != verify ]] || run_url=$(find_past_run)
 printf '\n'

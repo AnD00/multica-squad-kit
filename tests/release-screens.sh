@@ -51,7 +51,7 @@ for scene in 1 2 3 4 5; do
 	5) export NO_COLOR=1 ;;
 	esac
 	# 経過の表示が写るまで待たせる。新旧のスクリプトに、同じ状態と同じ入力を渡す。
-	export GH_WATCH_DELAY=2 RELEASE_WATCH_TICK_INTERVAL=1
+	export GH_WATCH_DELAY=2 RELEASE_PROGRESS_INTERVAL=1
 	status=0
 	(cd "$work" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" \
 		python3 "$root/tests/ui-pty.py" screen "$output_dir/$scene-confirm.ansi" "$output_dir/$scene-after.ansi" \

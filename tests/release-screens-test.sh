@@ -81,14 +81,17 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
     plain = ansi.sub(b'', after).decode().replace('\r\n', '\n')
     if expected == 0:
         assert 'v1.6.0 の Release を公開しました' in plain, scene
-        assert ('[1/3]' if scene == 2 else '[1/5]') in plain, scene
-        assert '待っています（経過 ' in plain, scene
+        assert '配布物を確かめる' in plain and 'Release を公開する' in plain, scene
+        if scene != 2:
+            assert '発行のワークフローに配布物を作らせ、終わるまで待つ' in plain, scene
     elif scene == 3:
-        assert '【gh run watch の出力 ここから】' in plain
+        assert '$ gh run watch' in plain and '--exit-status' in plain
         assert "completed with 'failure'" in plain
+        assert 'ここから】' not in plain
     else:
-        assert '【install.sh --verify の出力 ここから】' in plain
+        assert '$ bash ' in plain and '--verify v1.6.0' in plain
         assert 'stub: attestation failed' in plain
+        assert 'ここから】' not in plain
 assert not list(screens.glob('*.png'))
 PY
 echo 'PASS release-screens: 5 場面の終了コード、問い、長い本文、色、成功と失敗の画面を取れた'
