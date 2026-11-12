@@ -258,7 +258,7 @@ ruleset は、タグを作ることを止めない。
 `V` には、公開したバージョンのタグを入れる。
 
 ```bash
-V=v1.8.0
+V=v1.10.0
 D=$(mktemp -d)
 gh release download "$V" --repo AnD00/multica-squad-kit --pattern SHA256SUMS --dir "$D"
 gh release upload "$V" "$D/SHA256SUMS" --repo AnD00/multica-squad-kit --clobber
