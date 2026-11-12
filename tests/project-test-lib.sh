@@ -61,7 +61,8 @@ case "$event" in
 'agent list') jq -s . "$TEST_DB"/agents/*.json ;;
 'agent get') cat "$TEST_DB/agents/$3.json" ;;
 'agent create')
-	grep -qF "エージェント 0/${TEST_ROLE_COUNT}（ID の準備）" "${TEST_DB%/*}/err"
+	# ID の準備の前に、前の手順が終わっている（作る間の一覧では手順の ✔ の行、一覧の外では今までの文）。
+	if [[ ${TEST_STEPS:-no} == yes ]]; then grep -qF '  ✔ プロジェクトとリポジトリ' "${TEST_DB%/*}/err"; else grep -qF "エージェント 0/${TEST_ROLE_COUNT}（ID の準備）" "${TEST_DB%/*}/err"; fi
  [[ -f $TEMPLATE_AGENT_HOME/allowed-repos.d/project-a ]]
  jq -ne --argjson selected "$TEST_SELECTED_REPOSITORIES" --argjson expected "${TEST_EXPECTED_ALLOWED:-null}" --rawfile allowed "$TEMPLATE_AGENT_HOME/allowed-repos.d/project-a" '($expected // ($selected|map(.repository|ascii_downcase))|unique|sort)==($allowed|split("\n")|map(select(length>0))|unique|sort)' >/dev/null
  [[ -f $TEMPLATE_AGENT_HOME/template/shell/project-a/.zshenv ]]
@@ -119,8 +120,8 @@ chmod +x "$test_dir/bin/gh"
 cat >"$test_dir/driver" <<'DRIVER'
 set -euo pipefail
 root=$TEST_PACKAGE
-die() { echo "$*" >&2; exit 1; }
 source "$root/lib/ui.sh"
+die() { ui_phase_fail; echo "$*" >&2; exit 1; }
 source "$root/lib/questions.sh"
 source "$root/lib/workspace.sh"
 source "$root/lib/extensions.sh"
@@ -164,6 +165,16 @@ if [[ ${TEST_RECHECK:-no} == yes ]]; then
 fi
 if [[ -n ${TEST_EXTENSION_DIR:-} ]]; then
  choose_extension <<<"$TEST_EXTENSION_DIR"
+fi
+if [[ ${TEST_STEPS:-no} == yes ]]; then
+ # setup.sh と同じ 13 手順の一覧を、書き換えない出力で動かす。
+ ui_init
+ ui_steps_begin err 2 "ホストを準備" "共通のラベルとスキル" "プロジェクトとリポジトリ" "エージェントの ID" "スクワッド" "指示とスキル" "エージェントを設定" "エージェントを公開" "スクワッドのメンバー" "オートパイロット" "Webhook" "導入の確認" "タスクの起票"
+ ui_steps_notice_file=$(mktemp "$TEST_DB/notice.XXXXXX")
+ trap ui_steps_cleanup EXIT
+ ui_phase_start 1; ui_phase_done
+ ui_phase_start 2; ui_phase_done
+ dependabot_webhook_active() { return 1; }
 fi
 prepare_project
 [[ $excluded_roles == "$TEST_EXCLUDED" ]]

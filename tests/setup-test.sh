@@ -65,7 +65,10 @@ saved="$test_dir/state/ws-a/demo.json"
 jq -e '.workspace_id=="ws-a" and .project_id=="project-a" and .repositories[0].repository=="example/two" and .repositories[0].url=="git@github.com:example/two.git" and .member_ids==["member-a","member-b"] and .excluded_roles==["claude-fixer","claude-implementer","planner"] and .dependabot_webhook==false' "$saved" >/dev/null
 [[ $(python3 -c 'import os,sys; print(oct(os.stat(sys.argv[1]).st_mode & 0o777)[2:])' "$saved") == 600 ]]
 grep -q 'TEST-project-prepared' "$test_dir/out"
-grep -qF '答えを保存しました。' "$test_dir/err"
+# 作る間の進みは、書き換えない出力では終わった手順の行だけが順に出る（今までの文は出ない）。
+grep -qF '✔ ホストを準備' "$test_dir/err"
+grep -qF '✔ 共通のラベルとスキル' "$test_dir/err"
+! grep -qF -e '答えを保存しました。' -e 'ホストを準備しています。' -e 'プロジェクトの設定を始めます' "$test_dir/err"
 ! grep -qF "$test_dir/state" "$test_dir/err"
 ! grep -qF '保存先:' "$test_dir/err"
 grep -q 'https://example.test|ws-a|project list' "$TEST_CALLS"

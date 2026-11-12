@@ -72,3 +72,5 @@ tests/terminal-screen-test.sh 1
 tests/role-choices-test.sh 1
 tests/shell-test.sh 1
 tests/squad-dependabot-merge-advance-gh-test.sh 1
+tests/setup-progress-test.sh 2
+tests/project-progress-test.sh 12

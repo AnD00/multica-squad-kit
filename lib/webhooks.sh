@@ -98,7 +98,10 @@ prepare_project_webhooks() {
 		return 0
 	fi
 	dependabot_webhook_active || return 0
+	# 作る間の一覧の値は、登録を試すリポジトリの数。
+	webhook_summary=$(jq length <<<"$selected_repositories")
 	while IFS= read -r repo; do
+		ui_phase_progress 0 0 "$repo"
 		if ! row=$(register_dependabot_webhook "$repo"); then
 			row=$(jq -nc --arg repository "$repo" '{repository:$repository,trigger:"飛ばした",registration:"飛ばした",delivery:"失敗",reason:"Webhook の登録の処理に失敗しました。"}')
 		fi

@@ -256,11 +256,15 @@ ui_steps_count=0
 ui_steps_wait_interval=30
 ui_spinner_pid=
 ui_steps_dir=
+ui_steps_notice_file=
+ui_steps_subject=
+ui_steps_phase_began=0
 
 ui_steps_cleanup() {
 	_ui_spinner_stop
 	if [[ -n ${ui_steps_dir:-} ]]; then rm -rf -- "$ui_steps_dir"; fi
-	ui_steps_dir= ui_steps_active=no ui_steps_live=no
+	if [[ -n ${ui_steps_notice_file:-} ]]; then rm -f -- "$ui_steps_notice_file" "$ui_steps_notice_file.failed"; fi
+	ui_steps_dir= ui_steps_notice_file= ui_steps_active=no ui_steps_live=no
 }
 
 _ui_spinner_stop() {
@@ -667,6 +671,84 @@ ui_step_line() {
 		ui_steps_extra_printed[$index]=yes
 	fi
 	_ui_spinner_start
+}
+
+# 子のプロセス（サブシェル）の中の通知を、一覧を動かしている親へ渡す。子は一覧の状態を書き換えても親へ戻せない
+# ので、続きの行は置き場のファイルに 1 行ずつ足し、親が手順を終えるときに ui_step_line で出す。
+# ui_steps_notice_file に置き場を決めて呼ぶ。決めないときは、動いている手順に続きの行として足す。
+
+# ui_notice <印|-> <本文> [値]: 一覧が動いていれば、続きの行を置き場に足して 0 を返す。動いていないときは
+# 何もせず 1 を返すので、呼ぶ側は今までの表示に戻す。
+ui_notice() {
+	[[ ${ui_steps_active:-no} == yes ]] || return 1
+	if [[ -n ${ui_steps_notice_file:-} ]]; then
+		printf '%s\t%s\t%s\n' "$1" "$2" "${3-}" >>"$ui_steps_notice_file" || return 1
+	else
+		ui_step_line "$@"
+	fi
+}
+
+# ui_notice_flush: 置き場にたまった続きの行を、今の手順の下へ順に出して、置き場を空にする。
+ui_notice_flush() {
+	local mark text value
+	[[ ${ui_steps_active:-no} == yes && -n ${ui_steps_notice_file:-} && -s $ui_steps_notice_file ]] || return 0
+	while IFS=$'\t' read -r mark text value || [[ -n $mark ]]; do
+		ui_step_line "$mark" "$text" "$value"
+	done <"$ui_steps_notice_file"
+	: >"$ui_steps_notice_file"
+}
+
+# 次の ui_phase_* は、一覧が動いていないときは何もしない。一覧の外から呼ばれる関数が、今までの表示のまま動くため。
+# ui_phase_start <番号>: その手順を動かす。扱う名前は空にする。
+ui_phase_start() {
+	[[ ${ui_steps_active:-no} == yes ]] || return 0
+	ui_steps_subject=
+	ui_steps_phase_began=$SECONDS
+	ui_step_start "$1"
+}
+
+# ui_phase_active: 作る間の一覧が動いていれば真。偽のときは、呼ぶ側が今までの表示を出す。
+ui_phase_active() { [[ ${ui_steps_active:-no} == yes ]]; }
+
+# ui_phase_progress <済んだ数> <全体の数> [名前]: 動いている手順のゲージを進め、名前を扱う名前として覚える。
+ui_phase_progress() {
+	[[ ${ui_steps_active:-no} == yes ]] || return 0
+	ui_steps_subject=${3-}
+	ui_step_progress "$1" "$2" "${3-}"
+}
+
+# ui_phase_subject <名前>: 扱っている名前を覚える。失敗したときの ✖ の行に灰で添える。
+ui_phase_subject() {
+	[[ ${ui_steps_active:-no} == yes ]] || return 0
+	ui_steps_subject=${1-}
+}
+
+# ui_phase_done [値]: たまった続きの行を出してから、動いている手順を ✔ にする。
+ui_phase_done() {
+	[[ ${ui_steps_active:-no} == yes ]] || return 0
+	ui_notice_flush
+	ui_steps_subject=
+	ui_step_done "${1-}"
+}
+
+# ui_phase_done_counted <件数>: 件数と、手順を始めてからの時間（48s、1m12s の形）を値にして、ui_phase_done と同じに終える。
+ui_phase_done_counted() {
+	[[ ${ui_steps_active:-no} == yes ]] || return 0
+	_ui_steps_time "$((SECONDS - ${ui_steps_phase_began:-$SECONDS}))"
+	ui_phase_done "$1  $ui_steps_time_text"
+}
+
+# ui_phase_fail [名前]: たまった続きの行を出してから、動いている手順を ✖ にする。名前がなければ、扱っていた名前を添える。
+# 動いている手順がないときは何もしない。
+# 子のプロセスが先に ✖ にして止まったときは、親が続けて呼んでも、一覧を描き直さない（置き場の隣の印で知る）。
+ui_phase_fail() {
+	[[ ${ui_steps_active:-no} == yes && ${ui_steps_states[$ui_steps_current]:-} == active ]] || return 0
+	if [[ -n ${ui_steps_notice_file:-} ]]; then
+		[[ ! -e $ui_steps_notice_file.failed ]] || return 0
+		: >"$ui_steps_notice_file.failed"
+	fi
+	ui_notice_flush
+	ui_step_fail "${1:-$ui_steps_subject}"
 }
 
 # ui_result <結果の語>: 完了の表示の結果の語に、種類の色を付けて改行なしで標準出力へ出す。

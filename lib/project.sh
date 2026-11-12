@@ -10,8 +10,11 @@ prepare_project() (
 	local setup_issue_rows='[]' setup_issue_failures='[]'
 	local setup_removed_targets='[]' project_previous_repositories=null
 	local setup_webhook_rows='[]' setup_webhook_leftovers='[]'
-	local setup_installation_rows='[]'
+	local setup_installation_rows='[]' webhook_summary=''
 	local -a allowed_repo_names=()
+	local squad_member_count=0 summary_repos
+	ui_phase_start 3
+	ui_phase_subject "$project_name"
 	selected_repositories=$(jq -ce "$repository_filter"'
 		if type=="array" and length>0 then . else error("リポジトリがありません") end |
 		map(. as $entry | (.url|repository_name) as $name |
@@ -26,7 +29,8 @@ prepare_project() (
 	repository=$(jq -r '.[0].repository' <<<"$selected_repositories")
 	mkdir -p "$root/tmp"
 	project_work=$(mktemp -d "$root/tmp/project.XXXXXX") || die 'プロジェクトの作業場所を作れませんでした。'
-	trap 'rm -rf -- "$project_work"' EXIT
+	# 作る間の一覧のスピナーは、この子のプロセスが動かすので、終わるときに止める。
+	trap 'rm -rf -- "$project_work"; _ui_spinner_stop' EXIT
 	enabled=''
 	jq -e --arg known " $template_roles " 'type=="array" and all(.[]; . as $role | type=="string" and ($known|contains(" "+$role+" ")))' >/dev/null <<<"$excluded_roles" || die '外す役の指定が不正です。'
 	# 登録する系統だけに反映する。保存済みの回答には自分で外した役だけを残す。
@@ -78,8 +82,13 @@ prepare_project() (
 	project_resources
 	values=$(jq -c --arg id "$project_id" '.+{project_id:$id}' <<<"$values")
 	printf '%s\n' "$values" >"$project_work/values.json"
+	summary_repos=''
+	for selected_repo in ${allowed_repo_names[@]+"${allowed_repo_names[@]}"}; do summary_repos+="  $selected_repo"; done
+	ui_phase_done "$project_name$summary_repos"
+	ui_phase_start 4
 	# 条件の評価とモデルの確定は初期化用レコードを作る前に済ませる。
 	for role in $enabled; do
+		ui_phase_subject "$role"
 		template_filter "$enabled" "$root/common/agents/$role.md" >"$project_work/$role.filtered" || die "役の印が不正です: $role"
 		model=$(template_field "$project_work/$role.filtered" model) || die 'モデルの書式が不正です。'
 		thinking=$(template_field "$project_work/$role.filtered" thinking_level) || die '思考の深さの書式が不正です。'
@@ -97,6 +106,7 @@ prepare_project() (
 		name=$(template_field "$project_work/$role.filtered" name) || die '名前の書式が不正です。'
 		printf '%s' "$name" >"$project_work/name"
 		name=$(template_apply "$project_work/values.json" "$project_work/name") || die '名前を展開できませんでした。'
+		ui_phase_subject "$name"
 		[[ $name == "$project_key-$role-$member_key" ]] || die '役の名前が規則と違います。'
 		max=$(template_field "$project_work/$role.filtered" max_concurrent_tasks)
 		max=${max:-6}
@@ -105,7 +115,8 @@ prepare_project() (
 	done
 	result=$(mc agent list --output json) || die 'エージェントを取得できませんでした。'
 	agent_total=$(jq length <<<"$records")
-	printf 'エージェント %s 件の既存設定を確認しています。\n' "$agent_total" >&2
+	ui_phase_progress 0 "$agent_total"
+	ui_phase_active || printf 'エージェント %s 件の既存設定を確認しています。\n' "$agent_total" >&2
 	# 既存の所有者の衝突も、新規作成より先に調べる。
 	for role in $enabled; do
 		name=$(jq -r --arg role "$role" '.[$role].name' <<<"$records")
@@ -119,9 +130,10 @@ prepare_project() (
 		fi
 	done
 	progress=0
-	printf 'エージェント 0/%s（ID の準備）\n' "$agent_total" >&2
+	ui_phase_active || printf 'エージェント 0/%s（ID の準備）\n' "$agent_total" >&2
 	for role in $enabled; do
 		project_role "$role"
+		ui_phase_progress "$progress" "$agent_total" "$name"
 		project_desired_env "$role" "$model" >"$project_work/$role.env"
 		id=$(jq -r --arg role "$role" '.[$role].id // empty' <<<"$records")
 		if [[ -z $id ]]; then
@@ -135,10 +147,13 @@ prepare_project() (
 			agent_action=既存を利用
 		fi
 		progress=$((progress+1))
-		printf 'エージェント %s/%s（ID の準備: %s）: %s\n' "$progress" "$agent_total" "$agent_action" "$name" >&2
+		ui_phase_active || printf 'エージェント %s/%s（ID の準備: %s）: %s\n' "$progress" "$agent_total" "$agent_action" "$name" >&2
 	done
+	ui_phase_done_counted "$agent_total"
 	squad_name=$(printf '%s-%s' "$project_key" "$member_key" | LC_ALL=C tr '[:lower:]' '[:upper:]')
-	printf 'スクワッドを準備しています: %s\n' "$squad_name" >&2
+	ui_phase_start 5
+	ui_phase_subject "$squad_name"
+	ui_phase_active || printf 'スクワッドを準備しています: %s\n' "$squad_name" >&2
 	result=$(mc squad list --output json) || die 'スクワッドを取得できませんでした。'
 	squad_named "$result" "$squad_name"
 	squad_id=$(jq -r '.[0].id // empty' <<<"$matches")
@@ -155,10 +170,15 @@ prepare_project() (
 		.+{squad_id:$id,squad_mention:$mention} | reduce ($records|to_entries[]) as $r (.;
 		.["agent."+$r.key+".id"]=$r.value.id | .["agent."+$r.key+".name"]=$r.value.name |
 		.["agent."+$r.key+".mention"]=("[@"+$r.value.name+"](mention://agent/"+$r.value.id+")"))' <<<"$values")
-	printf 'エージェント %s 件の指示を展開・検証しています。\n' "$agent_total" >&2
+	ui_phase_done "$squad_name"
+	ui_phase_start 6
+	ui_phase_progress 0 "$agent_total"
+	progress=0
+	ui_phase_active || printf 'エージェント %s 件の指示を展開・検証しています。\n' "$agent_total" >&2
 	# 全役を完成させ、検証が一つでも失敗したら本指示もスキルも公開設定も書かない。
 	for role in $enabled; do
 		project_role "$role"
+		ui_phase_progress "$progress" "$agent_total" "$name"
 		jq --arg model "$model" --arg thinking "$thinking" '.+{model:$model,thinking_level:$thinking}' <<<"$values" >"$project_work/values.json"
 		template_apply "$project_work/values.json" "$project_work/$role.filtered" >"$project_work/$role.rendered" || die "指示を展開できませんでした: $role"
 		template_body "$project_work/$role.rendered" >"$project_work/$role.body"
@@ -169,14 +189,20 @@ prepare_project() (
 		for field in name description model thinking_level skills role max_concurrent_tasks; do
 			template_field "$project_work/$role.rendered" "$field" >/dev/null || die "指示の front matter が不正です: $role"
 		done
+		progress=$((progress+1))
 	done
 	printf '%s\n' "$values" >"$project_work/values.json"
+	ui_phase_progress "$progress" "$agent_total"
 	project_skills
+	ui_phase_done_counted "$agent_total"
 	progress=0
-	printf 'エージェントの設定 0/%s\n' "$agent_total" >&2
+	ui_phase_start 7
+	ui_phase_progress 0 "$agent_total"
+	ui_phase_active || printf 'エージェントの設定 0/%s\n' "$agent_total" >&2
 	# 先に全役の環境・本指示・割り当てを完成させ、公開は最後のループにする。
 	for role in $enabled; do
 		project_role "$role"
+		ui_phase_progress "$progress" "$agent_total" "$name"
 		current=$(mc agent get "$id" --output json) || die 'エージェントを読めませんでした。'
 		result=$(mc agent env get "$id" --output json) || die '環境変数を読めませんでした。'
 		jq -e '(.custom_env // {}) | type=="object" and all(.[]; type=="string")' >/dev/null <<<"$result" || die '環境変数の応答が不正です。'
@@ -195,23 +221,39 @@ prepare_project() (
 			mc agent skills set "$id" --skill-ids "$desired" --output json >/dev/null || die "スキルを割り当てられませんでした: $name"
 		fi
 		progress=$((progress+1))
-		printf 'エージェントの設定 %s/%s: %s\n' "$progress" "$agent_total" "$name" >&2
+		ui_phase_active || printf 'エージェントの設定 %s/%s: %s\n' "$progress" "$agent_total" "$name" >&2
 	done
+	ui_phase_done_counted "$agent_total"
 	progress=0
-	printf 'エージェントの公開 0/%s\n' "$agent_total" >&2
+	ui_phase_start 8
+	ui_phase_progress 0 "$agent_total"
+	ui_phase_active || printf 'エージェントの公開 0/%s\n' "$agent_total" >&2
 	for role in $enabled; do
 		project_role "$role"
+		ui_phase_progress "$progress" "$agent_total" "$name"
 		current=$(mc agent get "$id" --output json) || die '公開前の状態を読めませんでした。'
 		if ! jq -e '.permission_mode=="public_to" and ([.invocation_targets[]?.target_type]|sort)==["workspace"]' >/dev/null <<<"$current"; then
 			mc agent update "$id" --permission-mode public_to --public-to-workspace --output json >/dev/null || die "公開設定を反映できませんでした: $name"
 		fi
 		progress=$((progress+1))
-		printf 'エージェントの公開 %s/%s: %s\n' "$progress" "$agent_total" "$name" >&2
+		ui_phase_active || printf 'エージェントの公開 %s/%s: %s\n' "$progress" "$agent_total" "$name" >&2
 	done
+	ui_phase_done_counted "$agent_total"
+	ui_phase_start 9
 	complete_project
+	ui_phase_start 11
 	prepare_project_webhooks
+	ui_phase_done "${webhook_summary:-}"
+	ui_phase_start 12
 	verify_project_installation
+	ui_phase_done "$(jq length <<<"$setup_installation_rows")"
+	ui_phase_start 13
 	prepare_project_issues
+	if [[ $(jq length <<<"$setup_issue_failures") == 0 ]]; then
+		ui_phase_done "+$(jq '[.[]|select(.action=="created")]|length' <<<"$setup_issue_rows")"
+	else
+		ui_phase_fail "$(jq length <<<"$setup_issue_failures") 件は起票できませんでした"
+	fi
 	project_completion
 	[[ $(jq length <<<"$setup_issue_failures") == 0 ]]
 )

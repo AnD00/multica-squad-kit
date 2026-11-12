@@ -18,7 +18,7 @@ host_install() {
 host_shared_file() {
 	local src=$1 dst=$2 executable=$3
 	if [[ -e $dst ]] && ! grep -qx '# multica-squad-kit-managed' "$dst"; then
-		ui_warning "印のない既存のファイルをそのまま使います: $dst"
+		ui_notice warn "$dst" "印のない既存のファイルをそのまま使います" || ui_warning "印のない既存のファイルをそのまま使います: $dst"
 		return
 	fi
 	host_install "$src" "$dst" "$executable"
@@ -38,6 +38,19 @@ host_cli_library() (
 	return "$result"
 )
 
+# 手順「ホストを準備」の値。関所のパスを、ホームの下なら ~ で縮めて 2 つの空白で並べる。
+host_gate_summary() {
+	local path tilde='~' summary='' paths
+	[[ -n ${agent_home:-} ]] || return 0
+	paths=("$agent_home/bin/gh" "$agent_home/git-hooks/pre-push")
+	if uses_runtime codex; then paths[${#paths[@]}]=$agent_home/codex/config.toml; fi
+	for path in "${paths[@]}"; do
+		if [[ -n ${HOME:-} && $path == "$HOME"/* ]]; then path=$tilde${path#"$HOME"}; fi
+		summary+=${summary:+  }$path
+	done
+	printf '%s' "$summary"
+}
+
 prepare_host() {
 	local file auth
 	host_paths
@@ -45,11 +58,12 @@ prepare_host() {
 	(umask 077; mkdir -p "$agent_home/claude" "$agent_home/codex" "$agent_home/bin" "$agent_home/git-hooks") || die 'ホストの置き場を作れませんでした。'
 	host_shared_file "$root/common/guard/gh" "$agent_home/bin/gh" yes
 	host_shared_file "$root/common/guard/pre-push" "$agent_home/git-hooks/pre-push" yes
-	printf '使用する gh の関所: %s\n使用する git push の関所: %s\n' "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" >&2
+	# 作る間の一覧が動いているときは、関所のパスを手順の値に出す（host_gate_summary）。
+	ui_phase_active || printf '使用する gh の関所: %s\n使用する git push の関所: %s\n' "$agent_home/bin/gh" "$agent_home/git-hooks/pre-push" >&2
 	[[ -f $agent_home/bin/gh && -x $agent_home/bin/gh && -f $agent_home/git-hooks/pre-push && -x $agent_home/git-hooks/pre-push ]] || die '既存の関所を利用できません。表示したファイルの実行権限・読み取り権限を管理者に確認してもらい、流し直してください。既存のファイルは上書きしません。'
 	if uses_runtime codex; then
 		host_shared_file "$root/common/codex/config.toml" "$agent_home/codex/config.toml" no
-		printf '使用する Codex の設定: %s\n' "$agent_home/codex/config.toml" >&2
+		ui_phase_active || printf '使用する Codex の設定: %s\n' "$agent_home/codex/config.toml" >&2
 		[[ -r $agent_home/codex/config.toml ]] || die 'Codex の設定を利用できません。表示したファイルの読み取り権限を管理者に確認してもらい、流し直してください。既存の設定は上書きしません。'
 		# ログインシェルでは別の起動ファイルが効くため、確認した環境とそろえる。
 		if ! python3 - "$agent_home/codex/config.toml" <<'PY'
@@ -111,6 +125,8 @@ prepare_project_host() {
 	# 既存の関所も含め、全選択を確認してから実際の許可を書き替える。
 	# 確認用の起動ファイルは同じひな形から作り、専用の一時許可を指す。
 	host_check_guards "$content" || die '関所の確認に失敗しました。従来の許可とシェル起動ファイルを保って停止します。'
+	# 子のプロセスが止めたスピナーを、この手順のために動かし直す。
+	if ui_phase_active; then _ui_spinner_stop; _ui_spinner_start; fi
 	# プロジェクト登録から呼ぶ場合は、通信中の紐付け変更も最後に確認する。
 	# local の印は prepare_project が付け、ホスト単体の準備では呼ばない。
 	if [[ ${project_host_recheck:-no} == yes ]]; then
@@ -119,7 +135,9 @@ prepare_project_host() {
 	(umask 077; mkdir -p "$agent_home/allowed-repos.d" "$project_shell_dir") || die 'プロジェクト用のホストの置き場を作れませんでした。'
 	host_write "$allowed_repos_file" "$content"
 	if [[ -n $removed ]]; then
-		while IFS= read -r repo; do printf '許すリポジトリから外しました: %s\n' "$repo" >&2; done <<<"$removed"
+		while IFS= read -r repo; do
+			ui_notice drop "$repo" "許すリポジトリから外しました" || printf '許すリポジトリから外しました: %s\n' "$repo" >&2
+		done <<<"$removed"
 	fi
 	# 一重引用符のあるパスも、一重引用符を閉じてエスケープしてから再開する。
 	escaped=${allowed_repos_file//\'/\'\\\'\'}
@@ -129,7 +147,7 @@ prepare_project_host() {
 		content=${content//"$needle"/"$escaped"}
 		content=${content//"$bin_needle"/"$escaped_bin"}
 		if [[ -e $project_shell_dir/$file || -L $project_shell_dir/$file ]] && ! grep -qx '# multica-squad-kit-managed' "$project_shell_dir/$file"; then
-			ui_warning "印のない既存のファイルをそのまま使います: $project_shell_dir/$file"
+			ui_notice warn "$project_shell_dir/$file" "印のない既存のファイルをそのまま使います" || ui_warning "印のない既存のファイルをそのまま使います: $project_shell_dir/$file"
 			continue
 		fi
 		host_write "$project_shell_dir/$file" "$content"
@@ -154,7 +172,8 @@ host_check_guards() (
 	probe_path="$real_gh_dir:$PATH"
 	mkdir -p "$root/tmp" || die '関所の確認の作業場所を作れませんでした。'
 	probe=$(mktemp -d "$root/tmp/guard-check.XXXXXX") || die '関所の確認の作業場所を作れませんでした。'
-	trap 'rm -rf -- "$probe"' EXIT
+	# 作る間の一覧のスピナーは、この子のプロセスも動かすので、終わるときに止める。
+	trap 'rm -rf -- "$probe"; _ui_spinner_stop' EXIT
 	printf '%s\n' "$content" >"$probe/allowed" || die '確認用の許可ファイルを書けませんでした。'
 	: >"$probe/empty-allowed" || die '確認用の空の許可ファイルを書けませんでした。'
 	escaped_bin=${agent_home//\'/\'\\\'\'}/bin
@@ -228,6 +247,8 @@ if ! printf 'refs/heads/template-permission-check 111111111111111111111111111111
 fi
 CHECK
 	while IFS= read -r repo; do
+		# 作る間の一覧には、確かめているリポジトリを添える（止まったときの ✖ にも付く）。
+		ui_phase_progress 0 0 "$repo"
 		# zsh では .zshenv と env.sh を別々の手順で確かめる。
 		for shell in /bin/zsh /bin/bash; do
 			for mode in allow deny; do
@@ -239,7 +260,8 @@ CHECK
 				fi
 			done
 		done
-		printf '許可の確認: %s（gh と pre-push、bash と zsh）: 成功\n' "$repo" >&2 || die '関所の確認の結果を表示できませんでした。'
+		# 作る間の一覧が動いているときは、1 件ごとに出さず、手順の値にまとめる。
+		ui_phase_active || printf '許可の確認: %s（gh と pre-push、bash と zsh）: 成功\n' "$repo" >&2 || die '関所の確認の結果を表示できませんでした。'
 	done <<<"$1"
 )
 

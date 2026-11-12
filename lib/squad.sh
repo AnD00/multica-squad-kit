@@ -1,6 +1,7 @@
 # プロジェクトとエージェントの実 ID を使い、スクワッドとオートパイロットを設定する。
 complete_project() {
 	local squad_current roster agents managed role file id name wanted current person matches
+	squad_member_count=${squad_member_count:-0}
 	# 指示とオートパイロットの定義は、書き込みより先にすべて展開して確かめる。
 	template_filter "$enabled" "$root/common/squad.md" >"$project_work/squad.filtered" || die 'スクワッドの役の印が不正です。'
 	template_apply "$project_work/values.json" "$project_work/squad.filtered" >"$project_work/squad.instructions" || die 'スクワッドの指示を展開できませんでした。'
@@ -39,8 +40,10 @@ complete_project() {
 			if ! jq -e --arg id "$id" 'any(.[]; .member_type=="agent" and .member_id==$id)' >/dev/null <<<"$roster"; then
 				mc squad member add "$squad_id" --member-id "$id" --type agent --role leader --output json >/dev/null || die 'リーダーを追加できませんでした。'
 			fi
+			squad_member_count=$((squad_member_count+1))
 			continue
 		fi
+		squad_member_count=$((squad_member_count+1))
 		current=$(jq -c --arg id "$id" '[.[] | select(.member_type=="agent" and .member_id==$id)]' <<<"$roster")
 		[[ $(jq length <<<"$current") -le 1 ]] || die '同じエージェントが複数登録されています。'
 		if [[ $(jq length <<<"$current") == 0 ]]; then
@@ -52,6 +55,7 @@ complete_project() {
 	while IFS= read -r person; do
 		[[ -n $person ]] || continue
 		jq -e --arg id "$person" 'any(.[]; .user_id==$id)' >/dev/null <<<"$people" || die '選んだ人間がワークスペースに見つかりません。'
+		squad_member_count=$((squad_member_count+1))
 		if ! jq -e --arg id "$person" 'any(.[]; .member_type=="member" and .member_id==$id)' >/dev/null <<<"$roster"; then
 			mc squad member add "$squad_id" --member-id "$person" --type member --role member --output json >/dev/null || die '人間をスクワッドに追加できませんでした。'
 		fi
@@ -67,9 +71,10 @@ complete_project() {
 			mc squad member remove "$squad_id" --member-id "$id" --type agent --output json >/dev/null || die "外した役をスクワッドから外せませんでした: $name"
 		fi
 		if [[ " $enabled " != *" $role "* ]]; then
-			ui_warning "エージェントは残しています（削除は人間が判断）: $name"
+			ui_notice warn "エージェントは残しています（削除は人間が判断）: $name" || ui_warning "エージェントは残しています（削除は人間が判断）: $name"
 			setup_removed_targets=$(jq -c --arg name "$name" '.+[$name]|unique' <<<"${setup_removed_targets:-[]}")
 		fi
 	done
+	ui_phase_done "$squad_member_count"
 	sync_project_autopilots "$managed"
 }
