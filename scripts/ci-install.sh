@@ -122,7 +122,10 @@ linux_trusted_hashes() {
 		prefix=${prefix%_InRelease}
 		n=$((n + 1))
 		release="$tmp/Release.$n"
-		gpgv --homedir "$tmp" --keyring "$apt_keyring" --output "$release" "$inrel" >/dev/null 2>&1 || return 1
+		if ! gpgv --homedir "$tmp" --keyring "$apt_keyring" --output "$release" "$inrel" >"$tmp/gpgv.log" 2>&1 || [[ ! -s $release ]]; then
+			sed 's/^/ci-install: gpgv: /' "$tmp/gpgv.log" >&2
+			return 1
+		fi
 		linux_release_ok "$release" || return 1
 		for f in "$meta/$prefix"_*_Packages.gz; do
 			[[ -f $f ]] || continue
