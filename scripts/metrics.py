@@ -76,11 +76,55 @@ def ordered(rows):
     return sorted(rows, key=lambda row: (timestamp(row["created_at"]), row["id"]))
 
 
-def collect(project):
+def read_trace_definitions(path):
+    """Keep the exact input digest so later judgments can verify their definitions."""
+    raw = path.read_bytes()
+    definitions = json.loads(raw)
+    if not isinstance(definitions, dict) or definitions.get("schema_version") != 1:
+        raise ValueError("対応していない跡の定義のバージョンです")
+    procedures = records(definitions["procedures"])
+    ids = set()
+    for procedure in procedures:
+        trace_id = fields(procedure, ("id",))["id"]
+        if trace_id in ids:
+            raise ValueError("跡の定義の ID が重複しています")
+        ids.add(trace_id)
+        trace = procedure["trace"]
+        if trace is None:
+            continue
+        if not isinstance(trace, dict) or trace.get("kind") not in ("comment", "transition", "run"):
+            raise ValueError("跡の形は comment・transition・run にしてください")
+    return definitions, hashlib.sha256(raw).hexdigest()
+
+
+def comment_trace_patterns(definitions):
+    patterns = []
+    for procedure in definitions["procedures"]:
+        trace = procedure["trace"]
+        if trace is None or trace["kind"] != "comment":
+            continue
+        if not isinstance(trace["pattern"], str):
+            raise ValueError("コメントの跡の pattern は文字列にしてください")
+        author_type = fields(trace, ("author_type",))["author_type"] if "author_type" in trace else None
+        try:
+            pattern = re.compile(trace["pattern"])
+        except re.error as error:
+            raise ValueError(f"コメントの跡の正規表現が不正です: {procedure['id']}") from error
+        patterns.append((procedure["id"], pattern, author_type))
+    return sorted(patterns, key=lambda item: item[0])
+
+
+def collect(project, traces_path=None):
+    patterns = None
+    if traces_path is not None:
+        definitions, definitions_sha256 = read_trace_definitions(traces_path)
+        patterns = comment_trace_patterns(definitions)
     snapshot = {"schema_version": 1, "project_id": project,
                 "collected_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "cli_version": cli(["version"], version=True),
                 "issues": [], "comments": [], "transitions": [], "runs": [], "agents": []}
+    if patterns is not None:
+        snapshot["trace_definitions_sha256"] = definitions_sha256
     offset = 0
     while True:
         page, _ = cli(["issue", "list", "--project", project, "--limit", "100",
@@ -115,6 +159,10 @@ def collect(project):
                     raise ValueError("コメントの本文の型かタスクが不正です")
                 comment["member_mentions"] = sorted(set(re.findall(
                     r"mention://member/([A-Za-z0-9_-]+)", content)))
+                if patterns is not None:
+                    comment["trace_matches"] = [trace_id for trace_id, pattern, author_type in patterns
+                                                if (author_type is None or author_type == comment["author_type"])
+                                                and pattern.search(content)]
                 snapshot["comments"].append(comment)
             if next_page is None:
                 break
@@ -274,6 +322,199 @@ def validate_snapshot(snapshot):
                 raise ValueError(f"{group} のタスクがスナップショットにありません")
             if group == "runs" and row["agent_id"] not in agent_ids:
                 raise ValueError("実行のエージェントがスナップショットにありません")
+
+
+PROTECTIONS = ("secrets", "write_scope", "gate", "irreversible")
+
+
+def source_git(repository, *arguments):
+    result = subprocess.run(["git", "--no-optional-locks", "-C", str(repository), *arguments],
+                            capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        raise ValueError(f"見直し元の Git の読み取りに失敗しました: {arguments[0]}")
+    return result.stdout
+
+
+def procedure_file(name):
+    return (re.fullmatch(r"common/agents/[^/]+\.md", name) is not None
+            or name.startswith("common/skills/squad-handoff/") and name.endswith(".md")
+            or name in ("common/squad.md", "common/autopilots.md"))
+
+
+def markdown_sections(content):
+    """Read headings outside fenced code; a section includes its child sections."""
+    lines = content.splitlines(keepends=True)
+    headings = []
+    fence = None
+    previous = None
+    frontmatter = bool(lines and lines[0].strip() == "---")
+    for index, line in enumerate(lines):
+        if frontmatter:
+            if index and line.strip() in ("---", "..."):
+                frontmatter = False
+            continue
+        if fence is not None:
+            if re.fullmatch(r" {0,3}" + re.escape(fence[0]) + "{" + str(fence[1]) + r",}\s*", line):
+                fence = None
+            previous = None
+            continue
+        opening = re.match(r" {0,3}(`{3,}|~{3,})(.*)", line)
+        if opening and (opening[1][0] == "~" or "`" not in opening[2]):
+            fence = (opening[1][0], len(opening[1]))
+            previous = None
+            continue
+        atx = re.match(r" {0,3}(#{1,6})(?:[ \t]+(.*)|[ \t]*\r?\n?$)", line)
+        underline = re.fullmatch(r" {0,3}(=+|-+)[ \t]*\r?\n?", line)
+        if atx:
+            title = re.sub(r"[ \t]+#+[ \t]*$", "", (atx[2] or "").strip())
+            headings.append({"level": len(atx[1]), "title": title, "start": index, "body": index + 1})
+        elif underline and previous is not None:
+            headings.append({"level": 1 if underline[1][0] == "=" else 2,
+                             "title": previous.strip(), "start": index - 1, "body": index + 1})
+        previous = (line if line.strip() and not atx and not underline
+                    and not line.startswith(("    ", "\t")) else None)
+    stack = []
+    for index, heading in enumerate(headings):
+        while stack and stack[-1]["level"] >= heading["level"]:
+            stack.pop()
+        heading["path"] = " / ".join([row["title"] for row in stack] + [heading["title"]])
+        stack.append(heading)
+        end = next((row["start"] for row in headings[index + 1:] if row["level"] <= heading["level"]), len(lines))
+        heading["content"] = "".join(lines[heading["body"]:end])
+    return headings
+
+
+def procedure_sources(procedures, args):
+    repository = Path(source_git(args.repository, "rev-parse", "--show-toplevel").strip())
+    if source_git(repository, "rev-parse", "--is-shallow-repository").strip() != "false":
+        raise ValueError("最初に足したコミットを調べるには、浅くない履歴が必要です")
+    revision = source_git(repository, "rev-parse", "--verify", "--end-of-options",
+                          args.revision + "^{commit}").strip()
+    names = source_git(repository, "ls-tree", "-r", "--full-tree", "--name-only", "-z", revision).split("\0")
+    sections = {name: markdown_sections(source_git(repository, "show", revision + ":" + name))
+                for name in sorted(names) if procedure_file(name)}
+    covered = set()
+    for procedure in procedures:
+        name, title = procedure["file"], procedure["section"]
+        if name not in sections:
+            raise ValueError(f"範囲のファイルが見直し元にありません: {name}")
+        matches = [(index, row) for index, row in enumerate(sections[name]) if row["path"] == title]
+        if not matches:
+            matches = [(index, row) for index, row in enumerate(sections[name]) if row["title"] == title]
+        if len(matches) != 1:
+            raise ValueError(f"節が存在しないか一意に決まりません: {name}: {title}")
+        index, section = matches[0]
+        if section["content"].count(procedure["marker"]) != 1:
+            raise ValueError(f"目印が節の中にちょうど 1 回現れません: {name}: {title}")
+        covered.add((name, index))
+    missing = [f"{name}: {row['path']}" for name, rows in sections.items()
+               for index, row in enumerate(rows) if (name, index) not in covered]
+    if missing:
+        raise ValueError("跡の定義が覆わない見出しがあります: " + "; ".join(missing))
+    return repository, revision
+
+
+def introduced_commit(repository, revision, procedure):
+    history = source_git(repository, "log", "--root", "--reverse", "--topo-order", "--no-renames",
+                         "--format=%H%x00%s", "-S", procedure["marker"], revision, "--", procedure["file"])
+    if not history.strip():
+        raise ValueError(f"目印を最初に足したコミットが読めません: {procedure['id']}")
+    sha, subject = history.splitlines()[0].split("\0", 1)
+    return {"sha": sha, "subject": subject}
+
+
+def trace_procedures(definitions):
+    # Validate the same comment definitions that collect used, without reading bodies.
+    comment_trace_patterns(definitions)
+    for procedure in definitions["procedures"]:
+        fields(procedure, ("file", "section", "marker"))
+        protection = procedure.get("protection")
+        not_procedure = procedure.get("not_procedure", False)
+        if protection is not None and protection not in PROTECTIONS:
+            raise ValueError("守る手順の分類は secrets・write_scope・gate・irreversible にしてください")
+        if type(not_procedure) is not bool:
+            raise ValueError("not_procedure は真偽値にしてください")
+        trace = procedure["trace"]
+        if not_procedure and (trace is not None or protection is not None):
+            raise ValueError("手順でない節に跡や守る手順の分類を付けないでください")
+        if trace is not None and trace["kind"] == "transition":
+            fields(trace, ("from_status", "to_status"))
+        if trace is not None and trace["kind"] == "run":
+            fields(trace, ("role", "status"))
+            if trace["role"] not in ROLES and trace["role"] != "その他":
+                raise ValueError("実行の跡の role が役の名前と一致しません")
+    return sorted(definitions["procedures"], key=lambda row: row["id"])
+
+
+def traces(snapshot, raw, definitions, definitions_sha256, args):
+    validate_snapshot(snapshot)
+    if snapshot.get("trace_definitions_sha256") != definitions_sha256:
+        raise ValueError("スナップショットと跡の定義の SHA-256 が一致しません")
+    procedures = trace_procedures(definitions)
+    repository, revision = procedure_sources(procedures, args)
+    comment_ids = {row["id"] for row in procedures
+                   if row["trace"] is not None and row["trace"]["kind"] == "comment"}
+    for comment in snapshot["comments"]:
+        matches = comment["trace_matches"]
+        if (not isinstance(matches, list) or any(not isinstance(item, str) for item in matches)
+                or len(set(matches)) != len(matches) or not set(matches).issubset(comment_ids)):
+            raise ValueError("コメントの trace_matches が跡の定義と一致しません")
+    cutoff = timestamp(snapshot["collected_at"])
+    selected = sorted((issue for issue in snapshot["issues"]
+                       if timestamp(issue["created_at"]) <= cutoff),
+                      key=lambda row: (-timestamp(row["created_at"]), row["id"]))[:20]
+    issue_ids = {issue["id"] for issue in selected}
+    groups = {name: [row for row in snapshot[name] if row["issue_id"] in issue_ids]
+              for name in ("comments", "transitions", "runs")}
+    agents = {row["id"]: row["name"] for row in snapshot["agents"]}
+    rows = []
+    for procedure in procedures:
+        trace = procedure["trace"]
+        count = None
+        if trace is not None:
+            if trace["kind"] == "comment":
+                count = sum(procedure["id"] in row["trace_matches"] for row in groups["comments"])
+            elif trace["kind"] == "transition":
+                count = sum(row["from_status"] == trace["from_status"]
+                            and row["to_status"] == trace["to_status"] for row in groups["transitions"])
+            else:
+                count = sum(role_name(agents[row["agent_id"]], args.project_key, args.member_key) == trace["role"]
+                            and row["status"] == trace["status"] for row in groups["runs"])
+        protection = procedure.get("protection")
+        if procedure.get("not_procedure", False):
+            judgment = "手順でない"
+        elif protection is not None:
+            judgment = "守る手順で残す"
+        elif trace is None:
+            judgment = "判定できない"
+        else:
+            judgment = "効いた" if count else "削る候補"
+        rows.append({**{key: procedure[key] for key in ("id", "file", "section", "marker", "trace")},
+                     "protection": protection, "count": count, "judgment": judgment,
+                     "introduced_commit": (introduced_commit(repository, revision, procedure)
+                                           if judgment in ("削る候補", "守る手順で残す", "判定できない") else None)})
+    return {"schema_version": 1,
+            "input": {"snapshot_sha256": hashlib.sha256(raw).hexdigest(),
+                      "trace_definitions_sha256": definitions_sha256,
+                      "collected_at": snapshot["collected_at"], "project_id": snapshot["project_id"],
+                      "project_key": args.project_key, "member_key": args.member_key, "revision": revision},
+            "issues": selected, "procedures": rows}
+
+
+def traces_markdown(result):
+    lines = ["# 手順の見直し", "", "## 入力", ""]
+    lines += table(("入力", "値"), result["input"].items())
+    lines += ["## 対象のタスク", "", f"対象のタスク: {len(result['issues'])} 件", ""]
+    lines += table(("タスク", "ID", "作られた時刻"),
+                   ((row["identifier"], row["id"], row["created_at"]) for row in result["issues"]))
+    lines += ["## 判定の一覧", ""]
+    lines += table(("ID", "ファイル", "節", "目印", "跡", "20 件での回数", "判定", "守る手順の分類", "足したコミット"),
+                   ((row["id"], row["file"], row["section"], row["marker"],
+                     json.dumps(row["trace"], ensure_ascii=False, sort_keys=True),
+                     row["count"], row["judgment"], row["protection"],
+                     (row["introduced_commit"]["sha"] + " " + row["introduced_commit"]["subject"]
+                      if row["introduced_commit"] is not None else "—")) for row in result["procedures"]))
+    return "\n".join(lines)
 
 
 def with_minutes(metrics):
@@ -453,6 +694,7 @@ def main():
     collector = subparsers.add_parser("collect", help="Multica の記録をスナップショットに残す")
     collector.add_argument("--project", required=True)
     collector.add_argument("--output", type=Path, required=True)
+    collector.add_argument("--traces", type=Path, help="コメントの跡の定義 JSON")
     counter = subparsers.add_parser("count", help="保存したスナップショットから数える")
     counter.add_argument("snapshot", type=Path)
     for flag in ("cutoff", "truncate", "project-key", "member-key"):
@@ -461,12 +703,28 @@ def main():
     counter.add_argument("--from", dest="from_time")
     counter.add_argument("--compare", type=Path)
     counter.add_argument("--output", type=Path, required=True, help="結果のディレクトリ")
+    reviewer = subparsers.add_parser("traces", help="保存した跡の件数と手順の判定を一覧にする")
+    reviewer.add_argument("snapshot", type=Path)
+    reviewer.add_argument("--traces", type=Path, required=True)
+    reviewer.add_argument("--project-key", required=True)
+    reviewer.add_argument("--member-key", required=True)
+    reviewer.add_argument("--revision", required=True, help="見直し元のコミット")
+    reviewer.add_argument("--repository", type=Path, default=Path("."), help="原本のリポジトリ（既定は現在の場所）")
+    reviewer.add_argument("--output", type=Path, required=True, help="結果のディレクトリ")
     args = parser.parse_args()
     try:
         if args.command == "collect":
-            write_snapshot(args.output, collect(args.project))
+            write_snapshot(args.output, collect(args.project, args.traces))
             return
         raw = args.snapshot.read_bytes()
+        if args.command == "traces":
+            definitions, digest = read_trace_definitions(args.traces)
+            result = traces(json.loads(raw), raw, definitions, digest, args)
+            rendered = traces_markdown(result)
+            args.output.mkdir(parents=True, exist_ok=True)
+            write_snapshot(args.output / "traces.json", result)
+            (args.output / "traces.md").write_text(rendered, encoding="utf-8")
+            return
         plan = json.loads(args.compare.read_bytes()) if args.compare else None
         result = count(json.loads(raw), raw, args, plan)
         rendered = markdown(result)

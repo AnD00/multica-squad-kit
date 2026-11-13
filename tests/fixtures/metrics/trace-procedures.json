@@ -1,0 +1,186 @@
+{
+  "schema_version": 1,
+  "procedures": [
+    {
+      "id": "future-out",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 future-out",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^FUTURE-OUT"
+      }
+    },
+    {
+      "id": "older-out",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 older-out",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^OLDER-OUT"
+      }
+    },
+    {
+      "id": "tie-in",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 tie-in",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^TIE-IN"
+      }
+    },
+    {
+      "id": "explanation",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 explanation",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "undecidable",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 undecidable",
+      "trace": null
+    },
+    {
+      "id": "guard-irreversible",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 guard-irreversible",
+      "trace": {
+        "kind": "transition",
+        "from_status": "todo",
+        "to_status": "blocked"
+      },
+      "protection": "irreversible"
+    },
+    {
+      "id": "guard-gate",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 guard-gate",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^HANDOFF"
+      },
+      "protection": "gate"
+    },
+    {
+      "id": "guard-scope",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 guard-scope",
+      "trace": null,
+      "protection": "write_scope"
+    },
+    {
+      "id": "guard-secrets",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 guard-secrets",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^SECRET-BLOCKED"
+      },
+      "protection": "secrets"
+    },
+    {
+      "id": "other-run",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 other-run",
+      "trace": {
+        "kind": "run",
+        "role": "その他",
+        "status": "completed"
+      }
+    },
+    {
+      "id": "run-hit",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 run-hit",
+      "trace": {
+        "kind": "run",
+        "role": "codex-fixer",
+        "status": "completed"
+      }
+    },
+    {
+      "id": "transition-hit",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 transition-hit",
+      "trace": {
+        "kind": "transition",
+        "from_status": "in_progress",
+        "to_status": "in_review"
+      }
+    },
+    {
+      "id": "candidate",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 candidate",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^MISSING"
+      }
+    },
+    {
+      "id": "comment-hit",
+      "file": "common/agents/example.md",
+      "section": "合成の手順",
+      "marker": "合成の目印 comment-hit",
+      "trace": {
+        "kind": "comment",
+        "pattern": "^HANDOFF",
+        "author_type": "agent"
+      }
+    },
+    {
+      "id": "skill-parent",
+      "file": "common/skills/squad-handoff/SKILL.md",
+      "section": "親",
+      "marker": "親の説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "skill-child",
+      "file": "common/skills/squad-handoff/SKILL.md",
+      "section": "親 / 子",
+      "marker": "子の説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "skill-reference",
+      "file": "common/skills/squad-handoff/references/example.md",
+      "section": "説明",
+      "marker": "参照の説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "squad-description",
+      "file": "common/squad.md",
+      "section": "説明",
+      "marker": "スクワッドの説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "autopilot-description",
+      "file": "common/autopilots.md",
+      "section": "説明",
+      "marker": "オートパイロットの説明。",
+      "trace": null,
+      "not_procedure": true
+    }
+  ]
+}

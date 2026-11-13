@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "procedures": [
+    {
+      "id": "z-any-author",
+      "trace": {"kind": "comment", "pattern": "PRIVATE-CONTENT|mention://member/human-one"}
+    },
+    {
+      "id": "a-agent-only",
+      "trace": {"kind": "comment", "pattern": "PRIVATE-CONTENT", "author_type": "agent"}
+    },
+    {
+      "id": "m-member-only",
+      "trace": {"kind": "comment", "pattern": "PRIVATE-CONTENT", "author_type": "member"}
+    },
+    {
+      "id": "no-match",
+      "trace": {"kind": "comment", "pattern": "^ABSENT-CONTENT$"}
+    },
+    {
+      "id": "transition-example",
+      "trace": {"kind": "transition", "from_status": "in_progress", "to_status": "in_review"}
+    },
+    {
+      "id": "run-example",
+      "trace": {"kind": "run", "role": "codex-fixer", "status": "completed"}
+    },
+    {
+      "id": "without-trace",
+      "trace": null
+    }
+  ]
+}

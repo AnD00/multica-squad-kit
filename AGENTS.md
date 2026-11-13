@@ -43,6 +43,7 @@ hooks が自動で動くと仮定せず、完了の条件を自分で確認し�
 | セットアップ・配布する原本・VM・CI を変える | `setup.sh`、`lib/**`、`scripts/**`、`common/**`、`vm/**`、`.github/workflows/**` | [コード](.agents/rules/code.md) |
 | テストとその補助を変える | `tests/**` | [テスト](.agents/rules/tests.md) |
 | 文書・指示・ひな形を変える | `**/*.md`、`common/agents/FORMAT`、`skeleton/**` | [ドキュメント](.agents/rules/docs.md) |
+| 導入先で読む原本の手順を変える | `common/agents/*.md`、`common/skills/squad-handoff/**/*.md`、`common/squad.md`、`common/autopilots.md` | [手順](.agents/rules/procedures.md) |
 
 ## 完了の条件
 

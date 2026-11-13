@@ -1,0 +1,300 @@
+{
+  "schema_version": 1,
+  "project_id": "synthetic-project",
+  "collected_at": "2026-02-01T00:00:00Z",
+  "cli_version": "synthetic-1",
+  "trace_definitions_sha256": "8bf08e0a0b6c0d2599a0300ce6ca50a02eb596bead637dcf0ca0b6394bef1fef",
+  "issues": [
+    {
+      "id": "task-00",
+      "identifier": "EXAMPLE-00",
+      "created_at": "2026-01-02T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-01",
+      "identifier": "EXAMPLE-01",
+      "created_at": "2026-01-03T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-02",
+      "identifier": "EXAMPLE-02",
+      "created_at": "2026-01-04T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-03",
+      "identifier": "EXAMPLE-03",
+      "created_at": "2026-01-05T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-04",
+      "identifier": "EXAMPLE-04",
+      "created_at": "2026-01-06T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-05",
+      "identifier": "EXAMPLE-05",
+      "created_at": "2026-01-07T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-06",
+      "identifier": "EXAMPLE-06",
+      "created_at": "2026-01-08T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-07",
+      "identifier": "EXAMPLE-07",
+      "created_at": "2026-01-09T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-08",
+      "identifier": "EXAMPLE-08",
+      "created_at": "2026-01-10T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-09",
+      "identifier": "EXAMPLE-09",
+      "created_at": "2026-01-11T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-10",
+      "identifier": "EXAMPLE-10",
+      "created_at": "2026-01-12T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-11",
+      "identifier": "EXAMPLE-11",
+      "created_at": "2026-01-13T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-12",
+      "identifier": "EXAMPLE-12",
+      "created_at": "2026-01-14T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-13",
+      "identifier": "EXAMPLE-13",
+      "created_at": "2026-01-15T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-14",
+      "identifier": "EXAMPLE-14",
+      "created_at": "2026-01-16T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-15",
+      "identifier": "EXAMPLE-15",
+      "created_at": "2026-01-17T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-16",
+      "identifier": "EXAMPLE-16",
+      "created_at": "2026-01-18T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-17",
+      "identifier": "EXAMPLE-17",
+      "created_at": "2026-01-19T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "task-18",
+      "identifier": "EXAMPLE-18",
+      "created_at": "2026-01-20T00:00:00Z",
+      "status": "todo"
+    },
+    {
+      "id": "z-tie",
+      "identifier": "EXAMPLE-z-tie",
+      "created_at": "2026-01-01T00:00:00Z",
+      "status": "done"
+    },
+    {
+      "id": "a-tie",
+      "identifier": "EXAMPLE-a-tie",
+      "created_at": "2026-01-01T00:00:00Z",
+      "status": "done"
+    },
+    {
+      "id": "future",
+      "identifier": "EXAMPLE-FUTURE",
+      "created_at": "2026-02-02T00:00:00Z",
+      "status": "todo"
+    }
+  ],
+  "comments": [
+    {
+      "id": "c1",
+      "issue_id": "task-00",
+      "created_at": "2026-01-25T00:00:00Z",
+      "author_type": "agent",
+      "author_id": "synthetic-author",
+      "member_mentions": [],
+      "trace_matches": [
+        "comment-hit",
+        "guard-gate"
+      ]
+    },
+    {
+      "id": "c2",
+      "issue_id": "task-00",
+      "created_at": "2026-01-25T00:00:00Z",
+      "author_type": "agent",
+      "author_id": "synthetic-author",
+      "member_mentions": [],
+      "trace_matches": [
+        "comment-hit"
+      ]
+    },
+    {
+      "id": "c3",
+      "issue_id": "task-01",
+      "created_at": "2026-01-25T00:00:00Z",
+      "author_type": "agent",
+      "author_id": "synthetic-author",
+      "member_mentions": [],
+      "trace_matches": []
+    },
+    {
+      "id": "c4",
+      "issue_id": "a-tie",
+      "created_at": "2026-01-25T00:00:00Z",
+      "author_type": "agent",
+      "author_id": "synthetic-author",
+      "member_mentions": [],
+      "trace_matches": [
+        "tie-in"
+      ]
+    },
+    {
+      "id": "c5",
+      "issue_id": "z-tie",
+      "created_at": "2026-01-25T00:00:00Z",
+      "author_type": "agent",
+      "author_id": "synthetic-author",
+      "member_mentions": [],
+      "trace_matches": [
+        "older-out"
+      ]
+    },
+    {
+      "id": "c6",
+      "issue_id": "future",
+      "created_at": "2026-01-25T00:00:00Z",
+      "author_type": "agent",
+      "author_id": "synthetic-author",
+      "member_mentions": [],
+      "trace_matches": [
+        "future-out"
+      ]
+    }
+  ],
+  "transitions": [
+    {
+      "issue_id": "task-00",
+      "created_at": "2026-01-25T00:00:00Z",
+      "from_status": "in_progress",
+      "to_status": "in_review"
+    },
+    {
+      "issue_id": "task-00",
+      "created_at": "2026-01-25T00:00:00Z",
+      "from_status": "in_progress",
+      "to_status": "in_review"
+    },
+    {
+      "issue_id": "task-00",
+      "created_at": "2026-01-25T00:00:00Z",
+      "from_status": "todo",
+      "to_status": "in_review"
+    },
+    {
+      "issue_id": "task-00",
+      "created_at": "2026-01-25T00:00:00Z",
+      "from_status": "in_progress",
+      "to_status": "done"
+    }
+  ],
+  "runs": [
+    {
+      "id": "r1",
+      "issue_id": "task-00",
+      "agent_id": "fixer",
+      "status": "completed",
+      "created_at": "2026-01-25T00:00:00Z",
+      "started_at": "2026-01-25T00:00:00Z",
+      "completed_at": null,
+      "usage": []
+    },
+    {
+      "id": "r2",
+      "issue_id": "task-00",
+      "agent_id": "fixer",
+      "status": "running",
+      "created_at": "2026-01-25T00:00:00Z",
+      "started_at": "2026-01-25T00:00:00Z",
+      "completed_at": null,
+      "usage": []
+    },
+    {
+      "id": "r3",
+      "issue_id": "task-00",
+      "agent_id": "implementer",
+      "status": "completed",
+      "created_at": "2026-01-25T00:00:00Z",
+      "started_at": "2026-01-25T00:00:00Z",
+      "completed_at": null,
+      "usage": []
+    },
+    {
+      "id": "r4",
+      "issue_id": "future",
+      "agent_id": "fixer",
+      "status": "completed",
+      "created_at": "2026-01-25T00:00:00Z",
+      "started_at": "2026-01-25T00:00:00Z",
+      "completed_at": null,
+      "usage": []
+    },
+    {
+      "id": "r5",
+      "issue_id": "task-00",
+      "agent_id": "other",
+      "status": "completed",
+      "created_at": "2026-01-25T00:00:00Z",
+      "started_at": "2026-01-25T00:00:00Z",
+      "completed_at": null,
+      "usage": []
+    }
+  ],
+  "agents": [
+    {
+      "id": "fixer",
+      "name": "foo-bar-codex-fixer-m-n"
+    },
+    {
+      "id": "implementer",
+      "name": "foo-bar-codex-implementer-m-n"
+    },
+    {
+      "id": "other",
+      "name": "unmatched-agent"
+    }
+  ]
+}
