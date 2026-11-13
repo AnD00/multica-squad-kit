@@ -20,7 +20,7 @@ question_order='ワークスペース
 外す役
 Dependabot の PR の Webhook'
 
-# 順の定義があるときは、題が順のとおりかを確認する。質問を足したのに順へ足し忘れると止まる。
+# 順の定義があるときは、題を定義した順と照合する。質問を足したのに順へ足し忘れると止まる。
 question_begin() {
 	question_number=$((${question_number:-0}+1))
 	question_title=$1; question_description=$2; question_example=$3

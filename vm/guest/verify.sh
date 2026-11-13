@@ -71,7 +71,7 @@ daemon_environment() {
 	observed=$(ps eww -o command= -p "$pid") || return 1
 	[[ " $observed " == *" CODEX_HOME=$HOME/.multica-agent/codex "* && " $observed " == *" PATH=$HOME/.multica-agent/bin:"* ]]
 }
-# record-server を 1 回流し、記録がデーモンの接続先と同じことを確認する。
+# record-server を 1 回流し、記録をデーモンの接続先と照合する。
 # 最初の記録の前に VM を止めても、接続先が残るようにするため。
 server_recorded() {
 	local login_path status expected

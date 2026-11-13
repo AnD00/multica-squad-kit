@@ -37,7 +37,7 @@ ee5547a86e6f8c525bd23f4845041d1e46bbe77183b0747efe985415be619199  ./common/autop
 082442a9b7ec2fbe14e219b1bbc1702800ff530395e15f3c3442479a7ba042cc  ./common/guard/pre-push
 e64f9d287e6d1aea997ff2947f1a27c92f1181e68f90ac504cb157ef0f120421  ./common/labels
 796485efd90a3af3cea7270f36344b4142e75006004a4c26c4db354247fa7f1c  ./common/monitor/squad-cli-lib
-119f00dd248eef7b5775d0a7135d02da6c1ca0212e1922e74f264f933529e839  ./common/monitor/squad-dependabot-merge
+6e501788a0e2218108a81661d8e9e8ff6c943f55a51797f6051648486f4a85fc  ./common/monitor/squad-dependabot-merge
 1d4e2c60e3c5155a0050b0c31fdea9852237e8d78c3fb1c69a8b2ca98838869d  ./common/monitor/squad-dispatch-pick
 b4fc8a780ef9d07e32c96b58d698767276b2772ab8561be5c3a6179f7d7f4da6  ./common/monitor/squad-pr-link
 33de9251e13aa5d0c61f7562bccd46e34b8e9ef04eb4314ec2b8fcfd957b81fb  ./common/monitor/squad-pr-link-lib
@@ -87,7 +87,7 @@ f56d174b1b90627d4933f5e25f76ea9aee909952e2c105c0f40b5fd1d5942b56  ./lib/host.sh
 e042f7692fd3b291d67de0297ba39e0e3bc4cb98245b480f6013f64c35988d3c  ./lib/installation.sh
 26a0f2612c0a7c2de8f220f2b87c2fca6994f8024f64cd865ad0d67ccd9dcac3  ./lib/project-changes.sh
 0c086909b5586e9defbb90b934236481ed27c4ba38d3d7d3504835415f885299  ./lib/project.sh
-b82536c238e6e354ec0b6fe533060b8ad78d1af4539aa61ca74ac3aab7291f94  ./lib/questions.sh
+37505c2ff98eb93b4c47f82620afaf42ce8cdbd506f3988fb788b9c76f56a251  ./lib/questions.sh
 984fae87b1b94c4dcdce08adb161f51f3f08317bad1df7dfdd9c1ac144f3abb7  ./lib/render.sh
 9a6e78b8a9fe9a957e119c63ea1b7d91c94be51250e49ab4bdd334eca1cb6ce5  ./lib/setup-issues.sh
 c99c60d20f073264444cb3158e5762c2e941421b877ed1ee2a2c10d0aba5f308  ./lib/squad.sh
@@ -330,6 +330,6 @@ aac2790424e0f9314dded565d99ee1b49ca7c47d194073f49e2dd1f1a072a798  ./tests/worksp
 36dd66ce61a8f83a685002fbef0c921bf3715c247a3a536a4fee78c89a3e53ee  ./vm/guest/provision.sh
 fc34fa7b41bd83375e5031ce98bfc1ab99b3f356aeeb7612a6cf400e958dce51  ./vm/guest/record-server
 189b4dc2de09439bb1c8950dc7021065c9080278f84dd471fce2dda75dfc68fd  ./vm/guest/start-daemon
-be57006579edf7f57da1b8aa0715771bb781b4b7eb3cea7485b756c239befc3b  ./vm/guest/verify.sh
+0930735f80c0189171a8c08b5bd6bd100737cacd2647c474ce443ce83e10a6d6  ./vm/guest/verify.sh
 713c23b1b61321723ad63c9ccd4e15cf92d28fd019303eff7a3892f6526681f6  ./vm/lima.sh
 3544d94df303bbf9996ea6ae8f50e6fad6c7c76ce61c9f72bf49a47c27dccf11  ./vm/wsl.ps1
