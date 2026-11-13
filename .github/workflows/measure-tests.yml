@@ -1,0 +1,28 @@
+name: Measure tests
+on:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  measure:
+    timeout-minutes: 30
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [time, count]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install missing tools
+        run: bash scripts/ci-install.sh "$RUNNER_OS"
+      - name: Measure
+        env:
+          MEASURE_MODE: ${{ matrix.mode }}
+        run: /bin/bash tests/measure-tests.sh "$MEASURE_MODE"

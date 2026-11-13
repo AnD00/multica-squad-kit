@@ -5,6 +5,7 @@ e26217d9263a7ee07305e8624b87471bdf97acb3c4695c0046804fd6ffeb837a  ./.agents/rule
 976399e6c37a344a38dea1d4704011f10b7f28d2c97340f9a33fd0832a162177  ./.github/dependabot.yml
 59fec49c0aeec5c11d50c47094d5f3f984f141d9a9f18f1243fb82d2b61a59cf  ./.github/pull_request_template.md
 307384c3e014d3337f38bef72c00ffa39ccb9d39fdeb567be5175f8655341cb8  ./.github/workflows/check.yml
+40b099e3427221e0f4b2096a3ca1bb69964483af65e338c033ea3a87031f5231  ./.github/workflows/measure-tests.yml
 752d794e4f743c4f713def62c4bea75af747856c96ddf4c6f83caf3aefb0c495  ./.github/workflows/private-terms.yml
 84c6d113ac418d9812edad92f27dfe8af5a645de6e5bf5914af361ffca807aeb  ./.github/workflows/release-assets.yml
 2a8b8daabebe323f6e4fd5a2350ae5aa764cbfbfb7fe4c561aa8eeaa76ba0c94  ./.github/workflows/scan.yml
@@ -263,6 +264,7 @@ b26ad1bace5e41343882f4f60ec977e116e4c146f5cac3e1caf64b3b9bcdc679  ./tests/leader
 f3a6d60757b256592e9a1a6d21072d8e4d8026b76c25c16891992584a618f520  ./tests/leader-eval/values.json
 d1b3a1d4027607320e238396168780d67a30fc4186503b288fe05076d80f1955  ./tests/link-scope-questions-test.sh
 72f6c63084712a16f9f22c5b9113c058b0214f6a237f9c00d932ac820c423cd4  ./tests/manual-test.sh
+e96881e9439664e702932fad7e464865ae0b72b87aae04d98a329d7f73b5b6ad  ./tests/measure-tests.sh
 56f7b274ee6196f7e0d83ee60a4f8c6f60762c9c8d3aa10cd5fec96576e65cc7  ./tests/metrics-cli-fixture.py
 c59222069df2b879058b439d8f50184cb36cce5a3755327b813d6394b9eb8c0f  ./tests/metrics-collect-check.py
 ba0be47c5fd291d15c3bf07604c4cd59bf02519cc45a8f986ce391472c0a31c3  ./tests/metrics-collect-test.sh
