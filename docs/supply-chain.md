@@ -28,7 +28,7 @@
 | エージェントが誤って、または外からの指示で main へ直接 push する | ruleset は削除と force push だけを止める | 1 |
 | CI が落ちたままの変更をマージする | 必須のチェックがない | 1 |
 | 参照するアクションのタグが、乗っ取られて差し替えられる | `check.yml` の 5 か所がタグの参照 | 2・3・6 |
-| 古いアクションの既知の脆弱性に気づかない | Dependabot の警告が無効 | 3・6 |
+| 古いアクションの既知の脆弱性に気づかない | Dependabot の警告が無効。SHA で固定すると、有効にしても警告の対象から外れる | 3・6 |
 | 同じリポジトリの PR が検査のスクリプトを書き換え、一覧を持ち出す | 一覧は Repository Secret で、PR の CI に渡る | 4 |
 | 取り出したあとの手順が、残ったトークンを使う | `check.yml` の 2 つの checkout が認証を残す | 5 |
 | ワークフローに、式の埋め込みや信頼できない checkout が入る | 検出の仕組みがない | 6 |
@@ -193,14 +193,13 @@ Environment は、Deployment branches を `main` のブランチだけに限る�
 
 ## 脆弱性と危ないワークフローの検出
 
-`.github/workflows/scan.yml` を足し、CodeQL の解析と、PR の依存の確かめを流す。結果は、リポジトリの Security の画面と、PR のチェックと注記に出る。
+`.github/workflows/scan.yml` を足し、CodeQL の解析と、固定したアクションの既知の脆弱性の検査を流す。どちらも PR、main への push、毎週の 3 つで動き、結果はリポジトリの Security の画面の Code scanning と、PR のチェックと注記に出る。
 
 | 検出するもの | 道具 | 動くとき | 結果を見る場所 |
 | --- | --- | --- | --- |
 | 危ないワークフローの書き方（式の埋め込み、信頼できない checkout、強すぎる権限など） | CodeQL の `actions` | PR、main への push、毎週 | Security → Code scanning、PR の注記 |
 | Python の検査とスクリプトの危ない書き方 | CodeQL の `python` | 同上 | 同上 |
-| PR が持ち込む、既知の脆弱性のある依存 | dependency-review-action | PR | PR のチェックとジョブの要約 |
-| main の依存の既知の脆弱性 | Dependabot の警告（S3） | 新しい脆弱性の公開と、依存の変更のたび | Security → Dependabot |
+| SHA で固定したアクションの既知の脆弱性と、注記のバージョンと SHA の食い違い | `tests/check-action-advisories.py` | 同上 | 同上（ツールの名前 `action-advisories`）、`Scan` の失敗 |
 
 ```yaml
 name: Scan
@@ -234,17 +233,53 @@ jobs:
       - uses: github/codeql-action/analyze@<40 桁の SHA> # vX.Y.Z
         with:
           category: /language:${{ matrix.language }}
-  dependency-review:
-    if: github.event_name == 'pull_request'
+  action-advisories:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
+    permissions:
+      contents: read
+      security-events: write
     steps:
-      - uses: actions/dependency-review-action@<40 桁の SHA> # vX.Y.Z
+      - uses: actions/checkout@<40 桁の SHA> # vX.Y.Z
+        with:
+          persist-credentials: false
+      - name: Look up advisories for pinned actions
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -I tests/check-action-advisories.py --sarif action-advisories.sarif .github/workflows
+      - if: always()
+        uses: github/codeql-action/upload-sarif@<40 桁の SHA> # vX.Y.Z
+        with:
+          sarif_file: action-advisories.sarif
+          category: action-advisories
 ```
 
 CodeQL は、GitHub の既定の設定（default setup）ではなく、リポジトリのワークフローで流す。既定の設定が SHA の固定の強制（S2）のもとで動くかは文書に書かれておらず、固定したワークフローなら確実に動き、決まりのテストでも確かめられるため（[検出の道具の案](#検出の道具の案)）。シェルのスクリプトは CodeQL が対象にしないので、今までどおり `scripts/check.sh` の構文の検査とレビューで見る。
 
 `Scan` は Checks に入れず、必須のチェックにしない。必須にするのは Checks のジョブと決めているため。検出は PR の画面に出るので、レビューとマージの判断で見る。
+
+### 固定したアクションの既知の脆弱性
+
+SHA で固定したアクションは、Dependabot の警告の対象にならない。GitHub の文書は、警告を作るのはセマンティック バージョニングで参照するアクションだけで、SHA で固定したものには作らないと書いている（[Monitoring the actions in your workflows](https://docs.github.com/en/actions/reference/security/secure-use#monitoring-the-actions-in-your-workflows)）。そこで、`# vX.Y.Z` の注記をバージョンとして使い、GitHub Advisory Database を `action-advisories` のジョブで引く。
+
+`tests/check-action-advisories.py` は、標準ライブラリだけで書き、GitHub の API は `gh api` で呼ぶ。渡したディレクトリのワークフローを読み、次の順に確かめる。
+
+1. すべての `uses:` を `OWNER/REPO[/PATH]@<40 桁の SHA> # vX.Y.Z` として読む。`./` で始まる手元のアクションは飛ばし、形の合わないものは検出にする
+2. `gh api repos/OWNER/REPO/commits/vX.Y.Z --jq .sha` で、注記のタグが指すコミットを読む。固定した SHA と違えば「注記のバージョンと SHA の食い違い」として検出にする。注記が偽りだと、バージョンで引いた結果を信じられないため。固定のあとでタグが付け替えられたときも、ここで見つかる
+3. `gh api -X GET /advisories -f ecosystem=actions -f affects=OWNER/REPO@X.Y.Z` で、そのバージョンに効く審査済みの勧告を引く。`affects` は `,` でつないで 1 回にまとめる。`PATH` のあるアクション（`github/codeql-action/init` など）は、`OWNER/REPO` の名前で引く
+4. 検出を SARIF に書く。場所はワークフローのファイルと `uses:` の行、規則の ID は勧告の GHSA の ID か `version-mismatch` にする。ジョブの要約にも同じ表を書く
+
+終了コードは、検出なしが 0、検出ありが 1、API を読めなかったなど検査できなかったときが 2 にする。読めなかった結果を検出なしとして通さないため。検出ありでも SARIF を登録できるよう、登録の手順は `if: always()` で流す。
+
+結果は、3 つの場所で見る。
+
+| 動くとき | 見る場所 |
+| --- | --- |
+| PR | PR のチェック `Scan / action-advisories` の失敗と、変えた `uses:` の行の Code scanning の注記 |
+| main への push と毎週 | Security → Code scanning の一覧で、ツールを `action-advisories` に絞る。毎週の実行の失敗は、Actions → Scan に出る |
+| 直したあと | 次の実行で、同じ警告が Code scanning で Fixed になる |
+
+毎週の実行が、固定したあとに公表された脆弱性を見つける。PR は、持ち込んだバージョンと、そのときの勧告を確かめる。直し方は、直ったバージョンの SHA と注記に書き換える PR で、Dependabot の更新の PR がそれを出すことも多い。
 
 ## 設定の手順
 
@@ -357,18 +392,27 @@ gh api repos/AnD00/multica-squad-kit/automated-security-fixes --jq '.enabled'
 
 あわせて、Insights → Dependency graph → Dependabot に `.github/dependabot.yml` の `github-actions` が並び、最後の確かめの時刻にエラーがないことを見る。
 
+SHA で固定したアクションには、Dependabot の警告もセキュリティの更新も出ない。原本の依存は固定したアクションだけなので、警告の一覧は 0 件のままでよい。固定したアクションの脆弱性は、`Scan` の `action-advisories` が見つける（[固定したアクションの既知の脆弱性](#固定したアクションの既知の脆弱性)）。
+
 ### 6. コードの解析を確かめる
 
-1. 手順 5 と同じ画面の「Code scanning」で、CodeQL analysis の既定の設定（Default）を有効にしない。有効だと、ワークフローからの結果の登録が拒まれる
-2. Security → Code scanning に、CodeQL の結果の一覧が出ることを見る
+1. 手順 5 と同じ画面の「Code scanning」で、CodeQL analysis の既定の設定（Default）を有効にしない。有効だと、ワークフローからの CodeQL の結果の登録が拒まれる
+2. Security → Code scanning を開き、Tool の絞り込みに `CodeQL` と `action-advisories` の 2 つが並ぶことを見る
+3. 開いた警告がないことを見る。あれば、固定したアクションの警告は直ったバージョンの SHA へ上げる PR で、CodeQL の警告は書き方を直す PR で片付ける
 
-確かめ方: 次の出力に、`/language:actions` と `/language:python` の解析が、main への push の後の時刻で並ぶ。
+確かめ方: 次の出力に、`/language:actions`、`/language:python`、`action-advisories` の 3 つの解析が、`refs/heads/main` で、main への push の後の時刻で並ぶ。
 
 ```bash
-gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?per_page=10' --jq '.[] | [.category, .ref, .created_at] | @tsv'
+gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?ref=refs/heads/main&per_page=20' --jq '.[] | [.category, .tool.name, .created_at] | @tsv'
 ```
 
-定期の実行は、最初の月曜のあとに、Actions → Scan と Actions → Private terms に、イベントが `schedule` の実行が出ることで見る。
+定期の実行は、最初の月曜のあとに確かめる。Actions → Scan と Actions → Private terms に、イベントが `schedule` の実行が出て、`Scan` の `action-advisories` のジョブが成功していることを見る。次の出力の先頭が `schedule success` になる。
+
+```bash
+gh run list --repo AnD00/multica-squad-kit --workflow scan.yml --event schedule --limit 1 --json event,conclusion --jq '.[] | [.event, .conclusion] | @tsv'
+```
+
+検出が動くことは、受け入れ条件 8 の確かめ用の PR で確かめる（[確かめ方](#確かめ方)）。
 
 ## 変えるファイル
 
@@ -376,7 +420,9 @@ gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?per_page=10' --jq '
 | --- | --- | --- |
 | `.github/workflows/check.yml` | `uses:` を SHA で固定、checkout に `persist-credentials: false`、`content` を `--public` に、`checks-passed` を足す | 1・2・4・5 |
 | `.github/workflows/private-terms.yml` | 新しく足す | 4 |
-| `.github/workflows/scan.yml` | 新しく足す | 6 |
+| `.github/workflows/scan.yml` | 新しく足す。CodeQL と `action-advisories` のジョブ | 6 |
+| `tests/check-action-advisories.py` | 新しく足す。固定したアクションの勧告と、注記と SHA の食い違いを見つける | 6 |
+| `tests/action-advisories-test.sh`・`tests/fixtures/action-advisories/` | 新しく足す。`gh` の応答を記録した写しで、検出・非検出・食い違い・読めないときを確かめる | 6 |
 | `.github/dependabot.yml` | 新しく足す | 3 |
 | `tests/check-content.sh`・`tests/check-content.py` | `--public` を足す | 4 |
 | `tests/content-test.sh` | `--public` が一覧なしで UUID とリンクを見つけ、語は見ないことを確かめる | 4 |
@@ -394,6 +440,7 @@ gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?per_page=10' --jq '
 - どのワークフローも `pull_request_target` と `workflow_run` を使わない
 - `check.yml` の `content` が `--public` で流す
 - `dependabot.yml` が `github-actions` を対象にする
+- `scan.yml` の `codeql` と `action-advisories` が、PR、main への push、`schedule` で動き、`action-advisories` の SARIF を `if: always()` で登録する
 
 `release-workflow-test.sh` が確かめる発行のワークフローの決まりは、今のまま残す。
 
@@ -421,13 +468,28 @@ gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?per_page=10' --jq '
 | 5. 検査のスクリプトを書き換えた同じリポジトリの PR に一覧が渡らない | 下の確かめ用の PR | 手順 2 のあと |
 | 6. 秘密の語をマージの直後に見つける | [検出の時点](#検出の時点)、`workflow-rules-test.sh` のきっかけの確かめ、手順 2 の実行 | レビューと手順 2 のあと |
 | 7. 認証を残す checkout がなく、例外に理由がある | `workflow-rules-test.sh` | CI |
-| 8. 検出が PR と定期の両方で動き、画面で見える | PR のチェックに `Scan` が出る、手順 6 の確かめ方 | 手順 6 のあと |
+| 8. 検出が PR と定期の両方で動き、画面で見える | `action-advisories-test.sh`、下の確かめ用の PR、手順 6 の確かめ方 | CI、マージの前、手順 6 のあと |
 | 9. 手順 1〜6 を上から流すと、調べ物なしで終わり、各手順に確かめ方がある | 管理者が手順を流し、詰まった所を記録する | マージの後 |
 
 受け入れ条件 5 の確かめ用の PR は、同じリポジトリのブランチで、次の 2 つの変更を入れて作る。どちらも値ではなく長さだけを出し、マージせずに閉じ、ブランチを消す。
 
 1. `check.yml` の `content` に、`env: FORBIDDEN_TERMS: ${{ secrets.FORBIDDEN_TERMS }}` と、その長さを出す手順を足す。出る長さが 0 になる
 2. `private-terms.yml` のきっかけに `pull_request` を足す。`private-terms` のジョブが、Environment の決まりで始まらない
+
+受け入れ条件 8 の確かめ用の PR は、この変更の PR の head から、同じリポジトリのブランチで作る。例には、勧告 [GHSA-cxww-7g56-2vh6](https://github.com/advisories/GHSA-cxww-7g56-2vh6) の `actions/download-artifact` を使う。効くのは 4.0.0 以上 4.1.3 未満で、4.1.3 で直っている。
+
+| バージョン | SHA | 期待する結果 |
+| --- | --- | --- |
+| v4.1.2（脆弱） | `eaceaf801fd36c7dee90939fad912460b18a1ffe` | 検出する |
+| v4.1.3（直ったもの） | `87c55149d96e628cc2ef7e6fc2aab372015aec85` | 検出しない |
+
+1. `.github/workflows/advisory-probe.yml` を足す。きっかけは `workflow_dispatch` だけにし、手順に `actions/download-artifact@eaceaf801fd36c7dee90939fad912460b18a1ffe # v4.1.2` を 1 つ置く。手で流さないので、アクションは動かない
+2. PR を draft で作る。`Scan / action-advisories` が失敗し、要約に `GHSA-cxww-7g56-2vh6` が出る。PR の Files changed で、その `uses:` の行に Code scanning の注記が出る
+3. 同じ行を `@87c55149d96e628cc2ef7e6fc2aab372015aec85 # v4.1.3` に書き換えて push する。`Scan / action-advisories` が成功し、注記が消える
+4. 注記を `# v4.1.3` のまま、SHA を v4.1.2 のものに戻して push する。`version-mismatch` で失敗する
+5. PR をマージせずに閉じ、ブランチを消す
+
+SHA は、手順の前に `gh api repos/actions/download-artifact/commits/v4.1.2 --jq .sha` と `v4.1.3` で読み直し、表と合うことを見る。勧告は `gh api -X GET /advisories -f ecosystem=actions -f affects=actions/download-artifact@4.1.2 --jq '.[].ghsa_id'` が `GHSA-cxww-7g56-2vh6` を返し、`@4.1.3` が空を返すことで見る。`action-advisories-test.sh` は、この 2 つの応答の写しで、同じ検出と非検出を CI で確かめる。
 
 ## 残る危うさ
 
@@ -436,6 +498,7 @@ gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?per_page=10' --jq '
 - 同じリポジトリの PR のワークフローは、`permissions:` で書き込みの権限を求められる。main は ruleset で守られるが、ほかのブランチや Security の警告は書き換えられる。権限の分離は対象の外である
 - SHA の固定の強制が、Dependabot の更新の実行に効くかは、GitHub の文書に書かれていない。手順 5 で Dependabot の最後の確かめにエラーがないことを見る。エラーなら、強制を無効にせず、Dependabot の画面のエラーを人間が確かめる
 - `Scan` は必須でないので、検出があってもマージはできる。検出の多さを見てから、必須にするかを決める
+- `action-advisories` は、GitHub Advisory Database の審査済みの勧告だけを見る。公表から審査までの間と、勧告のない乗っ取りは見つけない。乗っ取りは、SHA の固定と Dependabot の `cooldown` で防ぐ
 
 ## 検討した案
 
@@ -469,5 +532,7 @@ gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?per_page=10' --jq '
 | 案 | 採らない理由 |
 | --- | --- |
 | CodeQL の既定の設定（default setup） | 設定画面だけで済むが、SHA の固定の強制のもとで動くかが文書にない。設定がリポジトリになく、テストで確かめられない |
-| dependency-review を Checks に入れて必須にする | 必須にするのは Checks の今のジョブと決めている。依存は GitHub Actions だけで、Dependabot の警告と更新が主に受け持つ |
-| zizmor などの外の検査の道具を足す | 足した道具そのものが、新しい依存になる。CodeQL の `actions` が、式の埋め込みと信頼できない checkout を見る |
+| dependency-review-action を PR で流す | PR でしか動かず、固定のあとに公表された脆弱性を毎週は見ない。SHA で固定したアクションを見るかは文書に書かれておらず、Dependabot の警告は SHA の固定を対象にしない |
+| Dependabot の警告に任せる | SHA で固定したアクションには警告を作らないと、GitHub の文書にある |
+| タグの参照に戻し、Dependabot の警告を使う | R2 の SHA の固定と両立しない |
+| zizmor などの外の検査の道具を足す | zizmor にも固定したアクションの勧告を引く検査があるが、足した道具そのものが新しい依存になる。勧告は `gh api` と標準ライブラリの短いスクリプトで引ける。式の埋め込みと信頼できない checkout は、CodeQL の `actions` が見る |
