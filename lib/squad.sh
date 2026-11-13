@@ -1,7 +1,7 @@
 # プロジェクトとエージェントの実 ID を使い、スクワッドとオートパイロットを設定する。
 complete_project() {
 	local squad_current roster agents managed role file id name wanted current person matches
-	# 指示とオートパイロットの定義は、書き込みより先にすべて展開して確かめる。
+	# 指示とオートパイロットの定義は、書き込みより先にすべて展開して確認する。
 	template_filter "$enabled" "$root/common/squad.md" >"$project_work/squad.filtered" || die 'スクワッドの役の印が不正です。'
 	template_apply "$project_work/values.json" "$project_work/squad.filtered" >"$project_work/squad.instructions" || die 'スクワッドの指示を展開できませんでした。'
 	prepare_autopilots

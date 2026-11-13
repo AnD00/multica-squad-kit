@@ -90,7 +90,7 @@ prepare_project_host() {
 	local id=$1 repo file content='' previous='' removed='' escaped escaped_bin needle='{{ALLOWED_REPOS_FILE}}' bin_needle='{{AGENT_BIN_DIR}}'
 	shift
 	[[ $id =~ ^[A-Za-z0-9_-]+$ ]] || die 'プロジェクト ID が不正です。'
-	# 全件を確かめてから置き場を作る。ファイルは選択順で一行に一つとする。
+	# 全件を確認してから置き場を作る。ファイルは選択順で一行に一つとする。
 	for repo in "$@"; do
 		repo=$(printf '%s' "$repo" | LC_ALL=C tr '[:upper:]' '[:lower:]')
 		[[ $repo =~ ^[a-z0-9][a-z0-9_.-]*/[a-z0-9_.-]+$ && ${repo#*/} != . && ${repo#*/} != .. ]] || die 'リポジトリは OWNER/REPO の形で渡してください。'
@@ -228,7 +228,7 @@ if ! printf 'refs/heads/template-permission-check 111111111111111111111111111111
 fi
 CHECK
 	while IFS= read -r repo; do
-		# zsh では .zshenv と env.sh を別々の手順で確かめる。
+		# zsh では .zshenv と env.sh を別々の手順で確認する。
 		for shell in /bin/zsh /bin/bash; do
 			for mode in allow deny; do
 				if ! (cd "$probe/repository" && PATH="$probe_path" ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" "$shell" -c '[[ $(command -v gh) == "$1" ]]' -- "$agent_home/bin/gh"); then

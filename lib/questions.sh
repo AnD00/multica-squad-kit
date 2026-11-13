@@ -20,7 +20,7 @@ question_order='ワークスペース
 外す役
 Dependabot の PR の Webhook'
 
-# 順の定義があるときは、題が順のとおりかを確かめる。質問を足したのに順へ足し忘れると止まる。
+# 順の定義があるときは、題が順のとおりかを確認する。質問を足したのに順へ足し忘れると止まる。
 question_begin() {
 	question_number=$((${question_number:-0}+1))
 	question_title=$1; question_description=$2; question_example=$3
@@ -203,7 +203,7 @@ pick_project() {
 }
 
 # オートパイロットの名前は、ここだけで作る。リポジトリごとのものには OWNER/REPO を渡す。
-# 登録する名前は common/autopilots.md の見出しで、tests/role-choices-test.sh が同じ名前になることを確かめる。
+# 登録する名前は common/autopilots.md の見出しで、tests/role-choices-test.sh が同じ名前になることを確認する。
 autopilot_title() {
 	case $1 in
 	security-reviewer) printf '週 1 回の依存ライブラリの脆弱性チェック %s %s' "$project_key" "$2" ;;
@@ -363,7 +363,7 @@ ask_questions() {
 		printf '%s\n' 'ワークスペースのオーナーか管理者に、次の準備を依頼してください。' \
 			'1. ワークスペースの設定 → コードで GitHub 連携を設定し、このプロジェクトで使うリポジトリを許可します。' \
 			'2. 自前サーバーで GitHub App が未設定なら、サーバーの管理者に GitHub 連携の準備を依頼します。' \
-			'3. 導入先のサーバー・ワークスペースで multica repo list --output json を実行し、候補に出ることを確かめてから、セットアップを流し直します。' >&2
+			'3. 導入先のサーバー・ワークスペースで multica repo list --output json を実行し、候補に出ることを確認してから、セットアップを流し直します。' >&2
 		die '選べるリポジトリがありません。手順書の「GitHub 連携とリポジトリの紐付け」に従い、ワークスペースへ紐付けてください。'
 	fi
 	default=$(jq -nr --argjson items "$eligible_repos" --argjson previous "$saved" '[($previous.repositories // [])[] as $repo | $items|to_entries[]|select(.value.repository==$repo.repository)|(.key+1|tostring)]|join(" ")')

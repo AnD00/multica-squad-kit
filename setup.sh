@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 入口で配布物を確かめてから lib/ を読む。bash 3.2 で動かす。
+# 入口で配布物を検証してから lib/ を読む。bash 3.2 で動かす。
 set -euo pipefail
 root=$(cd "$(dirname "$0")" && pwd)
 # lib/ui.sh を読み込む前（MANIFEST の確認が終わるまで）の die は、色を付けず印だけを付ける。
@@ -42,13 +42,13 @@ use_latest_tag() {
 	unset SQUAD_KIT_TAG_CHECKED_OUT
 	[[ $checkout_option == yes && -e $root/.git && -z $checked ]] || return 0
 	command -v git >/dev/null || die 'git がありません。manual.md の「受け取る人の準備」に従って導入してください。何も変更していません。'
-	git -C "$root" fetch --quiet --tags origin || die 'origin からタグを取れません。ネットワークと git remote -v の origin を確かめて、流し直してください。何も変更していません。'
+	git -C "$root" fetch --quiet --tags origin || die 'origin からタグを取れません。ネットワークと git remote -v の origin を確認して、流し直してください。何も変更していません。'
 	tag=$(git -C "$root" tag --list 'v*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1) || true
 	[[ -n $tag ]] || die 'origin にリリースのタグがありません。何も変更していません。'
 	target=$(git -C "$root" rev-parse --verify --quiet "refs/tags/$tag^{commit}") || die "タグ $tag を読めません。何も変更していません。"
 	[[ $(git -C "$root" rev-parse HEAD) != "$target" ]] || return 0
 	[[ -z $(git -C "$root" status --porcelain --untracked-files=no) ]] || die "原本に未コミットの変更があるので、最新のタグ $tag を取り出せません。変更を退避するか捨てて流し直すか、今のバージョンのまま流すなら --no-checkout を付けてください。何も変更していません。"
-	git -C "$root" -c advice.detachedHead=false checkout --quiet --detach "$target" || die "タグ $tag を取り出せません。git status で原本の状態を確かめてください。"
+	git -C "$root" -c advice.detachedHead=false checkout --quiet --detach "$target" || die "タグ $tag を取り出せません。git status で原本の状態を確認してください。"
 	printf '最新のタグ %s を取り出しました。そのバージョンで流し直します。\n' "$tag" >&2
 	export SQUAD_KIT_TAG_CHECKED_OUT=$tag
 	if [[ -n $extension_option ]]; then

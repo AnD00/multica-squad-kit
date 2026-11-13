@@ -88,29 +88,29 @@ echo 'PASS version-notice: 最新が導入済みと同じか古いときは何�
 # 読めないとき（失敗、空、形の誤り）: 警告を出して、導入は続ける。
 fresh
 TEST_LATEST_FAIL=yes run
-grep -qF '警告: 最新のバージョンを確かめられませんでした。導入は続けます。' "$test_dir/err"
+grep -qF '警告: 最新のバージョンを確認できませんでした。導入は続けます。' "$test_dir/err"
 grep -qF 'プロジェクトの設定を始めます' "$test_dir/err"
 [[ $(cat "$record") == "$running" ]]
 for bad in '' latest v1.9 1.9.0 v1.9.0-rc1 v1.9.0.1 'not a tag'; do
 	fresh
 	TEST_LATEST_TAG=$bad run
-	grep -qF '警告: 最新のバージョンを確かめられませんでした。導入は続けます。' "$test_dir/err"
+	grep -qF '警告: 最新のバージョンを確認できませんでした。導入は続けます。' "$test_dir/err"
 	grep -qF 'プロジェクトの設定を始めます' "$test_dir/err"
 	! grep -q '新しいバージョン' "$test_dir/err"
 done
 echo 'PASS version-notice: 読めない・形の誤りの最新は警告にし、導入は続ける'
 
-# 知らせは、道具とログインの確かめのあと、質問の前に出る。ログインできなければ、読みに行かない。
+# 知らせは、道具とログインの確認のあと、質問の前に出る。ログインできなければ、読みに行かない。
 fresh
 TEST_LATEST_FAIL=yes run
-warn_line=$(grep -n '最新のバージョンを確かめられませんでした' "$test_dir/err" | head -n 1 | cut -d: -f1)
+warn_line=$(grep -n '最新のバージョンを確認できませんでした' "$test_dir/err" | head -n 1 | cut -d: -f1)
 ask_line=$(grep -n 'プロジェクト' "$test_dir/err" | head -n 1 | cut -d: -f1)
 [[ -n $warn_line && -n $ask_line && $warn_line -lt $ask_line ]]
 fresh
 TEST_LOGIN=no deny
 [[ $(calls) == 0 ]]
 [[ ! -e $record ]]
-echo 'PASS version-notice: 知らせはログインの確かめのあと、質問の前に出て、ログイン前は読まない'
+echo 'PASS version-notice: 知らせはログインの確認のあと、質問の前に出て、ログイン前は読まない'
 
 # 途中で止まったときは記録を書かず、前の記録を残す。
 fresh

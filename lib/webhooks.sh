@@ -131,7 +131,7 @@ project_webhook_completion() {
 		if [[ $state == 残っている ]]; then
 			ui_line out warning "警告: ${repository}: Webhook を使わない答えですが、前の実行で作った Webhook のトリガーが残っています。外すよう起票しました。"
 		else
-			ui_line out warning "警告: ${repository}: 前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確かめてください。"
+			ui_line out warning "警告: ${repository}: 前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確認してください。"
 		fi
 	done < <(jq -r '.[] | [.repository,.state] | @tsv' <<<"${setup_webhook_leftovers:-[]}")
 	[[ $(jq length <<<"${setup_webhook_rows:-[]}") != 0 ]] || return 0
