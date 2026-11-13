@@ -152,7 +152,7 @@ apply() {
 			case "$level" in
 			warn) summary="使用上限が近い。重い作業の割り振りを控えるか、エージェントを別の系統のモデルに寄せる" ;;
 			limited) summary="使用上限に達した。リセットまで、このモデルのエージェントは失敗する" ;;
-			error) summary="使用量を取れなくなり、見張れていない。ログインや表示の形が変わっていないか確かめる" ;;
+			error) summary="使用量を取れなくなり、見張れていない。ログインや表示の形が変わっていないか確認する" ;;
 			esac
 			local description
 			description=$(usage_tmpfile)

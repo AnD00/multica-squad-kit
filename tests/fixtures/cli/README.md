@@ -34,7 +34,7 @@ bash tests/capture-cli-fixtures.sh --write-samples tmp/採取した応答 <タ�
 
 書き込みも `squad_cli_read` を通せる。応答の検証が失敗しても書き込み自体は済んでいることがあるので、投稿を繰り返さない。
 
-見張りのテストで実物の見本からケースを作るときは、`tests/cli-fixture-lib.py` の `assert_fixture_response` に原本・ケース・その読み取りの約束を渡す。新しい鍵の追加と、必須の鍵の削除を拒否する。`allow_required_deletion=True` は、欠落時の失敗を確かめるケースだけに使う。
+見張りのテストで実物の見本からケースを作るときは、`tests/cli-fixture-lib.py` の `assert_fixture_response` に原本・ケース・その読み取りの約束を渡す。新しい鍵の追加と、必須の鍵の削除を拒否する。`allow_required_deletion=True` は、欠落時の失敗を確認するケースだけに使う。
 
 追加の採取として、2026-11-11 に同じ CLI のバージョンから、`repository` のないタスクの `issue-get` と `issue-metadata` を追加した。この採取の 2 応答で共通の対応表を使い、ID は `fixture-supplement-id-` で始まる。同じ採取の中の同一性・比較順を保ち、先の採取の ID とは比較しない。`CAPTURE.json` の追加した `repository` の形の件数は、保存済み見本と追加応答で数え、その範囲を `scope` に残した。
 

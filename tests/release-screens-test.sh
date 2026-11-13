@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 画面を画像にする仕組みの、出力を取るところまでを確かめる。PNG と Pillow は CI には要らない。
+# 画面を画像にする仕組みの、出力を取るところまでを確認する。PNG と Pillow は CI には要らない。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -29,7 +29,7 @@ p = Path(sys.argv[1])
 assert (p / 'probe-confirm').read_bytes() == b'out\r\nerr\r\nready: '
 assert (p / 'probe-after').read_bytes() == b'y\r\ndone\r\n'
 PY
-echo 'PASS release-screens: 同じ疑似端末で入出力を順に取り、100 桁と問いのあとの入力を確かめた'
+echo 'PASS release-screens: 同じ疑似端末で入出力を順に取り、100 桁と問いのあとの入力を確認した'
 
 # 子が終わった終了コードはそのまま返し、問いが出ないなど取れなかったときは 125 にして分ける。
 status=0
@@ -43,7 +43,7 @@ python3 "$root/tests/ui-pty.py" screen "$test_dir/lost-confirm" "$test_dir/lost-
 grep -q '疑似端末で問いが見つかりませんでした' "$test_dir/lost-err" || { echo 'FAIL release-screens: 取れなかった理由が出ない' >&2; exit 1; }
 echo 'PASS release-screens: 取れなかったときの 125 と、子の終了コードを分けた'
 
-# 描画前の読み取りは Pillow を入れずに確かめる。CI では PNG を描かない。
+# 描画前の読み取りは Pillow を入れずに確認する。CI では PNG を描かない。
 python3 - "$root/tests/ansi-to-png.py" <<'PY'
 import importlib.util
 import sys
@@ -70,7 +70,7 @@ assert len(unknown) == 1 and len(unknown[0]) == 1
 assert unknown[0][0].text == '字' and unknown[0][0].color == (0, 135, 0)
 assert 'PIL' not in sys.modules
 PY
-echo 'PASS release-screens: Pillow なしで全角の折り返し、色、太字、対象外の制御文字を確かめた'
+echo 'PASS release-screens: Pillow なしで全角の折り返し、色、太字、対象外の制御文字を確認した'
 
 bash "$root/tests/release-screens.sh" "$root/scripts/release.sh" "$test_dir/screens" --capture-only
 python3 - "$test_dir/screens" "$root/CHANGELOG.md" <<'PY'
@@ -97,7 +97,7 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
         assert re.fullmatch(r'  [0-9a-f]{40}', summary[1]),(scene,summary)
         assert summary[2:8]==['','  multica-squad-kit-v1.6.0.tar.gz','  install.sh','  SHA256SUMS','  multica-squad-kit-v1.6.0.sigstore.json',''],(scene,summary)
         assert summary[8]=='  https://github.com/example/kit/actions/runs/4242',(scene,summary)
-        assert '配布物を確かめる' in plain and 'Release を公開する' in plain, scene
+        assert '配布物を検証する' in plain and 'Release を公開する' in plain, scene
         if scene != 2:
             assert '発行のワークフローに配布物を作らせ、終わるまで待つ' in plain, scene
     elif scene == 3:
@@ -107,7 +107,7 @@ for scene, expected in ((1, 0), (2, 0), (3, 1), (4, 1), (5, 0)):
     else:
         assert '$ bash ' in plain and '--verify v1.6.0' in plain
         assert 'stub: attestation failed' in plain
-        assert '✖ タグの install.sh' in plain and '✖ 配布物を確かめる' in plain
+        assert '✖ タグの install.sh' in plain and '✖ 配布物を検証する' in plain
         assert 'ここから】' not in plain
 assert not list(screens.glob('*.png'))
 PY
@@ -119,6 +119,6 @@ done
 text 1 | grep -F '✔ 下書きの Release を作る' >/dev/null || { echo 'FAIL release-screens: 場面 1 の後の画像の文字に、完了した手順がない' >&2; exit 1; }
 text 1 | grep -F '✔ 発行のワークフローに配布物を作らせ、終わるまで待つ' >/dev/null || { echo 'FAIL release-screens: 場面 1 の後の画像の文字に、ワークフローの完了がない' >&2; exit 1; }
 text 3 | grep -F '✖ 発行のワークフローに配布物を作らせ、終わるまで待つ' >/dev/null || { echo 'FAIL release-screens: 場面 3 の後の画像の文字に、失敗の印がない' >&2; exit 1; }
-text 4 | grep -F '✖ 配布物を確かめる' >/dev/null || { echo 'FAIL release-screens: 場面 4 の後の画像の文字に、失敗の印がない' >&2; exit 1; }
+text 4 | grep -F '✖ 配布物を検証する' >/dev/null || { echo 'FAIL release-screens: 場面 4 の後の画像の文字に、失敗の印がない' >&2; exit 1; }
 ! text 3 | grep '○ タグを作って push する' >/dev/null || { echo 'FAIL release-screens: 場面 3 の後の画像に、書き換える前の行が残る' >&2; exit 1; }
 echo 'PASS release-screens: 5 場面の終了コード、問い、長い本文、色、成功と失敗の画面を取れた'

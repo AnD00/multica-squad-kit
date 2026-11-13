@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# squad_cli_normalize と squad_cli_read の契約のうち、multica の応答を確かめる。ページごとの検証、CLI のスタブでの読み取り・失敗の境界も確かめる。
+# squad_cli_normalize と squad_cli_read の契約のうち、multica の応答を確認する。ページごとの検証、CLI のスタブでの読み取り・失敗の境界も確認する。
 # 検証の本体は tests/squad-cli-lib-contract.py、gh と codex の応答は tests/squad-cli-lib-gh-test.sh と tests/squad-cli-lib-check-runs-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)

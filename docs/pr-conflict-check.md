@@ -1,4 +1,4 @@
-# マージへ回す前に PR のコンフリクトの状態を確かめる
+# マージへ回す前に PR のコンフリクトの状態を確認する
 
 リーダーが人間のマージへ回す直前に、PR の今の head と `mergeable` を `squad-pr-watch` で読み、その値と head の SHA を 1 行で出す。リーダーはその行に従って次の動きを決め、人間やほかの役へは読んだ値と head をそのまま書く。
 
@@ -25,7 +25,7 @@
 | `common/agents/orchestrator.md` | 「CI とコンフリクト」で、状態の確認と規則の入れ直しを別の手順に書き分ける（[リーダーの指示](#リーダーの指示)） |
 | `common/skills/squad-handoff/SKILL.md` | 節「PR の状態を書く」を足す（[受け渡しの決まり](#受け渡しの決まり)） |
 | `tests/squad-pr-watch-register-test.sh` | `conflicts-check` のテストを足す（[テスト](#テスト)） |
-| `tests/agent-templates-test.sh` | 展開したリーダーの指示と `squad-handoff` に、新しい手順と決まりが残ることを確かめる行を足す |
+| `tests/agent-templates-test.sh` | 展開したリーダーの指示と `squad-handoff` に、新しい手順と決まりが残ることを確認する行を足す |
 | `CHANGELOG.md`、`MANIFEST` | 「次のバージョン」の節に変更を書き、`MANIFEST` を生成し直す |
 
 ## コマンドの I/F
@@ -40,7 +40,7 @@ squad-pr-watch conflicts-check <タスク>
 
 | 終了コード | 意味 | 標準出力 |
 | --- | --- | --- |
-| 0 | 確かめた。読めなかったときも含む | 結果の 1 行 |
+| 0 | 確認した。読めなかったときも含む | 結果の 1 行 |
 | 2 | 引数の数の誤り。使い方を標準エラーに出す | なし |
 
 `multica`・`gh`・`jq` の失敗やコマンドが見つからないときも、終了コード 1 で止めず、「未確認」の行を出して 0 で終える。リーダーが空の出力や終了コードを読み違える余地を残さないため。失敗の詳細は標準エラーに出す。
@@ -72,8 +72,8 @@ squad-pr-watch conflicts-check <タスク>
 
 ## 処理の順序
 
-1. 引数の数を確かめる。合わなければ、使い方を標準エラーに出して終了コード 2 で終える
-2. `jq`・`multica`・`gh` があるかを確かめる。なければ「未確認」の行を出す
+1. 引数の数を確認する。合わなければ、使い方を標準エラーに出して終了コード 2 で終える
+2. `jq`・`multica`・`gh` があるかを確認する。なければ「未確認」の行を出す
 3. `multica issue get <タスク> --output json` でタスクを読み、metadata の `pr_url` を取る。読めないか、`pr_url` がなければ「未確認」の行を出す
 4. `gh pr view <pr_url> --json state,headRefOid,mergeable` を、共通ライブラリの `squad_cli_read gh-pr-mergeable` で読む。3 つの欄は必須で、`null` も認めない。失敗したか、欄が欠けたか、`headRefOid` が空なら「未確認」の行を出す
 5. `state` が `MERGED` か `CLOSED` なら「未確認」の行を出す
@@ -87,7 +87,7 @@ squad-pr-watch conflicts-check <タスク>
 
 GitHub は `mergeable` をあとから計算するので、push の直後は `UNKNOWN` が返ることが多い。`UNKNOWN` の間は 10 秒おきに読み直し、最初に読み始めてから 60 秒を過ぎたら読み直しをやめる。
 
-- 経過は `date +%s` で測り、待ちは `sleep` で行う。読み直す前に残り時間を確かめ、待ちは 10 秒と残り時間の短い方にする。残り時間がなければ待たずに「未確認」とする
+- 経過は `date +%s` で測り、待ちは `sleep` で行う。読み直す前に残り時間を確認し、待ちは 10 秒と残り時間の短い方にする。残り時間がなければ待たずに「未確認」とする
 - この決め方で、待ちの合計は 60 秒以内、読み取りは最初を含めて 7 回以内になる。新しい読み取りを始めるのは 60 秒までで、最後の 1 回の `gh` の時間だけ、全体が 60 秒を超えることがある
 - 間隔を 10 秒にするのは、`mergeable` はふつう push から数秒で決まり、1 回か 2 回の読み直しで済むため。より短くしても決まる時刻は変わらず、GitHub への読み取りが増えるだけになる
 - 上限は、要件の 60 秒をそのまま使う。リーダーの 1 回の実行は 30 分ほどに収めるので、その数 % にとどまる
@@ -126,7 +126,7 @@ GitHub は `mergeable` をあとから計算するので、push の直後は `UN
 - 見張りのスクリプトが値と head の行を出したとき（`squad-pr-watch conflicts-check` の `コンフリクト:` の行、`ci-check` の `CI <SHA>:` の行）は、その行をそのまま写す
 - 空の出力、読めなかった結果、`UNKNOWN` のように決まらなかった値は「未確認」と書く。「なし」や「通った」とは書かない
 
-レビュー・E2E・テストの結果は、この節の対象にしない。それらは今の「`確かめたコミット:`」の決まりで扱う。
+レビュー・E2E・テストの結果は、この節の対象にしない。それらは今の「`確認したコミット:`」の決まりで扱う。
 
 ## 導入と更新
 
@@ -138,7 +138,7 @@ GitHub は `mergeable` をあとから計算するので、push の直後は `UN
 
 `tests/squad-pr-watch-register-test.sh` に `conflicts-check` のテストを足す。スタブの `gh` は、決めた順に `pr view` の応答を返すか失敗する。スタブの `sleep` は受け取った秒を記録して待たずに返し、スタブの `date` は記録した秒の合計だけ進んだ時刻を返す。
 
-| 確かめること | 受け入れ条件 |
+| 確認すること | 受け入れ条件 |
 | --- | --- |
 | head が X、`CONFLICTING` のとき、行に X と `CONFLICTING` があり、「なし」がない | 1 |
 | head が X、`MERGEABLE` のとき、行に X と `MERGEABLE` がある | 2 |
@@ -148,14 +148,14 @@ GitHub は `mergeable` をあとから計算するので、push の直後は `UN
 | 上のすべての場合で、標準出力がちょうど 1 行で、終了コードが 0 である | 6 |
 | 既存の `conflicts` のテストが、変えずに通る | 7 |
 
-あわせて、次も確かめる。
+あわせて、次も確認する。
 
 - PR がマージ済みか閉じているとき、「未確認」を出す
 - 読み直しの間に head が変わったとき、行には最後に読んだ head を書く
 - `conflicts-check` は wakeup の規則・metadata・コメントを書かない（スタブの `multica` の呼び出しが `issue get` だけである）
 - 引数の数が違うとき、終了コード 2 で、標準出力が空である
 
-`tests/agent-templates-test.sh` では、展開したリーダーの指示に `squad-pr-watch conflicts-check <タスク>` と `squad-pr-watch conflicts <タスク>` が別の段落にあること、`CONFLICTING`・`MERGEABLE`・「未確認」の扱いの文があることを確かめる。`squad-handoff` には、節「PR の状態を書く」と「未確認」の決まりがあることを確かめる。文面が要件どおりかは、検証する人が読んで確かめる。
+`tests/agent-templates-test.sh` では、展開したリーダーの指示に `squad-pr-watch conflicts-check <タスク>` と `squad-pr-watch conflicts <タスク>` が別の段落にあること、`CONFLICTING`・`MERGEABLE`・「未確認」の扱いの文があることを確認する。`squad-handoff` には、節「PR の状態を書く」と「未確認」の決まりがあることを確認する。文面が要件どおりかは、検証する人が読んで確認する。
 
 ## 検討した案
 

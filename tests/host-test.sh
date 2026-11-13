@@ -271,7 +271,7 @@ echo 'PASS host: 専用の認証がなければログインを案内し、デー
    ;;
   esac
   # ダミーの個人情報・認証値・未知の値を、正常な JSON とその前後にも置く。
-  # 失敗の診断は全行を照合し、成功・未ログイン時も両出力への漏れを確かめる。
+  # 失敗の診断は全行を照合し、成功・未ログイン時も両出力への漏れを確認する。
   case $auth_case in
   false0|false1|true1|prefix|suffix|stderr|true1-kqueue|invalid-suffix)
    python3 - "$TEST_CLAUDE_STDOUT" <<'PY'
@@ -300,13 +300,13 @@ PY
   if [[ $expected == pass ]]; then
    [[ $rc == 0 ]]
    grep -qx 'daemon status --output json' "$test_dir/calls"
-   ! grep -qE 'ログインしてください|ログインを確かめられませんでした|warning from CLI' "$test_dir/err"
+   ! grep -qE 'ログインしてください|ログインを確認できませんでした|warning from CLI' "$test_dir/err"
   else
    [[ $rc == 1 && ! -s $test_dir/calls ]]
    [[ ! -s $test_dir/out ]]
    if [[ $expected == login ]]; then
     grep -qxF "エラー: エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$TEMPLATE_AGENT_HOME/claude claude" "$test_dir/err"
-    ! grep -q 'ログインを確かめられませんでした' "$test_dir/err"
+    ! grep -q 'ログインを確認できませんでした' "$test_dir/err"
    else
     ! grep -q 'ログインしてください' "$test_dir/err"
     python3 - "$test_dir/err" "$TEST_CLAUDE_STDOUT" "$TEST_CLAUDE_EXIT" "$TEMPLATE_AGENT_HOME" "$first" "$category" "$TEST_CLAUDE_STDERR" <<'PY'
@@ -316,7 +316,7 @@ import sys
 actual = Path(sys.argv[1]).read_text()
 home = sys.argv[4]
 message = f"使用する gh の関所: {home}/bin/gh\n使用する git push の関所: {home}/git-hooks/pre-push\n使用する Codex の設定: {home}/codex/config.toml\n"
-message += f"エラー: エージェント用の Claude のログインを確かめられませんでした。ログインが切れているとは限りません。端末から CLAUDE_CONFIG_DIR={home}/claude claude auth status を流して、ログインの状態を確かめてから流し直してください。問い合わせるときは、下の診断の行だけを添えてください。\n"
+message += f"エラー: エージェント用の Claude のログインを確認できませんでした。ログインが切れているとは限りません。端末から CLAUDE_CONFIG_DIR={home}/claude claude auth status を流して、ログインの状態を確認してから流し直してください。問い合わせるときは、下の診断の行だけを添えてください。\n"
 message += f"  診断（claude auth status）:\n    分類: {sys.argv[6]}\n    終了コード: {sys.argv[3]}\n    標準出力の最初の値: {sys.argv[5]}\n"
 message += "    標準出力: " + ("あり（内容は省略）" if Path(sys.argv[2]).stat().st_size else "なし") + "\n"
 message += "    標準エラー: " + ("あり（内容は省略）" if Path(sys.argv[7]).stat().st_size else "なし") + "\n"
@@ -347,7 +347,7 @@ from pathlib import Path
 import sys
 
 actual = Path(sys.argv[1]).read_text()
-assert actual.index("  ✖ ホストを準備") < actual.index("エラー: エージェント用の Claude のログインを確かめられませんでした") < actual.index("  診断（claude auth status）:"), actual
+assert actual.index("  ✖ ホストを準備") < actual.index("エラー: エージェント用の Claude のログインを確認できませんでした") < actual.index("  診断（claude auth status）:"), actual
 assert actual.endswith("  診断（claude auth status）:\n    分類: CLI の出力を読めない（詳細は省略）\n    終了コード: 7\n    標準出力の最初の値: 空\n    標準出力: なし\n    標準エラー: あり（内容は省略）\n"), actual
 assert "ログインしてください" not in actual and "CLI failure" not in actual, actual
 PY
@@ -364,7 +364,7 @@ import sys
 raw = Path(sys.argv[1]).read_text()
 assert re.search(r"\x1b\[\d+A", raw), raw
 actual = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", raw).replace("\r", "")
-assert actual.index("  ✖ ホストを準備") < actual.index("エラー: エージェント用の Claude のログインを確かめられませんでした") < actual.index("  診断（claude auth status）:"), actual
+assert actual.index("  ✖ ホストを準備") < actual.index("エラー: エージェント用の Claude のログインを確認できませんでした") < actual.index("  診断（claude auth status）:"), actual
 assert actual.endswith("  診断（claude auth status）:\n    分類: CLI の出力を読めない（詳細は省略）\n    終了コード: 7\n    標準出力の最初の値: 空\n    標準出力: なし\n    標準エラー: あり（内容は省略）\n"), actual
 assert "ログインしてください" not in actual and "CLI failure" not in actual, actual
 PY
@@ -597,7 +597,7 @@ if /bin/bash "$test_dir/project.sh" "$root" project-new >"$test_dir/out" 2>"$tes
 [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new ]]
 echo 'PASS host: 空の選択や後ろの不正な値で前の許可を壊さず、空の許可ファイルも作らない'
 
-# 本物の gh が PATH の先でも、起動時と Claude の順の両方を確かめる。
+# 本物の gh が PATH の先でも、起動時と Claude の順の両方を確認する。
 export TEST_GUARD_CALLS="$test_dir/guard-calls"
 : >"$TEST_GUARD_CALLS"
 PATH="$test_dir/bin:$TEMPLATE_AGENT_HOME/bin:$PATH" /bin/bash "$test_dir/project.sh" "$root" project-a example/one example/two >"$test_dir/out" 2>"$test_dir/err"

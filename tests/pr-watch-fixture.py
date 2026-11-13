@@ -1,4 +1,4 @@
-"""pr-watch のスタブ。実物から作ったケースの鍵を、返す前に確かめる。
+"""pr-watch のスタブ。実物から作ったケースの鍵を、返す前に確認する。
 
 補助（tests/cli-stub.py）から関数 run を読み込む。スクリプトとしても使える。
 """
@@ -43,7 +43,7 @@ def validate(work, name, value):
             try:
                 candidate = item
                 if name == "gh-pr-checks":
-                    # StatusContext は約束で「見本なし」。その形だけは宣言済みの鍵で確かめる。
+                    # StatusContext は約束で「見本なし」。その形だけは宣言済みの鍵で確認する。
                     checks = item.get("statusCheckRollup", [])
                     fields = schema["items"]["fields"]
                     for check in checks:

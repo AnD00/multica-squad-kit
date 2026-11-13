@@ -3,15 +3,15 @@
 #
 # 流れ: 足りないものを調べ、なければ何もしない。足りなければ、先に CI のキャッシュ
 # （CI_INSTALL_CACHE_DIR）から入れ、使えないときだけミラーへ行き、再試行する。
-# 最後に、必要なものが揃ったかを必ず確かめ、揃わなければ失敗で終わる。
+# 最後に、必要なものが揃ったかを必ず確認し、揃わなければ失敗で終わる。
 # 取り方は GITHUB_OUTPUT の source に書く。none（取得なし）、cache（キャッシュから）、
 # mirror（ミラーから。ワークフローが保存する）、mirror-uncached（ミラーから。保存するものがない）。
 #
 # 壊れた・差し替えられたキャッシュで誤って通らないための決め:
 # - Linux は、取得した .deb と、足りなかった一覧（PACKAGES）、.deb を含む APT のパッケージ情報
 #   （InRelease と Packages。apt-meta に保存）を保存する。キャッシュの中身は信用しない。復元後は、
-#   ランナーにある Ubuntu アーカイブの公開鍵で InRelease の署名を gpgv で確かめ、その InRelease が
-#   記すハッシュと Packages が合い、Packages が記す SHA-256 と .deb が合うことを確かめてから
+#   ランナーにある Ubuntu アーカイブの公開鍵で InRelease の署名を gpgv で検証し、その InRelease が
+#   記すハッシュと Packages のハッシュ、Packages が記す SHA-256 と .deb のハッシュを照合してから
 #   apt-get install でローカルの .deb として入れる。.deb と一覧を一緒に書き換えても、署名は偽造できない。
 #   署名が正しくても、次のどれかなら、キャッシュを捨ててミラーから取る（正しく署名された別リリース・古い情報の持ち込みを防ぐ）。
 #   - 署名した情報の Codename・Suite が、ランナーのリリース（/etc/os-release の VERSION_CODENAME と、
@@ -23,7 +23,7 @@
 #   署名・ハッシュのどれかが違う、情報が足りない、署名できる鍵が違う場合も同じ。
 # - macOS は、brew がバイナリの SHA-256 を公式の値と照らすので、その確認に任せる。
 #   失敗したり、入れたあとに動作の確認が通らなかったりしたら、キャッシュを捨てて、ミラーから取り直す。
-# - どちらも入れたあとに、パッケージの状態とコマンドの動作を確かめる。
+# - どちらも入れたあとに、パッケージの状態とコマンドの動作を確認する。
 set -euo pipefail
 
 linux_packages=(bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl procps gpgv)
@@ -95,7 +95,7 @@ linux_codename() {
 	( . /etc/os-release 2>/dev/null && printf '%s' "${VERSION_CODENAME:-}" )
 }
 
-# linux_release_ok <Release>: 署名された Release が、ランナーのリリースのもので、期限内かを確かめる。
+# linux_release_ok <Release>: 署名された Release が、ランナーのリリースのもので、期限内かを確認する。
 linux_release_ok() {
 	local codename suite rel_codename until_s u
 	codename=$(linux_codename)
@@ -111,7 +111,7 @@ linux_release_ok() {
 	fi
 }
 
-# linux_trusted_hashes <作業ディレクトリ>: キャッシュの InRelease の署名を公開鍵で確かめ、
+# linux_trusted_hashes <作業ディレクトリ>: キャッシュの InRelease の署名を公開鍵で検証し、
 # 署名された Release が記すハッシュに合う Packages だけから、「SHA-256  ファイル名  パッケージ  バージョン」の一覧を作る。
 linux_trusted_hashes() {
 	local tmp=$1 meta=$cache_dir/apt-meta inrel prefix release f rel want have n=0
@@ -247,8 +247,8 @@ linux() {
 		if linux_cache_valid "$wanted"; then
 			emit_source mirror
 		else
-			# 署名で確かめられない形のキャッシュは、次の実行で使えないので保存しない。
-			log '保存するキャッシュを署名で確かめられませんでした。保存しません'
+			# 署名で検証できない形のキャッシュは、次の実行で使えないので保存しない。
+			log '保存するキャッシュを署名で検証できませんでした。保存しません'
 			linux_clear_cache
 			emit_source mirror-uncached
 		fi

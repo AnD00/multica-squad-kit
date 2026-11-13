@@ -130,9 +130,9 @@ echo 'PASS preflight: 欄を読む子のBashも、BASH_ENVを読み直してPATH
 
 for name in squad-list issue-comments issue-runs issue-wakeups; do echo '[]' >"$test_dir/responses/$name.json"; done
 run_preflight 0 "$guard_bin:$test_dir/tools" fixture-issue
-[[ $(grep -c '確かめられない（空）' "$test_dir/out") == 4 ]]
+[[ $(grep -c '確認できない（空）' "$test_dir/out") == 4 ]]
 reset_responses
-echo 'PASS preflight: 空の一覧は確かめられないことを知らせ、失敗にしない'
+echo 'PASS preflight: 空の一覧は確認できないことを知らせ、失敗にしない'
 
 for pair in squad-list:id agent-get:name issue-get:metadata issue-comments:source_task_id issue-runs:trigger_comment_id issue-wakeups:condition.type; do
 	reset_responses

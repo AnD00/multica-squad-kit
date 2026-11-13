@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-wait-status-test.sh で実行する。
-# CLI を差し替え、実際のタスク・規則・エージェントには書き込まない。watch・unwatch と status の判定を確かめる。
+# CLI を差し替え、実際のタスク・規則・エージェントには書き込まない。watch・unwatch と status の判定を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"

@@ -112,7 +112,7 @@ PY
 	esac
 	# CLI の文字列は表示せず、固定の診断だけをエラーに続ける。
 	ui_phase_fail
-	ui_error "エージェント用の Claude のログインを確かめられませんでした。ログインが切れているとは限りません。端末から CLAUDE_CONFIG_DIR=$agent_home/claude claude auth status を流して、ログインの状態を確かめてから流し直してください。問い合わせるときは、下の診断の行だけを添えてください。"
+	ui_error "エージェント用の Claude のログインを確認できませんでした。ログインが切れているとは限りません。端末から CLAUDE_CONFIG_DIR=$agent_home/claude claude auth status を流して、ログインの状態を確認してから流し直してください。問い合わせるときは、下の診断の行だけを添えてください。"
 	printf '%s\n' "${diagnosis#*$'\n'}" >&2
 	exit 1
 }
@@ -169,7 +169,7 @@ prepare_project_host() {
 	local id=$1 repo file content='' previous='' removed='' escaped escaped_bin needle='{{ALLOWED_REPOS_FILE}}' bin_needle='{{AGENT_BIN_DIR}}'
 	shift
 	[[ $id =~ ^[A-Za-z0-9_-]+$ ]] || die 'プロジェクト ID が不正です。'
-	# 全件を確かめてから置き場を作る。ファイルは選択順で一行に一つとする。
+	# 全件を確認してから置き場を作る。ファイルは選択順で一行に一つとする。
 	for repo in "$@"; do
 		repo=$(printf '%s' "$repo" | LC_ALL=C tr '[:upper:]' '[:lower:]')
 		[[ $repo =~ ^[a-z0-9][a-z0-9_.-]*/[a-z0-9_.-]+$ && ${repo#*/} != . && ${repo#*/} != .. ]] || die 'リポジトリは OWNER/REPO の形で渡してください。'
@@ -309,9 +309,9 @@ if ! printf 'refs/heads/template-permission-check 111111111111111111111111111111
 fi
 CHECK
 	while IFS= read -r repo; do
-		# 作る間の一覧には、確かめているリポジトリを添える（止まったときの ✖ にも付く）。
+		# 作る間の一覧には、確認しているリポジトリを添える（止まったときの ✖ にも付く）。
 		ui_phase_progress 0 0 "$repo"
-		# zsh では .zshenv と env.sh を別々の手順で確かめる。
+		# zsh では .zshenv と env.sh を別々の手順で確認する。
 		for shell in /bin/zsh /bin/bash; do
 			for mode in allow deny; do
 				if ! (cd "$probe/repository" && PATH="$probe_path" ZDOTDIR="$probe/$mode" BASH_ENV="$probe/$mode/env.sh" "$shell" -c '[[ $(command -v gh) == "$1" ]]' -- "$agent_home/bin/gh"); then

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-pr-watch-register-test.sh で実行する。
-# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。見張りの登録・通知先の選択・契約の検査を確かめる。
+# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。見張りの登録・通知先の選択・契約の検査を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
@@ -111,7 +111,7 @@ cc_responses() {
 	done
 }
 
-# 終了コード 0 で、標準出力がちょうど 1 行であることを確かめ、その行を出す。
+# 終了コード 0 で、標準出力がちょうど 1 行であることを確認し、その行を出す。
 cc_run() {
 	local out status=0
 	out=$(cd "$test_dir" && PATH="$clock_dir:$PATH" bash "$script" conflicts-check test-issue) || status=$?

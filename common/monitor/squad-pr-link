@@ -17,7 +17,7 @@ warn() {
 warn_not_found() {
 	local repository=${url#https://github.com/}
 	repository=${repository%/pull/*}
-	printf 'サーバーは、%s がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、%s がつながっていることを確かめてから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\n' "$repository" "$repository" >&2
+	printf 'サーバーは、%s がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、%s がつながっていることを確認してから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\n' "$repository" "$repository" >&2
 }
 
 mkdir -p tmp
@@ -50,7 +50,7 @@ if jq -e 'has("pr_url")' <<<"$metadata" >/dev/null; then
 	if [[ $existing_url != "$url" ]]; then
 		printf 'タスク %s の metadata の pr_url は PR %s と違うため、紐付けは変えません。\n' "$identifier" "$url" >&2
 	fi
-	printf '紐付けていません: %s %s（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確かめてください）\n' "$identifier" "$url"
+	printf '紐付けていません: %s %s（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確認してください）\n' "$identifier" "$url"
 else
 	printf '紐付けました: %s %s\n' "$identifier" "$url"
 fi

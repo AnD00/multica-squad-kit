@@ -66,7 +66,7 @@ cp "$test_dir/err" "$test_dir/err-plain"
 pty_setup() { env -u NO_COLOR "$@" python3 "$root/tests/ui-pty.py" err "$test_dir/pty-out" "$test_dir/pty-err" --stdin "$test_dir/pty-input" -- /bin/bash "$test_dir/package/setup.sh"; }
 pty_setup TERM=xterm-256color
 # 端末の選択肢は 100 桁に収まり、続く行も元の説明の開始列から始まる。
-# ファイル出力との照合で、6 番と 12 番を含む説明の文字が欠けないことも確かめる。
+# ファイル出力との照合で、6 番と 12 番を含む説明の文字が欠けないことも確認する。
 python3 - "$test_dir/role-question" "$test_dir/pty-err" <<'PY'
 import re
 import sys
