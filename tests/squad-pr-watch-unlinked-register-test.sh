@@ -46,6 +46,9 @@ assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] =
 	and (.[0].args | index("--parent") as $i | .[$i+1] == "trigger-comment")
 	and (.[0].body | contains("squad-pr-watch unlinked-check test-issue orchestrator\n"))
 	and (.[0].body | contains("紐付け: 食い違い"))
+	and (.[0].body | contains("紐付け: 作業先と違う、紐付け: 不正な pr_url"))
+	and (.[0].body | contains("タスクの画面で metadata の pr_url か repository を直してもらってください"))
+	and (.[0].body | contains("元の値は写さず"))
 	and (.[0].body | contains("CI <SHA>: 失敗あり"))
 	and (.[0].body | contains("コンフリクト: CONFLICTING"))
 	and (.[0].body | contains("記録のスレッド: trigger-comment"))' "$test_dir/wakeups.jsonl"
@@ -75,3 +78,16 @@ for command in unlinked unlinked-check; do
 	done
 done
 echo 'PASS unlinked: 両方のコマンドは引数の不足・過剰を終了コード2で返す'
+
+# 重複の整理に読む作成日時は、見本にある必須欄として確認する。
+assert_jq '.entries["issue-wakeups"].items.fields | any(.[]; .path == "created_at" and .class == "required" and .nullable == false)' "$test_dir/contracts.json"
+for value in absent null; do
+	reset_fixture
+	if [[ $value == absent ]]; then filter='del(.created_at)'; else filter='.created_at=null'; fi
+	fixture issue-wakeups | jq "$filter | [. + {id:\"old\",instruction:\"$mark\"}]" >"$test_dir/rules.json"
+	status=0
+	(cd "$test_dir" && bash "$script" unlinked test-issue trigger-comment monitor) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+	[[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/wakeups.jsonl ]]
+	assert_jq 'map(.id) == ["old"]' "$test_dir/rules.json"
+done
+echo 'PASS unlinked: 作成日時が欠けた一覧では、規則を変えずに失敗を返す'

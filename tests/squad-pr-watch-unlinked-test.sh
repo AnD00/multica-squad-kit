@@ -61,7 +61,7 @@ for value in absent null empty; do
 	linked_urls "$other" "$pr"
 	check_link "紐付け: pr_url なし pr: 不明 紐付いた PR: $other, $pr"
 done
-echo 'PASS link-check: pr_url がなければ、一覧から自動で選ばず、元の URL を並べる'
+echo 'PASS link-check: pr_url がなければ、一覧から自動で選ばず、正規形の URL を並べる'
 
 link_reset
 linked_urls "$other" https://github.com/Another/Repo/pull/67
@@ -78,7 +78,7 @@ pr_suffix='https://github.com/EXAMPLE/repo/pull/67/files?diff=split'
 jq --arg pr "$pr_suffix" '.metadata.pr_url = $pr' "$test_dir/task.json" >"$test_dir/changed.json"
 mv "$test_dir/changed.json" "$test_dir/task.json"
 linked_urls "$pr"
-check_link "紐付け: 紐付いている pr: $pr_suffix"
+check_link "紐付け: 紐付いている pr: https://github.com/EXAMPLE/repo/pull/67"
 echo 'PASS link-check: 複数 PR、大文字・小文字、末尾の /・files・クエリを同じ PR と読む'
 
 link_reset

@@ -108,3 +108,5 @@ tests/webhooks-test.sh 97
 tests/workspace-test.sh 8
 tests/action-advisories-test.sh 5
 tests/workflow-rules-test.sh 5
+tests/squad-pr-watch-url-test.sh 30
+tests/squad-pr-watch-unlinked-concurrent-test.sh 5

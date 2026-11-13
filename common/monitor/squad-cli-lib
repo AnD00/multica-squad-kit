@@ -288,6 +288,11 @@ squad_cli_contracts() {
             "nullable": false
           },
           {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
             "path": "agent_id",
             "class": "required",
             "nullable": false

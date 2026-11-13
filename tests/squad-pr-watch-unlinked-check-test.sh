@@ -135,3 +135,36 @@ status=0
 run_unlinked monitor >"$test_dir/output" 2>"$test_dir/error" || status=$?
 [[ $status == 1 && ! -s $test_dir/posted.jsonl ]]
 echo 'PASS unlinked-check: CI・コンフリクトのCLI失敗は非0で返し、確認できたという行に置き換えない'
+
+# 見張り役がない部分失敗でも、取得済みの行を扱ってからエラーを記録する。
+reset_unlinked
+(cd "$test_dir" && MULTICA_AGENT_ID=orchestrator bash "$script" unlinked test-issue trigger-comment) >"$test_dir/register-output"
+assert_jq -s 'length == 1 and (.[0].body | contains("0 以外で終わったときも、取得できた行を下の指示のとおり扱ってから"))
+	and (.[0].body | contains("CI <SHA>: 失敗あり で始まり、保留でなければ"))' "$test_dir/wakeups.jsonl"
+for initial in read failed; do
+	reset_unlinked
+	touch "$test_dir/fail-conflicts"
+	# 終了判定の読み取りから失敗しても、取得できる CI は確認する。
+	if [[ $initial == failed ]]; then touch "$test_dir/mergeable-read"; fi
+	status=0
+	run_unlinked >"$test_dir/output" 2>"$test_dir/error" || status=$?
+	[[ $status == 1 ]]
+	grep -qx 'CI abcdef0: 失敗あり' "$test_dir/output"
+	if grep -q 'コンフリクト:' "$test_dir/output"; then exit 1; fi
+	assert_jq -s 'length == 1 and (.[0].body | contains("mention://") | not)' "$test_dir/posted.jsonl"
+	rm "$test_dir/fail-conflicts"
+	line=$(run_unlinked)
+	[[ $line == *'CI abcdef0: 失敗は知らせ済み'* && $line == *'コンフリクト: MERGEABLE'* ]]
+	assert_jq -s 'length == 1' "$test_dir/posted.jsonl"
+done
+reset_unlinked
+echo 'issue runs test-issue' >"$test_dir/fail"
+status=0
+run_unlinked >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 1 && ! -s $test_dir/posted.jsonl ]]
+grep -qx 'コンフリクト: MERGEABLE head: abcdef0123456789 知らせ: なし' "$test_dir/output"
+rm "$test_dir/fail"
+line=$(run_unlinked)
+[[ $line == *'CI abcdef0: 失敗あり'* && $line == *'コンフリクト: MERGEABLE'* ]]
+assert_jq -s 'length == 1' "$test_dir/posted.jsonl"
+echo 'PASS unlinked-check: 見張り役なしで片方が失敗しても取得済みの行を出し、回復後は CI を重ねない'

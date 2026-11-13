@@ -126,7 +126,7 @@ cat >"$clock_dir/gh" <<'EOF2'
 #!/usr/bin/env bash
 set -euo pipefail
 dir=$PR_WATCH_TEST_DIR
-[[ "$*" == 'pr view test-pr --json state,headRefOid,mergeable' ]] || exit 1
+[[ "$*" == 'pr view https://github.com/example/repo/pull/67 --json state,headRefOid,mergeable' ]] || exit 1
 n=$(($(wc -l <"$dir/gh-calls") + 1))
 echo "$n" >>"$dir/gh-calls"
 total=$(wc -l <"$dir/gh-responses")
@@ -289,14 +289,14 @@ line=$(cc_run)
 [[ ! -s $test_dir/sleeps ]]
 echo 'PASS conflicts-check: 想定外の mergeable は読み直さず 未確認 を出す'
 
-# gh・jq・multica が見つからないときも、未確認の 1 行を 0 で出す
-for missing in gh jq multica; do
+# gh・jq・python3・multica が見つからないときも、未確認の 1 行を 0 で出す
+for missing in gh jq python3 multica; do
 	reset_fixture
 	cc_responses "OPEN:$head_x:MERGEABLE"
 	bare="$test_dir/bare-$missing"
 	mkdir -p "$bare"
 	ln -sf "$(command -v dirname)" "$bare/dirname"
-	for cmd in jq multica gh; do
+	for cmd in jq python3 multica gh; do
 		[[ $cmd == "$missing" ]] && continue
 		case $cmd in
 		gh) ln -sf "$clock_dir/gh" "$bare/gh" ;;

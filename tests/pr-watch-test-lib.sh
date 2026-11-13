@@ -107,7 +107,7 @@ if [[ ${1-} == --version ]]; then
 	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
 	echo 'gh fixture-version'; exit 0
 fi
-expected=$(jq -r '.metadata.pr_url' "$PR_WATCH_TEST_DIR/task.json")
+if [[ -f $PR_WATCH_TEST_DIR/expected-pr-url ]]; then expected=$(<"$PR_WATCH_TEST_DIR/expected-pr-url"); else expected=$(jq -r '.metadata.pr_url' "$PR_WATCH_TEST_DIR/task.json"); fi
 if [[ "${1-} ${2-} ${3-}" != "pr view $expected" || -f $PR_WATCH_TEST_DIR/fail-gh ]]; then
 	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
 	[[ "${1-} ${2-} ${3-}" == "pr view $expected" ]] || exit 1
@@ -144,11 +144,11 @@ reset_fixture() {
 	printf '[]' >"$test_dir/runs.json"
 	printf 'ci-thread' >"$test_dir/allowed-parent"
 	cp "$test_dir/agents.base.json" "$test_dir/agents.json"
-	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh" "$test_dir/fail-conflicts" "$test_dir/mergeable-read"
+	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh" "$test_dir/fail-conflicts" "$test_dir/mergeable-read" "$test_dir/expected-pr-url"
 	jq '.[0]' "$root/tests/fixtures/cli/issue-pull-requests.json" >"$test_dir/pulls.json"
 	fixture gh-pr-mergeable | jq '.state = "OPEN" | .headRefOid = "abcdef0123456789" | .mergeable = "MERGEABLE"' >"$test_dir/mergeable.json"
 	fixture squad-list | jq '[. + {id:"test-squad",name:"Demo",leader_id:"orchestrator",archived_at:null}]' >"$test_dir/squads.json"
-	fixture issue-get | jq '. + {id:"test-issue",status:"in_progress",status_category:"in_progress",assignee_type:"squad",assignee_id:"test-squad",metadata:{pr_url:"test-pr",ci_watch_thread:"ci-thread"}}' >"$test_dir/task.json"
+	jq '[.[] | select(.metadata | has("repository") and has("pr_url"))] | first' "$root/tests/fixtures/cli/issue-get.json" | jq '. + {id:"test-issue",status:"in_progress",status_category:"in_progress",assignee_type:"squad",assignee_id:"test-squad",metadata:(.metadata + {repository:"example/repo",pr_url:"https://github.com/example/repo/pull/67",ci_watch_thread:"ci-thread"})}' >"$test_dir/task.json"
 	fixture gh-pr-checks | jq '. as $pr | .statusCheckRollup[0] as $check |
 		$pr + {state:"OPEN",headRefOid:"abcdef0123456789",statusCheckRollup:[
 		 $check + {status:"COMPLETED",conclusion:"FAILURE",workflowName:"CI",name:"test"},

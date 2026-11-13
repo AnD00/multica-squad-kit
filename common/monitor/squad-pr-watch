@@ -27,6 +27,7 @@
 #     終了・紐付けを先に確認し、CI とコンフリクト、食い違いを重複なく知らせる。
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
+PR_WATCH_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-pr-watch"
 UNLINKED_MARK='紐付いていない PR のマージ待ちの見張りで起きました。'
 UNLINKED_INTERVAL=1h
 UNLINKED_LIMIT_HOURS=72
@@ -48,53 +49,93 @@ require_commands() {
 }
 
 
+# JSON のまま渡し、シェルの変数で失われる NUL も検証する。
+pr_url_data() {
+	python3 - "$@" <<'URLPY'
+import json
+import re
+import sys
+from urllib.parse import urlsplit
+
+owner = r"[A-Za-z0-9-]+"
+repo = r"[A-Za-z0-9_.-]+"
+repository_pattern = re.compile(rf"{owner}/{repo}")
+
+def canonical(value):
+    if not isinstance(value, str):
+        raise ValueError("GitHub の PR の URL の形でない")
+    if any(ord(c) < 32 or 127 <= ord(c) <= 159 for c in value):
+        raise ValueError("制御文字を含む")
+    try:
+        parsed = urlsplit(value)
+        match = re.fullmatch(rf"/({owner})/({repo})/pull/([0-9]+)(?:/.*)?", parsed.path)
+        if parsed.scheme.lower() not in ("http", "https") or parsed.netloc.lower() != "github.com" or not match:
+            raise ValueError
+        account, project, number = match.groups()
+        number = int(number)
+        if project in (".", "..") or number < 1:
+            raise ValueError
+    except ValueError:
+        raise ValueError("GitHub の PR の URL の形でない") from None
+    return f"https://github.com/{account}/{project}/pull/{number}"
+
+metadata = json.loads(sys.argv[1])["metadata"]
+value = metadata.get("pr_url")
+state, url, reason = "absent", "", "metadata に pr_url がない"
+line = "紐付け: pr_url なし pr: 不明"
+if value is not None and value != "":
+    try:
+        url = canonical(value)
+        source = metadata.get("repository")
+        valid_source = (isinstance(source, str) and repository_pattern.fullmatch(source)
+                        and source.split("/")[1] not in (".", ".."))
+        if not valid_source or source.casefold() != "/".join(url.split("/")[3:5]).casefold():
+            state, reason = "foreign", "PR の URL が作業先と違う"
+            source = source if valid_source else ("なし" if source is None or source == "" else "不正")
+            line = f"紐付け: 作業先と違う pr: {url} 作業先: {source}"
+        else:
+            state, reason, line = "valid", "", ""
+    except ValueError as error:
+        state, reason = "invalid", "PR の URL が不正"
+        line = "紐付け: 不正な pr_url pr: 表示しない 理由: " + str(error)
+if len(sys.argv) > 2 and state in ("valid", "absent"):
+    try:
+        urls = [canonical(item["html_url"]) for item in json.loads(sys.argv[2])["pull_requests"]]
+        if state == "absent":
+            line += " 紐付いた PR: " + ", ".join(urls) if urls else ""
+        elif url.casefold() in [item.casefold() for item in urls]:
+            line = "紐付け: 紐付いている pr: " + url
+        elif not urls:
+            line = "紐付け: 紐付いていない pr: " + url
+        else:
+            line = "紐付け: 食い違い pr: " + url + " 紐付いた PR: " + ", ".join(urls)
+    except (ValueError, KeyError, TypeError):
+        line = "紐付け: 未確認 pr: " + (url or "不明") + " 理由: PR の URL を判定できない"
+print(json.dumps(dict(state=state, url=url, reason=reason, line=line), ensure_ascii=False))
+URLPY
+}
+
 link_check() {
-	local issue=$1 cmd task pr_url prs
+	local issue=$1 cmd task data pr_url prs
 	for cmd in jq python3 multica; do
 		if ! command -v "$cmd" >/dev/null 2>&1; then
 			printf '紐付け: 未確認 pr: 不明 理由: %s が見つからない\n' "$cmd"
 			return 0
 		fi
 	done
-	if ! task=$(squad_cli_read issue-get "$issue") \
-		|| ! pr_url=$(jq -r '.metadata.pr_url | if . == null then "" elif type == "string" then . else error("pr_url が文字列でない") end' <<<"$task"); then
+	if ! task=$(squad_cli_read issue-get "$issue") || ! data=$(pr_url_data "$task"); then
 		echo '紐付け: 未確認 pr: 不明 理由: タスクを読めない（CLI の失敗か欄の不正）'
 		return 0
 	fi
+	case $(jq -r .state <<<"$data") in
+	foreign | invalid) jq -r .line <<<"$data"; return 0 ;;
+	esac
+	pr_url=$(jq -r '.url | if . == "" then "不明" else . end' <<<"$data")
 	if ! prs=$(squad_cli_read issue-pull-requests "$issue"); then
-		printf '紐付け: 未確認 pr: %s 理由: 紐付いた PR の一覧を読めない（CLI の失敗か欄の不正）\n' "${pr_url:-不明}"
+		printf '紐付け: 未確認 pr: %s 理由: 紐付いた PR の一覧を読めない（CLI の失敗か欄の不正）\n' "$pr_url"
 		return 0
 	fi
-	python3 - "$pr_url" "$prs" <<'PY'
-import json
-import re
-import sys
-from urllib.parse import urlsplit
-
-pr_url = sys.argv[1]
-urls = [item["html_url"] for item in json.loads(sys.argv[2])["pull_requests"]]
-
-def identity(url):
-    parsed = urlsplit(url)
-    match = re.match(r"^/([^/]+)/([^/]+)/pull/([0-9]+)(?:/|$)", parsed.path)
-    if parsed.scheme.lower() not in ("http", "https") or parsed.netloc.lower() != "github.com" or not match:
-        raise ValueError("PR の URL を判定できない")
-    owner, repo, number = match.groups()
-    return owner.casefold(), repo.casefold(), int(number)
-
-try:
-    linked = [identity(url) for url in urls]
-    if not pr_url:
-        print("紐付け: pr_url なし pr: 不明" + (" 紐付いた PR: " + ", ".join(urls) if urls else ""))
-    elif identity(pr_url) in linked:
-        print("紐付け: 紐付いている pr: " + pr_url)
-    elif not urls:
-        print("紐付け: 紐付いていない pr: " + pr_url)
-    else:
-        print("紐付け: 食い違い pr: " + pr_url + " 紐付いた PR: " + ", ".join(urls))
-except (TypeError, ValueError, AttributeError):
-    print("紐付け: 未確認 pr: " + (pr_url or "不明") + " 理由: PR の URL を判定できない")
-PY
+	pr_url_data "$task" "$prs" | jq -r .line
 }
 
 conflicts() {
@@ -137,13 +178,13 @@ conflicts_check_line() {
 }
 
 conflicts_check() {
-	local issue=$1 cmd task pr_url pr head new state mergeable start now remain wait
+	local issue=$1 cmd task pr_url pr head new state mergeable start now remain wait data
 	# 間隔を空けた確認では通信・欄の検証の失敗を非0で返す。既存の呼び方は0のままにする。
 	local strict=${2:-0}
 	# mergeable は push の直後に UNKNOWN になりやすい。10 秒おきに、最初の読み取りから 60 秒まで読み直す。
 	local interval=10 limit=60
 	head=不明
-	for cmd in jq multica gh; do
+	for cmd in jq python3 multica gh; do
 		if ! command -v "$cmd" >/dev/null 2>&1; then
 			conflicts_check_line 未確認 不明 "${cmd} が見つからない"
 			return "$strict"
@@ -157,6 +198,12 @@ conflicts_check() {
 		conflicts_check_line 未確認 不明 'metadata に pr_url がない'
 		return "$strict"
 	fi
+	data=$(pr_url_data "$task")
+	if [[ $(jq -r .state <<<"$data") != valid ]]; then
+		conflicts_check_line 未確認 不明 "$(jq -r .reason <<<"$data")"
+		return "$strict"
+	fi
+	pr_url=$(jq -r .url <<<"$data")
 	start=$(date +%s)
 	while :; do
 		# 共通の応答契約で読む。state・headRefOid・mergeable のどれかが欠けた応答は、「未確認」にする。
@@ -279,8 +326,15 @@ ci_handled() {
 
 ci_check() {
 	local issue=$1 id=$2 monitor_id=$3 orchestrator task thread pr_url pr checks failures head short comments body runs active names role name agent squad handoffs notice target selection_status
-	local mode=${4:-watch} trigger=${5-}
+	local mode=${4:-watch} trigger=${5-} data
 	task=$(squad_cli_read issue-get "$issue")
+	data=$(pr_url_data "$task")
+	if [[ $(jq -r .state <<<"$data") != valid ]]; then
+		if [[ $mode == now ]]; then jq -r .line <<<"$data"; return 0; fi
+		jq -r .reason <<<"$data" >&2
+		return 1
+	fi
+	pr_url=$(jq -r .url <<<"$data")
 	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
 	if [[ -z $thread ]]; then
 		if [[ $mode == now ]]; then
@@ -297,7 +351,6 @@ ci_check() {
 		return 0
 		;;
 	esac
-	pr_url=$(jq -er '.metadata.pr_url | select(. != null)' <<<"$task")
 	pr=$(squad_cli_read gh-pr-checks "$pr_url")
 	head=$(jq -er '.headRefOid | select(length > 0)' <<<"$pr")
 	short=${head:0:7}
@@ -437,14 +490,33 @@ unlinked_clear() {
 	done <<<"$ids"
 }
 
+
+# 同時登録でも、作成日時と ID の同じ順で 1 つを残す。
+unlinked_deduplicate() {
+	local issue=$1 rules ids id status
+	rules=$(squad_cli_read issue-wakeups "$issue") || return 1
+	ids=$(jq -r --arg mark "$UNLINKED_MARK" '[.[] | select((.instruction | split("\n")[0]) == $mark)]
+		| sort_by(.created_at, .id) | .[1:][] | .id' <<<"$rules") || return 1
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		if multica issue wakeup delete "$issue" "$id" --output json >/dev/null; then :; else
+			status=$?
+			# 同時に同じ余分な規則を消した場合の 404 だけは、整理済みとする。
+			((status == 4)) || return "$status"
+		fi
+	done <<<"$ids"
+}
+
 unlinked() {
-	local issue=$1 trigger=$2 monitor=${3-} leader=${MULTICA_AGENT_ID:-} target task thread instruction response expires
+	local issue=$1 trigger=$2 monitor=${3-} leader=${MULTICA_AGENT_ID:-} target task thread instruction response expires data
 	if [[ -z $leader ]]; then
 		echo 'MULTICA_AGENT_ID がありません。呼び出したリーダーを決められません。' >&2
 		return 1
 	fi
-	unlinked_clear "$issue"
 	task=$(squad_cli_read issue-get "$issue")
+	data=$(pr_url_data "$task")
+	if [[ $(jq -r .state <<<"$data") != valid ]]; then jq -r .line <<<"$data"; return 0; fi
+	unlinked_clear "$issue"
 	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
 	if [[ -z $thread ]]; then
 		thread=$trigger
@@ -456,7 +528,7 @@ unlinked() {
 	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
 	{
 		printf '%s\n' "$UNLINKED_MARK"
-		printf '次のコマンドで確認してください。0 以外で終わったときは、記録のスレッドへ失敗を書いてください。\n'
+		printf '次のコマンドで確認してください。0 以外で終わったときも、取得できた行を下の指示のとおり扱ってから、記録のスレッドへ失敗を書いてください。\n'
 		printf 'squad-pr-watch unlinked-check %q %q' "$issue" "$leader"
 		if [[ -n $monitor ]]; then printf ' %q' "$monitor"; fi
 		printf '\n'
@@ -465,6 +537,7 @@ unlinked() {
 		else
 			cat <<'EOF'
 紐付け: 食い違い の行があれば、両方の PR を示して人間を呼び、どちらが正かを決めるまでマージしないよう頼んでください。タスクは in_review のままにしてください。
+紐付け: 作業先と違う、紐付け: 不正な pr_url の行があれば、その行だけを添えて人間を呼び、タスクの画面で metadata の pr_url か repository を直してもらってください。元の値は写さず、修正するまでマージしないよう頼み、タスクは in_review のままにしてください。
 CI <SHA>: 失敗あり で始まり、保留でなければ、リーダーの「CI の失敗で起きたとき」と同じに扱ってください。
 コンフリクト: CONFLICTING で、知らせ: 書いた なら、リーダーの「起きたときの確認」に進んでください。
 それ以外は、行を /note の記録にして終えてください。
@@ -481,6 +554,7 @@ PY
 	)
 	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --kind every --every "$UNLINKED_INTERVAL" \
 		--expires-in "${UNLINKED_LIMIT_HOURS}h" --on-timeout end --max-fires "$UNLINKED_MAX_FIRES" --agent-id "$target" --parent "$thread")
+	unlinked_deduplicate "$issue"
 	jq '{id}' <<<"$response"
 	printf '見張り: 1 時間おき、%s まで\n' "$expires"
 	rm -f "$instruction"
@@ -522,17 +596,47 @@ unlinked_stop() {
 	ci_record "止めた: $2"
 }
 
+# 判定の行を安全な形で知らせ、同じ知らせを重ねずに自分の規則を消す。
+unlinked_link_stop() {
+	local issue=$1 leader=$2 monitor=$3 task=$4 link_line=$5 title=$6 thread comments prefix notice content
+	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
+	if [[ -z $thread ]]; then
+		echo 'metadata に ci_watch_thread がありません。マージ待ちの見張りを登録し直してください。' >&2
+		return 1
+	fi
+	comments=$(squad_cli_read issue-comments "$issue")
+	prefix="$title"$'\n'"$link_line"$'\n'
+	if ! unlinked_seen "$comments" "$prefix"; then
+		notice=$(unlinked_notice "$leader" "$monitor")
+		content=$(printf '%s' "$prefix"; if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi)
+		unlinked_post "$issue" "$thread" "$content"
+	fi
+	unlinked_clear "$issue"
+	ci_record "$link_line"
+}
+
 unlinked_check() {
-	local issue=$1 leader=$2 monitor=${3-} task pr_url pr thread link_line comments prefix notice content conflict_line head short result
+	local issue=$1 leader=$2 monitor=${3-} task pr_url pr thread link_line comments prefix notice content conflict_line head short result data
+	local status=0 ci_line
 	task=$(squad_cli_read issue-get "$issue")
 	case $(jq -r '.status_category' <<<"$task") in
 	done | cancelled) unlinked_stop "$issue" 'タスクが終わっている'; return 0 ;;
 	esac
-	pr_url=$(jq -er '.metadata.pr_url | select(. != null and length > 0)' <<<"$task")
-	pr=$(squad_cli_read gh-pr-mergeable "$pr_url")
-	case $(jq -r '.state' <<<"$pr") in
-	MERGED | CLOSED) unlinked_stop "$issue" 'PR がマージ済みか閉じている'; return 0 ;;
+	data=$(pr_url_data "$task")
+	case $(jq -r .state <<<"$data") in
+	foreign | invalid)
+		unlinked_link_stop "$issue" "$leader" "$monitor" "$task" "$(jq -r .line <<<"$data")" 'PR の URL を確認できませんでした。'
+		return 0 ;;
+	absent) echo 'metadata に pr_url がない' >&2; return 1 ;;
 	esac
+	pr_url=$(jq -r .url <<<"$data")
+	if pr=$(squad_cli_read gh-pr-mergeable "$pr_url"); then
+		case $(jq -r '.state' <<<"$pr") in
+		MERGED | CLOSED) unlinked_stop "$issue" 'PR がマージ済みか閉じている'; return 0 ;;
+		esac
+	else
+		status=$?
+	fi
 	if [[ $(jq -r '.status' <<<"$task") != in_review ]]; then
 		unlinked_stop "$issue" 'マージ待ちから外れている'
 		return 0
@@ -540,52 +644,50 @@ unlinked_check() {
 	link_line=$(link_check "$issue")
 	case $link_line in
 	'紐付け: 紐付いている '*) unlinked_stop "$issue" 'PR がタスクに紐付いた'; return 0 ;;
+	'紐付け: 食い違い '*)
+		unlinked_link_stop "$issue" "$leader" "$monitor" "$task" "$link_line" '紐付けの食い違いを検出しました。'
+		return 0 ;;
+	'紐付け: 作業先と違う '* | '紐付け: 不正な pr_url '*)
+		unlinked_link_stop "$issue" "$leader" "$monitor" "$task" "$link_line" 'PR の URL を確認できませんでした。'
+		return 0 ;;
 	esac
 	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
 	if [[ -z $thread ]]; then
 		echo 'metadata に ci_watch_thread がありません。マージ待ちの見張りを登録し直してください。' >&2
 		return 1
 	fi
-	case $link_line in
-	'紐付け: 食い違い '*)
-		comments=$(squad_cli_read issue-comments "$issue")
-		prefix=$'紐付けの食い違いを検出しました。\n'"$link_line"$'\n'
-		if ! unlinked_seen "$comments" "$prefix"; then
-			notice=$(unlinked_notice "$leader" "$monitor")
-			content=$(printf '%s' "$prefix"; if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi)
-			unlinked_post "$issue" "$thread" "$content"
-		fi
-		unlinked_clear "$issue"
-		ci_record "$link_line"
-		return 0
-		;;
-	esac
 	printf '/note\n'
 	if [[ $link_line == '紐付け: 未確認 '* ]]; then printf '%s\n' "$link_line"; fi
+	# 別プロセスで実行し、失敗を捕まえる条件式が ci_check の errexit を無効にしないようにする。
 	if [[ -n $monitor ]]; then
-		ci_check "$issue" "$leader" "$monitor" | sed '1{/^\/note$/d;}'
+		if ci_line=$(bash "$PR_WATCH_SCRIPT" ci-check "$issue" "$leader" "$monitor"); then :; else status=$?; fi
 	else
-		ci_check "$issue" "$leader" '' now "$thread" | sed '1{/^\/note$/d;}'
+		if ci_line=$(bash "$PR_WATCH_SCRIPT" ci-now "$issue" "$leader" "$thread"); then :; else status=$?; fi
 	fi
-	conflict_line=$(conflicts_check "$issue" 1)
-	result=なし
-	if [[ $conflict_line == 'コンフリクト: CONFLICTING head: '* ]]; then
-		head=${conflict_line#* head: }
-		head=${head%% *}
-		short=${head:0:7}
-		prefix="head: ${short}"$'\nコンフリクトを検出しました。\n'
-		comments=$(squad_cli_read issue-comments "$issue")
-		if unlinked_seen "$comments" "$prefix"; then
-			result=知らせ済み
-		else
-			notice=$(unlinked_notice "$leader" "$monitor")
-			content=$(printf '%s' "$prefix"; if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi
-				printf '\nPR: %s\n%s\n' "$pr_url" "$conflict_line")
-			unlinked_post "$issue" "$thread" "$content"
-			result=書いた
+	if [[ -n $ci_line ]]; then printf '%s\n' "$ci_line" | sed '1{/^\/note$/d;}'; fi
+	if conflict_line=$(conflicts_check "$issue" 1); then
+		result=なし
+		if [[ $conflict_line == 'コンフリクト: CONFLICTING head: '* ]]; then
+			head=${conflict_line#* head: }
+			head=${head%% *}
+			short=${head:0:7}
+			prefix="head: ${short}"$'\nコンフリクトを検出しました。\n'
+			comments=$(squad_cli_read issue-comments "$issue")
+			if unlinked_seen "$comments" "$prefix"; then
+				result=知らせ済み
+			else
+				notice=$(unlinked_notice "$leader" "$monitor")
+				content=$(printf '%s' "$prefix"; if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi
+					printf '\nPR: %s\n%s\n' "$pr_url" "$conflict_line")
+				unlinked_post "$issue" "$thread" "$content"
+				result=書いた
+			fi
 		fi
+		printf '%s 知らせ: %s\n' "$conflict_line" "$result"
+	else
+		status=$?
 	fi
-	printf '%s 知らせ: %s\n' "$conflict_line" "$result"
+	return "$status"
 }
 
 case ${1:-} in
