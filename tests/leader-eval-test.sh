@@ -167,6 +167,7 @@ link = command("squad-pr-watch link-check issue-shop-1")
 now = command("squad-pr-watch ci-now issue-shop-1 agent-orchestrator comment-3 agent-ci-monitor")
 conflicts = command("squad-pr-watch conflicts-check issue-shop-1")
 ci_watch = command("squad-pr-watch ci issue-shop-1 agent-ci-monitor comment-5")
+ci_wait = command("squad-pr-watch ci-wait issue-shop-1 agent-orchestrator comment-5")
 conflicts_watch = command("squad-pr-watch conflicts issue-shop-1 agent-orchestrator")
 review = command("squad-review-wait watch issue-shop-1 comment-3 agent-code-reviewer agent-qa")
 in_review = command("multica issue status issue-shop-1 in_review")
@@ -176,7 +177,7 @@ cases = {
     "keep-3": [link, post("mention://agent/agent-claude-implementer pr_url を補ってください")],
     "5-2": [link, now, conflicts, review, ask_review],
     "keep-17": [link, now, conflicts, review, ask_review],
-    "keep-18": [link, now, conflicts, ci_watch, conflicts_watch,
+    "keep-18": [link, conflicts, ci_watch, ci_wait, conflicts_watch,
                command("squad-pr-watch unlinked issue-shop-1 comment-5 agent-ci-monitor"),
                post("mention://member/member1 マージ後 done にしてください\n見張り: 1 時間おき、2026-01-13T10:00Z まで\n紐付けの失敗: 警告"), in_review],
     "keep-19": [link, human, in_review],
@@ -218,7 +219,10 @@ for n in range(17, 25):
         assert "紐付け: 食い違い " in state and urls and pr not in urls, id
 for id in ("5-2", "keep-17", "keep-18", "keep-22"):
     assert not passed(id, [c for c in cases[id] if c != conflicts]), (id, "コンフリクトの確認なし")
-    assert not passed(id, [c for c in cases[id] if "ci-now" not in c["command"]]), (id, "CI の確認なし")
+    check = "ci-wait" if id == "keep-18" else "ci-now"
+    assert not passed(id, [c for c in cases[id] if check not in c["command"]]), (id, "CI の確認なし")
+# 見張り役があるマージ前は ci-now を重ねない。
+assert not passed("keep-18", cases["keep-18"] + [now]), "keep-18 の ci-now"
 for id in ("keep-3", "keep-17", "keep-22"):
     assert not passed(id, cases[id] + [human]), (id, "紐付けだけで人間を呼ぶ")
 for id in ("keep-19", "keep-20", "keep-21", "keep-24"):

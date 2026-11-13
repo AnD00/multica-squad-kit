@@ -764,7 +764,7 @@ ci_wait_finish() {
 
 ci_wait() {
 	local issue=$1 leader=$2 trigger=$3 fired=${4:-} task head since now pass pr_url pr new_head checks failures state comments
-	local instruction response rule remaining key
+	local instruction response rule remaining key data
 	local limit=7200 interval=1800
 	task=$(squad_cli_read issue-get "$issue") || return 1
 	# 削除の直前に起動が決まっていた規則も、今の規則と違えば何もせず終える。
@@ -789,7 +789,18 @@ ci_wait() {
 		return 0
 		;;
 	esac
-	pr_url=$(jq -r '.metadata.pr_url | select(. != null)' <<<"$task")
+	# GitHub を読む前に検証し、規則を作ったあとの読み直しにも同じ正規形を使う。
+	data=$(pr_url_data "$task") || return 1
+	case $(jq -r .state <<<"$data") in
+	valid) pr_url=$(jq -r .url <<<"$data") ;;
+	absent) pr_url= ;;
+	*)
+		# 残した規則が 30 分後に起きて同じ理由で人間を呼ばないよう、待ちを消してから終える。
+		ci_wait_clear "$issue" "$task" >/dev/null || true
+		jq -r .reason <<<"$data" >&2
+		return 1
+		;;
+	esac
 	# 登録の直前に終わった CI は条件で起きないため、登録後にも必ず読む。
 	for pass in 1 2; do
 		now=$(date +%s)

@@ -555,7 +555,7 @@ for phrase in 'すべてのタスクで、人間へ回す直前に' '見る範�
 	grep -qF "$phrase" "$refs/leader-principal.md"
 done
 grep -qF '最終レビューの結果は数えない' "$refs/leader-principal.md"
-for phrase in 'ci-wait <タスク>' 'ci-wait-clear <タスク>' 'CI が読めなくても待つ' 'マージの依頼: <head の完全な SHA>' '依頼も状態変更もせず'; do
+for phrase in 'ci-wait <タスク>' 'ci-wait-clear <タスク>' 'CI が読めなくても待つ' 'マージの依頼: <head の完全な SHA>' '依頼も状態変更もせず' '読んだ `pr_url` を GitHub の前に検証し' '待ちの規則と metadata を消し'; do
 	grep -qF "$phrase" "$refs/leader-pr-checks.md"
 done
 # 共通 4 の付く条件と時機・4 回目の停止は維持し、リスクの説明を足す。
