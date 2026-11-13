@@ -88,7 +88,7 @@ for dir in "$test_dir/"*/; do
 	grep -qF 'in_review' "$file"
 	grep -qF 'ほかの役を呼ばない' "$file"
 	awk '/^## 場面と手順$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file" >"$test_dir/index"
-	for phrase in 'PR を受け取る' '返事を待つ回の開始' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確認するコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
+	for phrase in 'PR を受け取る' '返事を待つ回の前後' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確認するコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
 		grep -qF "$phrase" "$test_dir/index"
 	done
 	for ref in $(grep -oE 'leader-[a-z-]+\.md' "$test_dir/index" | sort -u); do
@@ -169,6 +169,10 @@ for dir in "$test_dir/"*/; do
 		if [[ $role == ci-monitor ]]; then
 			grep -qF -- '--content-file' "$test_dir/preflight"
 			grep -qF 'タスクの状態は、開始時の確認で止まるときだけ' "$file"
+			grep -qF '規則の指示の 1 行目が「紐付いていない PR のマージ待ちの見張りで起きました。」なら' "$file"
+			grep -qF 'squad-pr-watch unlinked-check <タスク> agent-orchestrator agent-ci-monitor' "$file"
+			grep -qF 'それ以外は `squad-pr-watch ci-check <タスク> agent-orchestrator agent-ci-monitor`' "$file"
+			grep -qF '標準出力をそのまま最後の返答にする' "$file"
 		else
 			grep -qF 'タスクのない実行は、オートパイロットの指示' "$test_dir/preflight"
 		fi
@@ -235,12 +239,42 @@ grep -qF '未確認' <<<"$state_section"
 grep -qF '「なし」' <<<"$state_section"
 echo 'PASS templates: 参照は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
 
-# PR の紐付けを確認する時機と、空のときの停止も、同じ確認を参照へ向ける。
+# 紐付けを区切りで判定し、空の一覧と読めない一覧を分ける。展開後のリーダーもこの手順へ向ける。
 link_section=$(awk '/^## PR の紐付けの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
-for phrase in 'multica issue pull-requests <タスク> --output json' 'PR を受け取ったとき' '人間のマージへ回す前' '返事を待つ回を始める前' '`pull_requests` が空なら' 'タスクの画面で PR の URL を紐付けてもらうよう頼んで止まる'; do
+for phrase in 'squad-pr-watch link-check <タスク>' 'PR を受け取ったとき' '人間のマージへ回す前' '返事を待つ回を始める前' '返事がそろったとき' 'ほかの理由で人間を呼ぶコメントを書くとき' '食い違いの知らせで起きたとき' '紐付いていないことだけでは' 'どちらが正か決めてもらう' '一覧の有無によらず' 'PR を作った役に `pr_url` を補ってもらう' '同じ実行で 1 回だけ流し直す' 'まだ未確認なら、先へ進めず' 'タスクを `in_review` にする' '終了コード 2' '127' 'セットアップを流し直して'; do
 	grep -qF "$phrase" <<<"$link_section"
 done
-echo 'PASS templates: 参照は PR の紐付けを 3 つの時点で確認し、空なら人間に頼んで止まる'
+! grep -qF 'multica issue pull-requests' <<<"$link_section"
+for dir in "$test_dir/"*/; do
+	[[ -f $dir/orchestrator ]] || continue
+	grep -qF '`link-check` で判定し、食い違いと未確認で止まる' "$dir/orchestrator"
+	grep -qF '返事を待つ回の前後' "$dir/orchestrator"
+	! grep -qF '空なら止まる' "$dir/orchestrator"
+done
+echo 'PASS templates: 全構成のリーダーは区切りで紐付けを判定し、空では進み、食い違い・未確認で止まる'
+
+now_section=$(awk '/^## 紐付いていない PR のその場の確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '見張り役の有無によらず' 'squad-pr-watch ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>]' 'あるときだけ渡す' 'squad-pr-watch conflicts-check <タスク>' '失敗は知らせ済み' '全部がそろうまで直しを頼まない' '同じワークフローの失敗と 2 回続いたコンフリクト'; do
+	grep -qF "$phrase" <<<"$now_section"
+done
+ci_section=$(awk '/^## CI$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '見張り役がなくても' 'squad-pr-watch ci-held <タスク>' '見張り役がない場合も省かない'; do
+	grep -qF "$phrase" <<<"$ci_section"
+done
+for phrase in 'squad-pr-watch unlinked <タスク> <きっかけのコメント> [<見張り役の ID>]' '紐付いているときは `unlinked` を流さない' '見張りなしでマージを頼み' 'セットアップを流し直して'; do
+	grep -qF "$phrase" <<<"$rearm_section"
+done
+echo 'PASS templates: 見張り役なしのCI確認と保留の取得、紐付いていないマージ待ちだけの定期確認を指示する'
+
+mismatch_section=$(awk '/^## 食い違いの知らせで起きたとき$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '`link-check` を流し直す' 'どちらが正かを決めるまでマージしないでほしい' '`in_review` のまま' '人間を呼ばず' '`unlinked` を登録し直す'; do
+	grep -qF "$phrase" <<<"$mismatch_section"
+done
+human_section=$(awk '/^## 人間を呼ぶコメントに添える行$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '紐付けの依頼だけのために人間を呼ばない' 'マージのあとにタスクを `done` にしてほしい' 'タスクの画面の PR の欄で `<URL>` を紐付けてください' '`見張り:` の行' '`紐付けの失敗:` の段落' '空行の前までそのまま添える' '更新前の引き継ぎの先頭'; do
+	grep -qF "$phrase" <<<"$human_section"
+done
+echo 'PASS templates: 食い違いは再確認し、人間を呼ぶ別のコメントへ紐付けの依頼と警告をまとめる'
 
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
@@ -363,10 +397,13 @@ grep -qF '呼ぶ前に metadata の `pr_url` を書かない' "$test_dir/pr-link
 grep -qF '終了コードが 0 なら、metadata の `pr_url` はスクリプトが書いたので、`branch` だけを置く' "$test_dir/pr-link-procedure"
 grep -qF '0 以外なら、止まらずに `branch` と `pr_url` を自分で置く' "$test_dir/pr-link-procedure"
 grep -qF 'コマンドが見つからないとき（終了コード 127）も同じに扱う' "$test_dir/pr-link-procedure"
-grep -qF '失敗したときは、引き継ぎのコメントの先頭、結論の行のすぐ次の行に「PR をタスクに紐付けられなかったので、タスクの画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
-grep -qF '人間への依頼として扱い' "$test_dir/pr-link-procedure"
-grep -qF '標準エラーの警告の文も、そのまま写す' "$test_dir/pr-link-procedure"
-grep -qF '404 で待ち切れたときの連携の案内を、人間に届けるため' "$test_dir/pr-link-procedure"
+grep -qF '引き継ぎの先頭にも依頼を書かない' "$test_dir/pr-link-procedure"
+grep -qF '成果物の PR の URL のすぐ下に' "$test_dir/pr-link-procedure"
+grep -qF '紐付けの失敗: <標準エラーの警告の 1 行目>' "$test_dir/pr-link-procedure"
+grep -qF '<標準エラーの警告の 2 行目（あるときだけ）>' "$test_dir/pr-link-procedure"
+grep -qF '空行の前までとし、警告の文をそのまま写す' "$test_dir/pr-link-procedure"
+grep -qF '404 で待ち切れたときの連携の案内' "$test_dir/pr-link-procedure"
+! grep -qF '先頭、結論の行のすぐ次の行に' "$test_dir/pr-link-procedure"
 grep -qF '`pr_url` があると、紐付けずに飛ばすため' "$test_dir/pr-link-procedure"
 ! grep -qF '紐付け済みとして飛ばす' "$test_dir/pr-link-procedure"
 grep -qF 'スクリプトを呼ぶのは PR を作った直後の 1 回だけにする' "$test_dir/pr-link-procedure"
@@ -468,10 +505,10 @@ for phrase in 'squad-pr-watch conflicts-check' '起きたときの確認' '返�
 done
 echo 'PASS templates: 起きたときの確認は、実行の長さとコンフリクトを見て、動いている PR に修正の役を重ねない'
 
-for phrase in 'multica issue pull-requests <タスク>' '紐付けていません:' 'ワークスペースの設定のコードの画面' '警告の文を、そのまま添える' '`squad-pr-link` は、PR を作った直後の 1 回だけ'; do
+for phrase in 'squad-pr-watch link-check <タスク>' '紐付けていません:' 'ワークスペースの設定のコードの画面' 'そのまま添える' '`squad-pr-link` は、PR を作った直後の 1 回だけ'; do
 	grep -qF -- "$phrase" "$refs/leader-pr-checks.md"
 done
-echo 'PASS templates: PR の紐付けの参照は、一覧で確認し、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
+echo 'PASS templates: PR の紐付けの参照は、判定コマンドを使い、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
 
 for phrase in 'squad-dispatch-pick implement' 'squad-dispatch-pick fix' 'squad-usage-read'; do
 	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
