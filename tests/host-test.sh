@@ -90,13 +90,16 @@ mktemp() {
  case $path in */claude-auth.*) printf '%s\n' "$path" >>"${TEMPLATE_DAEMON_ID_FILE%/*}/auth-work" ;; esac
  printf '%s\n' "$path"
 }
-python3() {
- if [[ ${TEST_AUTH_READER_FAIL:-no} == yes && ${2:-} == */claude-auth.*/stdout ]]; then
-  echo 'reader exception: private-reader-value' >&2
-  return 1
- fi
- builtin command python3 "$@"
-}
+if [[ ${TEST_AUTH_READER_FAIL:-no} == yes ]]; then
+ test_python=$(type -P python3)
+ python3() {
+  if [[ ${2:-} == */claude-auth.*/stdout ]]; then
+   echo 'reader exception: private-reader-value' >&2
+   return 1
+  fi
+  "$test_python" "$@"
+ }
+fi
 if [[ ${TEST_HOST_STEPS:-no} == yes ]]; then
  ui_init
  ui_steps_begin err 2 'ホストを準備'
