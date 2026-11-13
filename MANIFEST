@@ -5,7 +5,6 @@ e26217d9263a7ee07305e8624b87471bdf97acb3c4695c0046804fd6ffeb837a  ./.agents/rule
 976399e6c37a344a38dea1d4704011f10b7f28d2c97340f9a33fd0832a162177  ./.github/dependabot.yml
 59fec49c0aeec5c11d50c47094d5f3f984f141d9a9f18f1243fb82d2b61a59cf  ./.github/pull_request_template.md
 307384c3e014d3337f38bef72c00ffa39ccb9d39fdeb567be5175f8655341cb8  ./.github/workflows/check.yml
-858be413a3f3cf0119d8f7a37793183bc1bb93e8f0ad1c98ca04ad67819173f8  ./.github/workflows/measure-tests.yml
 752d794e4f743c4f713def62c4bea75af747856c96ddf4c6f83caf3aefb0c495  ./.github/workflows/private-terms.yml
 84c6d113ac418d9812edad92f27dfe8af5a645de6e5bf5914af361ffca807aeb  ./.github/workflows/release-assets.yml
 2a8b8daabebe323f6e4fd5a2350ae5aa764cbfbfb7fe4c561aa8eeaa76ba0c94  ./.github/workflows/scan.yml
@@ -66,7 +65,7 @@ a5b64c07c704e17ec1aae614354e9fa5aed633afbd3f1ff06d56683e1ab5accb  ./common/squad
 e627a7f4d99d5cd1309125d01a5b1eeb5c42461be722b3a27019d53013dc27bd  ./docs/agent-path.md
 495dd20add8952a3ef0301fd0624f63a7225f4b601760abb246fd64bc174ace5  ./docs/asset-names.md
 96cc34f645a600b1828a2c9788d3007620bb381638d8baae14c585052dd4e80c  ./docs/attach-images.md
-d60db31691c3547a090ffcc09a4c7dc28d130e11117d23db42859ec848eb0e74  ./docs/ci.md
+b231cc33f3383147e90f429126920c19f517d437ef31a3acdd5760b447742d08  ./docs/ci.md
 ac13fa5e1b6432de8245bee6baad647233c1397040116359e86320c37547b613  ./docs/conflict-resolution.md
 ce182a70f89defd4407cb96f91446ef5352ba94006292a862eb436132f548fb9  ./docs/gh-gate-path.md
 aeb3a3f8a67f0cb232bda5477deac063518fb6d8b1e7a40409789d77d3b1dda4  ./docs/install.md
@@ -264,7 +263,6 @@ b26ad1bace5e41343882f4f60ec977e116e4c146f5cac3e1caf64b3b9bcdc679  ./tests/leader
 f3a6d60757b256592e9a1a6d21072d8e4d8026b76c25c16891992584a618f520  ./tests/leader-eval/values.json
 d1b3a1d4027607320e238396168780d67a30fc4186503b288fe05076d80f1955  ./tests/link-scope-questions-test.sh
 72f6c63084712a16f9f22c5b9113c058b0214f6a237f9c00d932ac820c423cd4  ./tests/manual-test.sh
-e96881e9439664e702932fad7e464865ae0b72b87aae04d98a329d7f73b5b6ad  ./tests/measure-tests.sh
 56f7b274ee6196f7e0d83ee60a4f8c6f60762c9c8d3aa10cd5fec96576e65cc7  ./tests/metrics-cli-fixture.py
 c59222069df2b879058b439d8f50184cb36cce5a3755327b813d6394b9eb8c0f  ./tests/metrics-collect-check.py
 ba0be47c5fd291d15c3bf07604c4cd59bf02519cc45a8f986ce391472c0a31c3  ./tests/metrics-collect-test.sh
