@@ -58,13 +58,14 @@ a34bcef70bf5c463a54ff6ba4611615389ace3f6d45d781356432a084c5eaa39  ./common/skill
 c0589ea3137393b59c5b266cf98bfb12dd59af53040f95b550455c490cc03af5  ./common/skills/squad-handoff/references/leader-review-wait.md
 1fbf8b4c9e9af6be1a00070f26a5e872b34f3505fa89ca054a32fd7aa1754ff5  ./common/skills/squad-handoff/references/leader-run-status.md
 a5b64c07c704e17ec1aae614354e9fa5aed633afbd3f1ff06d56683e1ab5accb  ./common/squad.md
+79b6be5acaeb98ccf85b580ef875b886b7cfde4186f401cf623da8397351caa1  ./docs/agent-login-check.md
 e627a7f4d99d5cd1309125d01a5b1eeb5c42461be722b3a27019d53013dc27bd  ./docs/agent-path.md
 495dd20add8952a3ef0301fd0624f63a7225f4b601760abb246fd64bc174ace5  ./docs/asset-names.md
 96cc34f645a600b1828a2c9788d3007620bb381638d8baae14c585052dd4e80c  ./docs/attach-images.md
 b6c8cca1e45333b4a7361fe3f1118aaa65ad1bf829323758bfebcc21af1e5552  ./docs/ci.md
 ac13fa5e1b6432de8245bee6baad647233c1397040116359e86320c37547b613  ./docs/conflict-resolution.md
 ce182a70f89defd4407cb96f91446ef5352ba94006292a862eb436132f548fb9  ./docs/gh-gate-path.md
-2430eebd4cd3fd1f196003c63f24aa4257325b7f931adc589de0ae1ff4409724  ./docs/install.md
+aeb3a3f8a67f0cb232bda5477deac063518fb6d8b1e7a40409789d77d3b1dda4  ./docs/install.md
 d9a39f16243c0e79c8bbdfcc7022179bfe87be6432dc913b311dfb52be14e63b  ./docs/leader-principles.md
 79d2361813713fab0f60af8f6e70150209ec5eaffed0065f66ffa60f0f36ee41  ./docs/local-verification.md
 4302bd41f8ed514c66b20b73d68adf89dc014628fabda7b26df3f80ceebe301b  ./docs/metrics.md
@@ -86,7 +87,7 @@ fe3a4bb1f7b8b60cc2f5c851aa9dfafeb5f9fe85b8df1a52e3357044cda1ff1e  ./lib/answers.
 5c20dd328dac9d1ac26d86ab62a2b9d81438f17f073fcaa67dc9be18cf632e70  ./lib/check.sh
 49c5a7c08563616004b4c402fc31331af6a3f9dc049ab6d8518bb79f5f31b908  ./lib/extensions.py
 02f47b73bb0b445cbe414436304769665a1c118a6cbc550b3cb4d951383d54f1  ./lib/extensions.sh
-8dd4e1c3cc1a2ee51e5f8130ee52cbc20c34396ce09da292a4ea0224fea616ac  ./lib/host.sh
+7ff8e36cab26a014deb16eda9f92b2baa699fb62e281e418e6986e6acf2d40ac  ./lib/host.sh
 b21d251d024c90a5f08e29db547d71c606b3d97533b14df4e381c62e2f88ac0b  ./lib/installation.sh
 26a0f2612c0a7c2de8f220f2b87c2fca6994f8024f64cd865ad0d67ccd9dcac3  ./lib/project-changes.sh
 2671146f86c681c2c90662b871ba4c30aa1c6c2b4fc60a813c60a38e33ea861f  ./lib/project.sh
@@ -98,7 +99,7 @@ ceadc480d4d92cc5791f339ca1b466c9c9a446e6c56253ec414c3d44641df6ec  ./lib/ui.sh
 37e06154d514452e9668b53d9e88cdc9ae49b6ab4d23965ee6cfb9ff836e54bf  ./lib/version.sh
 9c54ee69dce5fdd402b8fc470091d19f01361de509084ff53443ffe70de50164  ./lib/webhooks.sh
 a5266ab6bfd01aab4c8744777b707d510d1cd38b1a7761be916ad2ce2f61f9b4  ./lib/workspace.sh
-cc37d51a58ab9c36f5169dd85bcc6e4ed88364880e988f47836f589bdb5833fb  ./manual.md
+4e21832c62bb59ec638ff988a0a99d92a06e99e3c1edad4a8d139a15aea961c2  ./manual.md
 633f1030aafe88149effa1a7c3d64247fd6100f682ffbaae2c212d44b443a538  ./scripts/build-assets.sh
 5502cd894d01488bcf22a4d332d3f8b87271923e2e05fd72e8a50bb847b774e2  ./scripts/check.sh
 a97c308a2137903013f686ad34a0658d1fb6cfb166bcb31902372b2b64718e73  ./scripts/ci-install.sh
@@ -198,7 +199,7 @@ c04d7621b21d3ad8dca222219ef9de610463c0b4c0725ab6a53f0dba59ae1d84  ./tests/fixtur
 cb32fbb9435532a6d2c67e2adee5b864b4498eb2cd781a373e4ef3fa624c3a42  ./tests/gh-test.sh
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
 868e6e1a8a128a759c3c725bcbcf8a969dc6b371ca04eab692e94bb85e496900  ./tests/guard-check-test.sh
-7f054ed7a24b103e5f861b10a51f722cd39cb4753653c7205d6d17e551429d95  ./tests/host-test.sh
+33e3cecf928e2f9c4e9ec5e625458398839960752d3dc9b1f05249238adc2cd8  ./tests/host-test.sh
 572745a962e36bd2c52c1b420c614bfd2e1e11b1b3c692c1cb15379c3d0aedd4  ./tests/install-command-test.sh
 f7bdab38a415c2f1b4311099efce191ff9ce35c17871e8fd4cce605b21ebd00b  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py

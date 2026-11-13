@@ -51,8 +51,74 @@ host_gate_summary() {
 	printf '%s' "$summary"
 }
 
+# 最初の JSON の値と終了コードで、ログイン切れと確認そのものの失敗を分ける。
+host_check_claude_auth() {
+	local work state diagnosis result=0
+	mkdir -p "$root/tmp" || die 'ログインの確認の作業場所を作れませんでした。'
+	work=$(mktemp -d "$root/tmp/claude-auth.XXXXXX") || die 'ログインの確認の作業場所を作れませんでした。'
+	CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status </dev/null >"$work/stdout" 2>"$work/stderr" || result=$?
+	if ! diagnosis=$(python3 - "$work/stdout" "$work/stderr" "$result" 2>/dev/null <<'PY'
+import json
+import sys
+from pathlib import Path
+
+stdout = Path(sys.argv[1]).read_bytes()
+stderr = Path(sys.argv[2]).read_bytes()
+result = int(sys.argv[3])
+text = stdout.decode("utf-8", errors="replace").lstrip(" \t\r\n")
+state = "unknown"
+if not text:
+    first = "空"
+else:
+    try:
+        value, _ = json.JSONDecoder().raw_decode(text)
+    except ValueError:
+        first = "JSON として読めない"
+    else:
+        if not isinstance(value, dict):
+            first = "オブジェクトでない"
+        elif type(value.get("loggedIn")) is not bool:
+            first = "loggedIn が真偽値でない"
+        else:
+            state = "true" if value["loggedIn"] else "false"
+            first = "loggedIn が " + state
+
+if b"EINVAL" in stderr and b"kqueue" in stderr:
+    category = "Claude の CLI の既知の不具合（kqueue）"
+elif state == "true" and result != 0:
+    category = "CLI がログイン済みと答えたまま失敗した"
+else:
+    category = "CLI の出力を読めない（詳細は省略）"
+
+print(state)
+print("  診断（claude auth status）:")
+print("    分類: " + category)
+print("    終了コード: " + str(result))
+print("    標準出力の最初の値: " + first)
+print("    標準出力: " + ("あり（内容は省略）" if stdout else "なし"))
+print("    標準エラー: " + ("あり（内容は省略）" if stderr else "なし"))
+PY
+	); then
+		rm -rf -- "$work"
+		die 'Claude のログインの確認の出力を読めませんでした。'
+	fi
+	rm -rf -- "$work"
+	state=${diagnosis%%$'\n'*}
+	case $state:$result in
+	true:0) return 0 ;;
+	false:*)
+		die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+		;;
+	esac
+	# CLI の文字列は表示せず、固定の診断だけをエラーに続ける。
+	ui_phase_fail
+	ui_error "エージェント用の Claude のログインを確認できませんでした。ログインが切れているとは限りません。端末から CLAUDE_CONFIG_DIR=$agent_home/claude claude auth status を流して、ログインの状態を確認してから流し直してください。問い合わせるときは、下の診断の行だけを添えてください。"
+	printf '%s\n' "${diagnosis#*$'\n'}" >&2
+	exit 1
+}
+
 prepare_host() {
-	local file auth
+	local file
 	host_paths
 	check_runtime_tools || die '選んだランタイムを導入してから流し直してください。'
 	(umask 077; mkdir -p "$agent_home/claude" "$agent_home/codex" "$agent_home/bin" "$agent_home/git-hooks") || die 'ホストの置き場を作れませんでした。'
@@ -89,8 +155,7 @@ PY
 		fi
 	done
 	if uses_runtime claude; then
-		auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
-		jq -e 'type=="object" and .loggedIn==true' >/dev/null <<<"$auth" || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+		host_check_claude_auth
 	fi
 	if uses_runtime codex; then
 		CODEX_HOME="$agent_home/codex" codex login status >/dev/null 2>&1 || die "エージェント用の Codex にログインしてください: CODEX_HOME=$agent_home/codex codex login"
