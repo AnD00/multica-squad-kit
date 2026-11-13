@@ -51,6 +51,11 @@ if [[ -t 0 ]]; then
  exit 1
 fi
 printf 'notty\n' >"$base/claude-stdin"
+if [[ -n ${TEST_CLAUDE_STDOUT:-} ]]; then
+ cat "$TEST_CLAUDE_STDOUT"
+ cat "$TEST_CLAUDE_STDERR" >&2
+ exit "$TEST_CLAUDE_EXIT"
+fi
 if [[ -f $base/no-claude-auth ]]; then echo '{"loggedIn":false}'; else echo '{"loggedIn":true}'; fi
 STUB
 cat >"$test_dir/bin/codex" <<'STUB'
@@ -71,7 +76,7 @@ root=$1
 source "$root/lib/ui.sh"
 source "$root/lib/check.sh"
 source "$root/lib/host.sh"
-die() { printf '%s\n' "$*" >&2; exit 1; }
+die() { ui_phase_fail; ui_error "$*"; exit 1; }
 mc() { multica "$@"; }
 server_url=https://example.test
 runtimes=${TEST_RUNTIMES:-[\"claude\",\"codex\"]}
@@ -79,6 +84,17 @@ command() {
  if [[ $* == "-v ${TEST_MISSING_RUNTIME:-__none__}" ]]; then return 1; fi
  builtin command "$@"
 }
+mktemp() {
+ local path
+ path=$(builtin command mktemp "$@") || return
+ case $path in */claude-auth.*) printf '%s\n' "$path" >>"${TEMPLATE_DAEMON_ID_FILE%/*}/auth-work" ;; esac
+ printf '%s\n' "$path"
+}
+if [[ ${TEST_HOST_STEPS:-no} == yes ]]; then
+ ui_init
+ ui_steps_begin err 2 'ホストを準備'
+ ui_phase_start 1
+fi
 prepare_host
 RUN
 run() { /bin/bash "$test_dir/run.sh" "$root" >"$test_dir/out" 2>"$test_dir/err"; }
@@ -189,6 +205,102 @@ grep -q 'codex login' "$test_dir/err"
 [[ ! -s $test_dir/calls ]]
 rm "$test_dir/no-codex-auth"
 echo 'PASS host: 専用の認証がなければログインを案内し、デーモン操作をしない'
+# 最初の JSON の値と終了コードの組み合わせで、ログインの案内と確認失敗を分ける。
+(
+ export TEST_CLAUDE_STDOUT="$test_dir/auth-stdout" TEST_CLAUDE_STDERR="$test_dir/auth-stderr"
+ for auth_case in false0 false1 crash malformed missing string null array empty prefix true1 suffix stderr; do
+  printf '{"loggedIn":true}\n' >"$TEST_CLAUDE_STDOUT"
+  : >"$TEST_CLAUDE_STDERR"
+  export TEST_CLAUDE_EXIT=0
+  expected=failed
+  case $auth_case in
+  false0|false1)
+   printf '{"loggedIn":false}\n' >"$TEST_CLAUDE_STDOUT"
+   TEST_CLAUDE_EXIT=${auth_case#false}
+   expected=login
+   ;;
+  crash)
+   : >"$TEST_CLAUDE_STDOUT"
+   printf 'error: EINVAL: invalid argument, kqueue\n      at emitError (node:events:65:13)\nBun v1.4.4 (macOS arm64)\n' >"$TEST_CLAUDE_STDERR"
+   TEST_CLAUDE_EXIT=1
+   ;;
+  malformed) printf 'not JSON' >"$TEST_CLAUDE_STDOUT" ;;
+  missing) printf '{}' >"$TEST_CLAUDE_STDOUT" ;;
+  string) printf '{"loggedIn":"true"}' >"$TEST_CLAUDE_STDOUT" ;;
+  null) printf 'null' >"$TEST_CLAUDE_STDOUT" ;;
+  array) printf '[{"loggedIn":true}]' >"$TEST_CLAUDE_STDOUT" ;;
+  empty) : >"$TEST_CLAUDE_STDOUT" ;;
+  prefix) printf 'warning\n{"loggedIn":true}\n' >"$TEST_CLAUDE_STDOUT" ;;
+  true1) TEST_CLAUDE_EXIT=1 ;;
+  suffix) printf ' \n{"loggedIn":true}\n\033[?1l{"loggedIn":false}' >"$TEST_CLAUDE_STDOUT"; expected=pass ;;
+  stderr) printf 'warning from CLI\n' >"$TEST_CLAUDE_STDERR"; expected=pass ;;
+  esac
+  set_mode running
+  agent_env
+  rc=0
+  run || rc=$?
+  if [[ $expected == pass ]]; then
+   [[ $rc == 0 ]]
+   grep -qx 'daemon status --output json' "$test_dir/calls"
+   ! grep -qE 'ログインしてください|ログインを確かめられませんでした|warning from CLI' "$test_dir/err"
+  else
+   [[ $rc == 1 && ! -s $test_dir/calls ]]
+   [[ ! -s $test_dir/out ]]
+   if [[ $expected == login ]]; then
+    grep -qxF "エラー: エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$TEMPLATE_AGENT_HOME/claude claude" "$test_dir/err"
+    ! grep -q 'ログインを確かめられませんでした' "$test_dir/err"
+   else
+    ! grep -q 'ログインしてください' "$test_dir/err"
+    python3 - "$test_dir/err" "$TEST_CLAUDE_STDOUT" "$TEST_CLAUDE_STDERR" "$TEST_CLAUDE_EXIT" "$TEMPLATE_AGENT_HOME" <<'PY'
+from pathlib import Path
+import sys
+
+actual = Path(sys.argv[1]).read_text()
+message = f"エラー: エージェント用の Claude のログインを確かめられませんでした（claude auth status の終了コード {sys.argv[4]}）。ログインが切れているとは限りません。下の出力を確かめ、端末から CLAUDE_CONFIG_DIR={sys.argv[5]}/claude claude auth status を流して、ログインの状態を確かめてから流し直してください。\n"
+for label, path in (("標準出力", sys.argv[2]), ("標準エラー", sys.argv[3])):
+    data = Path(path).read_text()
+    message += f"  claude auth status の{label}:\n"
+    message += "".join("    " + line + "\n" for line in data.splitlines()) if data else "    （なし）\n"
+assert actual.endswith(message), actual
+PY
+   fi
+  fi
+  while IFS= read -r work; do [[ ! -e $work ]]; done <"$test_dir/auth-work"
+  echo "PASS host: Claude の確認 $auth_case は $expected に分け、出力と終了コードを扱い、一時ファイルを残さない"
+ done
+ # 作る間の一覧を使う場合も、失敗した手順、エラー、CLI の出力の順に出す。
+ : >"$TEST_CLAUDE_STDOUT"
+ printf 'CLI failure\n' >"$TEST_CLAUDE_STDERR"
+ export TEST_CLAUDE_EXIT=7 TEST_HOST_STEPS=yes
+ set_mode running
+ deny
+ [[ ! -s $test_dir/calls && ! -s $test_dir/out ]]
+ python3 - "$test_dir/err" <<'PY'
+from pathlib import Path
+import sys
+
+actual = Path(sys.argv[1]).read_text()
+assert actual.index("  ✖ ホストを準備") < actual.index("エラー: エージェント用の Claude のログインを確かめられませんでした") < actual.index("  claude auth status の標準出力:") < actual.index("  claude auth status の標準エラー:\n    CLI failure\n"), actual
+assert "終了コード 7" in actual and "ログインしてください" not in actual, actual
+PY
+ echo 'PASS host: 一覧を書き換えない画面も、手順の失敗、エラー、CLI の標準出力と標準エラーの順に出す'
+ env -u NO_COLOR TERM=xterm-256color python3 -I "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- \
+  /bin/bash -c '/bin/bash "$1" "$2"; printf "%s\n" "$?" >"$3"' -- "$test_dir/run.sh" "$root" "$test_dir/auth-exit"
+ grep -qx '1' "$test_dir/auth-exit"
+ [[ ! -s $test_dir/calls && ! -s $test_dir/out ]]
+ python3 - "$test_dir/err" <<'PY'
+from pathlib import Path
+import re
+import sys
+
+raw = Path(sys.argv[1]).read_text()
+assert re.search(r"\x1b\[\d+A", raw), raw
+actual = re.sub(r"\x1b\[[0-9;]*[A-Za-z]", "", raw).replace("\r", "")
+assert actual.index("  ✖ ホストを準備") < actual.index("エラー: エージェント用の Claude のログインを確かめられませんでした") < actual.index("  claude auth status の標準出力:") < actual.index("  claude auth status の標準エラー:\n    CLI failure\n"), actual
+assert "終了コード 7" in actual and "ログインしてください" not in actual, actual
+PY
+ echo 'PASS host: 一覧を書き換える端末でも、手順の失敗のあとにエラーと CLI の出力を出す'
+)
 for fail in 'daemon status --output json' 'runtime list --output json'; do
  set_mode running
  printf '%s\n' "$fail" >"$test_dir/fail"

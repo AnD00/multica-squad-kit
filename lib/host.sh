@@ -51,8 +51,56 @@ host_gate_summary() {
 	printf '%s' "$summary"
 }
 
+# 最初の JSON の値と終了コードで、ログイン切れと確認そのものの失敗を分ける。
+host_check_claude_auth() {
+	local work state result=0 stream label line
+	mkdir -p "$root/tmp" || die 'ログインの確認の作業場所を作れませんでした。'
+	work=$(mktemp -d "$root/tmp/claude-auth.XXXXXX") || die 'ログインの確認の作業場所を作れませんでした。'
+	CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status </dev/null >"$work/stdout" 2>"$work/stderr" || result=$?
+	if ! state=$(python3 - "$work/stdout" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+try:
+    text = Path(sys.argv[1]).read_text()
+    value, _ = json.JSONDecoder().raw_decode(text.lstrip(" \t\r\n"))
+except (OSError, UnicodeError, ValueError):
+    value = None
+if isinstance(value, dict) and type(value.get("loggedIn")) is bool:
+    print("true" if value["loggedIn"] else "false")
+else:
+    print("unknown")
+PY
+	); then
+		rm -rf -- "$work"
+		die 'Claude のログインの確認の出力を読めませんでした。'
+	fi
+	case $state:$result in
+	true:0) rm -rf -- "$work"; return 0 ;;
+	false:*)
+		rm -rf -- "$work"
+		die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+		;;
+	esac
+	# die は終了するため、同じ表示の部品でエラーを出してから CLI の出力を続ける。
+	ui_phase_fail
+	ui_error "エージェント用の Claude のログインを確かめられませんでした（claude auth status の終了コード ${result}）。ログインが切れているとは限りません。下の出力を確かめ、端末から CLAUDE_CONFIG_DIR=$agent_home/claude claude auth status を流して、ログインの状態を確かめてから流し直してください。"
+	for stream in stdout stderr; do
+		if [[ $stream == stdout ]]; then label=標準出力; else label=標準エラー; fi
+		printf '  claude auth status の%s:\n' "$label" >&2
+		if [[ -s $work/$stream ]]; then
+			while IFS= read -r line || [[ -n $line ]]; do printf '    %s\n' "$line" >&2; done <"$work/$stream"
+		else
+			printf '    （なし）\n' >&2
+		fi
+	done
+	rm -rf -- "$work"
+	exit 1
+}
+
 prepare_host() {
-	local file auth
+	local file
 	host_paths
 	check_runtime_tools || die '選んだランタイムを導入してから流し直してください。'
 	(umask 077; mkdir -p "$agent_home/claude" "$agent_home/codex" "$agent_home/bin" "$agent_home/git-hooks") || die 'ホストの置き場を作れませんでした。'
@@ -89,8 +137,7 @@ PY
 		fi
 	done
 	if uses_runtime claude; then
-		auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status </dev/null) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
-		jq -e 'type=="object" and .loggedIn==true' >/dev/null <<<"$auth" || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+		host_check_claude_auth
 	fi
 	if uses_runtime codex; then
 		CODEX_HOME="$agent_home/codex" codex login status >/dev/null 2>&1 || die "エージェント用の Codex にログインしてください: CODEX_HOME=$agent_home/codex codex login"
