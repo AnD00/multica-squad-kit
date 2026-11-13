@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # scripts/release.sh の動きのうち、すでにあるタグと Release の状態、各手順の失敗と流し直し、公開の前の確かめの失敗、引数を確かめる。
-# 準備と補助は tests/release-test-lib.sh、承認・拒否と確かめで止まるケースは tests/release-test.sh にある。
+# 準備と補助は tests/release-test-lib.sh、承認・拒否とタグと Release が揃った状態からの続きは tests/release-test.sh、確かめで止まるケースは tests/release-check-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/release-test-lib.sh"
