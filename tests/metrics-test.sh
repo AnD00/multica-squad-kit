@@ -5,6 +5,10 @@ mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/metrics.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 
+python3 "$root/tests/metrics-traces-check.py" "$root" "$test_dir"
+cmp "$test_dir/trace-first/traces.json" "$test_dir/trace-second/traces.json"
+cmp "$test_dir/trace-first/traces.md" "$test_dir/trace-second/traces.md"
+
 # These are normalized, synthetic snapshots, not fabricated CLI responses.
 fixture="$root/tests/fixtures/metrics/snapshot.json"
 plan="$root/tests/fixtures/metrics/plan.json"

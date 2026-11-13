@@ -98,6 +98,22 @@
 
 一覧は、手順の ID の順に並べ、手順ごとに、ファイル、節、目印、跡、20 件での回数、判定、守る手順の分類、足したコミットを並べる。同じスナップショット、跡の定義、元のコミットから流すと、1 バイトも違わない一覧が出る。
 
+### 実装した集計と一覧の入力
+
+集計と判定の一覧は、次のコマンドで作る。スナップショットと跡の定義だけを読み、Multica の記録は読み直さない。
+
+```bash
+python3 scripts/metrics.py traces tmp/metrics/snapshot.json \
+  --traces tmp/metrics/procedures.json --project-key example --member-key anonymous \
+  --output tmp/metrics/traces
+```
+
+跡の定義の各項目には、`id` と `trace` に加え、`file`（ファイル）、`section`（節）、`marker`（目印）を空でない文字列で書く。守る手順には `protection` を付け、秘密は `secrets`、書き込み先の制限は `write_scope`、関所は `gate`、取り消せない操作は `irreversible` とする。説明だけの節は、`not_procedure: true` と `trace: null` にする。
+
+状態の変化の跡は `kind: "transition"` と `from_status`・`to_status`、実行の跡は `kind: "run"` と `role`・`status` で照合する。実行の `role` は `--project-key` と `--member-key` から役の名前を読む規則に従い、一致しない名前は「その他」として指定できる。コメントは本文を再照合せず、保存済みの `trace_matches` を数える。
+
+出力は `traces.json` と `traces.md` で、入力のハッシュと使った値、選んだタスク、手順の ID の順の一覧を残す。跡を決められない行の回数は JSON では `null`、Markdown では「未確認」とし、0 回と区別する。合成した入力は `tests/fixtures/metrics/trace-procedures.json` と `trace-snapshot.json` にある。
+
 ### 判定のスクリプトの置き場所
 
 判定は、`scripts/metrics.py` に `traces` の手順を足して行う。`collect` と同じスナップショットを読み、`count` と同じ決定的な書き方で出すためである。跡の定義を読むのも `collect` と `traces` の 2 つで、置き場所をそろえる。
