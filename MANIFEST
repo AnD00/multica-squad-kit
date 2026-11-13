@@ -27,7 +27,7 @@ b094346d398b71ead5dfa83633c0ff6cf65efc5bd0c4429d33fd38b63a5df4bf  ./common/agent
 7942169f14e68427a4a81a3a1124264a2f7338f7574558c23ba412119cf2e82f  ./common/agents/codex-implementer.md
 a2d3cd261c36dec2c40c81e38021c2a153eb7248392438308cbf5af0db4dc1e2  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
-11bc2ac5c7a1f009867c727d79b6383e6f492a4fb0246d6990988ba8f15a583c  ./common/agents/designer.md
+45ea02ccadbadebc523acee0e8577cf3d91c178cd112396d1a35976e0153f6f6  ./common/agents/designer.md
 6746d5579a198e674b8210a2e62881a69a0d3e90aa65ffbf338ef4136bae966d  ./common/agents/orchestrator.md
 d39bbc7902468a54a6cf37da73e1b646fcaa7a44da88179cc30e2cf3348c1cc7  ./common/agents/performance-reviewer.md
 814f53e1c1e8038b4190fd12c55093515d93baa9fa92f527ffcbfeda27e5e3c5  ./common/agents/planner.md
