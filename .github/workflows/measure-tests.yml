@@ -21,6 +21,8 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Install missing tools
+        env:
+          CI_INSTALL_CACHE_DIR: ${{ runner.temp }}/ci-install-cache
         run: bash scripts/ci-install.sh "$RUNNER_OS"
       - name: Measure
         env:
