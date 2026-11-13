@@ -108,6 +108,31 @@ squad_cli_contracts() {
         }
       ]
     },
+    "issue-pull-requests": {
+      "command": ["multica", "issue", "pull-requests", "{issue}", "--output", "json"],
+      "shape": "object",
+      "fields": [
+        {"path": "pull_requests", "class": "required", "nullable": false}
+      ],
+      "items": {
+        "path": ["pull_requests"],
+        "fields": [
+          {"path": "html_url", "class": "required", "nullable": false}
+        ]
+      },
+      "samples": [
+        {
+          "name": "empty",
+          "scope": "response",
+          "where": ".pull_requests | length == 0"
+        },
+        {
+          "name": "element",
+          "where": "has(\"html_url\")",
+          "unavailable": "2026-11-13 時点で、このワークスペースに紐付いた PR を持つタスクがなく、要素の見本を取れなかった。紐付いたタスクができたら取り直す。"
+        }
+      ]
+    },
     "issue-comments": {
       "command": [
         "multica",

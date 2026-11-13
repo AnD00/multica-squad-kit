@@ -124,6 +124,24 @@ _, coverage, missing = capture['select_samples']([], entries['gh-pr-checks'])
 assert missing == ['CheckRun']
 assert coverage[1]['count'] == 0 and coverage[1]['unavailable']
 print('PASS select: 見本なしの形を、採取漏れと分ける')
+
+# 空の一覧は応答全体から選び、要素の見本なしと分ける。採取も約束のコマンドを使う。
+response = json.loads((fixtures / 'issue-pull-requests.json').read_text())
+selected, coverage, missing = capture['select_samples'](response, entries['issue-pull-requests'])
+assert selected == response and not missing
+assert coverage[0] == {'name': 'empty', 'count': 1}
+assert coverage[1]['count'] == 0 and coverage[1]['unavailable']
+commands = []
+def pr_command(command):
+    commands.append(command)
+    if command[:3] == ['multica', 'issue', 'get']:
+        return {'id': 'fixture-issue', 'identifier': 'FIX-1'}
+    assert command == ['multica', 'issue', 'pull-requests', 'fixture-issue', '--output', 'json']
+    return response[0]
+with patch.dict(capture['capture'].__globals__, {'command_json': pr_command}):
+    result = capture['capture'](['fixture-issue'], {'issue-pull-requests': entries['issue-pull-requests']}, None)
+assert result == {'issue-pull-requests': response} and len(commands) == 2
+print('PASS capture PR: 空の一覧を保存し、要素の見本なしを知らせ、約束から読み取りを組み立てる')
 # GitHub の採取は読み取りのコマンドだけ。自由文・人の login・URL を残さない。
 gh = runpy.run_path('tests/capture-gh-fixtures.py')
 assert gh['read_only'](['gh','api','repos/example/public/pulls','--paginate'])

@@ -3,6 +3,9 @@
 # PR のコンフリクトと CI の結果を、タスクの wakeup で拾う。
 # 人間に回すたびに 1 回きりの規則を入れ直し、すでにあるコンフリクトも次の確認で拾う。
 #
+#   squad-pr-watch link-check <タスク>
+#     metadata の pr_url と紐付いた PR の一覧を比べ、紐付けの状態を 1 行で出す。書き込まない。
+#     読めないときも「未確認」の行を出し、0 で終わる。
 #   squad-pr-watch conflicts <タスク>
 #     古いコンフリクトの規則を消し、呼び出した orchestrator 自身を起こす規則を作る。
 #   squad-pr-watch conflicts-check <タスク>
@@ -19,7 +22,7 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
 
 usage() {
-	echo '使い方: squad-pr-watch conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
+	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
 	exit 2
 }
 
@@ -33,6 +36,55 @@ require_commands() {
 	done
 }
 
+
+link_check() {
+	local issue=$1 cmd task pr_url prs
+	for cmd in jq python3 multica; do
+		if ! command -v "$cmd" >/dev/null 2>&1; then
+			printf '紐付け: 未確認 pr: 不明 理由: %s が見つからない\n' "$cmd"
+			return 0
+		fi
+	done
+	if ! task=$(squad_cli_read issue-get "$issue") \
+		|| ! pr_url=$(jq -r '.metadata.pr_url | if . == null then "" elif type == "string" then . else error("pr_url が文字列でない") end' <<<"$task"); then
+		echo '紐付け: 未確認 pr: 不明 理由: タスクを読めない（CLI の失敗か欄の不正）'
+		return 0
+	fi
+	if ! prs=$(squad_cli_read issue-pull-requests "$issue"); then
+		printf '紐付け: 未確認 pr: %s 理由: 紐付いた PR の一覧を読めない（CLI の失敗か欄の不正）\n' "${pr_url:-不明}"
+		return 0
+	fi
+	python3 - "$pr_url" "$prs" <<'PY'
+import json
+import re
+import sys
+from urllib.parse import urlsplit
+
+pr_url = sys.argv[1]
+urls = [item["html_url"] for item in json.loads(sys.argv[2])["pull_requests"]]
+
+def identity(url):
+    parsed = urlsplit(url)
+    match = re.match(r"^/([^/]+)/([^/]+)/pull/([0-9]+)(?:/|$)", parsed.path)
+    if parsed.scheme.lower() not in ("http", "https") or parsed.netloc.lower() != "github.com" or not match:
+        raise ValueError("PR の URL を判定できない")
+    owner, repo, number = match.groups()
+    return owner.casefold(), repo.casefold(), int(number)
+
+try:
+    linked = [identity(url) for url in urls]
+    if not pr_url:
+        print("紐付け: pr_url なし pr: 不明" + (" 紐付いた PR: " + ", ".join(urls) if urls else ""))
+    elif identity(pr_url) in linked:
+        print("紐付け: 紐付いている pr: " + pr_url)
+    elif not urls:
+        print("紐付け: 紐付いていない pr: " + pr_url)
+    else:
+        print("紐付け: 食い違い pr: " + pr_url + " 紐付いた PR: " + ", ".join(urls))
+except (TypeError, ValueError, AttributeError):
+    print("紐付け: 未確認 pr: " + (pr_url or "不明") + " 理由: PR の URL を判定できない")
+PY
+}
 
 conflicts() {
 	local issue=$1 rules ids id instruction response
@@ -346,6 +398,10 @@ ci_held() {
 }
 
 case ${1:-} in
+link-check)
+	(($# == 2)) || usage
+	link_check "$2"
+	;;
 conflicts)
 	(($# == 2)) || usage
 	require_commands jq python3 multica
