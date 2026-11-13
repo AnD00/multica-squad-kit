@@ -1,6 +1,7 @@
 """Exercise collect through cli-stub.py, with cases derived from real CLI fixtures."""
 
 import copy
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -67,9 +68,9 @@ def make_case(name):
     return work
 
 
-def run_collect(work):
+def run_collect(work, *arguments):
     return subprocess.run([sys.executable, str(SCRIPT), "collect", "--project", "synthetic-project",
-                           "--output", str(work / "snapshot.json")],
+                           "--output", str(work / "snapshot.json"), *arguments],
                           env={**os.environ, "METRICS_TEST_WORK": str(work)},
                           capture_output=True, text=True, timeout=120)
 
@@ -88,6 +89,8 @@ assert snapshot["transitions"][0]["to_status"] == "in_review"
 assert all(row["member_mentions"] == ["human-one", "human-two"] for row in snapshot["comments"])
 assert snapshot["agents"] == [{"id": "synthetic-agent", "name": "example-codex-fixer-member"}]
 assert all("content" not in row for row in snapshot["comments"])
+assert "trace_definitions_sha256" not in snapshot
+assert all("trace_matches" not in row for row in snapshot["comments"])
 assert "PRIVATE-" not in (positive / "snapshot.json").read_text()
 assert sorted(len(row["usage"]) for row in snapshot["runs"]) == [0, 1]
 calls = [json.loads(line) for line in (positive / "calls").read_text().splitlines()]
@@ -139,6 +142,58 @@ first.pop("collected_at")
 second.pop("collected_at")
 assert first == second
 print("PASS collect: 読んだ時刻を除く値と配列の並びを固定する")
+
+
+traced = make_case("traced")
+trace_path = ROOT / "tests/fixtures/metrics/traces.json"
+no_match = copy.deepcopy(read(traced, "comments-synthetic-a-first.json")[0])
+no_match.update(id="synthetic-no-match", content="UNMATCHED-PRIVATE-BODY")
+save(traced, "comments-synthetic-b-first.json", [{**no_match, "issue_id": "synthetic-b"}])
+result = run_collect(traced, "--traces", str(trace_path))
+assert result.returncode == 0, result.stderr
+traced_snapshot = read(traced, "snapshot.json")
+assert traced_snapshot["trace_definitions_sha256"] == hashlib.sha256(trace_path.read_bytes()).hexdigest()
+matches = {row["id"]: row["trace_matches"] for row in traced_snapshot["comments"]}
+assert matches == {
+    "synthetic-comment-0": ["m-member-only", "z-any-author"],
+    "synthetic-comment-1": ["a-agent-only", "z-any-author"],
+    "synthetic-no-match": [],
+}, matches
+assert all("content" not in row for row in traced_snapshot["comments"])
+assert "PRIVATE-" not in (traced / "snapshot.json").read_text()
+assert "UNMATCHED-PRIVATE-BODY" not in (traced / "snapshot.json").read_text()
+assert all(row["member_mentions"] == ["human-one", "human-two"]
+           for row in traced_snapshot["comments"] if row["id"] != "synthetic-no-match")
+print("PASS collect traces: 全ページで正規表現と書き手を照合し、重複しない ID の一覧と定義の SHA-256 だけを残す")
+
+result = run_collect(traced, "--traces", str(trace_path))
+assert result.returncode == 0, result.stderr
+repeated = read(traced, "snapshot.json")
+traced_snapshot.pop("collected_at")
+repeated.pop("collected_at")
+assert traced_snapshot == repeated
+print("PASS collect traces: 読んだ時刻を除いて、一致した跡の並びと保存値は変わらない")
+
+for name, definition in (
+    ("bad-json", "{"),
+    ("bad-regex", {"schema_version": 1, "procedures": [
+        {"id": "invalid", "trace": {"kind": "comment", "pattern": "["}}]}),
+    ("duplicate-trace", {"schema_version": 1, "procedures": [
+        {"id": "duplicate", "trace": None}, {"id": "duplicate", "trace": None}]}),
+    ("missing-pattern", {"schema_version": 1, "procedures": [
+        {"id": "invalid", "trace": {"kind": "comment"}}]}),
+    ("unknown-kind", {"schema_version": 1, "procedures": [
+        {"id": "invalid", "trace": {"kind": "unknown"}}]}),
+):
+    work = make_case(name)
+    definition_path = work / "traces.json"
+    definition_path.write_text(definition if isinstance(definition, str) else json.dumps(definition))
+    (work / "snapshot.json").write_text("previous snapshot")
+    result = run_collect(work, "--traces", str(definition_path))
+    assert result.returncode != 0 and "エラー:" in result.stderr, (name, result)
+    assert (work / "snapshot.json").read_text() == "previous snapshot"
+    assert not (work / "calls").exists(), name
+print("PASS collect traces: 不正な定義では CLI を呼ぶ前に止まり、既存の出力を保つ")
 
 
 def failure(name, file=None, remove=None, warning=None, status=None, transform=None, previous=True):

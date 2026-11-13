@@ -76,11 +76,55 @@ def ordered(rows):
     return sorted(rows, key=lambda row: (timestamp(row["created_at"]), row["id"]))
 
 
-def collect(project):
+def read_trace_definitions(path):
+    """Keep the exact input digest so later judgments can verify their definitions."""
+    raw = path.read_bytes()
+    definitions = json.loads(raw)
+    if not isinstance(definitions, dict) or definitions.get("schema_version") != 1:
+        raise ValueError("対応していない跡の定義のバージョンです")
+    procedures = records(definitions["procedures"])
+    ids = set()
+    for procedure in procedures:
+        trace_id = fields(procedure, ("id",))["id"]
+        if trace_id in ids:
+            raise ValueError("跡の定義の ID が重複しています")
+        ids.add(trace_id)
+        trace = procedure["trace"]
+        if trace is None:
+            continue
+        if not isinstance(trace, dict) or trace.get("kind") not in ("comment", "transition", "run"):
+            raise ValueError("跡の形は comment・transition・run にしてください")
+    return definitions, hashlib.sha256(raw).hexdigest()
+
+
+def comment_trace_patterns(definitions):
+    patterns = []
+    for procedure in definitions["procedures"]:
+        trace = procedure["trace"]
+        if trace is None or trace["kind"] != "comment":
+            continue
+        if not isinstance(trace["pattern"], str):
+            raise ValueError("コメントの跡の pattern は文字列にしてください")
+        author_type = fields(trace, ("author_type",))["author_type"] if "author_type" in trace else None
+        try:
+            pattern = re.compile(trace["pattern"])
+        except re.error as error:
+            raise ValueError(f"コメントの跡の正規表現が不正です: {procedure['id']}") from error
+        patterns.append((procedure["id"], pattern, author_type))
+    return sorted(patterns, key=lambda item: item[0])
+
+
+def collect(project, traces_path=None):
+    patterns = None
+    if traces_path is not None:
+        definitions, definitions_sha256 = read_trace_definitions(traces_path)
+        patterns = comment_trace_patterns(definitions)
     snapshot = {"schema_version": 1, "project_id": project,
                 "collected_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 "cli_version": cli(["version"], version=True),
                 "issues": [], "comments": [], "transitions": [], "runs": [], "agents": []}
+    if patterns is not None:
+        snapshot["trace_definitions_sha256"] = definitions_sha256
     offset = 0
     while True:
         page, _ = cli(["issue", "list", "--project", project, "--limit", "100",
@@ -115,6 +159,10 @@ def collect(project):
                     raise ValueError("コメントの本文の型かタスクが不正です")
                 comment["member_mentions"] = sorted(set(re.findall(
                     r"mention://member/([A-Za-z0-9_-]+)", content)))
+                if patterns is not None:
+                    comment["trace_matches"] = [trace_id for trace_id, pattern, author_type in patterns
+                                                if (author_type is None or author_type == comment["author_type"])
+                                                and pattern.search(content)]
                 snapshot["comments"].append(comment)
             if next_page is None:
                 break
@@ -453,6 +501,7 @@ def main():
     collector = subparsers.add_parser("collect", help="Multica の記録をスナップショットに残す")
     collector.add_argument("--project", required=True)
     collector.add_argument("--output", type=Path, required=True)
+    collector.add_argument("--traces", type=Path, help="コメントの跡の定義 JSON")
     counter = subparsers.add_parser("count", help="保存したスナップショットから数える")
     counter.add_argument("snapshot", type=Path)
     for flag in ("cutoff", "truncate", "project-key", "member-key"):
@@ -464,7 +513,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.command == "collect":
-            write_snapshot(args.output, collect(args.project))
+            write_snapshot(args.output, collect(args.project, args.traces))
             return
         raw = args.snapshot.read_bytes()
         plan = json.loads(args.compare.read_bytes()) if args.compare else None
