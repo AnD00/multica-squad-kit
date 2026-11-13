@@ -40,7 +40,29 @@ case "${1-} ${2-} ${3-}" in
  emit agent-get "$dir/agent-response.json" ;;
 'issue runs test-issue') emit issue-runs "$dir/runs.json" ;;
 'issue wakeup list') emit issue-wakeups "$dir/rules.json" ;;
-'issue wakeup delete') echo '{}' ;;
+'issue metadata set' | 'issue metadata delete')
+	operation=$3
+	shift 4
+	key= value= type=string
+	while (($#)); do
+		case $1 in --key) key=$2 ;; --value) value=$2 ;; --type) type=$2 ;; esac
+		shift 2
+	done
+	if [[ $operation == delete ]]; then
+		jq --arg key "$key" 'del(.metadata[$key])' "$dir/task.json" >"$dir/metadata-updated.json"
+	elif [[ $type == number ]]; then
+		jq --arg key "$key" --argjson value "$value" '.metadata[$key] = $value' "$dir/task.json" >"$dir/metadata-updated.json"
+	else
+		jq --arg key "$key" --arg value "$value" '.metadata[$key] = $value' "$dir/task.json" >"$dir/metadata-updated.json"
+	fi
+	mv "$dir/metadata-updated.json" "$dir/task.json"
+	echo '{}'
+	;;
+'issue wakeup delete')
+	jq --arg id "$5" '[.[] | select(.id != $id)]' "$dir/rules.json" >"$dir/rules-updated.json"
+	mv "$dir/rules-updated.json" "$dir/rules.json"
+	echo '{}'
+	;;
 'issue wakeup create')
 	args=$(jq -cn --args '$ARGS.positional' -- "$@")
 	file=$(jq -er 'index("--instruction-file") as $i | .[$i+1]' <<<"$args")
@@ -49,6 +71,14 @@ case "${1-} ${2-} ${3-}" in
 		emit issue-wakeup-create "$dir/wakeup-response.json"
 	else
 		emit issue-wakeup-create "$dir/wakeup-prototype.json"
+	fi
+	# ci-wait の登録後の再読と解除も、実際の状態遷移として検査する。
+	if [[ -f $dir/persist-created-rule ]]; then
+		python3 "$PR_WATCH_TEST_ROOT/tests/pr-watch-fixture.py" base issue-wakeups >"$dir/rule-prototype.json"
+		jq --slurpfile base "$dir/rule-prototype.json" --slurpfile response "$dir/wakeup-prototype.json" --rawfile body "$file" \
+			'. + [$base[0] + {id:$response[0].id,agent_id:"orchestrator",mode:"once",enabled:true,
+			condition:{type:"pull_request",event:"checks_finished"},instruction:$body}]' "$dir/rules.json" >"$dir/rules-updated.json"
+		mv "$dir/rules-updated.json" "$dir/rules.json"
 	fi
 	;;
 'issue comment list')
@@ -101,7 +131,14 @@ if [[ "${1-} ${2-} ${3-}" != 'pr view test-pr' || -f $PR_WATCH_TEST_DIR/fail-gh 
 	[[ "${1-} ${2-} ${3-}" == 'pr view test-pr' ]] || exit 1
 	echo 'gh mock failure' >&2; exit 1
 fi
-python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh - emit gh-pr-checks "$PR_WATCH_TEST_DIR/pr.json" -- "$@"
+if [[ -f $PR_WATCH_TEST_DIR/pr-after-first.json ]]; then
+	cp "$PR_WATCH_TEST_DIR/pr.json" "$PR_WATCH_TEST_DIR/pr-first.json"
+	mv "$PR_WATCH_TEST_DIR/pr-after-first.json" "$PR_WATCH_TEST_DIR/pr.json"
+	response="$PR_WATCH_TEST_DIR/pr-first.json"
+else
+	response="$PR_WATCH_TEST_DIR/pr.json"
+fi
+python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh - emit gh-pr-checks "$response" -- "$@"
 EOF
 chmod +x "$test_dir/bin/multica" "$test_dir/bin/gh"
 
@@ -122,7 +159,7 @@ reset_fixture() {
 	printf '[]' >"$test_dir/runs.json"
 	printf 'ci-thread' >"$test_dir/allowed-parent"
 	cp "$test_dir/agents.base.json" "$test_dir/agents.json"
-	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh"
+	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh" "$test_dir/pr-after-first.json" "$test_dir/persist-created-rule"
 	fixture squad-list | jq '[. + {id:"test-squad",name:"Demo",leader_id:"orchestrator",archived_at:null}]' >"$test_dir/squads.json"
 	fixture issue-get | jq '. + {id:"test-issue",status:"in_progress",status_category:"in_progress",assignee_type:"squad",assignee_id:"test-squad",metadata:{pr_url:"test-pr",ci_watch_thread:"ci-thread"}}' >"$test_dir/task.json"
 	fixture gh-pr-checks | jq '. as $pr | .statusCheckRollup[0] as $check |

@@ -58,6 +58,21 @@ squad_cli_contracts() {
           "nullable": true
         },
         {
+          "path": "metadata.ci_wait_head",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "metadata.ci_wait_since",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "metadata.ci_wait_rule",
+          "class": "optional",
+          "nullable": true
+        },
+        {
           "path": "metadata.ci_watch_thread",
           "class": "optional",
           "nullable": true
@@ -81,6 +96,21 @@ squad_cli_contracts() {
         {
           "name": "unassigned",
           "where": ".assignee_type == null"
+        },
+        {
+          "name": "metadata.ci_wait_head-present",
+          "where": ".metadata | has(\"ci_wait_head\")",
+          "unavailable": "CI 待ちが作るアプリケーションの metadata。導入前の採取にはないため、契約で宣言した欄を待ちのテストで設定する。"
+        },
+        {
+          "name": "metadata.ci_wait_since-present",
+          "where": ".metadata | has(\"ci_wait_since\")",
+          "unavailable": "CI 待ちが作るアプリケーションの metadata。導入前の採取にはないため、契約で宣言した欄を待ちのテストで設定する。"
+        },
+        {
+          "name": "metadata.ci_wait_rule-present",
+          "where": ".metadata | has(\"ci_wait_rule\")",
+          "unavailable": "CI 待ちが作るアプリケーションの metadata。導入前の採取にはないため、契約で宣言した欄を待ちのテストで設定する。"
         },
         {
           "name": "ci_watch_thread-present",
