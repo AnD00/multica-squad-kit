@@ -76,7 +76,8 @@ d9a39f16243c0e79c8bbdfcc7022179bfe87be6432dc913b311dfb52be14e63b  ./docs/leader-
 d07633e723828594ed4bdf2088184a8bf6ac3483fb5c14c34009399f5edc8945  ./docs/pr-link.md
 c63bec82ed4e24e570eadac28a7a15f2bcdacde771cf5e7e669b3fc9f2b650bf  ./docs/principal-review.md
 b686eb169b1c9966e494869b23ca154189cb5cc926cc8b08e4da368afe2d2296  ./docs/release.md
-10e4f3e03296f93945f6523d37d57be9fd202f2ff762f49418f95e76a3d39704  ./docs/review-wait.md
+8b0f34caaef0ffe96a19c32264f34808cd4c336dd50ddb32174da9d2e5727f4b  ./docs/review-next-step.md
+94242adb840de12825490c3a51e456e73c2d674354af856098cb54d313d20f37  ./docs/review-wait.md
 8602545c2587c3c1c5a7d8e273cf3cf5cf23acb3a7047193192f89b39f704db2  ./docs/run-status.md
 ad9dd6f28649d2ebdebd9200b0f9f443aeb8c3c62b15c120c4bc1ed91a33d61b  ./docs/screens.md
 797b597a542d111fd37296c5f1b04e0124dc1b22bc7bcfd453241f4f6dbfb534  ./docs/setup-completion.md
@@ -84,7 +85,7 @@ ad9dd6f28649d2ebdebd9200b0f9f443aeb8c3c62b15c120c4bc1ed91a33d61b  ./docs/screens
 4833dc40b67cf3cb5b3c6ed385c78a104bdddf8565302ee694a004171578f91e  ./docs/terms.md
 23061b8ec0c5beb312ba15cac63653ab55e05eca0d2ac1b49e2806b43ec0be4a  ./docs/unfilled-stop.md
 70be5b5ecc77fcea752d97787058e228ddadf66ff1685b021775fad7cc51dee9  ./docs/vm.md
-25d393eab4ed72fa4bf6fda98c9f10a35299ddf0d6468f7cd4a7df4b012d480f  ./docs/workflow.md
+119ca64c732c3190171cdc9e32da2874415ef7a4697771d6e624d49d82f4864f  ./docs/workflow.md
 5ce1cce4066b84f500d25f947b62cdd88377393c0b17968de895a9ccab7b1c6b  ./install.sh
 fe3a4bb1f7b8b60cc2f5c851aa9dfafeb5f9fe85b8df1a52e3357044cda1ff1e  ./lib/answers.sh
 59a258d6187f5d51b5cc5169d8870123f7c4cde2602870d40c20255110e21230  ./lib/autopilots.sh
