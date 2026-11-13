@@ -260,7 +260,7 @@ c2ceb8dd3561ee8adeaca790ebc1594cb1ad442522bb2a39334276306999f1ad  ./tests/projec
 4959eb3e967ac0dfb6b9451bacbb569192db2236846843d0aed7aad9803157a7  ./tests/question-pty.py
 ad4496426313e7d3933f92d8ee566baae2855301d548bdd62e47116abccc8e91  ./tests/questions-fold-test.sh
 be0aaaeab1492b83dbab64d6e0edb6af0693abf5db869bd1ac826e9fd090c888  ./tests/questions-ui-test.sh
-a85f4f898aebc3a1067649896d9abb21e8009e938aac223b670e536ba43c2852  ./tests/release-assertions.sh
+8233c4b735f4c655748f40753ec4b77a4a82d1215acf1cf6701a59a3c5082142  ./tests/release-assertions.sh
 4aea23a1b24a61dc25906d772d7ed97e95ada2a2f2f5ab32c841d229547327bd  ./tests/release-check-test.sh
 aa53ae265be7d9753c57f7563ba3766cee0fced62f39bf855e4e23c6ac7df826  ./tests/release-display-test.sh
 a360144154afb4b93f371183efba196a1da95642964d39a3a272d647b87f402e  ./tests/release-failure-test.sh

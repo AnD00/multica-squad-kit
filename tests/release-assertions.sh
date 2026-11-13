@@ -123,6 +123,7 @@ expect_summary() {
 	grep -qE '^  ✔ Release を公開する$' "$case_dir/out"
 }
 # expect_screen <結果の語> <タグと Release の値> <タグを付けるコミット> <最初の手順の番号>: 確認の前の画面の全体（確かめの一覧から、することの一覧まで）が設計のとおり。
+# 配布物を作らせる状態（最初の手順が 1〜3）では、確かめの 9 の案内の行が先頭に出る。
 expect_screen() {
 	local head12 commit12
 	head12=$(git -C "$work" rev-parse HEAD)
@@ -130,6 +131,9 @@ expect_screen() {
 	commit12=${3:0:12}
 	local expected
 	expected=$(
+		if (($4 <= 3)); then
+			printf 'タグを付ける前に、配布物を作って確かめます（確かめの 9）。\n'
+		fi
 		printf '  ✔ 道具              git gh tar shasum diff cmp  gh 2.102.0  2.102.0 以上\n'
 		printf '  ✔ 場所              example/kit  main\n'
 		printf '  ✔ 未コミットの変更  なし\n'
