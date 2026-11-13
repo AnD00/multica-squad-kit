@@ -57,7 +57,7 @@ for latest in "v$((run_major + 1)).0.0" "v$run_major.$((run_minor + 1)).0" "v$ru
 	grep -qF "警告: 新しいバージョン $latest があります。" "$test_dir/err"
 	grep -qF 'README の更新の手順' "$test_dir/err"
 	! grep -q '更新します' "$test_dir/out" "$test_dir/err"
-	grep -qF 'プロジェクトの設定を始めます' "$test_dir/err"
+	grep -qF '✔ 共通のラベルとスキル' "$test_dir/err"
 	[[ $(cat "$record") == "$running" ]]
 done
 echo 'PASS version-notice: 最新が今流しているものより新しければ警告で更新の手順を示し、流すのは続ける'
@@ -89,13 +89,13 @@ echo 'PASS version-notice: 最新が導入済みと同じか古いときは何�
 fresh
 TEST_LATEST_FAIL=yes run
 grep -qF '警告: 最新のバージョンを確かめられませんでした。導入は続けます。' "$test_dir/err"
-grep -qF 'プロジェクトの設定を始めます' "$test_dir/err"
+grep -qF '✔ 共通のラベルとスキル' "$test_dir/err"
 [[ $(cat "$record") == "$running" ]]
 for bad in '' latest v1.9 1.9.0 v1.9.0-rc1 v1.9.0.1 'not a tag'; do
 	fresh
 	TEST_LATEST_TAG=$bad run
 	grep -qF '警告: 最新のバージョンを確かめられませんでした。導入は続けます。' "$test_dir/err"
-	grep -qF 'プロジェクトの設定を始めます' "$test_dir/err"
+	grep -qF '✔ 共通のラベルとスキル' "$test_dir/err"
 	! grep -q '新しいバージョン' "$test_dir/err"
 done
 echo 'PASS version-notice: 読めない・形の誤りの最新は警告にし、導入は続ける'

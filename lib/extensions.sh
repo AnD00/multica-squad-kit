@@ -6,10 +6,13 @@ choose_extension() {
 	# 引数で受けたときは質問を出さず、答えたときと同じ確かめに進む。
 	if [[ -n ${extension_option:-} ]]; then
 		extension_dir=$extension_option
-		printf '拡張のディレクトリ（引数で指定）: %s\n' "$extension_dir" >&2
+		ui_mark err keep '拡張のディレクトリ' "$extension_dir"
 	else
-		printf '拡張のディレクトリ（使わない場合は Enter）: ' >&2
-		IFS= read -r extension_dir || die '入力が終わりました。'
+		ui_line err question '? 拡張のディレクトリ'
+		ui_line err default '  使わない場合は Enter'
+		question_input_show ''
+		IFS= read -r extension_dir || { printf '\n' >&2; die '入力が終わりました。'; }
+		[[ -t 0 ]] || printf '\n' >&2
 		[[ -n $extension_dir ]] || return 0
 	fi
 	[[ -d $extension_dir ]] || die '拡張のディレクトリがありません。'

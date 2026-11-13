@@ -10,9 +10,9 @@ run() { { printf '%s\n' "$test_dir/extension"; cat "$test_dir/input"; } | /bin/b
 printf '1\n1\ndemo\n1\nmembera\n0\n1\n0\n\nno\n' >"$test_dir/input"
 deny
 no_state
-grep -q '紐付け専用のリポジトリ' "$test_dir/err"
-grep -q '^  example/two$' "$test_dir/err"
-grep -q 'オートパイロット: 3件' "$test_dir/err"
+grep -qxF '    + example/two  紐付けだけ' "$test_dir/err"
+grep -qxF '    + Dependabot の PR の週次の確認 demo example/one' "$test_dir/err"
+! grep -qF 'Dependabot の PR の週次の確認 demo example/two' "$test_dir/err"
 ! grep -q 'TEST-project-prepared' "$test_dir/out"
 echo 'PASS scope questions: コード作業先とは別に紐付け先を示し、確認を断ると保存も登録もしない'
 
