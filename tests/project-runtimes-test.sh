@@ -35,7 +35,7 @@ for selected in claude codex; do
   if [[ $role == orchestrator ]]; then role_args='["--keep","value"]'; fi
   jq -e --arg selected "$selected" --argjson prefix "$role_args" '.custom_args==($prefix+(if $selected=="codex" then ["-c","allow_login_shell=false","-c","features.shell_snapshot=false"] else [] end))' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
  done
- jq -e --arg selected "$selected" --arg model "$(if [[ $selected == claude ]]; then echo claude-fable-5-2; else echo gpt-6-astra; fi)" '.model==$model and .runtime_id==("runtime-"+$selected) and .thinking_level=="high"' "$TEST_DB/agents/agent-demo-$selected-principal-owner.json" >/dev/null
+ jq -e --arg selected "$selected" --arg model "$(if [[ $selected == claude ]]; then echo claude-fable-5-2; else echo gpt-6-astra; fi)" '.model==$model and .runtime_id==("runtime-"+$selected) and .thinking_level=="xhigh"' "$TEST_DB/agents/agent-demo-$selected-principal-owner.json" >/dev/null
  jq -e '.EXTRA=="keep"' "$TEST_DB/env/agent-demo-orchestrator-owner.json" >/dev/null
  if [[ $selected == codex ]]; then
   for role in orchestrator usage-monitor ci-monitor; do

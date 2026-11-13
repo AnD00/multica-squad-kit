@@ -274,7 +274,7 @@ principal_model() { awk -F': ' -v key="$2" '$1==key {print $2}' "$root/common/ag
 test "$(principal_model claude-principal model)" = claude-fable-5-2
 test "$(principal_model codex-principal model)" = gpt-6-astra
 for role in claude-principal codex-principal; do
-	test "$(principal_model "$role" thinking_level)" = high
+	test "$(principal_model "$role" thinking_level)" = xhigh
 	test "$(principal_model "$role" skills)" = 'squad-handoff, verify'
 	[[ $(principal_model "$role" role) == 最上位のレビュー* ]]
 	grep -qF 'ブランチへの push、PR の本文の書き換え、タスクの状態の変更をしない' "$root/common/agents/$role.md"
@@ -282,14 +282,30 @@ for role in claude-principal codex-principal; do
 	grep -qF '設計と PR の見直しでは、指摘ごとに種類として `設計` か `コード` を添える' "$root/common/agents/$role.md"
 	if grep -qE '<!-- (IF|ELSE)' "$root/common/agents/$role.md" && grep -E '<!-- IF' "$root/common/agents/$role.md" | grep -vq 'orchestrator'; then exit 1; fi
 	grep -qF '`重要`' "$root/common/agents/$role.md"
+	grep -qF '診断:' "$root/common/agents/$role.md"
+	grep -qF '直す役:' "$root/common/agents/$role.md"
+	grep -qF '  - 診断:' "$root/common/agents/$role.md"
+	! grep -qF 'ラベル `重要` があるタスクだけで呼ばれます' "$root/common/agents/$role.md"
 done
 for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
 	[[ ! -f $test_dir/$scenario/claude-principal ]] || grep -qx 'model: claude-fable-5-2' "$test_dir/$scenario/claude-principal"
 	[[ ! -f $test_dir/$scenario/codex-principal ]] || grep -qx 'model: gpt-6-astra' "$test_dir/$scenario/codex-principal"
+	for role in claude-principal codex-principal; do
+		file="$test_dir/$scenario/$role"
+		[[ -f $file ]] || continue
+		grep -qx 'thinking_level: xhigh' "$file"
+		grep -q '^description:.*診断' "$file"
+		grep -q '^role:.*診断' "$file"
+		grep -qF '印の有無によらず' "$file"
+		grep -qxF '診断: <直せる | 人間の判断が要る>' "$file"
+		grep -qxF '直す役: <修正の役 | 設計の役 | なし>' "$file"
+		grep -qF '根本の原因と、その根拠（読んだログ・差分・コメント）、直し方の手順、直ったと確認する方法' "$file"
+		grep -qF 'PR がないときは、タスクの要約だけに書く' "$file"
+	done
 done
 [[ ! -f $test_dir/runtime-claude-only/codex-principal && ! -f $test_dir/runtime-codex-only/claude-principal ]]
 [[ -f $test_dir/runtime-claude-only/claude-principal && -f $test_dir/runtime-codex-only/codex-principal && -f $test_dir/all/claude-principal && -f $test_dir/all/codex-principal ]]
-echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと high を持ち、使わない系統には置かない'
+echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと xhigh を持ち、印によらない診断を返し、使わない系統には置かない'
 
 # 重要の基準は指示に、手順は参照に、系統の事実は役の節に残す。
 refs="$root/common/skills/squad-handoff/references"
