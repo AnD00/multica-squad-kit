@@ -17,6 +17,7 @@
 # 結果の記録: result に「終了コード 秒数」を 1 行で書く。時間切れのときは、終了コードを 124 にし、
 # 3 つ目に上限の秒数を足す。session には、止めるセッションの ID を、テストが動いている間だけ書く。
 # run.sh が割り込まれたときに、残ったテストを止めるために読む。
+# bash の展開のエラーは EXIT の trap によって 0 で終わることがあるので、ログでも検出する。
 set -euo pipefail
 root=$1 run_dir=$2 id=$3 test=$4
 work="$run_dir/$id"
@@ -68,6 +69,16 @@ if [[ $timed_out == yes ]]; then
 	printf 'done TIMEOUT %s %ss\n' "$test" "$limit"
 	exit 0
 fi
+# 展開のエラーでは ERR の trap が動かず、bash 3.2 は EXIT の trap に 0 を渡す。
+# テスト自身のログにある最初のエラーの行を、run.sh が読む 3 行の形式で残す。
+unbound_pattern='^(.+): line ([0-9]+): (.+): unbound variable$'
+while IFS= read -r log_line || [[ -n $log_line ]]; do
+	if [[ $log_line =~ $unbound_pattern ]]; then
+		status=1
+		printf '%s\n%s\n%s: unbound variable\n' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" >"$work/error"
+		break
+	fi
+done <"$work/log"
 printf '%s %s\n' "$status" "$elapsed" >"$work/result"
 outcome=FAIL
 if [[ $status == 0 ]]; then outcome=PASS; fi
