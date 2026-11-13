@@ -3,7 +3,7 @@ be25a5fe48ee1f7d8d3cc65ec90ce182c0cee1e524c9c1ac2feef4c748070080  ./.agents/rule
 e26217d9263a7ee07305e8624b87471bdf97acb3c4695c0046804fd6ffeb837a  ./.agents/rules/tests.md
 63f5c80f28fbb55074a928019719cb3e72e78eb78a0d5af13bf630a0d1bae14d  ./.gitattributes
 59fec49c0aeec5c11d50c47094d5f3f984f141d9a9f18f1243fb82d2b61a59cf  ./.github/pull_request_template.md
-1a4a682efbbffa2c09b3a71693785dbdb4bed22e68d15521bf068b012143df57  ./.github/workflows/check.yml
+3ea247715de119c5bfad430217d114e8a1ad1ba4e3e7a25c41284e03f23c45d9  ./.github/workflows/check.yml
 84c6d113ac418d9812edad92f27dfe8af5a645de6e5bf5914af361ffca807aeb  ./.github/workflows/release-assets.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
@@ -327,7 +327,7 @@ f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-s
 51f0ab5afbf1c071e7e963fc1f230ab6e5a6ea779a6f8c90bb722b19546ac01d  ./tests/terminal-screen-test.sh
 68d8eb46f63893960d2c4edcdb841bbf39fd1123d3d348815bfd7a4d27c25a19  ./tests/terms-test.sh
 be7d0a25e7bbab93fc3fa0c3e50f216c953e1bd25f1401df43a2d042e22791c0  ./tests/test-runner-test.sh
-35bd63620a4502e5b6e6bb634fa75421109af7e1e30981feb75d6c7b4486332b  ./tests/test-weights
+d1934701a5a382391cc35a5aea1f2eb0d347c6d9bf406bf9967588fdbc3f12e3  ./tests/test-weights
 b553963e04a2016611fc503983739328077c2daf794433065e033fe585cff2c8  ./tests/ui-contrast.py
 43c7c5e6929bc863a92ad6fa2304c65bff89c679a110ed2944aeca137d45f6ec  ./tests/ui-pty.py
 f38f20053d7f9557b93f37a8a551961ad18d5103f8221887df996bb6dd32dd23  ./tests/ui-steps-test.sh
