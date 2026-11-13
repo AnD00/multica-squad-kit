@@ -99,9 +99,6 @@ def collect(project):
     snapshot["issues"] = ordered(snapshot["issues"])
     if len({row["id"] for row in snapshot["issues"]}) != len(snapshot["issues"]):
         raise ValueError("タスクのページが重複しています")
-    agents, _ = cli(["agent", "list", "--include-archived"])
-    snapshot["agents"] = sorted((fields(row, ("id", "name")) for row in records(agents)),
-                                 key=lambda row: row["id"])
     for issue in snapshot["issues"]:
         issue_id = issue["id"]
         before = None
@@ -152,6 +149,10 @@ def collect(project):
             run["usage"].sort(key=lambda item: (item["provider"], item["model"],
                                                *(item[field] for field in TOKEN_FIELDS)))
             snapshot["runs"].append(run)
+    agent_ids = {run["agent_id"] for run in snapshot["runs"]}
+    agents, _ = cli(["agent", "list", "--include-archived"])
+    snapshot["agents"] = sorted((fields(row, ("id", "name")) for row in records(agents)
+                                 if row["id"] in agent_ids), key=lambda row: row["id"])
     for name in ("comments", "runs"):
         snapshot[name] = ordered(snapshot[name])
     snapshot["transitions"] = [{key: value for key, value in row.items() if key != "id"}

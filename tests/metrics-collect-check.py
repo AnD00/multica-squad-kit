@@ -36,6 +36,9 @@ def make_case(name):
         save(work, f"issues-{index}.json", page)
     agents = sample("metrics-agents")
     agents[0].update(id="synthetic-agent", name="example-codex-fixer-member", instructions="PRIVATE-INSTRUCTIONS")
+    unrelated = copy.deepcopy(agents[0])
+    unrelated.update(id="unrelated-agent", name="PRIVATE-NAME person@example.invalid")
+    agents.append(unrelated)
     save(work, "agents.json", agents)
     comments = sample("metrics-comments")
     for index, actor in enumerate(("member", "agent")):
@@ -44,6 +47,8 @@ def make_case(name):
                    created_at=f"2026-01-01T00:0{4-index}:00Z",
                    content="PRIVATE-CONTENT [one](mention://member/human-one) "
                            "[again](mention://member/human-one) [two](mention://member/human-two)")
+        if actor == "agent":
+            row["author_id"] = "unrelated-agent"
         save(work, "comments-synthetic-a-" + ("first" if index == 0 else "next") + ".json", [row])
     (work / "comments-synthetic-a-first.json.stderr").write_text(
         (FIXTURES / "metrics-comments-cursor.txt").read_text())
@@ -112,6 +117,20 @@ assert counted["totals"]["run_count"] == 2
 assert counted["totals"]["roles"]["codex-fixer"]["unconfirmed_runs"] == 1
 print("PASS collect: 保存した使用量と未確認の実行を count の入力として使える")
 
+unfiltered = copy.deepcopy(snapshot)
+unfiltered["agents"] = [{key: row[key] for key in ("id", "name")}
+                        for row in read(positive, "agents.json")]
+save(positive, "unfiltered.json", unfiltered)
+result = subprocess.run([sys.executable, str(SCRIPT), "count", str(positive / "unfiltered.json"),
+    "--cutoff", "2027-01-01T00:00:00Z", "--truncate", "2027-01-01T00:00:00Z",
+    "--human", "human-one", "--project-key", "example", "--member-key", "member",
+    "--output", str(positive / "unfiltered-result")], capture_output=True, text=True)
+assert result.returncode == 0, result.stderr
+before = read(positive / "unfiltered-result", "metrics.json")
+for key in ("issues", "totals", "per_issue", "comparison"):
+    assert counted[key] == before[key], key
+print("PASS collect: 実行から参照されないエージェントを除いても、タスクごとの指標・役ごとの使用量・合計・平均は変わらない")
+
 first = snapshot
 result = run_collect(positive)
 assert result.returncode == 0, result.stderr
@@ -176,5 +195,9 @@ page.update(issues=[], total=0, has_more=False)
 save(empty, "issues-0.json", page)
 result = run_collect(empty)
 assert result.returncode == 0, result.stderr
-assert read(empty, "snapshot.json")["issues"] == []
-print("PASS collect: タスクが 0 件のプロジェクトも保存できる")
+empty_snapshot = read(empty, "snapshot.json")
+assert empty_snapshot["issues"] == []
+assert empty_snapshot["agents"] == []
+assert "PRIVATE-" not in (empty / "snapshot.json").read_text()
+assert "person@example.invalid" not in (empty / "snapshot.json").read_text()
+print("PASS collect: タスクが 0 件ならエージェントを保存せず、無関係な名前とメールも残らない")

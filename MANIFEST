@@ -67,7 +67,7 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 95c078330176b1308f371fa86eaea75cf5fe55f601c3d4c7b1e08d2eb8a6830c  ./docs/install.md
 3a18a3e30e78572a1a19ef0791f70283115640c38fe0c006c51ac22924e92a54  ./docs/leader-principles.md
 3d1a737f836ed6790d0e861bee47fcfe210c0e1619c39c4ba44d373ed1b59286  ./docs/local-verification.md
-997b7f44af195307405ead61c0e15fe8e25a8352b3d8c8e7c1632827747c72fc  ./docs/metrics.md
+e0597d77921c2668bfb9c062f7e12c2bb329aad2d82f037db5a182094aa8466f  ./docs/metrics.md
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
 5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
@@ -104,7 +104,7 @@ a5266ab6bfd01aab4c8744777b707d510d1cd38b1a7761be916ad2ce2f61f9b4  ./lib/workspac
 2b1d474d9d51940cde91cb4529ca3c16d16d4be3e0d7548d1066986f615a812d  ./scripts/ci-install.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 0c6f19b207a381e0027b0f3a5739baa119c4b9523c7047ecd7d6f6aeeb098088  ./scripts/metrics-plan.json
-2e526c298c6aaa57d614a384e52ef51f96f73ebcb1cfc34e8a76c672a18f1d9c  ./scripts/metrics.py
+266f58b2a713cf5b83560cc78e64477f526409f2ae80e4186c78e5e75befb64f  ./scripts/metrics.py
 3cb35a27b2c588645afbe7094a1c26902affc63dea952cb758eeac2b1d377705  ./scripts/release.sh
 aa902f7a6e632852891f227758367ecfa14653acf1360dbdfe2a5d100e16977d  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
@@ -251,7 +251,7 @@ f3a6d60757b256592e9a1a6d21072d8e4d8026b76c25c16891992584a618f520  ./tests/leader
 d1b3a1d4027607320e238396168780d67a30fc4186503b288fe05076d80f1955  ./tests/link-scope-questions-test.sh
 72f6c63084712a16f9f22c5b9113c058b0214f6a237f9c00d932ac820c423cd4  ./tests/manual-test.sh
 56f7b274ee6196f7e0d83ee60a4f8c6f60762c9c8d3aa10cd5fec96576e65cc7  ./tests/metrics-cli-fixture.py
-1e30820be50e25a7b5cfd1a9b2683e14518b13c34f8b0aa8cf7932b9f68de603  ./tests/metrics-collect-check.py
+c59222069df2b879058b439d8f50184cb36cce5a3755327b813d6394b9eb8c0f  ./tests/metrics-collect-check.py
 ba0be47c5fd291d15c3bf07604c4cd59bf02519cc45a8f986ce391472c0a31c3  ./tests/metrics-collect-test.sh
 89b7fc81c13a01f0d1c7b7daf486d25caa4b29a9cb672a28fc04c02558c7e0cc  ./tests/metrics-test.sh
 4e821def23057c68c2b54904b18bbc57eecd33ffba6d5730600a84c3d51a7bef  ./tests/multica-fixture.py
