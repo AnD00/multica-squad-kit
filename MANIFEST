@@ -274,7 +274,7 @@ dd1f5baba17bbda8af7d1f97e7885b6e2ff870b1d8d25babdd869f0d0270261a  ./tests/pre-pu
 32bdfe52ae6a0e5949e26846ad289256ea94603c7d697af78dfb978e61d3b971  ./tests/project-changes-test.sh
 325fed47f129dd86da4ea48f2f64192214f57d60eb43bd28c3abd64d59b84a46  ./tests/project-create-test.sh
 03695b7195d4e55a905c477dbeff96fb6164d5b44795d557fba54ef1844b1fc3  ./tests/project-environment-test.sh
-3360d0fc689cddcf89325a4933315d8df3b154f10e5f0775b2633b5b2948bae9  ./tests/project-failure-render-cache-check.sh
+2bc955be3acc4de17ba7fc030f4499ead32e87f7748bbcff52cd929e4a3fa21a  ./tests/project-failure-render-cache-check.sh
 e90a5edb6b1b0b97bcb8cb5e220f789d1148904978bf0b20f8d37e0541f5ef96  ./tests/project-failure-render-cache.sh
 63ab29bf9d6e9ffdb4b477b4d71421cb4b91f35431dd8cc46751f89e0ee92dea  ./tests/project-failure-test.sh
 caa58464c53d717ee5c0452a3cf122a5a64d748063fc3614972c9635d0585d87  ./tests/project-followup-failure-test.sh

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 元の 13 個の PASS 行は増やさず、展開結果を再利用できる境界を確かめる。
+# 元の 13 個の PASS 行は増やさず、展開結果を再利用できる境界を確認する。
 set -euo pipefail
 scratch=$1/render-check
 repo=$2
