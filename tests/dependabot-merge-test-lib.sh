@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # squad-dependabot-merge-*-test.sh が読み込む共通の準備。単独では実行しない。
-# 呼び出し元が root を定め、cli-mode-test-lib.sh の比較（SQUAD_CLI_TEST_COMPARING=1）の中で読み込む。
+# 呼び出し元が root を定めてから読み込む。
 script="$root/common/monitor/squad-dependabot-merge"
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/dependabot-merge-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
-source "$root/tests/cli-mode-test-lib.sh"
-cli_test_wrap_monitor "$script" "$test_dir"
 export DEPENDABOT_MERGE_TEST_DIR="$test_dir"
 export DEPENDABOT_MERGE_TEST_ROOT="$root"
 source "$root/common/monitor/squad-cli-lib"

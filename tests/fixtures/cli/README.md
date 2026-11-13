@@ -38,7 +38,7 @@ bash tests/capture-cli-fixtures.sh --write-samples tmp/採取した応答 <タ�
 
 追加の採取として、2026-11-11 に同じ CLI のバージョンから、`repository` のないタスクの `issue-get` と `issue-metadata` を追加した。この採取の 2 応答で共通の対応表を使い、ID は `fixture-supplement-id-` で始まる。同じ採取の中の同一性・比較順を保ち、先の採取の ID とは比較しない。`CAPTURE.json` の追加した `repository` の形の件数は、保存済み見本と追加応答で数え、その範囲を `scope` に残した。
 
-`SQUAD_CLI_TEST_KEEP_FIELDS=1` はテストだけの切り替えで、必須・条件付きの検証は行い、約束外の欄を除かずに返す。見張りのテストは整形の前後で動作を比べる。
+`SQUAD_CLI_TEST_KEEP_FIELDS=1` はテストだけの切り替えで、必須・条件付きの検証は行い、約束外の欄を除かずに返す。この切り替えは、ライブラリの約束のテストと GitHub の見本の採取で使う。見張りのテストは整形の後の 1 回だけを流す。欄がないか `null` のときに動作を変える読み方には、欄があって確認が効くケースを置く。決まりは [CONTRIBUTING.md のテストを書く決まり](../../../CONTRIBUTING.md#テストを書く決まり)に従う。
 
 ## GitHub の読み取り
 

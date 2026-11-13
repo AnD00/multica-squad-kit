@@ -4,11 +4,6 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 
 source "$root/tests/pr-watch-test-lib.sh"
 
@@ -23,6 +18,69 @@ reset_fixture
 assert_jq -s 'length == 1 and (.[0].body | contains("リーダーの「実装・修正の振り分け」に従い、有効な修正の役を選んでください"))
 	and (.[0].body | contains("squad-dispatch-pick") | not)' "$test_dir/wakeups.jsonl"
 echo 'PASS 登録: 見張り役 ID を渡し、コンフリクト通知はリーダーの振り分けを参照する'
+
+# 規則の欄（agent_id・mode・condition・enabled・paused_reason）は、欄がある場合の動作を確認する。
+# 欄が読めずに null になると、止まった規則を作り直して暴走の防止を外したり、有効な規則を重ねたりする。
+# 見本の規則から欄を差し替えて並べ、登録の結果（出力・作った規則・消した規則）を見る。
+ci_rule() { # id agent_id mode event enabled paused_reason
+	fixture issue-wakeups | jq -c --arg id "$1" --arg agent "$2" --arg mode "$3" --arg event "$4" --argjson enabled "$5" --argjson paused "$6" \
+		'. + {id: $id, agent_id: $agent, mode: $mode, enabled: $enabled, paused_reason: $paused,
+			condition: (if $event == "" then null else {type: "pull_request", event: $event} end)}'
+}
+register_ci() { # rules... (JSON の 1 行ずつ)。出力は register-output に残す。
+	reset_fixture
+	printf '%s\n' "$@" | jq -s '.' >"$test_dir/rules.json"
+	(cd "$test_dir" && bash "$script" ci test-issue monitor trigger-comment) >"$test_dir/register-output"
+}
+deleted_ids() { jq -sr '[.[] | select(.[0:3] == ["issue", "wakeup", "delete"]) | .[4]] | sort | join(",")' "$test_dir/calls.jsonl"; }
+metadata_writes() { jq -s '[.[] | select(.[0:3] == ["issue", "metadata", "set"])] | length' "$test_dir/calls.jsonl"; }
+
+# 暴走の防止で止まった規則は、作り直さず、止まった理由を知らせる。
+for paused in loop rate; do
+	register_ci "$(ci_rule old monitor continuous checks_finished false "\"$paused\"")"
+	[[ $(<"$test_dir/register-output") == "CI の見張りが止まっています（${paused}）。次に人間を呼ぶコメントに添えてください。" ]]
+	[[ ! -s $test_dir/wakeups.jsonl && -z $(deleted_ids) ]]
+done
+register_ci "$(ci_rule loop-rule monitor continuous checks_finished false '"loop"')" "$(ci_rule rate-rule monitor continuous checks_finished false '"rate"')"
+[[ $(<"$test_dir/register-output") == 'CI の見張りが止まっています（loop, rate）。次に人間を呼ぶコメントに添えてください。' ]]
+[[ ! -s $test_dir/wakeups.jsonl && -z $(deleted_ids) ]]
+echo 'PASS ci 登録: loop・rate で止まった規則があれば、理由を知らせ、作り直さず消さない'
+
+# 有効な規則があれば何もしない。有効でない規則（paused_reason なし）は消して入れ直す。
+register_ci "$(ci_rule live monitor continuous checks_finished true null)"
+[[ ! -s $test_dir/register-output && ! -s $test_dir/wakeups.jsonl && -z $(deleted_ids) ]]
+register_ci "$(ci_rule spent monitor continuous checks_finished false null)"
+assert_jq -s 'length == 1' "$test_dir/wakeups.jsonl"
+[[ $(deleted_ids) == spent ]]
+echo 'PASS ci 登録: 有効な規則があれば登録せず、有効でない規則は消して入れ直す'
+
+# 見張り役・continuous・checks_finished 以外の規則は、登録を止めず、消さない。
+register_ci "$(ci_rule other-agent other continuous checks_finished true null)" \
+	"$(ci_rule once monitor once checks_finished true null)" \
+	"$(ci_rule other-event monitor continuous conflicts true null)" \
+	"$(ci_rule no-condition monitor continuous '' true null)" \
+	"$(ci_rule other-paused other continuous checks_finished false '"loop"')" \
+	"$(ci_rule target monitor continuous checks_finished false null)"
+assert_jq -s 'length == 1' "$test_dir/wakeups.jsonl"
+[[ $(deleted_ids) == target && $(<"$test_dir/register-output") == *'"id"'* ]]
+echo 'PASS ci 登録: 別の役・once・別の条件・条件なしの規則は登録を止めず、消さない'
+
+# 記録のスレッドが読めるときは、metadata を書き換えず、そのスレッドへ戻す。
+register_ci
+[[ $(metadata_writes) == 0 ]]
+assert_jq -s 'length == 1 and (.[0].args | index("--parent") as $i | .[$i+1] == "ci-thread")
+	and (.[0].body | contains("記録のスレッド: ci-thread（0 以外で終わったときの返信先）"))
+	and (.[0].args | index("--mode") as $i | .[$i+1] == "continuous")' "$test_dir/wakeups.jsonl"
+echo 'PASS ci 登録: 記録のスレッドがあれば metadata を書かず、そのスレッドへ返信先を向ける'
+
+# conflicts は、conflicts の規則だけを消して入れ直し、CI などほかの条件の規則を残す。
+reset_fixture
+printf '%s\n' "$(ci_rule c1 monitor continuous conflicts true null)" "$(ci_rule c2 other once conflicts false null)" \
+	"$(ci_rule ci monitor continuous checks_finished true null)" "$(ci_rule none monitor continuous '' true null)" | jq -s '.' >"$test_dir/rules.json"
+(cd "$test_dir" && bash "$script" conflicts test-issue) >"$test_dir/output"
+[[ $(deleted_ids) == c1,c2 ]]
+assert_jq -s 'length == 1' "$test_dir/wakeups.jsonl"
+echo 'PASS conflicts 登録: conflicts の規則だけを消して入れ直し、CI などほかの条件の規則を残す'
 
 # 通知の参照先を実際に展開したリーダーからたどり、残る系統の修正役だけへ進める。
 source "$root/lib/render.sh"
@@ -247,8 +305,8 @@ for missing in gh jq multica; do
 		*) ln -sf "$(command -v "$cmd")" "$bare/$cmd" ;;
 		esac
 	done
-	# BASH_ENV などが PATH を足さないよう、環境を空にして流す。差し替えた monitor は PATH の道具を使うので、実物の見張りを直接呼ぶ。
-	line=$(cd "$test_dir" && env -i PATH="$bare" PR_WATCH_TEST_DIR="$test_dir" "$BASH" "$SQUAD_CLI_TEST_ACTUAL_SCRIPT" conflicts-check test-issue)
+	# BASH_ENV などが PATH を足さないよう、環境を空にして実物の見張りを呼ぶ。
+	line=$(cd "$test_dir" && env -i PATH="$bare" PR_WATCH_TEST_DIR="$test_dir" "$BASH" "$script" conflicts-check test-issue)
 	[[ $line == "コンフリクト: 未確認 head: 不明 理由: $missing が見つからない" ]] || { echo "$line" >&2; exit 1; }
 	cc_no_nashi "$line"
 done
