@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # タグかコミットの中身から、配布物（tar.gz）と install.sh と SHA256SUMS を出力先に作る。
-# 設計は docs/release.md の「配布物を作る」と docs/install.md の「展開の前の確かめ」。bash 3.2 で動かす。
+# 設計は docs/release.md の「配布物を作る」と docs/install.md の「展開の前の検証」。bash 3.2 で動かす。
 set -euo pipefail
 # 出力先は、呼んだ場所からの相対で渡されても、リポジトリのルートへ移ったあとで同じ場所を指すようにする。
 caller_dir=$PWD
@@ -109,7 +109,7 @@ display_name() {
 	printf '%s' "$escaped"
 }
 
-# 2: Git の木を NUL 区切りで読み、ディレクトリを含めて名前を確かめる。
+# 2: Git の木を NUL 区切りで読み、ディレクトリを含めて名前を検証する。
 git ls-tree -r -t -z --name-only "$target" >"$work/names" || stop '対象の木の名前を読めません。'
 bad_names=0
 while IFS= read -r -d '' name; do
@@ -126,11 +126,11 @@ if [[ $bad_names -gt 0 ]]; then
 	stop 'CONTRIBUTING.md の「ファイルとディレクトリの名前」に沿って、名前を ASCII に替えてください。'
 fi
 
-# 3: 対象の中身から配布物を作り、4: 作業ツリーの入口に一覧の確かめを委譲する。
+# 3: 対象の中身から配布物を作り、4: 作業ツリーの入口に一覧の検証を委譲する。
 git archive --format=tar.gz --prefix="$prefix" -o "$work/$asset" "$target" || stop '配布物を作れませんでした。'
-bash install.sh --check-listing "$version" "$work/$asset" || stop 'CONTRIBUTING.md の「ファイルとディレクトリの名前」と docs/install.md の「展開の前の確かめ」を確認してください。'
+bash install.sh --check-listing "$version" "$work/$asset" || stop 'CONTRIBUTING.md の「ファイルとディレクトリの名前」と docs/install.md の「展開の前の検証」を確認してください。'
 
-# 5: 新しい一時の置き場に展開し、MANIFEST の一覧と中のファイルが一致し、MANIFEST の確かめが通ることを確かめる
+# 5: 新しい一時の置き場に展開し、MANIFEST の一覧と中のファイルを照合し、MANIFEST の検証が通ることを確認する
 extract=$work/extract
 mkdir "$extract"
 tar -xzf "$work/$asset" -C "$extract" || stop '配布物を展開できませんでした。'

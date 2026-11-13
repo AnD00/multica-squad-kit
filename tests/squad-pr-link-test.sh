@@ -132,7 +132,7 @@ assert_warning() {
 # 404 で待ち切れたときだけ、2 行目に連携と同期の案内が出る。
 assert_not_found_guidance() {
 	[[ $(wc -l <"$test_dir/err" | tr -d ' ') == 2 ]]
-	[[ $(sed -n 2p "$test_dir/err") == 'サーバーは、Example/Template がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、Example/Template がつながっていることを確かめてから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。' ]]
+	[[ $(sed -n 2p "$test_dir/err") == 'サーバーは、Example/Template がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、Example/Template がつながっていることを確認してから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。' ]]
 }
 assert_no_guidance() {
 	! grep -F 'GitHub 連携' "$test_dir/err" >/dev/null
@@ -171,9 +171,9 @@ for existing in "$url" https://github.com/Example/Template/pull/44; do
 	MULTICA_TOKEN='' run_link 0 TASK-7 "$url"
 	cmp "$test_dir/issue.json" "$test_dir/before.json"
 	[[ ! -s $test_dir/curl.jsonl ]]
-	# 飛ばしたときは、紐付けていないことと確かめ方を、渡した URL とともに 1 行で示す。
+	# 飛ばしたときは、紐付けていないことと確認の方法を、渡した URL とともに 1 行で示す。
 	[[ $(wc -l <"$test_dir/out" | tr -d ' ') == 1 ]]
-	[[ $(cat "$test_dir/out") == "紐付けていません: TASK-7 ${url}（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確かめてください）" ]]
+	[[ $(cat "$test_dir/out") == "紐付けていません: TASK-7 ${url}（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確認してください）" ]]
 	assert_no_write
 	if [[ $existing == "$url" ]]; then [[ ! -s $test_dir/err ]]; else
 		[[ $(wc -l <"$test_dir/err" | tr -d ' ') == 1 ]]
@@ -354,8 +354,8 @@ for repository in absent same other; do
    [[ ! -s $test_dir/curl.jsonl ]]
    assert_no_write
    if [[ $repository != other ]]; then
-    # null・空文字の pr_url でも、飛ばしたことを先頭の語と確かめ方で示す。
-    [[ $(cat "$test_dir/out") == "紐付けていません: TASK-7 ${url}（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確かめてください）" ]]
+    # null・空文字の pr_url でも、飛ばしたことを先頭の語と確認の方法で示す。
+    [[ $(cat "$test_dir/out") == "紐付けていません: TASK-7 ${url}（metadata に pr_url があるため、API を呼びませんでした。紐付いているかは multica issue pull-requests で確認してください）" ]]
    fi
   fi
  done

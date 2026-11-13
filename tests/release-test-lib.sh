@@ -62,7 +62,7 @@ upload_assets() {
 	(cd "$clone" && bash scripts/build-assets.sh "$tag" "$out") >/dev/null || return 1
 	case $tamper in
 	content)
-		# 配布物に、タグにないファイルを足す。SHA256SUMS は作り直し、ほかの確かめは通す。
+		# 配布物に、タグにないファイルを足す。SHA256SUMS は作り直し、ほかの検証は通す。
 		ex=$GH_STATE/tamper
 		mkdir -p "$ex"
 		tar -xzf "$out/$tarf" -C "$ex"
@@ -145,7 +145,7 @@ OUTPUT
 	exit 0
 fi
 
-# 実行の一覧: 起こしたあとなら、条件に合う実行が 1 件（dup なら 2 件）出る。ほかの実行も混ぜ、絞り込みを確かめる。
+# 実行の一覧: 起こしたあとなら、条件に合う実行が 1 件（dup なら 2 件）出る。ほかの実行も混ぜ、絞り込みを確認する。
 if [[ ${1:-} == run && ${2:-} == list ]]; then
 	filter=
 	while [[ $# -gt 0 ]]; do
@@ -355,7 +355,7 @@ run_release() {
 }
 
 # run_release_tty <入力のファイル> [環境変数の指定...]: 標準入力と、標準出力・標準エラー出力のどちらも疑似端末につなぎ、
-# 256 色の端末の TERM で流す。色の判定を確かめるために使う。NO_COLOR は外し、指定があれば付ける。
+# 256 色の端末の TERM で流す。色の判定を確認するために使う。NO_COLOR は外し、指定があれば付ける。
 run_release_tty() {
 	local input=$1
 	shift

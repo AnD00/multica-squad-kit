@@ -131,7 +131,7 @@ TEST_SAVE_FAIL=yes deny
 grep -q '保存できませんでした' "$test_dir/err"
 cmp "$saved" "$test_dir/updated"
 [[ -z $(find "$test_dir/state" -name '.answers.*' -print) ]]
-echo 'PASS setup: 保存の失敗を返し、前の答えと一時ファイルの片付けを確かめる'
+echo 'PASS setup: 保存の失敗を返し、前の答えと一時ファイルの片付けを確認する'
 printf '1\nSecond project\nsecond\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.project_name=="Second project"' "$test_dir/state/ws-a/second.json" >/dev/null

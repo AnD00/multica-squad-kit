@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/squad-dependabot-merge-advance-diff-test.sh。
-# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance の rebase 前後の差分の比較を確かめる。
+# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance の rebase 前後の差分の比較を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
@@ -13,7 +13,7 @@ rebase_fixture
 sed -E 's/^index .*/index aaaaaaa..bbbbbbb 100644/; s/^@@ .* @@/@@ -10 +20,3 @@/' \
 	"$test_dir/pr.diff" >"$test_dir/new.diff"
 mv "$test_dir/new.diff" "$test_dir/pr.diff"
-# 差分を確かめ直す時間で、どちらの締め切りも過ぎた場合もマージする。
+# 差分を確認し直す時間で、どちらの締め切りも過ぎた場合もマージする。
 printf '215000\n' >"$test_dir/now"
 run_advance merged
 jq -se --arg head "$head2" '[.[] | select(.[0:2] == ["pr","merge"])] | length == 1 and .[0][-1] == $head' "$test_dir/calls.jsonl" >/dev/null

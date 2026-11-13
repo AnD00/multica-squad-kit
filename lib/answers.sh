@@ -14,7 +14,7 @@ def repository_name:
 	then . else error("OWNER/REPO の形ではありません") end;
 '
 
-# 紐付け先はコード作業先と分け、ワークスペースの登録だけを確かめる。
+# 紐付け先はコード作業先と分け、ワークスペースの登録だけを確認する。
 resolve_link_repositories() {
 	local requested='[]' registered
 	if [[ -f $root/extension-link-repositories.json ]]; then

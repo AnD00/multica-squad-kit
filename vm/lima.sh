@@ -46,7 +46,7 @@ version=$(limactl --version) || die 'Lima のバージョンを読めません�
 (( 10#${BASH_REMATCH[1]} >= 1 )) || die 'Lima 1.0.0 以上が必要です。'
 script_dir=$(cd "$(dirname "$0")" && pwd)
 
-# list --json は 1 インスタンスに 1 オブジェクトなので、存在を確かめて 1 件を読む。
+# list --json は 1 インスタンスに 1 オブジェクトなので、存在を確認して 1 件を読む。
 names=$(limactl list --quiet) || die 'VM の一覧を読めません。'
 exists=no
 while IFS= read -r candidate; do

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# setup.sh を通さず、片方だけの初回登録を本体の project・squad・autopilots・installation で確かめる。
+# setup.sh を通さず、片方だけの初回登録を本体の project・squad・autopilots・installation で確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/project-test-lib.sh"

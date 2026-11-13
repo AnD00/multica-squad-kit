@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "$0")/setup-fixture.sh"
 manifest
 export TEMPLATE_STATE_ROOT="$test_dir/fold-state"
-# 端末に答えを打つ画面で、答えた質問が 1 行に縮むかを確かめる。確認の no まで進み、実サービスへは呼び出さない。
+# 端末に答えを打つ画面で、答えた質問が 1 行に縮むかを確認する。確認の no まで進み、実サービスへは呼び出さない。
 esc=$'\033'
 # 先頭の空行は拡張のディレクトリの質問への答え。
 happy='1\nShop\n\n1,2\n\n\n1\n\n\nno\n'

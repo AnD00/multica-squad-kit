@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/squad-dependabot-merge-list-test.sh。
-# gh と multica を差し替え、実際の PR・タスクには書き込まない。list の分類・CI・差分の読み取りを確かめる。
+# gh と multica を差し替え、実際の PR・タスクには書き込まない。list の分類・CI・差分の読み取りを確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
@@ -163,7 +163,7 @@ jq -se '. == [["api","repos/another/service/pulls?state=open&per_page=100","--pa
 [[ ! -s $test_dir/error ]]
 echo 'PASS 引数のリポジトリ: 固定値ではなく、受け取った対象へ問い合わせる'
 
-# 任意の integration_id を補うと、別 App の成功で通ってしまうので、存在を両方確かめる。
+# 任意の integration_id を補うと、別 App の成功で通ってしまうので、存在を両方確認する。
 for app in absent specified; do
  reset_fixture
  add_pr 1 dependabot/go_modules/api/example "$(metadata patch)"

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-pr-watch-ci-test.sh で実行する。
-# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。ci-check と ci-held の保留・知らせ済みの記録・取得の条件を確かめる。
+# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。ci-check と ci-held の保留・知らせ済みの記録・取得の条件を確認する。
 # 保留の判定後の順序、引き継ぎ後の失敗、古い head、CLI の失敗は tests/squad-pr-watch-ci-handoff-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -77,7 +77,7 @@ for fixture in member other-head no-note other-prefix other-suffix; do
 done
 echo 'PASS 取得記録の条件: 作者・SHA・印・前後の文が違えば、今の失敗を知らせる'
 
-# ci-check が読む欄（status_category・state・statusCheckRollup の各欄）は、欄がある場合にその値どおり分岐することを確かめる。
+# ci-check が読む欄（status_category・state・statusCheckRollup の各欄）は、欄がある場合にその値どおり分岐することを確認する。
 # 欄が読めずに null になると、どの分岐にも入らず失敗を見逃す。
 set_checks() { # checks の JSON 配列。CheckRun は実物から作った見本に重ねる。
 	jq --slurpfile base "$test_dir/check-prototype.json" --argjson checks "$1" \

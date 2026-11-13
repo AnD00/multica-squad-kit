@@ -51,7 +51,7 @@ conflicts() {
 	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
 	cat >"$instruction" <<'EOF'
 PR のコンフリクトの見張りで起きました。
-タスクの状態とコメントを読み、in_review で、最後に人間を呼んだのがマージを待つためかを確かめてください。
+タスクの状態とコメントを読み、in_review で、最後に人間を呼んだのがマージを待つためかを確認してください。
 マージ待ちで、レビューと E2E の返事を待つ回の途中でなければ、リーダーの「実装・修正の振り分け」に従い、有効な修正の役を選んでください。選んだ役にタスクの metadata の pr_url を書いて、main とのコンフリクトの解消を頼み、タスクを in_progress にしてください。
 そうでなければ、何もせずに終えてください。作業中のコンフリクトは、次にマージに回すときに入れ直す見張りが拾います。
 EOF
@@ -178,7 +178,7 @@ ci() {
 	instruction=$(mktemp tmp/pr-watch-ci.XXXXXX)
 	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
 	cat >"$instruction" <<'EOF'
-PR の CI が終わりました。あなたの指示に従い、「このプロジェクトの値」からリーダーと見張り役の ID を渡して squad-pr-watch ci-check で今の head の CI を確かめてください。
+PR の CI が終わりました。あなたの指示に従い、「このプロジェクトの値」からリーダーと見張り役の ID を渡して squad-pr-watch ci-check で今の head の CI を確認してください。
 判定と失敗の知らせはスクリプトが行います。スクリプトが 0 で終わったら、標準出力をそのまま最後の返答にしてください。
 EOF
 	printf '記録のスレッド: %s（0 以外で終わったときの返信先）\n' "$thread" >>"$instruction"
@@ -272,7 +272,7 @@ ci_check() {
 	handoffs=$(jq -cn --arg agent "mention://agent/${id})" --arg squad "$squad" \
 		'[$agent] + if $squad != "" then ["mention://squad/" + $squad + ")"] else [] end')
 	active=$(jq -r --arg id "$id" --arg monitor "$monitor_id" --argjson comments "$comments" \
-		--argjson handoffs "$handoffs" --arg report $'/note\n確かめたコミット:' '[.[] | . as $run
+		--argjson handoffs "$handoffs" --arg report $'/note\n確認したコミット:' '[.[] | . as $run
 		| select(.agent_id != null and .agent_id != $id and .agent_id != $monitor
 			and .status != "completed" and .status != "failed" and .status != "cancelled")
 		| select(any($comments[]; $run.id != null and .source_task_id == $run.id

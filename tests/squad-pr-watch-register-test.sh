@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-pr-watch-register-test.sh で実行する。
-# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。見張りの登録・通知先の選択・契約の検査を確かめる。
+# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。見張りの登録・通知先の選択・契約の検査を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
@@ -19,7 +19,7 @@ assert_jq -s 'length == 1 and (.[0].body | contains("リーダーの「実装・
 	and (.[0].body | contains("squad-dispatch-pick") | not)' "$test_dir/wakeups.jsonl"
 echo 'PASS 登録: 見張り役 ID を渡し、コンフリクト通知はリーダーの振り分けを参照する'
 
-# 規則の欄（agent_id・mode・condition・enabled・paused_reason）は、欄がある場合の動作を確かめる。
+# 規則の欄（agent_id・mode・condition・enabled・paused_reason）は、欄がある場合の動作を確認する。
 # 欄が読めずに null になると、止まった規則を作り直して暴走の防止を外したり、有効な規則を重ねたりする。
 # 見本の規則から欄を差し替えて並べ、登録の結果（出力・作った規則・消した規則）を見る。
 ci_rule() { # id agent_id mode event enabled paused_reason
@@ -169,7 +169,7 @@ cc_responses() {
 	done
 }
 
-# 終了コード 0 で、標準出力がちょうど 1 行であることを確かめ、その行を出す。
+# 終了コード 0 で、標準出力がちょうど 1 行であることを確認し、その行を出す。
 cc_run() {
 	local out status=0
 	out=$(cd "$test_dir" && PATH="$clock_dir:$PATH" bash "$script" conflicts-check test-issue) || status=$?

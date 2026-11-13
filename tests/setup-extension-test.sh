@@ -3,7 +3,7 @@ set -euo pipefail
 source "$(dirname "$0")/setup-fixture.sh"
 manifest
 
-# 拡張のディレクトリだけは引数で受け、質問で答えたときと同じ確かめをする。
+# 拡張のディレクトリだけは引数で受け、質問で答えたときと同じ確認をする。
 run_extension() { (cd "$1" && shift && /bin/bash "$test_dir/package/setup.sh" "$@" <"$test_dir/input" >"$test_dir/out" 2>"$test_dir/err"); }
 mkdir -p "$test_dir/callers/extension"
 cp "$test_dir/package/VERSION" "$test_dir/callers/extension/kit-version"

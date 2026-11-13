@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-wait-contract-test.sh で実行する。
-# CLI を差し替え、実際のタスク・規則・エージェントには書き込まない。応答の欠落・スクワッドの選択・同時の記録を確かめる。
+# CLI を差し替え、実際のタスク・規則・エージェントには書き込まない。応答の欠落・スクワッドの選択・同時の記録を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"

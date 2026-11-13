@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/squad-dependabot-merge-advance-retry-limit-test.sh。
-# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance の rebase・recreate の合計回数と実行全体の上限を確かめる。
+# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance の rebase・recreate の合計回数と実行全体の上限を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
