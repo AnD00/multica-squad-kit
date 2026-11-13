@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clone せずに導入・更新する入口。Release の配布物を確かめてから展開し、セットアップを流す。
+# clone せずに導入・更新する入口。Release の配布物を検証してから展開し、セットアップを流す。
 # 設計は docs/install.md の「入口のスクリプト」「標準入力から流すとき」。1 ファイルで動き、原本のほかのファイルを読まない。bash 3.2 で動かす。
 # curl ... | bash のように標準入力から流されても動くよう、処理はすべて関数に入れ、最後の呼び出し（main を波括弧で囲んだ 1 つの塊）だけで流し始める。
 set -euo pipefail
@@ -69,8 +69,8 @@ usage() {
   bash install.sh --help
 <バージョン> は vX.Y.Z の形で渡す。省いたときは、最新の Release のバージョンを使う。
 標準入力から流すときは、bash -s -- のあとに引数を渡す。セットアップの質問には、端末（/dev/tty）から答える。
---verify は、置き場にある配布物と SHA256SUMS を確かめるだけで、展開も実行もしない。
---check-listing は、配布物の一覧だけを確かめる。証明とチェックサムは確かめず、展開も実行もしない。
+--verify は、置き場にある配布物と SHA256SUMS を検証するだけで、展開も実行もしない。
+--check-listing は、配布物の一覧だけを検証する。証明とチェックサムは検証せず、展開も実行もしない。
 USAGE
 }
 # 引数の誤りは 2 で終わる。
@@ -79,7 +79,7 @@ usage_error() {
 	usage >&2
 	exit 2
 }
-# 確かめ、取得、展開のどれかで止まるときは 1 で終わる。
+# 検証、取得、展開のどれかで止まるときは 1 で終わる。
 stop() {
 	ui_error "$*"
 	exit 1
@@ -100,7 +100,7 @@ ver_ge() {
 	((10#$3 >= 10#$6))
 }
 
-# OS と道具を確かめる。
+# OS と道具を確認する。
 check_tools() {
 	local tool
 	case $(uname -s) in
@@ -112,7 +112,7 @@ check_tools() {
 	done
 }
 
-# gh のバージョンが、証明を確かめられるものか確かめる。読めないときも、古いときと同じに扱う。
+# gh のバージョンが、証明を検証できるものか確認する。読めないときも、古いときと同じに扱う。
 check_gh_version() {
 	local output first re version
 	output=$(gh --version 2>/dev/null </dev/null) || output=
@@ -121,12 +121,12 @@ check_gh_version() {
 	if [[ $first =~ $re ]]; then
 		version=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
 		if ver_ge "$version" "$required_gh"; then return 0; fi
-		stop "gh のバージョンが古く、配布物の証明を確かめられません（今: ${version}、必要: $required_gh 以上）。gh を更新してから流し直してください。"
+		stop "gh のバージョンが古く、配布物の証明を検証できません（今: ${version}、必要: $required_gh 以上）。gh を更新してから流し直してください。"
 	fi
-	stop "gh のバージョンを読めません（必要: $required_gh 以上）。gh --version の出力を確かめ、gh を更新してから流し直してください。"
+	stop "gh のバージョンを読めません（必要: $required_gh 以上）。gh --version の出力を確認し、gh を更新してから流し直してください。"
 }
 
-# verify_attestation <ファイル> <バージョン>: 4 つの指定をそろえて、証明を確かめる。
+# verify_attestation <ファイル> <バージョン>: 4 つの指定をそろえて、証明を検証する。
 verify_attestation() {
 	local file=$1 version=$2 result
 	result=$(gh attestation verify "$file" \
@@ -135,7 +135,7 @@ verify_attestation() {
 		--source-ref "refs/tags/$version" \
 		--deny-self-hosted-runners 2>&1 </dev/null) || {
 		printf '%s\n' "$result" >&2
-		stop "証明を確かめられませんでした: ${file##*/}。展開も実行もしません。gh のログインは gh auth status で確かめられます。"
+		stop "証明を検証できませんでした: ${file##*/}。展開も実行もしません。gh のログインは gh auth status で確認できます。"
 	}
 }
 
@@ -195,7 +195,7 @@ check_listing() {
 	if [[ -n $had_lc_all ]]; then LC_ALL=$old_lc_all; else unset LC_ALL; fi
 }
 
-# verify_assets <バージョン> <置き場>: 置き場の SHA256SUMS と配布物を、証明、チェックサム、一覧の順に確かめる。展開はしない。
+# verify_assets <バージョン> <置き場>: 置き場の SHA256SUMS と配布物を、証明、チェックサム、一覧の順に検証する。展開はしない。
 verify_assets() {
 	local version=$1 dir=$2 asset=multica-squad-kit-$1.tar.gz
 	[[ -d $dir ]] || stop "置き場がディレクトリではありません: $dir"
@@ -223,11 +223,11 @@ fetch_assets() {
 	mkdir "$dir" || stop "取得先を作れません: $dir"
 	result=$(gh release download "$version" --repo "$repo" --pattern "$asset" --pattern SHA256SUMS --dir "$dir" 2>&1 </dev/null) || {
 		printf '%s\n' "$result" >&2
-		stop "$version を取得できませんでした。gh のログインは gh auth status で確かめられます。"
+		stop "$version を取得できませんでした。gh のログインは gh auth status で確認できます。"
 	}
 }
 
-# check_extracted <展開先> <バージョン>: 展開したものに、リンクと、通常のファイルとディレクトリのほかのものがなく、VERSION が合うか確かめる。
+# check_extracted <展開先> <バージョン>: 展開したものにリンクや特殊なファイルがないことを確認し、VERSION を指定したバージョンと照合する。
 check_extracted() {
 	local dir=$1 version=$2 top=$1/multica-squad-kit-$2 found
 	[[ -d $top && ! -L $top ]] || stop "展開したものに multica-squad-kit-${version} のディレクトリがありません。"
@@ -240,17 +240,17 @@ check_extracted() {
 	[[ -f $top/setup.sh ]] || stop "展開したものに setup.sh がありません。"
 }
 
-# check_tty: 標準入力から流されているときは、セットアップの質問に端末から答えられるか、取得の前に確かめる。
+# check_tty: 標準入力から流されているときは、セットアップの質問に端末から答えられるか、取得の前に確認する。
 check_tty() {
 	[[ $from_stdin == yes ]] || return 0
 	{ : </dev/tty; } 2>/dev/null || stop "端末（/dev/tty）を開けません。セットアップの質問に答えられないので、何も取らずに止まります。入口をファイルに取ってから bash install.sh で流してください。"
 }
 
-# latest_version: 最新の Release のバージョンを 1 回だけ読み、vX.Y.Z の形かを確かめて出す。
+# latest_version: 最新の Release のバージョンを 1 回だけ読み、vX.Y.Z の形かを確認して出す。
 latest_version() {
 	local result
 	result=$(gh release view --repo "$repo" --json tagName --jq .tagName </dev/null) \
-		|| stop "最新のバージョンを読めませんでした。gh のログインは gh auth status で確かめられます。バージョンを指定して流すこともできます。"
+		|| stop "最新のバージョンを読めませんでした。gh のログインは gh auth status で確認できます。バージョンを指定して流すこともできます。"
 	[[ $result =~ $version_re ]] || stop "最新の Release のバージョンが vX.Y.Z の形ではありません: $result"
 	printf '%s\n' "$result"
 }
@@ -266,7 +266,7 @@ run_setup() {
 	fi
 }
 
-# install_release <バージョン> [拡張のディレクトリ]: 取得、確かめ、展開、確かめ、セットアップの順に行う。
+# install_release <バージョン> [拡張のディレクトリ]: 取得、検証、展開、検証、セットアップの順に行う。
 # セットアップが終わったときはその終了コードで、止まったときは 1 で終わる。
 install_release() {
 	local version=$1 extension=${2-} asset=multica-squad-kit-$1.tar.gz setup_rc=0
@@ -279,7 +279,7 @@ install_release() {
 	echo "取得します: $version"
 	fetch_assets "$version" "$work_dir/assets"
 	verify_assets "$version" "$work_dir/assets"
-	echo "確かめが通りました。展開します。"
+	echo "検証が通りました。展開します。"
 	mkdir "$work_dir/src" || stop "展開先を作れません。"
 	tar -xzf "$work_dir/assets/$asset" -C "$work_dir/src" || stop '配布物を展開できませんでした。'
 	check_extracted "$work_dir/src" "$version"
@@ -350,14 +350,14 @@ main() {
 	if [[ $mode == check-listing ]]; then
 		command -v tar >/dev/null || stop 'tar がありません。tar を入れてから流してください。'
 		check_listing "$place" "$version"
-		ui_line out success "一覧の確かめが通りました: ${version}。証明とチェックサムは確かめていません。展開も実行もしていません。"
+		ui_line out success "一覧の検証が通りました: ${version}。証明とチェックサムは検証していません。展開も実行もしていません。"
 		exit 0
 	fi
 	check_tools
 	check_gh_version
 	if [[ $mode == verify ]]; then
 		verify_assets "$version" "$place"
-		ui_line out success "確かめが通りました: ${version}（SHA256SUMS と配布物の証明、チェックサム、一覧）。展開も実行もしていません。"
+		ui_line out success "検証が通りました: ${version}（SHA256SUMS と配布物の証明、チェックサム、一覧）。展開も実行もしていません。"
 		exit 0
 	fi
 	check_tty

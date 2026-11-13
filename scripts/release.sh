@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # バージョンを上げる PR のマージのあとに、VERSION のバージョンの注釈付きのタグと Release を出す。
-# 下書きの Release を作り、発行のワークフローに配布物を作らせ、確かめてから公開する。
+# 下書きの Release を作り、発行のワークフローに配布物を作らせ、検証してから公開する。
 # 設計は docs/release.md。bash 3.2 で動かす。
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -8,7 +8,7 @@ cd "$(dirname "$0")/.."
 source lib/ui.sh
 ui_init
 
-# 配布物の確かめは、使う人の入口（install.sh）と同じ値で行う。docs/install.md の「確かめ方」。
+# 配布物の検証は、使う人の入口（install.sh）と同じ値で行う。docs/install.md の「検証の方法」。
 attest_repo=AnD00/multica-squad-kit
 attest_signer_workflow=$attest_repo/.github/workflows/release-assets.yml
 required_gh=2.102.0
@@ -21,7 +21,7 @@ usage() {
 	cat <<'USAGE'
 使い方: bash scripts/release.sh
 原本のリポジトリのルートの main で流す。VERSION のバージョンのタグと Release を、確認のあとに出す。
-下書きの Release を作り、配布物を作らせて確かめてから、公開する。
+下書きの Release を作り、配布物を作らせて検証してから、公開する。
 USAGE
 }
 stop() {
@@ -72,9 +72,9 @@ gh_first=${gh_output%%$'\n'*}
 gh_re='^gh version ([0-9]{1,9})\.([0-9]{1,9})\.([0-9]{1,9})'
 if [[ $gh_first =~ $gh_re ]]; then
 	gh_version=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
-	ver_ge "$gh_version" "$required_gh" || stop "gh のバージョンが古く、配布物の証明を確かめられません（今: ${gh_version}、必要: $required_gh 以上）。gh を更新してから流し直してください。"
+	ver_ge "$gh_version" "$required_gh" || stop "gh のバージョンが古く、配布物の証明を検証できません（今: ${gh_version}、必要: $required_gh 以上）。gh を更新してから流し直してください。"
 else
-	stop "gh のバージョンを読めません（必要: $required_gh 以上）。gh --version の出力を確かめ、gh を更新してから流し直してください。"
+	stop "gh のバージョンを読めません（必要: $required_gh 以上）。gh --version の出力を確認し、gh を更新してから流し直してください。"
 fi
 root=$(pwd -P)
 top=$(git rev-parse --show-toplevel 2>/dev/null) || stop '原本のリポジトリのルートで流してください。'
@@ -212,7 +212,7 @@ if [[ -z $local_tag && $release != none ]]; then
 	stop "$version のタグはありませんが、Release があります: $release_url"
 fi
 # することと、タグを付けるコミット: タグがなければ main の先頭、あればそのタグが指すコミット。
-#   tag: タグから / draft: 下書きの作成から / workflow: 配布物の作成から / verify: 配布物の確かめから / published: 何もしない
+#   tag: タグから / draft: 下書きの作成から / workflow: 配布物の作成から / verify: 配布物の検証から / published: 何もしない
 if [[ -n $local_tag ]]; then
 	commit=$(git rev-parse "refs/tags/$version^{commit}")
 	case $release in
@@ -230,7 +230,7 @@ else
 	action=tag
 fi
 
-# 6〜8: タグを付けるコミットの VERSION と CHANGELOG.md から確かめ、Release の本文を作る。
+# 6〜8: タグを付けるコミットの VERSION と CHANGELOG.md を検証し、Release の本文を作る。
 commit_version=$(git show "$commit:VERSION" 2>/dev/null | tr -d '\n') || commit_version=
 [[ $commit_version == "$version" ]] || stop "$version のタグが指すコミットの VERSION（${commit_version:-空}）が、タグの名前と違います。"
 
@@ -244,21 +244,21 @@ notes=$(printf '%s\n' "$changelog" | awk -v heading="## $version" '$0 == heading
 [[ -n $(printf '%s' "$notes" | tr -d '[:space:]') ]] || stop "CHANGELOG.md の $version の節が空です。"
 notes=$(printf '%s\n' "$notes" | awk 'NF {if (started) for (; blank > 0; blank--) print ""; started = 1; blank = 0; print; next} started {blank++}')
 
-# 9: これから配布物を作らせる状態だけ、タグを付けるコミットを発行と同じ道で確かめる。
-# そろった下書きは公開の前の確かめに任せ、公開済みでは行わない。
+# 9: これから配布物を作らせる状態だけ、タグを付けるコミットを発行と同じ道で検証する。
+# そろった下書きは公開の前の検証に任せ、公開済みでは行わない。
 case $action in
 tag | draft | workflow)
-	printf 'タグを付ける前に、配布物を作って確かめます（確かめの 9）。\n'
+	printf 'タグを付ける前に、配布物を作って検証します（検証の 9）。\n'
 	if ! bash scripts/build-assets.sh --commit "$commit" "$work_tmp/preflight-assets"; then
 		if [[ -n $local_tag ]]; then
 			ui_error "$version のタグでは出せません。直したコミットを新しいバージョンで出してください。"
 		fi
-		stop 'タグを付ける前の配布物の確かめ（9）で止まりました。CONTRIBUTING.md の「ファイルとディレクトリの名前」を確認してください。'
+		stop 'タグを付ける前の配布物の検証（9）で止まりました。CONTRIBUTING.md の「ファイルとディレクトリの名前」を確認してください。'
 	fi
 	;;
 esac
 
-# 公開済みのバージョンは、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
+# 公開済みのバージョンは、検証を済ませてから、何もせずに成功で終わる。端末でなくても終わる。
 if [[ $action == published ]]; then
 	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"
 	exit 0
@@ -270,10 +270,10 @@ printf 'リポジトリ: %s\n' "$repo"
 printf '出すバージョン: %s\n' "$version"
 printf 'タグを付けるコミット: %s %s\n' "$commit" "$(git log -1 --format=%s "$commit")"
 case $action in
-tag) printf 'すること: 注釈付きのタグを作って origin に push し、下書きの Release を作り、配布物を作らせて確かめ、公開する\n' ;;
-draft) printf 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて確かめ、公開する\n' ;;
-workflow) printf 'すること: すでにある下書きの Release に、配布物を作らせて確かめ、公開する\n' ;;
-verify) printf 'すること: すでにある下書きの Release の配布物を確かめ、公開する\n' ;;
+tag) printf 'すること: 注釈付きのタグを作って origin に push し、下書きの Release を作り、配布物を作らせて検証し、公開する\n' ;;
+draft) printf 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて検証し、公開する\n' ;;
+workflow) printf 'すること: すでにある下書きの Release に、配布物を作らせて検証し、公開する\n' ;;
+verify) printf 'すること: すでにある下書きの Release の配布物を検証し、公開する\n' ;;
 esac
 printf 'Release の本文:\n----------------------------------------\n%s\n----------------------------------------\n' "$notes"
 printf '公開しますか [y/N]: ' >&2
@@ -293,7 +293,7 @@ find_run() {
 		out=$(gh run list --repo "$repo" --workflow "$workflow_file" --event workflow_dispatch --limit 20 --json databaseId,headBranch,createdAt,event,url --jq "$filter" 2>"$work_tmp/gh-err" </dev/null) || stop "発行のワークフローの実行の一覧を読めません: $(tr '\n' ' ' <"$work_tmp/gh-err")下書きは残してあります。"
 		count=$(printf '%s' "$out" | grep -c . || true)
 		if [[ $count -gt 1 ]]; then
-			stop "起こした時刻のあとの $workflow_file の実行が $count 件あり、どれか決められません。下書きは残してあります。GitHub の Actions の画面で実行を確かめ、終わってから流し直してください。"
+			stop "起こした時刻のあとの $workflow_file の実行が $count 件あり、どれか決められません。下書きは残してあります。GitHub の Actions の画面で実行を確認し、終わってから流し直してください。"
 		fi
 		if [[ $count -eq 1 ]]; then
 			run_id=${out%%$'\t'*}
@@ -303,15 +303,15 @@ find_run() {
 		fi
 		if [[ $try -lt $run_find_tries ]]; then sleep "$run_find_interval"; fi
 	done
-	stop "起こした $workflow_file の実行が、一覧に見つかりません。下書きは残してあります。GitHub の Actions の画面で実行を確かめてください。動いているなら終わってから、配布物が載っていなければ、流し直してください。"
+	stop "起こした $workflow_file の実行が、一覧に見つかりません。下書きは残してあります。GitHub の Actions の画面で実行を確認してください。動いているなら終わってから、配布物が載っていなければ、流し直してください。"
 }
 
-# verify_stop <理由>: 公開の前の確かめで止まる。公開せず、下書きと配布物は残す。
+# verify_stop <理由>: 公開の前の検証で止まる。公開せず、下書きと配布物は残す。
 verify_stop() {
-	stop "$1 公開しません。下書きと配布物は残してあります。配布物の差し替えのおそれがあるので、人が確かめるまで流し直さないでください。"
+	stop "$1 公開しません。下書きと配布物は残してあります。配布物の差し替えのおそれがあるので、人が確認するまで流し直さないでください。"
 }
 
-# attest <ファイル> <束>: docs/install.md の「確かめ方」の 4 つの指定をそろえて、証明の束を確かめる。
+# attest <ファイル> <束>: docs/install.md の「検証の方法」の 4 つの指定をそろえて、証明の束を検証する。
 attest() {
 	local file=$1 bundle=$2 result
 	result=$(gh attestation verify "$file" \
@@ -321,7 +321,7 @@ attest() {
 		--source-ref "refs/tags/$version" \
 		--deny-self-hosted-runners 2>&1 </dev/null) || {
 		printf '%s\n' "$result" >&2
-		verify_stop "証明の束で、${file##*/} の証明を確かめられませんでした。"
+		verify_stop "証明の束で、${file##*/} の証明を検証できませんでした。"
 	}
 }
 
@@ -332,12 +332,12 @@ download_asset() {
 	[[ -f $dir/$name && ! -L $dir/$name ]] || verify_stop "配布物を取得できませんでした: $name"
 }
 
-# 公開の前の確かめ（docs/release.md の「公開の前の確かめ」）。
+# 公開の前の検証（docs/release.md の「公開の前の検証」）。
 verify_draft() {
 	local vdir=$work_tmp/verify assets tag_install sums_line sums_count line re actual
 	assets=$vdir/assets
 	tag_install=$vdir/tag-install.sh
-	mkdir -p "$assets" "$vdir/archive" "$vdir/expected" || stop '確かめる置き場を作れません。'
+	mkdir -p "$assets" "$vdir/archive" "$vdir/expected" || stop '検証用の置き場を作れません。'
 	# 1: 一覧で読み直した ID で、4 つを新しい置き場へ取ってくる。
 	read_release
 	[[ $release == draft && $asset_status == complete ]] || stop "$version の下書きの Release に、配布物が 4 つそろっていません（今: ${asset_names:-なし}）。公開しません。下書きは残してあります。"
@@ -345,7 +345,7 @@ verify_draft() {
 	download_asset "$id_install" install.sh "$assets"
 	download_asset "$id_sums" SHA256SUMS "$assets"
 	download_asset "$id_bundle" "$bundle_name" "$assets"
-	# 2: タグの install.sh で、使う人の入口と同じ確かめ（証明、チェックサム、一覧）を流す。
+	# 2: タグの install.sh で、使う人の入口と同じ検証（証明、チェックサム、一覧）を流す。
 	git ls-tree "$version" -- install.sh | grep -Eq '^100(644|755) blob ' || verify_stop 'タグの install.sh が、通常のファイルではありません。'
 	git show "$version:install.sh" >"$tag_install" || verify_stop 'タグの install.sh を読めません。'
 	bash "$tag_install" --verify "$version" "$assets" </dev/null || verify_stop "タグの install.sh の --verify が通りませんでした。"
@@ -371,7 +371,7 @@ verify_draft() {
 		head -n 20 "$vdir/diff" >&2
 		verify_stop '配布物の中身が、git archive で取り出したタグの中身と違います。'
 	}
-	# 5: 証明の束で、3 つの証明を確かめる。
+	# 5: 証明の束で、3 つの証明を検証する。
 	attest "$assets/$tar_name" "$assets/$bundle_name"
 	attest "$assets/SHA256SUMS" "$assets/$bundle_name"
 }
@@ -404,12 +404,12 @@ if [[ $action != verify ]]; then
 	printf '発行のワークフローを待ちます: %s\n' "$run_url"
 	gh run watch "$run_id" --repo "$repo" --exit-status </dev/null || stop "発行のワークフローが失敗しました: ${run_url}。下書きは残してあります。配布物が 1 つも載っていなければ、流し直すと配布物を作らせ直します。途中まで載っているときは、GitHub の画面で下書きの配布物を消してから流し直してください。"
 fi
-# 5: 配布物を確かめる。
-printf '配布物を確かめます。\n'
+# 5: 配布物を検証する。
+printf '配布物を検証します。\n'
 verify_draft
-printf '配布物の確かめが通りました。\n'
+printf '配布物の検証が通りました。\n'
 # 6: 公開する。
 if ! url=$(gh release edit "$version" --repo "$repo" --draft=false </dev/null); then
-	stop "Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を確かめ直して公開します。"
+	stop "Release の公開に失敗しました。下書きは残してあります。同じコマンドを流し直すと、配布物を検証し直して公開します。"
 fi
 printf 'Release を公開しました: %s\n' "${url:-https://github.com/$repo/releases/tag/$version}"

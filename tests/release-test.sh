@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# scripts/release.sh の動きのうち、承認・拒否と、タグと Release が揃った状態からの続きを確かめる。
-# 準備と補助は tests/release-test-lib.sh、確かめで止まるケースは tests/release-check-test.sh、失敗と流し直しは tests/release-failure-test.sh にある。
+# scripts/release.sh の動きのうち、承認・拒否と、タグと Release が揃った状態からの続きを確認する。
+# 準備と補助は tests/release-test-lib.sh、検証で止まるケースは tests/release-check-test.sh、失敗と流し直しは tests/release-failure-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/release-test-lib.sh"
 
-# 承認する: origin に注釈付きのタグができ、main の先頭を指す。下書きを作り、ワークフローを起こして待ち、確かめて公開する。
+# 承認する: origin に注釈付きのタグができ、main の先頭を指す。下書きを作り、ワークフローを起こして待ち、検証して公開する。
 make_case approve
 main_head=$(git -C "$work" rev-parse HEAD)
 run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
-grep -qF '確かめの 9' "$case_dir/out"
+grep -qF '検証の 9' "$case_dir/out"
 [[ $(git -C "$bare" cat-file -t v1.6.0) == tag ]]
 [[ $(git -C "$bare" rev-parse 'v1.6.0^{commit}') == "$main_head" ]]
 [[ $(git -C "$bare" tag -l --format='%(contents:subject)' v1.6.0) == v1.6.0 ]]
@@ -31,7 +31,7 @@ before_in_log 'releases/assets/' '^attestation verify .* --bundle '
 before_in_log '^attestation verify .* --bundle ' '^release edit'
 # 公開の前に、配布物を 1 回ずつ取得する。
 [[ $(log_count 'api -H Accept: application/octet-stream repos/example/kit/releases/assets/') == 4 ]]
-# 証明は、タグの install.sh の --verify（束なし、2 つ）と、束での確かめ（3 つ）の 5 回。指定は docs/install.md の 4 つ。
+# 証明は、タグの install.sh の --verify（束なし、2 つ）と、束での検証（3 つ）の 5 回。指定は docs/install.md の 4 つ。
 [[ $(log_count '^attestation verify ') == 5 ]]
 [[ $(log_count '^attestation verify .* --bundle ') == 3 ]]
 for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
@@ -40,11 +40,11 @@ done
 [[ $(draft_flag) == false ]]
 grep -qxF '出すバージョン: v1.6.0' "$case_dir/out"
 grep -qF "タグを付けるコミット: $main_head Release content" "$case_dir/out"
-grep -qxF 'すること: 注釈付きのタグを作って origin に push し、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: 注釈付きのタグを作って origin に push し、下書きの Release を作り、配布物を作らせて検証し、公開する' "$case_dir/out"
 grep -qxF '新しいバージョンの 1 段落目。' "$case_dir/out"
 grep -qxF "下書きの Release を作りました: $draft_url" "$case_dir/out"
 grep -qxF "発行のワークフローを待ちます: $run_url" "$case_dir/out"
-grep -qxF '配布物の確かめが通りました。' "$case_dir/out"
+grep -qxF '配布物の検証が通りました。' "$case_dir/out"
 grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
 grep -qF '公開しますか [y/N]: ' "$case_dir/err"
 no_leftover
@@ -73,7 +73,7 @@ for answer in n yes empty eof; do
 	grep -qF '公開を取りやめました。' "$case_dir/err"
 	no_leftover
 done
-# 配布物のそろった下書きがあるときも、承認しなければ、確かめも公開もしない。
+# 配布物のそろった下書きがあるときも、承認しなければ、検証も公開もしない。
 make_case decline-verify
 tag_here
 add_release true
@@ -121,7 +121,7 @@ run_release "$test_dir/answer-y"
 [[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
 [[ $(log_count '^release create') == 1 ]]
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
-grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて検証し、公開する' "$case_dir/out"
 grep -qF "タグを付けるコミット: $tag_commit Release content" "$case_dir/out"
 [[ $(draft_flag) == false ]]
 # 配布物は、main のあとのファイルを含まない（タグの中身から作られている）。
@@ -146,11 +146,11 @@ log_lacks '^release create'
 [[ $(log_count '^workflow run') == 1 ]]
 before_in_log '^workflow run' '^run watch'
 before_in_log '^run watch' '^release edit'
-grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて検証し、公開する' "$case_dir/out"
 [[ $(draft_flag) == false ]]
 no_leftover
 
-# 配布物のそろった下書きがある: 承認すると、workflow run を呼ばず、確かめから続ける。
+# 配布物のそろった下書きがある: 承認すると、workflow run を呼ばず、検証から続ける。
 make_case draft-complete
 tag_here
 add_release true
@@ -163,7 +163,7 @@ log_lacks '^run list'
 log_lacks '^run watch'
 [[ $(log_count 'releases/assets/') == 4 ]]
 before_in_log 'releases/assets/' '^release edit'
-grep -qxF 'すること: すでにある下書きの Release の配布物を確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: すでにある下書きの Release の配布物を検証し、公開する' "$case_dir/out"
 grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
 [[ $(draft_flag) == false ]]
 no_leftover
@@ -215,4 +215,4 @@ run_release_notty
 no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF 'すでに出してあります' "$case_dir/out"
-echo 'PASS release 前半: 承認でだけ公開し、拒否・端末でない・タグと Release が揃った状態からの続きを確かめた'
+echo 'PASS release 前半: 承認でだけ公開し、拒否・端末でない・タグと Release が揃った状態からの続きを確認した'

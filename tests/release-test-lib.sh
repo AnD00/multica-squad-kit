@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # release-test.sh、release-check-test.sh、release-failure-test.sh が読み込む準備と補助。単独では実行しない。
-# scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確かめる。
+# scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確認する。
 # origin は一時の bare のリポジトリで、本物の GitHub には push せず、Release もワークフローの実行も作らない。
 # 設計は docs/release.md の「テストと CI」。スタブの gh は、Release の一覧を JSON の状態として持ち、
 # release create、run watch、release edit で状態を動かす。配布物は、スタブが scripts/build-assets.sh をタグに流して作る。
@@ -42,7 +42,7 @@ upload_assets() {
 	(cd "$clone" && bash scripts/build-assets.sh "$tag" "$out") >/dev/null || return 1
 	case $tamper in
 	content)
-		# 配布物に、タグにないファイルを足す。SHA256SUMS は作り直し、ほかの確かめは通す。
+		# 配布物に、タグにないファイルを足す。SHA256SUMS は作り直し、ほかの検証は通す。
 		ex=$GH_STATE/tamper
 		mkdir -p "$ex"
 		tar -xzf "$out/$tarf" -C "$ex"
@@ -118,7 +118,7 @@ if [[ ${1:-} == workflow && ${2:-} == run ]]; then
 	exit 0
 fi
 
-# 実行の一覧: 起こしたあとなら、条件に合う実行が 1 件（dup なら 2 件）出る。ほかの実行も混ぜ、絞り込みを確かめる。
+# 実行の一覧: 起こしたあとなら、条件に合う実行が 1 件（dup なら 2 件）出る。ほかの実行も混ぜ、絞り込みを確認する。
 if [[ ${1:-} == run && ${2:-} == list ]]; then
 	filter=
 	while [[ $# -gt 0 ]]; do
@@ -321,7 +321,7 @@ no_tag() { [[ -z $(git -C "$work" tag) && -z $(git -C "$bare" tag) ]]; }
 # no_leftover: 流したあとに、一時の置き場が残っていない。
 no_leftover() { [[ -z $(ls -A "$case_dir/tmp") ]]; }
 
-# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確かめる。タグがあるケース用。
+# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確認する。タグがあるケース用。
 expect_stop_keep() {
 	local before
 	before=$(snapshot)

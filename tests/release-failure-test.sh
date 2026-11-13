@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# scripts/release.sh の動きのうち、すでにあるタグと Release の状態、各手順の失敗と流し直し、公開の前の確かめの失敗、引数を確かめる。
-# 準備と補助は tests/release-test-lib.sh、承認・拒否とタグと Release が揃った状態からの続きは tests/release-test.sh、確かめで止まるケースは tests/release-check-test.sh にある。
+# scripts/release.sh の動きのうち、すでにあるタグと Release の状態、各手順の失敗と流し直し、公開の前の検証の失敗、引数を検証する。
+# 準備と補助は tests/release-test-lib.sh、承認・拒否とタグと Release が揃った状態からの続きは tests/release-test.sh、検証で止まるケースは tests/release-check-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/release-test-lib.sh"
@@ -59,7 +59,7 @@ make_case list-fails-with-tag
 tag_here
 GH_LIST_FAIL=1 expect_stop_keep 'GitHub から読めません'
 
-# 6〜8 は、タグが指すコミットで確かめる。main がそのあとで直っていても、タグの中身が悪ければ止まる。
+# 6〜8 は、タグが指すコミットで検証する。main がそのあとで直っていても、タグの中身が悪ければ止まる。
 make_case tag-commit-version
 printf 'v1.5.9\n' >"$work/VERSION"
 commit_work 'Other version'
@@ -75,7 +75,7 @@ changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fill the section'
 expect_stop_keep '節が空です'
 
-# 公開済みのときも、タグが指すコミットで 6〜8 を確かめてから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
+# 公開済みのときも、タグが指すコミットで 6〜8 を検証してから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
 make_case published-tag-commit-version
 printf 'v1.5.9\n' >"$work/VERSION"
 commit_work 'Other version'
@@ -153,7 +153,7 @@ run_release "$test_dir/answer-y"
 [[ $(snapshot) == "$before" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
 [[ $(log_count '^release create') == 1 ]]
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
-grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて検証し、公開する' "$case_dir/out"
 [[ $(draft_flag) == false ]]
 # タグがあるときの失敗は、タグを push したとは言わず、同じコマンドで流し直せると出す。
 make_case release-fails-tag-exists
@@ -178,7 +178,7 @@ run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 log_lacks '^release create'
 [[ $(log_count '^workflow run') == 1 ]]
-grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて検証し、公開する' "$case_dir/out"
 [[ $(draft_flag) == false ]]
 
 # 起こした実行が、一覧に出るまで間がある: 決まった回数のうちは読み直して、見つかれば続ける。
@@ -209,7 +209,7 @@ GH_RUNS_MODE=fail run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 grep -qF '実行の一覧を読めません' "$case_dir/err"
 log_lacks '^release edit'
-# 実行が失敗する: 実行の URL を出し、確かめも release edit もしない。配布物がないので、流し直すと配布物を作らせ直す。
+# 実行が失敗する: 実行の URL を出し、検証も release edit もしない。配布物がないので、流し直すと配布物を作らせ直す。
 make_case workflow-run-fails
 GH_WATCH_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
@@ -223,14 +223,14 @@ run_release "$test_dir/answer-y"
 log_lacks '^release create'
 [[ $(draft_flag) == false ]]
 
-# 公開の前の確かめが失敗する: 何が合わなかったかを出し、release edit も削除も呼ばない。下書きと配布物は残り、流し直さないことを出す。
-# expect_verify_stop <理由に含む文字>: 配布物のそろった下書きから流して、確かめで止まったことを確かめる。
+# 公開の前の検証が失敗する: 何が合わなかったかを出し、release edit も削除も呼ばない。下書きと配布物は残り、流し直さないことを出す。
+# expect_verify_stop <理由に含む文字>: 配布物のそろった下書きから流して、検証で止まったことを確認する。
 expect_verify_stop() {
 	run_release "$test_dir/answer-y"
 	[[ $rc == 1 ]]
 	grep -qF "$1" "$case_dir/err"
 	grep -qF '公開しません。下書きと配布物は残してあります。' "$case_dir/err"
-	grep -qF '人が確かめるまで流し直さないでください。' "$case_dir/err"
+	grep -qF '人が確認するまで流し直さないでください。' "$case_dir/err"
 	log_lacks '^release \(edit\|delete\)'
 	log_lacks '^api -X\|^api --method'
 	log_lacks '^workflow run'
@@ -238,22 +238,22 @@ expect_verify_stop() {
 	[[ $(jq -r '.[] | select(.tag_name == "v1.6.0") | .assets | length' "$GH_RELEASES") == 4 ]]
 	no_leftover
 }
-# 束での証明が通らない: タグの install.sh の確かめ（束なし）は通り、配布物ごとの束での確かめで止まる。
+# 束での証明が通らない: タグの install.sh の検証（束なし）は通り、配布物ごとの束での検証で止まる。
 for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
 	make_case "verify-bundle-$file"
 	tag_here
 	add_release true
 	seed_assets
-	GH_ATTEST_FAIL=$file GH_ATTEST_FAIL_WITH=bundle expect_verify_stop "証明の束で、$file の証明を確かめられませんでした。"
+	GH_ATTEST_FAIL=$file GH_ATTEST_FAIL_WITH=bundle expect_verify_stop "証明の束で、$file の証明を検証できませんでした。"
 	grep -qF 'stub: attestation failed' "$case_dir/err"
 done
-# 使う人の入口と同じ確かめ（束なしの証明）が通らない: タグの install.sh の --verify が止める。
+# 使う人の入口と同じ検証（束なしの証明）が通らない: タグの install.sh の --verify が止める。
 make_case verify-nobundle
 tag_here
 add_release true
 seed_assets
 GH_ATTEST_FAIL=SHA256SUMS GH_ATTEST_FAIL_WITH=nobundle expect_verify_stop 'タグの install.sh の --verify が通りませんでした。'
-grep -qF '証明を確かめられませんでした: SHA256SUMS' "$case_dir/err"
+grep -qF '証明を検証できませんでした: SHA256SUMS' "$case_dir/err"
 log_lacks '^attestation verify .* --bundle '
 # チェックサムが合わない: 配布物が SHA256SUMS と違う。
 make_case verify-checksum
@@ -274,7 +274,7 @@ tag_here
 add_release true
 seed_assets install-sum
 expect_verify_stop 'install.sh のチェックサムが、SHA256SUMS と違います。'
-# 配布物の中身が、git archive で取り出したタグの中身と違う（ほかの確かめは通る）。違いの先頭を出す。
+# 配布物の中身が、git archive で取り出したタグの中身と違う（ほかの検証は通る）。違いの先頭を出す。
 make_case verify-content
 tag_here
 add_release true
@@ -296,7 +296,7 @@ log_lacks '^release edit'
 [[ $(draft_flag) == true ]]
 ! grep -qF 'Release を公開しました' "$case_dir/out"
 
-# 公開が失敗する: 下書きが残り、1 で終わる。流し直すと、配布物を確かめ直して公開する。
+# 公開が失敗する: 下書きが残り、1 で終わる。流し直すと、配布物を検証し直して公開する。
 make_case edit-fails
 tag_here
 add_release true
@@ -312,7 +312,7 @@ log_lacks '^release create'
 log_lacks '^workflow run'
 [[ $(log_count 'releases/assets/') == 4 ]]
 log_has '^release edit v1.6.0 --repo example/kit --draft=false$'
-grep -qxF 'すること: すでにある下書きの Release の配布物を確かめ、公開する' "$case_dir/out"
+grep -qxF 'すること: すでにある下書きの Release の配布物を検証し、公開する' "$case_dir/out"
 [[ $(draft_flag) == false ]]
 
 # 引数: 知らない引数と余分な引数は、使い方を出して 2 で終わる。--help と -h は、使い方を出して 0 で終わる。
@@ -331,4 +331,4 @@ for flag in --help -h; do
 	no_tag
 	[[ ! -e $case_dir/gh.log ]]
 done
-echo 'PASS release: 確かめで止まり、承認でだけ、タグと下書きの Release を作り、ワークフローで配布物を作らせ、確かめてから公開する。拒否・端末でない・各手順の失敗と流し直し・公開の前の確かめの失敗・すでにあるタグと Release の状態・引数を確かめた'
+echo 'PASS release: 検証で止まり、承認でだけ、タグと下書きの Release を作り、ワークフローで配布物を作らせ、検証してから公開する。拒否・端末でない・各手順の失敗と流し直し・公開の前の検証の失敗・すでにあるタグと Release の状態・引数を検証した'

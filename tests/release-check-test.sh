@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# scripts/release.sh の動きのうち、確かめで止まるケース（docs/release.md の「確かめること」の 1 の gh のバージョン、ルートでないところに置いたコピー、2〜9）を確かめる。9 は、配布物のそろった下書きと公開済みで 9 を省くことも含む。
+# scripts/release.sh の動きのうち、検証で止まるケース（docs/release.md の「確認すること」の 1 の gh のバージョン、ルートでないところに置いたコピー、2〜9）を確認する。9 は、配布物のそろった下書きと公開済みで 9 を省くことも含む。
 # 準備と補助は tests/release-test-lib.sh、承認・拒否とタグと Release が揃った状態からの続きは tests/release-test.sh、失敗と流し直しは tests/release-failure-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/release-test-lib.sh"
 
-# 確かめで止まるケース: 理由を出し、fetch のほかは何も変えず、タグも Release も作らない。gh は書き込まない。
+# 検証で止まるケース: 理由を出し、fetch のほかは何も変えず、タグも Release も作らない。gh は書き込まない。
 # 1: gh のバージョンが古い・読めない。必要なバージョンを出す。
 make_case stop-gh-old
 GH_VERSION_OUT='gh version 2.101.9 (2026-01-01)' expect_stop 'gh のバージョンが古く'
@@ -88,7 +88,7 @@ grep -qF 'ルートで流してください' "$case_dir/err"
 no_write
 
 # 9: 名前の検査は、問い・タグ・push・下書きの作成より前に行う。
-# 既存のタグでは、その後の main が直っていても、タグのコミットを確かめる。
+# 既存のタグでは、その後の main が直っていても、タグのコミットを検証する。
 for state in tag draft workflow; do
 	make_case "preflight-name-$state"
 	printf 'invalid name\n' >"$work/保.txt"
@@ -118,7 +118,7 @@ HOOK
 	! grep -qF '公開しますか' "$case_dir/err"
 	grep -qF '保.txt' "$case_dir/err"
 	grep -qF '印字できる ASCII ではない文字がある' "$case_dir/err"
-	grep -qF '配布物の確かめ（9）で止まりました' "$case_dir/err"
+	grep -qF '配布物の検証（9）で止まりました' "$case_dir/err"
 	grep -qF 'CONTRIBUTING.md の「ファイルとディレクトリの名前」' "$case_dir/err"
 	if [[ $state == tag ]]; then
 		no_tag
@@ -140,12 +140,12 @@ no_write
 no_download
 no_leftover
 grep -qF 'MANIFEST のハッシュと合いません' "$case_dir/err"
-grep -qF '配布物の確かめ（9）で止まりました' "$case_dir/err"
+grep -qF '配布物の検証（9）で止まりました' "$case_dir/err"
 ! grep -qF '公開しますか' "$case_dir/err"
 
-# そろった下書きは 9 を省き、確認のあとに公開の前の確かめへ進む。
+# そろった下書きは 9 を省き、確認のあとに公開の前の検証へ進む。
 # 名前が悪いタグでも、4 つの配布物の ID がそろっていれば同じ経路を選ぶ。
-# 配布物の取得を失敗させ、公開の前の確かめに入ったことまでを見る。
+# 配布物の取得を失敗させ、公開の前の検証に入ったことまでを見る。
 make_case preflight-skip-complete
 printf 'invalid name\n' >"$work/保.txt"
 (cd "$work" && bash scripts/manifest.sh)
@@ -156,10 +156,10 @@ edit_assets '[{"id":101,"name":"multica-squad-kit-v1.6.0.tar.gz"},{"id":102,"nam
 before=$(snapshot)
 GH_DL_FAIL=101 run_release "$test_dir/answer-y"
 [[ $rc == 1 && $(snapshot) == "$before" ]]
-! grep -qF '確かめの 9' "$case_dir/out"
-! grep -qF '配布物の確かめ（9）' "$case_dir/err"
+! grep -qF '検証の 9' "$case_dir/out"
+! grep -qF '配布物の検証（9）' "$case_dir/err"
 grep -qF '公開しますか' "$case_dir/err"
-grep -qF '配布物を確かめます' "$case_dir/out"
+grep -qF '配布物を検証します' "$case_dir/out"
 log_has 'releases/assets/101'
 log_lacks '^workflow run'
 no_write
@@ -175,11 +175,11 @@ add_release false
 before=$(snapshot)
 run_release_notty
 [[ $rc == 0 && $(snapshot) == "$before" ]]
-! grep -qF '確かめの 9' "$case_dir/out"
-! grep -qF '配布物の確かめ（9）' "$case_dir/err"
+! grep -qF '検証の 9' "$case_dir/out"
+! grep -qF '配布物の検証（9）' "$case_dir/err"
 ! grep -qF '公開しますか' "$case_dir/err"
 grep -qF 'すでに出してあります' "$case_dir/out"
 no_write
 no_download
 no_leftover
-echo 'PASS release 確かめ: gh のバージョン、origin、ブランチ、未コミットの変更、origin/main との一致、VERSION の形、CHANGELOG.md の先頭と空の節、ルートでないところに置いたコピー、配布物の確かめで止まり、何も変えないことと、そろった下書きと公開済みでは配布物の確かめを省くことを確かめた'
+echo 'PASS release 検証: gh のバージョン、origin、ブランチ、未コミットの変更、origin/main との一致、VERSION の形、CHANGELOG.md の先頭と空の節、ルートでないところに置いたコピー、配布物の検証で止まり、何も変えないことと、そろった下書きと公開済みでは配布物の検証を省くことを検証した'

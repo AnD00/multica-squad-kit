@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# install.sh の確かめ（gh のバージョン、証明、チェックサム、一覧、--verify、引数、バージョンの省略、標準入力からの実行）と、
-# 取得・展開・セットアップの流し・片付けを、スタブの gh と一時の置き場で確かめる。本物の GitHub には触れない。展開した setup.sh はスタブで、受けた引数を残す。
+# install.sh の検証（gh のバージョン、証明、チェックサム、一覧、--verify、引数、バージョンの省略、標準入力からの実行）と、
+# 取得・展開・セットアップの流し・片付けを、スタブの gh と一時の置き場で確認する。本物の GitHub には触れない。展開した setup.sh はスタブで、受けた引数を残す。
 # 表示の部品は lib/ui.sh と同じかも照らす。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -16,7 +16,7 @@ repo_name=AnD00/multica-squad-kit
 default_gh_out=$'gh version 2.102.0 (2026-01-01)\nhttps://github.com/cli/cli/releases/tag/v2.102.0'
 
 # スタブの gh は、--version で GH_VERSION_OUT を出し、呼び方を GH_LOG に 1 行で残す。
-# attestation verify は、GH_FAIL_ON に名前を渡したファイルの確かめだけが失敗する。
+# attestation verify は、GH_FAIL_ON に名前を渡したファイルの証明の検証だけが失敗する。
 # release view は、GH_LATEST の最新のタグを出す（GH_LATEST_FAIL で失敗）。
 # release download は、--pattern のファイルを GH_ASSETS から --dir へ写す（GH_DOWNLOAD_FAIL で失敗、GH_DOWNLOAD_EMPTY で何も写さず成功）。
 mkdir -p "$test_dir/bin"
@@ -81,7 +81,7 @@ else
 	exec "$REAL_UNAME" "$@"
 fi
 STUB
-# スタブの tar は、呼び方を TAR_LOG に残し、本物の tar に任せる。PLANT があれば、展開のあとに、一覧の確かめをすり抜けたものを 1 つ足す。
+# スタブの tar は、呼び方を TAR_LOG に残し、本物の tar に任せる。PLANT があれば、展開のあとに、一覧の検証をすり抜けたものを 1 つ足す。
 cat >"$test_dir/bin/tar" <<'STUB'
 #!/bin/bash
 echo "$*" >>"$TAR_LOG"
@@ -250,7 +250,7 @@ run_stdin() {
 # tar_extracts: 展開した回数。
 tar_extracts() { grep -c '^-xzf ' "$case_dir/tar.log" || true; }
 # not_run: セットアップは流れておらず、一時の置き場は残っておらず、取得は 1 回だけ（取り直していない）。
-# 展開したかどうかは、tar の呼び方が残るので、引数の expect_extract で確かめる（yes か no）。
+# 展開したかどうかは、tar の呼び方が残るので、引数の expect_extract で確認する（yes か no）。
 not_run() {
 	[[ ! -e $case_dir/setup.log ]] || {
 		echo "セットアップが流れています" >&2
@@ -263,7 +263,7 @@ not_run() {
 	[[ $(grep -c '^release download ' "$case_dir/gh.log" || true) -le 1 ]]
 	[[ $(tar_extracts) == "${1:-0}" ]]
 }
-# attest_calls: 証明を確かめた回数。
+# attest_calls: 証明を検証した回数。
 attest_calls() { grep -c '^attestation verify ' "$case_dir/gh.log" || true; }
 # expect_stop <終了コード> <理由>: 理由を標準エラー出力に出して、その終了コードで止まった。
 expect_stop() {
@@ -287,12 +287,12 @@ expected_call() {
 		"$1" "$repo_name" "$repo_name" "$version"
 }
 
-# 全部が合う置き場: 両方の OS で通る。証明は SHA256SUMS、配布物の順に、4 つの指定をそろえて確かめる。展開も実行もしない。
+# 全部が合う置き場: 両方の OS で通る。証明は SHA256SUMS、配布物の順に、4 つの指定をそろえて検証する。展開も実行もしない。
 new_case ok
 for os in Darwin Linux; do
 	FAKE_UNAME=$os run_install --verify "$version" "$assets"
 	[[ $rc == 0 ]]
-	grep -qF "確かめが通りました: $version" "$case_dir/out"
+	grep -qF "検証が通りました: $version" "$case_dir/out"
 	grep -qF '展開も実行もしていません' "$case_dir/out"
 	[[ ! -s $case_dir/err ]]
 	{
@@ -312,7 +312,7 @@ FAKE_UNAME=FreeBSD run_install --verify "$version" "$assets"
 expect_stop 1 '対応するのは macOS と Linux'
 [[ ! -s $case_dir/gh.log ]]
 
-# gh のバージョン: 2.102.0 以上を数として比べ、足りない・読めないときは証明を確かめずに止まる。
+# gh のバージョン: 2.102.0 以上を数として比べ、足りない・読めないときは証明を検証せずに止まる。
 new_case gh-version
 for ok_out in 'gh version 2.102.0' 'gh version 2.102.1' 'gh version 2.103.0 (2026-02-01)' 'gh version 3.0.0' 'gh version 10.0.0' 'gh version 2.200.7'; do
 	gh_out=$ok_out run_install --verify "$version" "$assets"
@@ -347,13 +347,13 @@ expect_stop 1 'gh のバージョンが古く'
 # 証明が通らない: SHA256SUMS の証明で止まれば、チェックサムも配布物の証明も見ない。
 new_case attest-sums
 GH_FAIL_ON=SHA256SUMS run_install --verify "$version" "$assets"
-expect_stop 1 '証明を確かめられませんでした: SHA256SUMS'
+expect_stop 1 '証明を検証できませんでした: SHA256SUMS'
 grep -qF 'stub: attestation failed' "$case_dir/err"
 [[ $(attest_calls) == 1 ]]
 no_extract
 # 配布物の証明が通らない: SHA256SUMS の証明とチェックサムは通ったあとで止まる。
 GH_FAIL_ON=$asset run_install --verify "$version" "$assets"
-expect_stop 1 "証明を確かめられませんでした: $asset"
+expect_stop 1 "証明を検証できませんでした: $asset"
 [[ $(attest_calls) == 2 ]]
 no_extract
 
@@ -392,7 +392,7 @@ printf '%s  %s' "$(sha_of "$assets/$asset")" "$asset" >"$assets/SHA256SUMS"
 run_install --verify "$version" "$assets"
 [[ $rc == 0 ]]
 
-# 置き場: ないもの、ディレクトリでないもの、リンクは、証明を確かめずに止まる。
+# 置き場: ないもの、ディレクトリでないもの、リンクは、証明を検証せずに止まる。
 new_case place
 run_install --verify "$version" "$case_dir/none"
 expect_stop 1 '置き場がディレクトリではありません'
@@ -443,7 +443,7 @@ for entry in "${evil_cases[@]}"; do
 	no_extract
 	[[ ! -e $case_dir/escape.txt ]]
 done
-# 名前に改行がある: 2 つの一覧のどちらかの確かめで止まる。
+# 名前に改行がある: 2 つの一覧のどちらかの検証で止まる。
 new_case evil-newline newline
 run_install --verify "$version" "$assets"
 [[ $rc == 1 ]]
@@ -456,13 +456,13 @@ write_sums "$(sha_of "$assets/$asset")"
 run_install --verify "$version" "$assets"
 expect_stop 1 '配布物の一覧を読めません'
 
-# 一覧専用の入口: 証明とチェックサムがなくても、配布物の一覧だけを確かめる。
+# 一覧専用の入口: 証明とチェックサムがなくても、配布物の一覧だけを検証する。
 new_case listing-ok printable
 rm "$assets/SHA256SUMS" "$assets/install.sh"
 FAKE_UNAME=unsupported gh_out=garbage run_install --check-listing "$version" "$assets/$asset"
 [[ $rc == 0 && ! -s $case_dir/err && ! -s $case_dir/gh.log ]]
-grep -qF '一覧の確かめが通りました' "$case_dir/out"
-grep -qF '証明とチェックサムは確かめていません' "$case_dir/out"
+grep -qF '一覧の検証が通りました' "$case_dir/out"
+grep -qF '証明とチェックサムは検証していません' "$case_dir/out"
 grep -qF '展開も実行もしていません' "$case_dir/out"
 [[ $(tar_extracts) == 0 && ! -e $case_dir/setup.log && -z $(ls -A "$case_dir/tmp") ]]
 [[ $(wc -l <"$case_dir/tar.log") -eq 2 ]]
@@ -574,7 +574,7 @@ done
 run_install --help "$version"
 [[ $rc == 2 ]]
 
-# 流す: 取得、確かめ、展開、確かめのあとで、展開した setup.sh を子のプロセスとして流し、一時の置き場を消す。
+# 流す: 取得、検証、展開、検証のあとで、展開した setup.sh を子のプロセスとして流し、一時の置き場を消す。
 new_case run
 for os in Darwin Linux; do
 	FAKE_UNAME=$os run_install "$version"
@@ -585,7 +585,7 @@ for os in Darwin Linux; do
 	# 引数は渡さず、流した場所のまま流す。
 	[[ $(cat "$case_dir/setup.log") == "args:
 pwd:$case_dir" ]]
-	# 取得は 1 回で、確かめは取ってきたファイルに、証明は SHA256SUMS、配布物の順に行う。
+	# 取得は 1 回で、検証は取ってきたファイルに、証明は SHA256SUMS、配布物の順に行う。
 	dl_dir=$(sed -n 's/.* --dir //p' "$case_dir/gh.log")
 	[[ $dl_dir == "$case_dir"/tmp/*/assets && $(printf '%s\n' "$dl_dir" | wc -l) -eq 1 ]]
 	{
@@ -595,7 +595,7 @@ pwd:$case_dir" ]]
 		expected_call "$dl_dir/$asset"
 	} >"$case_dir/expected.log"
 	cmp "$case_dir/gh.log" "$case_dir/expected.log"
-	# 展開は 1 回で、確かめた配布物を、新しい空のディレクトリへ。
+	# 展開は 1 回で、検証した配布物を、新しい空のディレクトリへ。
 	[[ $(tar_extracts) == 1 ]]
 	grep -qF -- "-xzf $dl_dir/$asset -C ${dl_dir%/assets}/src" "$case_dir/tar.log"
 	# 片付け: 一時の置き場は消え、置いてあった配布物はそのまま、流した場所には何も増えない。
@@ -628,7 +628,7 @@ INSTALL_STDIN="$case_dir/stdin" SETUP_READ=1 run_install "$version"
 [[ $rc == 0 ]]
 grep -qxF 'stdin:yes' "$case_dir/setup.log"
 # setup.sh の流れている途中で止められても、一時の置き場を消す（終了コードは 128 + シグナル）。
-# INT は、バックグラウンドで流すと無視される設定で始まるので、ここでは確かめない（install.sh は INT でも同じに止まる trap を持つ）。
+# INT は、バックグラウンドで流すと無視される設定で始まるので、ここでは確認しない（install.sh は INT でも同じに止まる trap を持つ）。
 for entry in TERM:143 HUP:129; do
 	sig=${entry%%:*}
 	: >"$case_dir/gh.log"
@@ -697,7 +697,7 @@ run_install --extension ext
 [[ $rc == 0 ]]
 [[ $(cat "$case_dir/setup.log") == "args:--extension ext
 pwd:$case_dir" ]]
-# 最新を読めない、vX.Y.Z の形でない: 何も取らず、確かめも流しもせずに 1 で止まる。
+# 最新を読めない、vX.Y.Z の形でない: 何も取らず、検証も流しもせずに 1 で止まる。
 GH_LATEST_FAIL=1 run_install
 expect_stop 1 '最新のバージョンを読めませんでした'
 grep -qF 'stub: no release' "$case_dir/err"
@@ -748,11 +748,11 @@ expect_stop 1 '端末（/dev/tty）を開けません'
 grep -qF 'bash install.sh' "$case_dir/err"
 [[ $(cat "$case_dir/gh.log") == '--version' ]]
 not_run 0
-# --verify は、セットアップを流さないので、端末がなくても確かめられる。
+# --verify は、セットアップを流さないので、端末がなくても検証できる。
 run_stdin notty --verify "$version" "$assets"
 [[ $rc == 0 ]]
 grep -qF '展開も実行もしていません' "$case_dir/out"
-# ファイルとして流すときは、端末を確かめず、標準入力をそのまま setup.sh へ渡す（上の「質問に答えられるよう」と同じ）。
+# ファイルとして流すときは、端末を確認せず、標準入力をそのまま setup.sh へ渡す（上の「質問に答えられるよう」と同じ）。
 # 最後の呼び出し（main を波括弧で囲んだ塊）は、閉じ括弧まで届かなければ構文の誤りで止まる。行の途中で切れても、引数のない main は流れない。
 [[ $(tail -n 3 "$root/install.sh") == $'{\n\tmain "$@"\n}' ]]
 # 切れ方ごとに入口を作る: 閉じ括弧の行が欠けた / main の引数の手前（`main` まで）で切れた / 波括弧の行で切れた。
@@ -775,7 +775,7 @@ TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/cut.sh" run_stdin tty
 [[ $rc != 0 && ! -s $case_dir/gh.log ]]
 not_run 0
 
-# 取得できない: gh の出した理由と gh auth status の確認を出して 1 で止まる。確かめも展開も流しもしない。取り直さない。
+# 取得できない: gh の出した理由と gh auth status の確認を出して 1 で止まる。検証も展開も流しもしない。取り直さない。
 new_case fetch-fail
 GH_DOWNLOAD_FAIL=1 run_install "$version"
 expect_stop 1 "$version を取得できませんでした"
@@ -795,19 +795,19 @@ run_install "$version"
 expect_stop 1 "$version を取得できませんでした"
 not_run 0
 mv "$case_dir/sums.keep" "$assets/SHA256SUMS"
-# gh が成功と言いながらファイルを置かなかったときも、確かめの前に止まる。
+# gh が成功と言いながらファイルを置かなかったときも、検証の前に止まる。
 GH_DOWNLOAD_EMPTY=1 run_install "$version"
 expect_stop 1 '通常のファイルの SHA256SUMS がありません'
 not_run 0
 
-# 確かめに通らないものは、展開も流しもしない（取得のあとの 5 つのどれで止まっても、一時の置き場は消える）。
+# 検証に通らないものは、展開も流しもしない（取得のあとの 5 つのどれで止まっても、一時の置き場は消える）。
 new_case run-attest-sums
 GH_FAIL_ON=SHA256SUMS run_install "$version"
-expect_stop 1 '証明を確かめられませんでした: SHA256SUMS'
+expect_stop 1 '証明を検証できませんでした: SHA256SUMS'
 [[ $(attest_calls) == 1 ]]
 not_run 0
 GH_FAIL_ON=$asset run_install "$version"
-expect_stop 1 "証明を確かめられませんでした: $asset"
+expect_stop 1 "証明を検証できませんでした: $asset"
 [[ $(attest_calls) == 2 ]]
 not_run 0
 # 配布物を 1 バイト書き換える。
@@ -845,7 +845,7 @@ run_install "$version"
 [[ $rc == 1 ]]
 not_run 0
 
-# 展開したものの確かめ: 一覧の確かめをすり抜けたものがあっても、流す前に止まる。
+# 展開したものの検証: 一覧の検証をすり抜けたものがあっても、流す前に止まる。
 for entry in 'bad-version||VERSION が、指定したバージョン' 'no-version||VERSION がありません' 'no-setup||setup.sh がありません'; do
 	mode=${entry%%||*}
 	reason=${entry#*||}
@@ -866,7 +866,7 @@ new_case run-plant-hardlink
 PLANT=hardlink run_install "$version"
 expect_stop 1 'ハードリンクのファイルがあります'
 not_run 1
-# 展開できない配布物（tar.gz として読めるが、展開に失敗する）は、tar のスタブで再現できないので、確かめない。
+# 展開できない配布物（tar.gz として読めるが、展開に失敗する）は、tar のスタブで再現できないので、検証しない。
 
 # 表示の部品は、lib/ui.sh と同じ値と同じ書き方を持つ（install.sh は lib/ui.sh を読めないので、写しを持つ）。
 func_body() { awk -v n="$1" 'index($0, n "() {") == 1 { p = 1; if ($0 ~ /\}$/) { print; exit } } p { print } p && /^}$/ { exit }' "$2"; }
@@ -889,4 +889,4 @@ new_case ui
 gh_out=garbage run_install --verify "$version" "$assets"
 grep -q '^エラー: ' "$case_dir/err"
 ! grep -q $'\033' "$case_dir/err"
-echo 'PASS install: gh のバージョン・証明・チェックサム・一覧・--verify・引数・バージョンの省略・標準入力からの実行・取得・展開・setup.sh の流し・片付けを、スタブの gh と一時の置き場で確かめた。表示の部品は lib/ui.sh と揃っている'
+echo 'PASS install: gh のバージョン・証明・チェックサム・一覧・--verify・引数・バージョンの省略・標準入力からの実行・取得・展開・setup.sh の流し・片付けを、スタブの gh と一時の置き場で検証した。表示の部品は lib/ui.sh と揃っている'
