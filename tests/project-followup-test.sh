@@ -5,7 +5,7 @@ source "$root/tests/project-followup-test-lib.sh"
 
 followup_completed_one
 : >"$TEST_DB/calls"; run; no_writes
-grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 0 件' "$test_dir/out"
+grep -q '^✔ [^+]*$' "$test_dir/out"
 echo 'PASS followup: 同じ内容で再実行すると、スクワッド・メンバー・オートパイロット・トリガーを書かない'
 
 jq '.instructions="old"' "$TEST_DB/squad.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/squad.json"

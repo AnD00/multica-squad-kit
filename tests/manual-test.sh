@@ -11,8 +11,8 @@ no_state
 check_manual() {
  jq -nr --rawfile screen "$test_dir/err" --rawfile document "$1" '
   ($screen|split("\n")) as $lines |
-  [range(0;$lines|length) as $i | select($lines[$i]|test("^質問 \\([0-9]+/[0-9]+\\) ")) |
-   {title:($lines[$i]|sub("^質問 \\([0-9]+/[0-9]+\\) ";"")),description:$lines[$i+1],example:($lines[$i+2]|ltrimstr("例: "))}] as $questions |
+  [range(0;$lines|length) as $i | select($lines[$i]|test("^\\? .+  [●○]{9}$")) |
+   {title:($lines[$i]|sub("^\\? ";"")|sub("  [●○]{9}$";"")),description:($lines[$i+1]|ltrimstr("  ")),example:($lines[$i+2]|ltrimstr("  "))}] as $questions |
   if ($questions|length)!=10 then error("10問の画面を取得できませんでした") else . end |
   ($document|gsub("`";"")) as $doc |
   [$questions[] | . as $q |
@@ -20,15 +20,15 @@ check_manual() {
    (if ($q.description|length)==0 or ($section|contains($q.description)|not) then "説明がない: "+$q.title else empty end),
    (if ($q.example|length)==0 or ($section|contains($q.example)|not) then "例がない: "+$q.title else empty end)] as $missing |
   if ($missing|length)>0 then error($missing|join("、")) else . end |
-  (($screen|split(") 外す役\n"))[1] // "" | split("\n質問 (")[0] | split("\n") |
-   map(select(test("^[1-9][0-9]*: [^:]+: [^。]+。")) | capture("^(?<number>[0-9]+): (?<role>[^:]+): (?<purpose>[^。]+)。"))) as $roles |
+  (($screen|split("\n? 外す役  "))[1] // "" | split("\n? ")[0] | split("\n") |
+   map(select(test("^    [1-9][0-9]*  [^:]+: [^。]+。")) | capture("^    (?<number>[0-9]+)  (?<role>[^:]+): (?<purpose>[^。]+)。"))) as $roles |
   if ($roles|length)!=12 then error("12役の画面を取得できませんでした") else . end |
   (($doc|split("#### 外す役\n"))[1] // "" | split("\n### ")[0] | split("\n")) as $role_lines |
   [$roles[] | . as $role | select(any($role_lines[]; startswith("| "+$role.number+" | "+$role.role+" | ") and contains($role.purpose))|not) | "担当の説明がない: "+.role] as $missing_roles |
   # 画面の役ごとの見出し（エージェント・オートパイロット・見張り・ほかに変わること）を、表の同じ行と照らす。
-  ([(($screen|split(") 外す役\n"))[1] // "" | split("\n質問 (")[0] | split("外せる役:\n")[1] // "" | split("\n"))[] | select(test("^[1-9][0-9]*: ") or test("^  (エージェント|オートパイロット|見張り|ほかに変わること): "))] |
-   reduce .[] as $line ([]; if ($line|test("^[0-9]")) then .+[{number:($line|capture("^(?<n>[0-9]+):").n),details:{}}]
-     else .[-1].details[$line|capture("^  (?<k>[^:]+): (?<v>.*)$").k] = ($line|capture("^  (?<k>[^:]+): (?<v>.*)$").v) end)) as $blocks |
+  ([(($screen|split("\n? 外す役  "))[1] // "" | split("\n? ")[0] | split("外せる役:\n")[1] // "" | split("\n"))[] | select(test("^    [1-9][0-9]*  ") or test("^ +(エージェント|オートパイロット|見張り|ほかに変わること): "))] |
+   reduce .[] as $line ([]; if ($line|test("^    [1-9]")) then .+[{number:($line|capture("^    (?<n>[0-9]+)  ").n),details:{}}]
+     else .[-1].details[$line|capture("^ +(?<k>[^:]+): (?<v>.*)$").k] = ($line|capture("^ +(?<k>[^:]+): (?<v>.*)$").v) end)) as $blocks |
   [$blocks[] | . as $block |
    ([$role_lines[]|select(startswith("| "+$block.number+" | "))][0] // "" | ltrimstr("| ") | rtrimstr(" |") | gsub("`";"") | gsub("<p>";"shop") | gsub("<m>";"member1") | split(" | ")) as $cells |
    ($block.details."エージェント" // "" | split("、")) as $agents |

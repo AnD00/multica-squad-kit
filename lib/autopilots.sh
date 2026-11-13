@@ -64,22 +64,25 @@ prepare_autopilots() {
 sync_project_autopilots() {
 	local managed=$1 list current record title id role assignee mode instructions cron timezone triggers schedule result known prefix repo action
 	local auto_total progress=0
+	ui_phase_start 10
 	auto_total=$(jq length "$project_work/autopilots.json") || die 'オートパイロットの件数を読めませんでした。'
-	printf 'オートパイロット 0/%s（既存の設定を確認中）\n' "$auto_total" >&2
+	ui_phase_progress 0 "$auto_total"
+	ui_phase_active || printf 'オートパイロット 0/%s（既存の設定を確認中）\n' "$auto_total" >&2
 	list=$(mc autopilot list --output json) || die 'オートパイロットを取得できませんでした。'
 	jq -e '.autopilots|type=="array" and all(.[]; (.id|type=="string" and length>0) and (.title|type=="string") and (.assignee_id|type=="string"))' >/dev/null <<<"$list" || die 'オートパイロット一覧の応答が不正です。'
 	list=$(jq -c '.autopilots' <<<"$list")
 	while IFS= read -r record; do
 		title=$(jq -r '.title' <<<"$record")
 		progress=$((progress+1))
-		printf 'オートパイロット %s/%s を設定中: %s\n' "$progress" "$auto_total" "$title" >&2
+		ui_phase_progress "$((progress-1))" "$auto_total" "$title"
+		ui_phase_active || printf 'オートパイロット %s/%s を設定中: %s\n' "$progress" "$auto_total" "$title" >&2
 		assignee=$(jq -er --arg name "$(jq -r '.agent' <<<"$record")" '[.[]|select(.name==$name)] | select(length==1) | .[0].id' <<<"$records") || die '担当の実 ID がありません。'
 		project_named "$list" title "$title"
 		current=$(jq -c '.[0] // empty' <<<"$matches")
 		# 同名でも他プロジェクト・他の人の担当へは書き込まない。
 		if [[ -n $current ]]; then
 			if ! jq -e --arg project "$project_id" --argjson managed "$managed" '.project_id==$project and .assignee_type=="agent" and (.assignee_id as $id | any($managed[]; .id==$id))' >/dev/null <<<"$current"; then
-				printf 'オートパイロットを保持しました（別の担当またはプロジェクト）: %s\n' "$title" >&2
+				ui_notice warn "$title" '保持しました（別の担当またはプロジェクト）' || printf 'オートパイロットを保持しました（別の担当またはプロジェクト）: %s\n' "$title" >&2
 				continue
 			fi
 			id=$(jq -r '.id' <<<"$current")
@@ -140,7 +143,7 @@ sync_project_autopilots() {
 			fi
 			jq -e --arg project "$project_id" '.project_id==$project' >/dev/null <<<"$current" || continue
 			if ! autopilot_owned "$current" "$managed"; then
-				printf 'オートパイロットを保持しました（別の担当）: %s\n' "$title" >&2
+				ui_notice warn "$title" '保持しました（別の担当）' || printf 'オートパイロットを保持しました（別の担当）: %s\n' "$title" >&2
 				continue
 			fi
 			id=$(jq -r '.id' <<<"$current")
@@ -151,10 +154,11 @@ sync_project_autopilots() {
 			if [[ $(jq -r '.status' <<<"$current") != paused ]]; then
 				mc autopilot update "$id" --status paused --output json >/dev/null || die "外した定義のオートパイロットを一時停止できませんでした: $title"
 			fi
-			printf '外したリポジトリ・役・定義のオートパイロットを一時停止しています（履歴は保持）: %s\n' "$title" >&2
+			ui_notice drop "$title" '一時停止しました（外したリポジトリ・役・定義。履歴は保持）' || printf '外したリポジトリ・役・定義のオートパイロットを一時停止しています（履歴は保持）: %s\n' "$title" >&2
 			setup_removed_targets=$(jq -c --arg name "$title" '.+[$name]|unique' <<<"${setup_removed_targets:-[]}")
 		done < <(jq -c '.[]' <<<"$list")
 	done < <(jq -c '.[]' "$project_work/autopilots.known")
+	ui_phase_done_counted "$auto_total"
 }
 
 autopilot_owned() {

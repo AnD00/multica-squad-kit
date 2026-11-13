@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# scripts/release.sh の動きのうち、承認・拒否と、タグと Release が揃った状態からの続きを確かめる。
-# 準備と補助は tests/release-test-lib.sh、確かめで止まるケースは tests/release-check-test.sh、失敗と流し直しは tests/release-failure-test.sh にある。
+# 承認・拒否と、タグと Release の状態からの再開を確かめる。
+# 確かめで止まるケースは release-check-test.sh、途中の失敗は release-failure-test.sh、画面は release-display-test.sh。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-source "$root/tests/release-test-lib.sh"
+source "$root/tests/release-assertions.sh"
 
 # 承認する: origin に注釈付きのタグができ、main の先頭を指す。下書きを作り、ワークフローを起こして待ち、確かめて公開する。
 make_case approve
@@ -38,14 +38,21 @@ for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
 	grep -q "^attestation verify .*/$file --bundle .*/multica-squad-kit-v1.6.0.sigstore.json --repo AnD00/multica-squad-kit --signer-workflow AnD00/multica-squad-kit/.github/workflows/release-assets.yml --source-ref refs/tags/v1.6.0 --deny-self-hosted-runners\$" "$case_dir/gh.log"
 done
 [[ $(draft_flag) == false ]]
-grep -qxF '出すバージョン: v1.6.0' "$case_dir/out"
-grep -qF "タグを付けるコミット: $main_head Release content" "$case_dir/out"
-grep -qxF 'すること: 注釈付きのタグを作って origin に push し、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
-grep -qxF '新しいバージョンの 1 段落目。' "$case_dir/out"
-grep -qxF "下書きの Release を作りました: $draft_url" "$case_dir/out"
-grep -qxF "発行のワークフローを待ちます: $run_url" "$case_dir/out"
-grep -qxF '配布物の確かめが通りました。' "$case_dir/out"
-grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
+grep -qxF '  v1.6.0  example/kit' "$case_dir/out"
+grep -qF "  ${main_head:0:12}  Release content" "$case_dir/out"
+expect_steps 1
+expect_headings 1
+grep -qxF '  │ 新しいバージョンの 1 段落目。' "$case_dir/out"
+grep -qE "^  ✔ タグを作って push する +v1\.6\.0  ${main_head:0:12}\$" "$case_dir/out"
+# 下書きの URL は 6 字の字下げの続きの行で、その次の行が、→ の付いたタグの名前の URL。
+grep -A2 -xE '  ✔ 下書きの Release を作る' "$case_dir/out" | tail -n2 | cmp -s - <(printf '      %s\n      → %s\n' "$draft_url" "$published_url")
+grep -A1 -E '^  ✔ 発行のワークフローに配布物を作らせ、終わるまで待つ  ' "$case_dir/out" | tail -n1 | grep -qxF "      $run_url"
+grep -qE '^  ✔ 発行のワークフローに配布物を作らせ、終わるまで待つ  ([0-9]+s|[0-9]+m[0-9]+s)$' "$case_dir/out"
+! grep -qE 'Enumerating objects|Writing objects|To https://|\[new tag\]|Created workflow_dispatch event|To see|JOBS|Set up job|completed with' "$case_dir/out" "$case_dir/err"
+expect_verify_rows
+expect_summary "$main_head" "$published_url" "$run_url"
+# 色は、端末でない出力には付けない。
+! grep -q "$(printf '\033')" "$case_dir/out" "$case_dir/err"
 grep -qF '公開しますか [y/N]: ' "$case_dir/err"
 no_leftover
 
@@ -87,6 +94,40 @@ log_lacks '^attestation verify'
 [[ $(snapshot) == "$before" && $(draft_flag) == true ]]
 grep -qF '公開を取りやめました。' "$case_dir/err"
 
+# 確認の前の画面: 確かめの一覧、本文の罫線、見出し、○の手順が、設計のとおり、することの 4 つの状態ごとに出る。
+# タグも Release もない: 手順は 5 つ。
+make_case screen-tag
+screen_commit=$(git -C "$work" rev-parse HEAD)
+run_release "$test_dir/answer-n"
+[[ $rc == 1 ]]
+expect_screen 新規 '手元 なし  origin なし  Release なし' "$screen_commit" 1
+# タグだけある: 手順は 4 つ。タグを付けるコミットは、タグが指すコミット。
+make_case screen-draft
+tag_here
+git -C "$work" commit -q --allow-empty -m 'After tag'
+git -C "$work" push -q origin main
+screen_tag_commit=$(git -C "$work" rev-parse 'v1.6.0^{commit}')
+run_release "$test_dir/answer-n"
+[[ $rc == 1 ]]
+expect_screen 既存 '手元 あり  origin あり（同じ）  Release なし' "$screen_tag_commit" 2
+# 配布物のない下書きがある: 手順は 3 つ。
+make_case screen-workflow
+tag_here
+add_release true
+screen_tag_commit=$(git -C "$work" rev-parse 'v1.6.0^{commit}')
+run_release "$test_dir/answer-n"
+[[ $rc == 1 ]]
+expect_screen 既存 '手元 あり  origin あり（同じ）  Release 下書き（配布物 0 個）' "$screen_tag_commit" 3
+# 配布物のそろった下書きがある: 手順は 2 つ。
+make_case screen-verify
+tag_here
+add_release true
+seed_assets
+screen_tag_commit=$(git -C "$work" rev-parse 'v1.6.0^{commit}')
+run_release "$test_dir/answer-n"
+[[ $rc == 1 ]]
+expect_screen 既存 '手元 あり  origin あり（同じ）  Release 下書き（配布物 4 個）' "$screen_tag_commit" 4
+
 # 標準入力が端末でない: 問いを出さず、確認を求められないと出して、何も変えない。
 make_case notty
 before=$(snapshot)
@@ -97,6 +138,7 @@ no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF '端末でない' "$case_dir/err"
 ! grep -qF '公開しますか' "$case_dir/err"
+! grep -qF '✔ 道具' "$case_dir/out"
 # パイプで y を流し込んでも、確認を飛ばせない。
 rc=0
 (cd "$work" && printf 'y\n' | env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" /bin/bash scripts/release.sh) >"$case_dir/out" 2>"$case_dir/err" || rc=$?
@@ -121,8 +163,11 @@ run_release "$test_dir/answer-y"
 [[ $(git -C "$work" rev-parse v1.6.0) == "$tag_sha" && $(git -C "$bare" rev-parse v1.6.0) == "$tag_sha" ]]
 [[ $(log_count '^release create') == 1 ]]
 [[ $(<"$case_dir/gh.notes") == "$notes_expected" ]]
-grep -qxF 'すること: すでにあるタグのまま、下書きの Release を作り、配布物を作らせて確かめ、公開する' "$case_dir/out"
-grep -qF "タグを付けるコミット: $tag_commit Release content" "$case_dir/out"
+expect_steps 2
+expect_headings 2
+grep -qF "  ${tag_commit:0:12}  Release content" "$case_dir/out"
+expect_verify_rows
+expect_summary "$tag_commit" "$published_url" "$run_url"
 [[ $(draft_flag) == false ]]
 # 配布物は、main のあとのファイルを含まない（タグの中身から作られている）。
 [[ ! -e $case_dir/gh/built/multica-squad-kit-v1.6.0.tar.gz || -z $(tar -tzf "$case_dir/gh/built/multica-squad-kit-v1.6.0.tar.gz" | grep after.txt || true) ]]
@@ -146,7 +191,10 @@ log_lacks '^release create'
 [[ $(log_count '^workflow run') == 1 ]]
 before_in_log '^workflow run' '^run watch'
 before_in_log '^run watch' '^release edit'
-grep -qxF 'すること: すでにある下書きの Release に、配布物を作らせて確かめ、公開する' "$case_dir/out"
+expect_steps 3
+expect_headings 3
+expect_verify_rows
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" "$run_url"
 [[ $(draft_flag) == false ]]
 no_leftover
 
@@ -159,14 +207,46 @@ run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
 log_lacks '^release create'
 log_lacks '^workflow run'
-log_lacks '^run list'
 log_lacks '^run watch'
 [[ $(log_count 'releases/assets/') == 4 ]]
 before_in_log 'releases/assets/' '^release edit'
-grep -qxF 'すること: すでにある下書きの Release の配布物を確かめ、公開する' "$case_dir/out"
-grep -qxF "Release を公開しました: $published_url" "$case_dir/out"
+# ワークフローを起こしていないので、実行の一覧は、公開のあとのまとめのためだけに 1 回読む。
+[[ $(log_count '^run list') == 1 ]]
+before_in_log '^release edit' '^run list'
+expect_steps 4
+expect_headings 4
+expect_verify_rows
+# 一覧に実行がないときは、見つからないことを出して、0 で終わる。
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" ''
 [[ $(draft_flag) == false ]]
 no_leftover
+
+# 確かめから続けるとき、前に成功した実行があれば、最も新しい成功の実行の URL を、まとめに出す。
+make_case draft-complete-past-run
+tag_here
+add_release true
+seed_assets
+GH_PAST_RUN=1 run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" https://github.com/example/kit/actions/runs/4100
+# 実行の一覧を読めなくても、止まらずに、見つからないことを出す。公開は済んでいる。
+make_case draft-complete-runs-fail
+tag_here
+add_release true
+seed_assets
+GH_RUNS_MODE=fail run_release "$test_dir/answer-y"
+[[ $rc == 0 ]]
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" ''
+[[ $(draft_flag) == false ]]
+
+# gh release edit が URL を返さなくても、公開したタグの URL を案内する。
+make_case edit-empty-url
+tag_here
+add_release true
+seed_assets
+GH_EDIT_EMPTY=1 run_release "$test_dir/answer-y"
+[[ $rc == 0 && $(draft_flag) == false ]]
+expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" ''
 
 # 配布物が足りないか余分な下書き: 理由と、画面で消すことを出して止まり、何も変えない。
 make_case draft-missing
@@ -177,6 +257,7 @@ edit_assets 'map(select(.name != "SHA256SUMS"))'
 expect_stop_keep '4 つそろっていないか、余分なものがあります'
 grep -qF '下書きの配布物を消してから流し直してください' "$case_dir/err"
 grep -qF "$draft_url" "$case_dir/err"
+grep -qxF "$draft_note" "$case_dir/err"
 [[ $(draft_flag) == true ]]
 make_case draft-extra
 tag_here
@@ -210,9 +291,11 @@ no_download
 [[ $(snapshot) == "$before" ]]
 grep -qxF "v1.6.0 のタグと Release は、すでに出してあります: $published_url" "$case_dir/out"
 ! grep -qF '公開しますか' "$case_dir/err"
+! grep -qF '✔ 道具' "$case_dir/out"
 run_release_notty
 [[ $rc == 0 ]]
 no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF 'すでに出してあります' "$case_dir/out"
+
 echo 'PASS release 前半: 承認でだけ公開し、拒否・端末でない・タグと Release が揃った状態からの続きを確かめた'

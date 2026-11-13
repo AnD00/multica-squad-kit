@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# release-test.sh、release-check-test.sh、release-failure-test.sh が読み込む準備と補助。単独では実行しない。
-# scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確かめる。
-# origin は一時の bare のリポジトリで、本物の GitHub には push せず、Release もワークフローの実行も作らない。
-# 設計は docs/release.md の「テストと CI」。スタブの gh は、Release の一覧を JSON の状態として持ち、
-# release create、run watch、release edit で状態を動かす。配布物は、スタブが scripts/build-assets.sh をタグに流して作る。
-set -euo pipefail
-root=$(cd "$(dirname "$0")/.." && pwd)
-mkdir -p "$root/tmp"
-test_dir=$(mktemp -d "$root/tmp/release.XXXXXX")
-# 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
-exec 8>&2
-trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then for log in "$test_dir"/*/out "$test_dir"/*/err "$test_dir"/*/gh.log; do [[ -f $log ]] && { echo "--- $log" >&8; cat "$log" >&8; }; done; fi; rm -rf -- "$test_dir"' EXIT
+# release-test.sh・release-check-test.sh・release-failure-test.sh・release-display-test.sh と画面の画像の仕組みが共有する準備。単独では実行しない。
+# 呼び出し元は root（原本のルート）と test_dir（自分の一時ディレクトリ）を用意し、片付けも行う。
 # 手元の Git の設定（環境変数で入る GIT_CONFIG_COUNT 以降を含む）から切り離す。push は一時の bare にだけ届く。
 unset GIT_CONFIG_COUNT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
@@ -24,12 +14,42 @@ export RELEASE_RUN_FIND_INTERVAL=0
 #   GH_VERSION_OUT / GH_VERSION_FAIL: --version の出力と失敗
 #   GH_LIST_FAIL: Release の一覧を読めない
 #   GH_CREATE_FAIL / GH_WORKFLOW_FAIL / GH_WATCH_FAIL / GH_EDIT_FAIL: release create、workflow run、run watch、release edit の失敗
+#   GH_EDIT_EMPTY: 空でないと、release edit は URL を返さず成功する
 #   GH_RUNS_MODE: run list の返し方（空: 1 件 / none: 見つからない / dup: 2 件 / fail: 読めない）、GH_RUNS_DELAY: 見つかるまでの空振りの回数
 #   GH_TAMPER: 配布物の差し替え（content / sums / install / install-sum）
 #   GH_ATTEST_FAIL: 証明を拒むファイル名、GH_ATTEST_FAIL_WITH: bundle（--bundle ありだけ）/ nobundle / 空（どちらも）
 #   GH_DL_FAIL: 取得に失敗する配布物の ID
+#   GH_WATCH_DELAY: run watch が終わるまで待つ秒数（空なら待たない）
+#   GH_PAST_RUN: 空でないと、run list に、この実行より前の v1.6.0 の実行（失敗 1 件、成功 2 件）が並ぶ
 # __seed <差し替え>: テストが、下書きの Release に配布物を載せた状態を作るために呼ぶ（記録しない）。
 mkdir -p "$test_dir/bin"
+# タグの push だけ、v1.10.0 の公開ログ（タスクの本文）の文面を出す。
+# 本物の git の場所は、スタブを PATH に入れる前に控える。ほかの呼び出しと失敗はそのまま返す。
+RELEASE_TEST_GIT=$(command -v git)
+export RELEASE_TEST_GIT
+cat >"$test_dir/bin/git" <<'STUB'
+#!/bin/bash
+if [[ $# == 3 && $1 == push && $2 == origin && $3 == refs/tags/* ]]; then
+	"$RELEASE_TEST_GIT" "$@" >"$GH_STATE/git-push.log" 2>&1
+	rc=$?
+	if [[ $rc != 0 ]]; then
+		cat "$GH_STATE/git-push.log" >&2
+		exit "$rc"
+	fi
+	tag=${3#refs/tags/}
+	cat >&2 <<OUTPUT
+Enumerating objects: 1, done.
+Counting objects: 100% (1/1), done.
+Writing objects: 100% (1/1), 170 bytes | 170.00 KiB/s, done.
+Total 1 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
+To https://github.com/example/kit.git
+ * [new tag]         $tag -> $tag
+OUTPUT
+	exit 0
+fi
+exec "$RELEASE_TEST_GIT" "$@"
+STUB
+chmod +x "$test_dir/bin/git"
 cat >"$test_dir/bin/gh" <<'STUB'
 #!/bin/bash
 # upload_assets <差し替え>: 来歴のタグに scripts/build-assets.sh を流して配布物を作り、下書きの Release に載せる。
@@ -115,6 +135,13 @@ if [[ ${1:-} == workflow && ${2:-} == run ]]; then
 		if [[ $1 == --ref ]]; then printf '%s' "$2" >"$GH_STATE/dispatched"; fi
 		shift
 	done
+	cat <<'OUTPUT'
+✓ Created workflow_dispatch event for release-assets.yml at v1.6.0
+https://github.com/example/kit/actions/runs/4242
+
+To see the created workflow run, try: gh run view 4242
+To see runs for this workflow, try: gh run list --workflow="release-assets.yml"
+OUTPUT
 	exit 0
 fi
 
@@ -132,32 +159,71 @@ if [[ ${1:-} == run && ${2:-} == list ]]; then
 	now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 	extra='[]'
 	if [[ -f $GH_STATE/dispatched && ${GH_RUNS_MODE:-} != none && $calls -gt ${GH_RUNS_DELAY:-0} ]]; then
-		extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4242"}]'
+		extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4242"}]'
 		if [[ ${GH_RUNS_MODE:-} == dup ]]; then
-			extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4242"},{"databaseId":4243,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","url":"https://github.com/example/kit/actions/runs/4243"}]'
+			extra='[{"databaseId":4242,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4242"},{"databaseId":4243,"headBranch":"'$ref'","createdAt":"'$now'","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4243"}]'
 		fi
 	fi
-	jq -n --arg ref "$ref" --arg now "$now" --argjson extra "$extra" '[
-		{databaseId: 1, headBranch: $ref, createdAt: "2020-01-01T00:00:00Z", event: "workflow_dispatch", url: "https://github.com/example/kit/actions/runs/1"},
-		{databaseId: 2, headBranch: "main", createdAt: $now, event: "workflow_dispatch", url: "https://github.com/example/kit/actions/runs/2"},
-		{databaseId: 3, headBranch: $ref, createdAt: $now, event: "push", url: "https://github.com/example/kit/actions/runs/3"}
-	] + $extra' | jq -r "$filter"
+	# GH_PAST_RUN があると、この実行より前の v1.6.0 の実行が並ぶ（新しい順に、失敗、成功、さらに前の成功）。
+	past='[]'
+	if [[ -n ${GH_PAST_RUN:-} ]]; then
+		past='[{"databaseId":4101,"headBranch":"v1.6.0","createdAt":"2020-03-01T00:00:00Z","event":"workflow_dispatch","conclusion":"failure","url":"https://github.com/example/kit/actions/runs/4101"},{"databaseId":4100,"headBranch":"v1.6.0","createdAt":"2020-02-01T00:00:00Z","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4100"},{"databaseId":4099,"headBranch":"v1.6.0","createdAt":"2020-01-15T00:00:00Z","event":"workflow_dispatch","conclusion":"success","url":"https://github.com/example/kit/actions/runs/4099"}]'
+	fi
+	jq -n --arg ref "$ref" --arg now "$now" --argjson extra "$extra" --argjson past "$past" '[
+		{databaseId: 1, headBranch: $ref, createdAt: "2020-01-01T00:00:00Z", event: "workflow_dispatch", conclusion: "failure", url: "https://github.com/example/kit/actions/runs/1"},
+		{databaseId: 2, headBranch: "main", createdAt: $now, event: "workflow_dispatch", conclusion: "success", url: "https://github.com/example/kit/actions/runs/2"},
+		{databaseId: 3, headBranch: $ref, createdAt: $now, event: "push", conclusion: "success", url: "https://github.com/example/kit/actions/runs/3"}
+	] + $extra + $past' | jq -r "$filter"
 	exit 0
 fi
 
 # 実行を待つ: 成功すると、ワークフローが配布物を載せたことにする。
 if [[ ${1:-} == run && ${2:-} == watch ]]; then
 	[[ ${3:-} == 4242 ]] || { echo "unexpected run id: ${3:-}" >&2; exit 1; }
+	[[ -z ${GH_WATCH_DELAY:-} ]] || sleep "$GH_WATCH_DELAY"
+	mark=✓ conclusion=success
+	[[ -z ${GH_WATCH_FAIL:-} ]] || { mark=X; conclusion=failure; }
+	cat <<OUTPUT
+$mark v1.6.0 Release assets · 4242
+Triggered via workflow_dispatch less than a minute ago
+
+JOBS
+$mark assets in 12s (ID 130947266040)
+  ✓ Set up job
+  ✓ Check the tag and the draft Release
+  ✓ Check out the tag
+  ✓ Check the checkout
+  $mark Build the assets
+  $mark Attest the assets
+  $mark Upload to the draft Release
+  ✓ Post Check out the tag
+  ✓ Complete job
+
+$mark Run Release assets (4242) completed with '$conclusion'
+OUTPUT
 	[[ -z ${GH_WATCH_FAIL:-} ]] || { echo 'intentional run failure' >&2; exit 1; }
 	upload_assets "${GH_TAMPER:-}"
 	exit $?
+fi
+
+# 実行のジョブ: ゲージの元。GH_JOBS_MODE が fail なら失敗し、empty ならステップがない。
+# それ以外は、ステップが 10 件で、GH_JOBS_DONE 件（既定は 4）が終わっている。
+if [[ ${1:-} == run && ${2:-} == view ]]; then
+	[[ ${3:-} == 4242 && ${4:-} == --repo && ${5:-} == example/kit && ${6:-} == --json && ${7:-} == jobs && ${8:-} == --jq ]] || { echo "unexpected run view: $*" >&2; exit 1; }
+	[[ ${GH_JOBS_MODE:-} != fail ]] || { echo 'gh: run view failed' >&2; exit 1; }
+	if [[ ${GH_JOBS_MODE:-} == empty ]]; then
+		echo '{"jobs":[]}' | jq -r "${9:-.}"
+	else
+		jq -n --argjson done "${GH_JOBS_DONE:-4}" '{jobs: [{steps: [range(0; 10) | {name: "step \(.)", status: (if . < $done then "completed" else "in_progress" end)}]}]}' | jq -r "${9:-.}"
+	fi
+	exit 0
 fi
 
 if [[ ${1:-} == release && ${2:-} == edit ]]; then
 	[[ -z ${GH_EDIT_FAIL:-} ]] || { echo 'intentional edit failure' >&2; exit 1; }
 	[[ ${3:-} == v1.6.0 && ${4:-} == --repo && ${5:-} == example/kit && ${6:-} == --draft=false ]] || { echo "unexpected release edit: $*" >&2; exit 1; }
 	jq '(.[] | select(.tag_name == "v1.6.0")).draft = false | (.[] | select(.tag_name == "v1.6.0")).html_url = "https://github.com/example/kit/releases/tag/v1.6.0"' "$GH_RELEASES" >"$GH_RELEASES.new" && mv "$GH_RELEASES.new" "$GH_RELEASES"
-	echo 'https://github.com/example/kit/releases/tag/v1.6.0'
+	if [[ -z ${GH_EDIT_EMPTY:-} ]]; then echo 'https://github.com/example/kit/releases/tag/v1.6.0'; fi
 	exit 0
 fi
 
@@ -204,7 +270,7 @@ notes_expected=$'新しいバージョンの 1 段落目。\n\n- 項目 1\n- 項
 draft_url=https://github.com/example/kit/releases/tag/untagged-0123456789ab
 published_url=https://github.com/example/kit/releases/tag/v1.6.0
 run_url=https://github.com/example/kit/actions/runs/4242
-gh_env_vars='GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY'
+gh_env_vars='GH_EDIT_EMPTY GH_TAMPER GH_WATCH_FAIL GH_EDIT_FAIL GH_CREATE_FAIL GH_WORKFLOW_FAIL GH_LIST_FAIL GH_VERSION_FAIL GH_ATTEST_FAIL GH_ATTEST_FAIL_WITH GH_DL_FAIL GH_RUNS_MODE GH_RUNS_DELAY GH_WATCH_DELAY GH_JOBS_MODE GH_JOBS_DONE'
 
 # make_case <名前> [origin の URL]: bare の origin と、その URL を insteadOf で bare に向けた作業コピーを作る。
 # 作業コピーは、配布物を作るスクリプトと本物の install.sh を持つ。一覧には、別のバージョンの公開済みの Release だけがある。
@@ -288,53 +354,21 @@ run_release() {
 	rc=$(<"$case_dir/rc")
 }
 
+# run_release_tty <入力のファイル> [環境変数の指定...]: 標準入力と、標準出力・標準エラー出力のどちらも疑似端末につなぎ、
+# 256 色の端末の TERM で流す。色の判定を確かめるために使う。NO_COLOR は外し、指定があれば付ける。
+run_release_tty() {
+	local input=$1
+	shift
+	rm -f "$case_dir/rc"
+	(cd "$work" && env -u BASH_ENV -u NO_COLOR PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" TERM=xterm-256color "$@" \
+		python3 "$root/tests/ui-pty.py" both "$case_dir/out" "$case_dir/err" --stdin-tty "$input" -- \
+		/bin/bash -c 'rc=0; /bin/bash scripts/release.sh || rc=$?; printf "%s" "$rc" >"$0"' "$case_dir/rc")
+	rc=$(<"$case_dir/rc")
+}
+
 # run_release_notty <引数...>: 標準入力を /dev/null にして流す（端末でない）。
 run_release_notty() {
 	rc=0
 	(cd "$work" && env -u BASH_ENV PATH="$test_dir/bin:$PATH" TMPDIR="$case_dir/tmp" \
 		/bin/bash scripts/release.sh "$@") </dev/null >"$case_dir/out" 2>"$case_dir/err" || rc=$?
-}
-
-printf 'y\n' >"$test_dir/answer-y"
-printf 'n\n' >"$test_dir/answer-n"
-printf '\n' >"$test_dir/answer-empty"
-: >"$test_dir/answer-eof"
-printf 'yes\n' >"$test_dir/answer-yes"
-
-# gh の呼び方の記録（gh.log）を読む道具。
-log_count() { grep -c -- "$1" "$case_dir/gh.log" || true; }
-# log_has / log_lacks <正規表現>: 呼ばれた / 呼ばれていない。
-log_has() { [[ -f $case_dir/gh.log ]] && grep -q -- "$1" "$case_dir/gh.log"; }
-log_lacks() { [[ ! -f $case_dir/gh.log ]] || ! grep -q -- "$1" "$case_dir/gh.log"; }
-# before_in_log <先の正規表現> <後の正規表現>: 先の最初の呼び出しが、後の最初の呼び出しより前にある。
-before_in_log() {
-	local a b
-	a=$(grep -n -m1 -- "$1" "$case_dir/gh.log" | cut -d: -f1 || true)
-	b=$(grep -n -m1 -- "$2" "$case_dir/gh.log" | cut -d: -f1 || true)
-	[[ -n $a && -n $b && $a -lt $b ]]
-}
-# no_write: GitHub に書く gh の呼び出し（Release の作成・公開・削除、ワークフローの実行）がない。
-no_write() { log_lacks '^release \(create\|edit\|delete\|upload\)\|^workflow run\|^api -X\|^api --method'; }
-# no_download: 配布物を取得していない。
-no_download() { log_lacks 'releases/assets/'; }
-no_tag() { [[ -z $(git -C "$work" tag) && -z $(git -C "$bare" tag) ]]; }
-# no_leftover: 流したあとに、一時の置き場が残っていない。
-no_leftover() { [[ -z $(ls -A "$case_dir/tmp") ]]; }
-
-# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確かめる。タグがあるケース用。
-expect_stop_keep() {
-	local before
-	before=$(snapshot)
-	run_release "$test_dir/answer-y"
-	[[ $rc == 1 ]]
-	no_write
-	no_download
-	[[ $(snapshot) == "$before" ]]
-	grep -qF "$1" "$case_dir/err"
-	! grep -qF '公開しますか' "$case_dir/err"
-}
-# expect_stop <理由に含む文字>: expect_stop_keep に、手元にも origin にもタグがないことを足す。
-expect_stop() {
-	expect_stop_keep "$1"
-	no_tag
 }

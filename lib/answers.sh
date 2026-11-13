@@ -110,5 +110,4 @@ save_answers() {
 		rm -f -- "$temporary"
 		die '答えを保存できませんでした。前の答えを確認してください。'
 	fi
-	printf '%s\n' '答えを保存しました。' >&2
 }

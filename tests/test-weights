@@ -82,7 +82,7 @@ tests/capture-cli-fixtures-test.sh 4
 tests/completion-colors-test.sh 2
 tests/setup-tag-test.sh 2
 tests/terms-test.sh 2
-tests/ui-test.sh 2
+tests/ui-test.sh 12
 tests/content-test.sh 1
 tests/doc-lines-test.sh 1
 tests/extensions-test.sh 1
@@ -91,3 +91,11 @@ tests/release-workflow-test.sh 2
 tests/role-choices-test.sh 1
 tests/shell-test.sh 1
 tests/squad-dependabot-merge-advance-gh-test.sh 1
+tests/release-display-test.sh 58
+tests/questions-fold-test.sh 35
+tests/release-screens-test.sh 16
+tests/ui-steps-test.sh 29
+tests/confirmation-test.sh 8
+tests/terminal-screen-test.sh 1
+tests/setup-progress-test.sh 2
+tests/project-progress-test.sh 12

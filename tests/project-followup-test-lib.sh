@@ -149,7 +149,7 @@ reset_db() {
  echo '[]' >"$TEST_DB/autopilots.json"; echo 1 >"$TEST_DB/next"; : >"$TEST_DB/calls"
 }
 run() { /bin/bash "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"; }
-deny() { if run; then echo 'unexpected success'; exit 1; fi; [[ -s $test_dir/err ]]; ! grep -q '今回作った件数' "$test_dir/out"; }
+deny() { if run; then echo 'unexpected success'; exit 1; fi; [[ -s $test_dir/err ]]; ! grep -q '^✔ ' "$test_dir/out"; }
 no_writes() { ! jq -es 'any(.[]; .[1]=="update" or .[1]=="create" or .[1]=="delete" or .[1]=="trigger-add" or .[1]=="trigger-update" or (.[1]=="member" and .[2]!="list"))' "$TEST_DB/calls" >/dev/null; }
 no_autopilot_writes() { ! jq -es 'any(.[]; .[0]=="autopilot" and (.[1]=="create" or .[1]=="update" or .[1]=="delete" or .[1]=="trigger-add" or .[1]=="trigger-update"))' "$TEST_DB/calls" >/dev/null; }
 
@@ -169,7 +169,8 @@ jq -e 'length==3 and all(.[]; .project_id=="project-a") and any(.[]; .title=="�
 jq -e '.[0].cron_expression=="0 10 * * 1"' "$TEST_DB/triggers-auto-1.json" >/dev/null
 jq -e '.[0].cron_expression=="0 10 * * 2"' "$TEST_DB/triggers-auto-2.json" >/dev/null
 jq -e '.[0].cron_expression=="*/30 * * * *"' "$TEST_DB/triggers-auto-3.json" >/dev/null
-grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 3 件' "$test_dir/out"
+grep -qE '^✔ .*  \+3 オートパイロット$' "$test_dir/out"
+! grep -qE '^✔ .*(エージェント|スクワッド)' "$test_dir/out"
 for index in $(seq 0 3); do grep -qF "オートパイロット $index/3" "$test_dir/err"; done
 echo 'PASS progress: 選んだオートパイロットの件数に合わせ、0から設定中の位置を表示する'
 

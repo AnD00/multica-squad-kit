@@ -13,7 +13,7 @@ cp "$root/lib/"*.sh "$test_dir/package/lib/"
 cp "$root/lib/extensions.py" "$test_dir/package/lib/"
 cp -R "$root/common" "$root/skeleton" "$test_dir/package/"
 # 質問の試験ではホストを触らない。ホストの実装は host-test.sh で検証する。
-printf 'prepare_host() { :; }\n' >"$test_dir/package/lib/host.sh"
+printf 'prepare_host() { :; }\nhost_gate_summary() { :; }\n' >"$test_dir/package/lib/host.sh"
 printf 'prepare_workspace() { :; }\n' >"$test_dir/package/lib/workspace.sh"
 printf 'prepare_project() { echo TEST-project-prepared; }\n' >"$test_dir/package/lib/project.sh"
 printf payload >"$test_dir/package/file with spaces"
@@ -47,6 +47,7 @@ case "$*" in
 'user profile get --output json') if [[ -n ${TEST_PROFILE_FILE:-} ]]; then cat "$TEST_PROFILE_FILE"; else echo '{"id":"member-a","name":"Member A","email":"Owner@example.test"}'; fi ;;
 'squad list --output json') if [[ -n ${TEST_SQUADS_FILE:-} ]]; then cat "$TEST_SQUADS_FILE"; else echo '[]'; fi ;;
 'squad get '* ) echo "{\"id\":\"squad-a\",\"creator_id\":\"${TEST_SQUAD_OWNER:-member-a}\"}" ;;
+'squad member list '*) if [[ -n ${TEST_ROSTER_FILE:-} ]]; then cat "$TEST_ROSTER_FILE"; else echo '[]'; fi ;;
 'agent list --output json') [[ ${TEST_FAIL:-} != agents ]] || exit 76; if [[ -n ${TEST_AGENTS_FILE:-} ]]; then cat "$TEST_AGENTS_FILE"; else echo '[]'; fi ;;
 'skill list --output json') if [[ -n ${TEST_SKILLS_FILE:-} ]]; then cat "$TEST_SKILLS_FILE"; else echo '[]'; fi ;;
 'autopilot list --output json') if [[ -n ${TEST_AUTOPILOTS_FILE:-} ]]; then cat "$TEST_AUTOPILOTS_FILE"; else echo '{"autopilots":[]}'; fi ;;

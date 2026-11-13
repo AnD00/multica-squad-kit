@@ -60,7 +60,7 @@ count 1
 jq -e --arg target "squad-handoff@$(cat "$root/VERSION")" '.issues[0] | .metadata.squad_kit_task=="handoff-skill-update" and (.metadata.squad_kit_targets|fromjson)==[$target] and .assignee_id=="creator" and .status=="todo" and .labels[0].id=="instructions"' "$TEST_DB/db.json" >/dev/null
 run
 count 1
-grep -q '（既存）' "$test_dir/out"
+grep -q '^  · TEST-' "$test_dir/out"
 echo 'PASS changes: 更新できなかった共通スキルは作成者に頼み、同じタグでは二重に起票しない'
 
 new_case creator-left

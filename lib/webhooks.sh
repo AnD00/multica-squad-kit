@@ -98,7 +98,10 @@ prepare_project_webhooks() {
 		return 0
 	fi
 	dependabot_webhook_active || return 0
+	# 作る間の一覧の値は、登録を試すリポジトリの数。
+	webhook_summary=$(jq length <<<"$selected_repositories")
 	while IFS= read -r repo; do
+		ui_phase_progress 0 0 "$repo"
 		if ! row=$(register_dependabot_webhook "$repo"); then
 			row=$(jq -nc --arg repository "$repo" '{repository:$repository,trigger:"飛ばした",registration:"飛ばした",delivery:"失敗",reason:"Webhook の登録の処理に失敗しました。"}')
 		fi
@@ -125,25 +128,43 @@ prepare_project_webhook_leftovers() {
 	done < <(jq -r '.[].repository' <<<"$selected_repositories")
 }
 
+# 結果の語を、印 1 文字にする。作ったものと既存のものは ✔、飛ばしたものは ·、記録のない配信は !、失敗は ✖。
+project_webhook_mark() {
+	case ${1%%（*} in
+	作成 | 既存 | 成功) ui_paint out success ✔ ;;
+	飛ばした) ui_paint out default · ;;
+	記録なし) ui_paint out warning '!' ;;
+	失敗) ui_paint out error ✖ ;;
+	*) printf '%s' "$1" ;;
+	esac
+}
+
 project_webhook_completion() {
-	local repository trigger registration delivery reason state
+	local repository trigger registration delivery reason state width=0 size
+	[[ $(jq length <<<"${setup_webhook_leftovers:-[]}") != 0 || $(jq length <<<"${setup_webhook_rows:-[]}") != 0 ]] || return 0
+	printf '\n'
 	while IFS=$'\t' read -r repository state; do
+		printf '  '
 		if [[ $state == 残っている ]]; then
-			ui_line out warning "警告: ${repository}: Webhook を使わない答えですが、前の実行で作った Webhook のトリガーが残っています。外すよう起票しました。"
+			ui_mark out warn "$repository" 'Webhook を使わない答えですが、前の実行で作った Webhook のトリガーが残っています。外すよう起票しました。'
 		else
-			ui_line out warning "警告: ${repository}: 前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確かめてください。"
+			ui_mark out warn "$repository" '前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確かめてください。'
 		fi
 	done < <(jq -r '.[] | [.repository,.state] | @tsv' <<<"${setup_webhook_leftovers:-[]}")
-	[[ $(jq length <<<"${setup_webhook_rows:-[]}") != 0 ]] || return 0
-	printf '%s\n' 'Webhook の登録:'
+	while IFS= read -r repository; do
+		size=$(ui_width "$repository")
+		if ((size > width)); then width=$size; fi
+	done < <(jq -r '.[].repository' <<<"${setup_webhook_rows:-[]}")
 	while IFS=$'\t' read -r repository trigger registration delivery reason; do
-		printf '  %s: トリガー ' "$repository"
-		ui_result "$trigger"
-		printf '、登録 '
-		ui_result "$registration"
-		printf '、配信 '
-		ui_result "$delivery"
-		[[ -z $reason ]] || printf '。%s' "$reason"
+		printf '  %s  ' "$(ui_pad "$width" "$repository")"
+		project_webhook_mark "$trigger"
+		printf ' トリガー  '
+		project_webhook_mark "$registration"
+		printf ' 登録  '
+		project_webhook_mark "$delivery"
+		printf ' 配信'
+		if [[ $delivery =~ HTTP\ ([0-9]+) ]]; then printf ' '; ui_paint out default "${BASH_REMATCH[1]}"; fi
+		if [[ -n $reason ]]; then printf '  '; ui_paint out default "$reason"; fi
 		printf '\n'
-	done < <(jq -r '.[] | [.repository,.trigger,.registration,.delivery,.reason] | @tsv' <<<"$setup_webhook_rows")
+	done < <(jq -r '.[] | [.repository,.trigger,.registration,.delivery,.reason] | @tsv' <<<"${setup_webhook_rows:-[]}")
 }

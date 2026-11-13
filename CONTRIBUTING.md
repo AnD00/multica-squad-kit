@@ -150,18 +150,50 @@ Mac の Lima の VM と WSL の専用のディストリは、[バージョンを
 
 ## 画面に出す文
 
-セットアップの画面に出す文は、`manual.md` の[表示の色と印](manual.md#表示の色と印)の種類のどれかに当てる。  
-色の制御文字を直接書かず、種類ごとの色と、色を付けるかの判定を一か所にまとめた `lib/ui.sh` の関数で出す。
+セットアップと `scripts/release.sh` の画面に出す文は、`manual.md` の[表示の色と印](manual.md#表示の色と印)の記号と種類のどれかに当てる。  
+色の制御文字と記号の文字を直接書かず、種類ごとの色、色を付けるかの判定、行の書き換えを一か所にまとめた `lib/ui.sh` の部品で出す。  
+部品と、記号と色の決まりは、`docs/screens.md` の[表示の部品](docs/screens.md#表示の部品libuish)と[記号と色](docs/screens.md#記号と色)にある。
 
-印（`質問`、`警告:`、`エラー:`）は、色の有無によらず同じ文字を出す。  
+状態は、「成功」「一致」「新規」のような結果の語ではなく、印と配置で示す。  
+画面を変えたら、その画面を説明している `manual.md` の節も合わせる。  
+印の行（`✔`、`✖`、`!`、`+`、`~`、`·`、`-`）は、色の有無によらず同じ文字と配置で出す。  
+止まるときの `エラー:` の行と、`警告:` の行も、色の有無によらず同じ文字を出す。  
 コマンド置換で受け取る文や、タスク・答え・ログに入る文は、色を付けずに作る。
 
-色の判定は `tests/ui-test.sh` で、疑似端末と、色を付けない各条件の両方を確かめる。
+色の判定と記号の割り当ては `tests/ui-test.sh`、行の書き換えは `tests/ui-steps-test.sh` で、疑似端末と、色を付けない各条件の両方を確かめる。  
+質問の画面は `tests/questions-ui-test.sh`、完了の表示は `tests/completion-colors-test.sh` で、画面の全行を照合する。
 
 `lib/` やエージェントの指示は、`manual.md` の節を名前やリンクで指している。  
 節の名前を変えるときは、`grep -rn 'manual.md' .` で参照を探して合わせる。
 
 起票するタスクの本文（`common/setup-issues.json`）は、取り出したタグの `manual.md` の節へリンクする。
+
+## 出力を変える PR で画面の画像を作る
+
+`scripts/release.sh` の出力を変える PR では、変える前と後の画面を、同じ場面・同じ入力で PNG にして、見比べられるようにする。  
+テストの文字列の一致に加えて、人が見た目で確かめるためである。  
+設計は `docs/release.md` の[画面を画像で見比べる](docs/release.md#画面を画像で見比べる)にある。
+
+前は変える前の `main` の `scripts/release.sh`、後は PR の `scripts/release.sh` を、同じ仕組みで流す。  
+`lib/ui.sh` などのほかのファイルは、作業ツリーのものを使う。
+
+```bash
+python3 -m venv tmp/screens-venv
+tmp/screens-venv/bin/pip install -r tests/release-screens-requirements.txt
+git fetch origin main
+git show origin/main:scripts/release.sh >tmp/release-before.sh
+RELEASE_SCREENS_PYTHON=tmp/screens-venv/bin/python bash tests/release-screens.sh tmp/release-before.sh tmp/screens/before
+RELEASE_SCREENS_PYTHON=tmp/screens-venv/bin/python bash tests/release-screens.sh scripts/release.sh tmp/screens/after
+```
+
+- `RELEASE_SCREENS_PYTHON` は、描くときの Python のパスである。指定がなければ `python3` を使い、Pillow がなければ、入れ方を出して止まる
+- `--capture-only` を付けると、出力を取るところまでで終わり、PNG を描かない。CI と、描く道具のない手元で使う
+- 画像は、リポジトリに入れない。`tmp/` は Git に入れない
+
+PR のコメントに、場面ごとの前と後の画像の組、上のコマンド、前に使った `main` のコミットを書く。  
+画像は、作った人が `gh pr comment <PR> --body-file <本文> --attach '<画像>#<説明>'` で、10 枚を 1 つのコメントに載せる。  
+載せたあとに `gh pr view <PR> --json comments` で、コメントに画像の URL があり、手元のパスが残っていないことを確かめる。  
+載せられなかったときだけ、画像を Multica のタスクのコメントに添え、試したコマンドと終了コードと出力も添えて、人に頼む。
 
 ## 文書の改行
 
@@ -238,12 +270,18 @@ bash scripts/release.sh
 タグを付ける前に配布物を作って確かめ、名前の決まりに合わないと、タグも下書きの Release も作らずに止まる。  
 この確かめで止まり、タグがすでにあるときは、そのタグは使わず、直したコミットを新しいバージョンで出す。
 
-コマンドは、公開の前に、バージョン、タグを付けるコミット、Release の本文（`CHANGELOG.md` のそのバージョンの節）を出して、確認を求める。  
+コマンドは、確認を求める前に、確かめた項目の一覧、Release の本文（`CHANGELOG.md` のそのバージョンの節）、バージョンとタグを付けるコミットの要約、番号付きの「すること」を出す。  
 確認は端末で答えるので、端末から流す。  
 パイプや自動の実行では、公開されない。
 
 `y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、下書きの Release を作る。  
 そのあと、配布物を作るワークフローの終わりを待ち、配布物と証明を確かめて、確かめが通ったときだけ公開する。
+
+公開の手順は、番号と総数と名前の見出しで進む。  
+外のコマンドの出力は、失敗したときだけそのまま出る。  
+公開したら、バージョン、コミット、Release の URL、配布物、発行のワークフローの実行の URL を、終わりのまとめに出す。  
+画面の例は写さない。  
+確認の前の画面は `docs/release.md` の[確認](docs/release.md#確認)に、手順と終わりのまとめは[手順の表示](docs/release.md#手順の表示)と[終わりのまとめ](docs/release.md#終わりのまとめ)にある。
 
 止まったときは、出た理由に従って直してから、流し直す。  
 未公開のコミットがあるときや、`VERSION` と `CHANGELOG.md` の先頭のバージョンが違うときは、変更を PR でレビュー・マージしてからやり直す。
