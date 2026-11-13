@@ -63,6 +63,9 @@ for repository, expected in [('example/other', 'example/other'), (None, 'なし'
 print('PASS URL: 作業先の不一致・欠落・不正で止まり、安全な値だけを書く')
 
 for url in ('https://github.com/other/repo/pull/67', pr + '\nINJECTED'):
+    task(pr)
+    previous = run('link-check', 'test-issue')
+    assert previous.returncode == 0 and '紐付いていない' in previous.stdout, previous
     task(url)
     for args in [('ci-now', 'test-issue', 'orchestrator', 'trigger-comment'),
                  ('unlinked', 'test-issue', 'trigger-comment')]:
@@ -72,10 +75,14 @@ for url in ('https://github.com/other/repo/pull/67', pr + '\nINJECTED'):
     result = run('ci-check', 'test-issue', 'orchestrator', 'monitor')
     assert result.returncode != 0 and 'PR の URL が' in result.stderr and not result.stdout
     forbidden_io()
+    result = run('ci-held', 'test-issue', 'handoff-comment')
+    assert result.returncode != 0 and 'PR の URL が' in result.stderr and not result.stdout
+    assert 'INJECTED' not in result.stderr
+    forbidden_io()
     result = run('conflicts-check', 'test-issue')
     assert result.returncode == 0 and result.stdout.startswith('コンフリクト: 未確認 head: 不明 理由: PR の URL が'), result
     forbidden_io()
-print('PASS URL: ci-now・unlinked・ci-check・conflicts-check は拒否した値で GitHub を読まず書き込まない')
+print('PASS URL: 正常な link-check のあとでも ci-now・unlinked・ci-check・ci-held・conflicts-check は読み直した値で GitHub を読まず書き込まない')
 
 # 一覧の URL にも同じ正規化と制御文字の拒否を当てる。
 task(pr)

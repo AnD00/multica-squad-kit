@@ -447,14 +447,19 @@ ci_check() {
 }
 
 ci_held() {
-	local issue=$1 trigger=$2 task thread pr_url pr head short failures comments received body
+	local issue=$1 trigger=$2 task thread pr_url pr head short failures comments received body data
 	task=$(squad_cli_read issue-get "$issue")
 	case $(jq -r '.status_category' <<<"$task") in
 	done | cancelled) return 0 ;;
 	esac
 	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
 	[[ -n $thread ]] || return 0
-	pr_url=$(jq -er '.metadata.pr_url | select(. != null)' <<<"$task")
+	data=$(pr_url_data "$task")
+	if [[ $(jq -r .state <<<"$data") != valid ]]; then
+		jq -r .reason <<<"$data" >&2
+		return 1
+	fi
+	pr_url=$(jq -r .url <<<"$data")
 	pr=$(squad_cli_read gh-pr-checks "$pr_url")
 	case $(jq -r .state <<<"$pr") in
 	MERGED | CLOSED) return 0 ;;

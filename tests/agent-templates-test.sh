@@ -506,6 +506,13 @@ for phrase in 'runs <タスク> --active' '--siblings' 'run-messages' '--help' '
 	grep -qF -- "$phrase" "$refs/leader-run-status.md"
 done
 echo 'PASS templates: 進捗と停止の参照が、実行の状態の確認・止める条件・止めたあとの手順を持つ'
+stop_section=$(awk '/^## 実行を止める$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$refs/leader-run-status.md")
+for phrase in '読む直前に、`squad-pr-watch link-check <タスク>`' '`紐付け: 作業先と違う`' '`表示しない` か `不明`' 'PR を読まない' 'その行の `pr:` の正規形' 'gh pr view <正規形> --json headRefOid,headRefName' 'metadata の `pr_url` を読み直して渡さない' '`branch` があれば作業先のブランチ' '理由を添える'; do
+	grep -qF -- "$phrase" <<<"$stop_section"
+done
+! grep -qF 'gh pr view <PR の URL>' <<<"$stop_section"
+echo 'PASS templates: 停止の提案で読む PR は直前の判定の正規形にし、拒否された値では作業先のブランチか未確認へ戻る'
+
 
 for phrase in '45 分' '実行の遅れ:' '同じ実行につき 1 回だけ' '知らせても、実行は止めない'; do
 	grep -qF -- "$phrase" "$refs/leader-run-status.md"
