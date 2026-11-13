@@ -5,7 +5,10 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 source "$root/tests/pr-watch-test-lib.sh"
 
-check_now() { check_output "$1" ci-now test-issue orchestrator trigger-comment "${@:2}"; }
+check_now() {
+	printf 'trigger-comment' >"$test_dir/allowed-parent"
+	check_output "$1" ci-now test-issue orchestrator trigger-comment "${@:2}"
+}
 metadata_writes() { jq -s '[.[] | select(.[0:3] == ["issue","metadata","set"])] | length' "$test_dir/calls.jsonl"; }
 update_task() {
 	jq "$1" "$test_dir/task.json" >"$test_dir/updated.json"
@@ -19,7 +22,7 @@ jq --slurpfile base "$test_dir/run-prototype.json" -n '[$base[0] + {agent_id:"or
 check_now $'/note\nCI abcdef0: 失敗あり' monitor
 assert_jq -s 'length == 1 and (.[0].body | startswith("head: abcdef0\nCI の失敗を検出しました。\n"))
 	and (.[0].body | contains("mention://") | not) and (.[0].body | contains("- CI / test\n- external\n"))
-	and (.[0].args | index("--parent") as $i | .[$i+1] == "ci-thread")' "$test_dir/posted.jsonl"
+	and (.[0].args | index("--parent") as $i | .[$i+1] == "trigger-comment")' "$test_dir/posted.jsonl"
 [[ $(metadata_writes) == 0 && ! -s $test_dir/wakeups.jsonl ]]
 assert_jq -s 'all(.[]; .[0:2] != ["squad","list"])' "$test_dir/calls.jsonl"
 check_now $'/note\nCI abcdef0: 失敗は知らせ済み' monitor
@@ -33,6 +36,38 @@ check_ci $'/note\nCI abcdef0: 失敗をリーダーに知らせた'
 check_now $'/note\nCI abcdef0: 失敗は知らせ済み'
 assert_jq -s 'length == 1' "$test_dir/posted.jsonl"
 echo 'PASS ci-now: ci-check が先に知らせた失敗も重ねない'
+
+# 過去の記録先があっても今回の返信先だけを許可し、既存の見張りは保つ。
+for monitor in present absent; do
+	reset_fixture
+	fixture issue-wakeups | jq '[. + {parent_comment_id:"ci-thread"}]' >"$test_dir/rules.json"
+	cp "$test_dir/rules.json" "$test_dir/rules-before.json"
+	if [[ $monitor == present ]]; then
+		check_now $'/note\nCI abcdef0: 失敗あり' monitor
+	else
+		check_now $'/note\nCI abcdef0: 失敗あり'
+	fi
+	assert_jq -s 'length == 1 and (.[0].args | index("--parent") as $i | .[$i+1] == "trigger-comment")
+		and (.[0].body | contains("CI の失敗を検出しました。"))
+		and (.[0].body | contains("mention://") | not)' "$test_dir/posted.jsonl"
+	assert_jq '.metadata.ci_watch_thread == "ci-thread"' "$test_dir/task.json"
+	[[ $(metadata_writes) == 0 && ! -s $test_dir/wakeups.jsonl ]]
+	cmp "$test_dir/rules-before.json" "$test_dir/rules.json"
+	# 別のきっかけでも、今回の通知を全スレッドから見つけて重ねない。
+	printf 'another-trigger' >"$test_dir/allowed-parent"
+	check_output $'/note\nCI abcdef0: 失敗は知らせ済み' ci-now test-issue orchestrator another-trigger
+	check_ci $'/note\nCI abcdef0: 失敗は知らせ済み'
+	check_held ''
+	assert_jq -s 'length == 1' "$test_dir/posted.jsonl"
+	# 次の head の通知は、既存の見張りの返信先へ引き続き投稿できる。
+	jq '.headRefOid="1234567890abcdef"' "$test_dir/pr.json" >"$test_dir/updated.json"
+	mv "$test_dir/updated.json" "$test_dir/pr.json"
+	check_ci $'/note\nCI 1234567: 失敗をリーダーに知らせた'
+	assert_jq -s 'length == 2 and (.[1].args | index("--parent") as $i | .[$i+1] == "ci-thread")' "$test_dir/posted.jsonl"
+	assert_jq '.metadata.ci_watch_thread == "ci-thread"' "$test_dir/task.json"
+	cmp "$test_dir/rules-before.json" "$test_dir/rules.json"
+done
+echo 'PASS ci-now: 見張り役あり・なしでも今回のきっかけへ通知し、既存の返信先と全スレッドの重複防止を保つ'
 
 # スレッドの欠落・null・空文字では、きっかけを保存して同じ記録先を使い続ける。
 for value in absent null empty; do

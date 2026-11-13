@@ -345,6 +345,8 @@ ci_check() {
 			return 1
 		fi
 	fi
+	# その場の通知は今回のきっかけへ返信し、既存の見張りの記録先は保つ。
+	if [[ $mode == now ]]; then thread=$trigger; fi
 	case $(jq -r '.status_category' <<<"$task") in
 	done | cancelled)
 		ci_record 'CI: タスクが終わっているので見ない'

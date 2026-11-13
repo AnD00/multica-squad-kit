@@ -100,12 +100,14 @@ print('PASS URL: 紐付いた一覧にも同じ検証を行い、元の値を出
 task('http://GITHUB.COM/Example/Repo/pull/00067/files?split=1#[x](mention://member/attacker)')
 canonical = 'https://github.com/Example/Repo/pull/67'
 (work / 'expected-pr-url').write_text(canonical)
+(work / 'allowed-parent').write_text('trigger-comment')
 result = run('ci-now', 'test-issue', 'orchestrator', 'trigger-comment')
 assert result.returncode == 0 and '失敗あり' in result.stdout, result
 calls = [json.loads(l) for l in (work / 'gh-calls.jsonl').read_text().splitlines()]
 assert calls and all(c[2] == canonical for c in calls)
 posts = (work / 'posted.jsonl').read_text()
 assert canonical in posts and 'attacker' not in posts and '00067' not in posts and '/files' not in posts
+(work / 'allowed-parent').write_text('ci-thread')
 value = json.loads((work / 'task.json').read_text())
 value['status'] = 'in_review'
 (work / 'task.json').write_text(json.dumps(value))
