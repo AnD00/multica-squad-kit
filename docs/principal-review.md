@@ -23,8 +23,10 @@
 
 | 役のキー | エージェントの名前 | モデル | 思考の深さ | 置く条件 |
 | --- | --- | --- | --- | --- |
-| `claude-principal` | `<p>-claude-principal-<m>` | `claude-fable-5-2`（Fable 5.2） | high | 使うランタイムに Claude Code がある |
-| `codex-principal` | `<p>-codex-principal-<m>` | `gpt-6-astra`（Astra） | high | 使うランタイムに Codex がある |
+| `claude-principal` | `<p>-claude-principal-<m>` | `claude-fable-5-2`（Fable 5.2） | xhigh | 使うランタイムに Claude Code がある |
+| `codex-principal` | `<p>-codex-principal-<m>` | `gpt-6-astra`（Astra） | xhigh | 使うランタイムに Codex がある |
+
+思考の深さは、同じ失敗の診断を入れるときに high から xhigh に上げる。理由と、上げる前後の使用量の比べ方は [repeat-diagnosis.md](repeat-diagnosis.md) にある。
 
 `<p>` はプロジェクトの区別、`<m>` はメンバーの区別である。両方のランタイムを使えば 2 体、片方だけなら、その片方の 1 体だけを置く。
 
@@ -117,7 +119,7 @@
 
 ## 最上位の役を呼ぶところ
 
-最上位の役は、ラベル `重要` があるタスクでだけ呼ぶ。呼ぶところは次の 3 つで、印がなければ、どれも今のとおり飛ばす。
+最上位の役は、ラベル `重要` があるタスクでだけ呼ぶ。呼ぶところは次の 3 つで、印がなければ、どれも今のとおり飛ばす。同じ失敗が 2 回続いたときの診断は、この 3 つと別に、印によらず呼ぶ。診断は [repeat-diagnosis.md](repeat-diagnosis.md) に書く。
 
 ```mermaid title="重要なタスクの流れ"
 flowchart TD
