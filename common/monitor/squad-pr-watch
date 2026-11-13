@@ -444,7 +444,11 @@ ci_wait() {
 					if .__typename == "CheckRun" then .status != "COMPLETED"
 					elif .__typename == "StatusContext" then (.state != "SUCCESS" and .state != "FAILURE" and .state != "ERROR")
 					else true end)' <<<"$checks" >/dev/null; then state=実行中
-				else state=成功; fi
+				elif jq -e 'all(.[];
+					if .__typename == "CheckRun" then .status == "COMPLETED" and .conclusion == "SUCCESS"
+					elif .__typename == "StatusContext" then .state == "SUCCESS"
+					else false end)' <<<"$checks" >/dev/null; then state=成功
+				else state=未確認; fi
 			fi
 		fi
 		if [[ -n $new_head && $new_head != "$head" ]]; then head=$new_head; since=$now; fi
