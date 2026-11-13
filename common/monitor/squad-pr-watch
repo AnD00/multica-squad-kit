@@ -21,11 +21,19 @@
 #     記録のスレッドがなければ、きっかけのコメントを metadata に書いて使う。
 #   squad-pr-watch ci-held <タスク> <きっかけのコメント>
 #     今の head の未処理の失敗を一度だけ出し、引き継ぎで受けた記録をきっかけへの返信に残す。
+#   squad-pr-watch unlinked <タスク> <きっかけのコメント> [<見張り役の ID>]
+#     紐付いていない PR のマージ待ちを、1 時間おき・72 時間まで確認する規則を登録する。
+#   squad-pr-watch unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>]
+#     終了・紐付けを先に確認し、CI とコンフリクト、食い違いを重複なく知らせる。
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
+UNLINKED_MARK='紐付いていない PR のマージ待ちの見張りで起きました。'
+UNLINKED_INTERVAL=1h
+UNLINKED_LIMIT_HOURS=72
+UNLINKED_MAX_FIRES=100
 
 usage() {
-	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント>' >&2
+	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント> | unlinked <タスク> <きっかけのコメント> [<見張り役の ID>] | unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>]' >&2
 	exit 2
 }
 
@@ -130,22 +138,24 @@ conflicts_check_line() {
 
 conflicts_check() {
 	local issue=$1 cmd task pr_url pr head new state mergeable start now remain wait
+	# 間隔を空けた確認では通信・欄の検証の失敗を非0で返す。既存の呼び方は0のままにする。
+	local strict=${2:-0}
 	# mergeable は push の直後に UNKNOWN になりやすい。10 秒おきに、最初の読み取りから 60 秒まで読み直す。
 	local interval=10 limit=60
 	head=不明
 	for cmd in jq multica gh; do
 		if ! command -v "$cmd" >/dev/null 2>&1; then
 			conflicts_check_line 未確認 不明 "${cmd} が見つからない"
-			return 0
+			return "$strict"
 		fi
 	done
 	if ! task=$(multica issue get "$issue" --output json) || ! pr_url=$(jq -r '.metadata.pr_url // empty' <<<"$task"); then
 		conflicts_check_line 未確認 不明 'タスクを読めない'
-		return 0
+		return "$strict"
 	fi
 	if [[ -z $pr_url ]]; then
 		conflicts_check_line 未確認 不明 'metadata に pr_url がない'
-		return 0
+		return "$strict"
 	fi
 	start=$(date +%s)
 	while :; do
@@ -153,7 +163,7 @@ conflicts_check() {
 		if ! pr=$(squad_cli_read gh-pr-mergeable "$pr_url") \
 			|| ! new=$(jq -r '.headRefOid' <<<"$pr") || [[ -z $new ]]; then
 			conflicts_check_line 未確認 "$head" 'PR を読めない（gh の失敗か必須欄の欠落）'
-			return 0
+			return "$strict"
 		fi
 		head=$new
 		state=$(jq -r '.state' <<<"$pr")
@@ -417,6 +427,167 @@ ci_held() {
 	jq -r '.[]' <<<"$failures"
 }
 
+unlinked_clear() {
+	local issue=$1 rules ids id
+	rules=$(squad_cli_read issue-wakeups "$issue") || return 1
+	ids=$(jq -r --arg mark "$UNLINKED_MARK" '.[] | select((.instruction | split("\n")[0]) == $mark) | .id' <<<"$rules") || return 1
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		multica issue wakeup delete "$issue" "$id" --output json >/dev/null || return "$?"
+	done <<<"$ids"
+}
+
+unlinked() {
+	local issue=$1 trigger=$2 monitor=${3-} leader=${MULTICA_AGENT_ID:-} target task thread instruction response expires
+	if [[ -z $leader ]]; then
+		echo 'MULTICA_AGENT_ID がありません。呼び出したリーダーを決められません。' >&2
+		return 1
+	fi
+	unlinked_clear "$issue"
+	task=$(squad_cli_read issue-get "$issue")
+	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
+	if [[ -z $thread ]]; then
+		thread=$trigger
+		multica issue metadata set "$issue" --key ci_watch_thread --value "$thread" --output json >/dev/null
+	fi
+	target=${monitor:-$leader}
+	mkdir -p tmp
+	instruction=$(mktemp tmp/pr-watch-unlinked.XXXXXX)
+	trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
+	{
+		printf '%s\n' "$UNLINKED_MARK"
+		printf '次のコマンドで確認してください。0 以外で終わったときは、記録のスレッドへ失敗を書いてください。\n'
+		printf 'squad-pr-watch unlinked-check %q %q' "$issue" "$leader"
+		if [[ -n $monitor ]]; then printf ' %q' "$monitor"; fi
+		printf '\n'
+		if [[ -n $monitor ]]; then
+			printf '0 で終わったら、標準出力をそのまま最後の返答にしてください。\n'
+		else
+			cat <<'EOF'
+紐付け: 食い違い の行があれば、両方の PR を示して人間を呼び、どちらが正かを決めるまでマージしないよう頼んでください。タスクは in_review のままにしてください。
+CI <SHA>: 失敗あり で始まり、保留でなければ、リーダーの「CI の失敗で起きたとき」と同じに扱ってください。
+コンフリクト: CONFLICTING で、知らせ: 書いた なら、リーダーの「起きたときの確認」に進んでください。
+それ以外は、行を /note の記録にして終えてください。
+EOF
+		fi
+		printf '記録のスレッド: %s（0 以外で終わったときの返信先）\n' "$thread"
+	} >"$instruction"
+	# 表示は登録直前からの期限を分単位で出す。実際の終了はサーバーの expires-in が決める。
+	expires=$(python3 - "$UNLINKED_LIMIT_HOURS" <<'PY'
+from datetime import datetime, timedelta, timezone
+import sys
+print((datetime.now(timezone.utc) + timedelta(hours=int(sys.argv[1]))).strftime("%Y-%m-%dT%H:%MZ"))
+PY
+	)
+	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --kind every --every "$UNLINKED_INTERVAL" \
+		--expires-in "${UNLINKED_LIMIT_HOURS}h" --on-timeout end --max-fires "$UNLINKED_MAX_FIRES" --agent-id "$target" --parent "$thread")
+	jq '{id}' <<<"$response"
+	printf '見張り: 1 時間おき、%s まで\n' "$expires"
+	rm -f "$instruction"
+	trap - EXIT
+}
+
+# 見張り役がない場合は、自分をもう一度起こさない。通知先の選び方は ci-check とそろえる。
+unlinked_notice() {
+	local leader=$1 monitor=$2 target status agent name
+	[[ -n $monitor ]] || return 0
+	if target=$(squad_cli_squad_for_leader "$leader"); then
+		jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$target"
+	else
+		status=$?
+		((status == 2)) || return "$status"
+		agent=$(squad_cli_read agent-get "$leader") || return 1
+		name=$(jq -r '.name' <<<"$agent") || return 1
+		printf '[@%s](mention://agent/%s)\n' "$name" "$leader"
+	fi
+}
+
+unlinked_post() {
+	local issue=$1 thread=$2 content=$3 body
+	mkdir -p tmp
+	body=$(mktemp tmp/pr-watch-unlinked-result.XXXXXX)
+	trap "$(printf 'rm -f -- %q' "$body")" EXIT
+	printf '%s\n' "$content" >"$body"
+	multica issue comment add "$issue" --parent "$thread" --content-file "$body" --output table >/dev/null
+	rm -f "$body"
+	trap - EXIT
+}
+
+unlinked_seen() {
+	jq -e --arg prefix "$2" 'any(.[]; .author_type == "agent" and (.content | startswith($prefix)))' <<<"$1" >/dev/null
+}
+
+unlinked_stop() {
+	unlinked_clear "$1"
+	ci_record "止めた: $2"
+}
+
+unlinked_check() {
+	local issue=$1 leader=$2 monitor=${3-} task pr_url pr thread link_line comments prefix notice content conflict_line head short result
+	task=$(squad_cli_read issue-get "$issue")
+	case $(jq -r '.status_category' <<<"$task") in
+	done | cancelled) unlinked_stop "$issue" 'タスクが終わっている'; return 0 ;;
+	esac
+	pr_url=$(jq -er '.metadata.pr_url | select(. != null and length > 0)' <<<"$task")
+	pr=$(squad_cli_read gh-pr-mergeable "$pr_url")
+	case $(jq -r '.state' <<<"$pr") in
+	MERGED | CLOSED) unlinked_stop "$issue" 'PR がマージ済みか閉じている'; return 0 ;;
+	esac
+	if [[ $(jq -r '.status' <<<"$task") != in_review ]]; then
+		unlinked_stop "$issue" 'マージ待ちから外れている'
+		return 0
+	fi
+	link_line=$(link_check "$issue")
+	case $link_line in
+	'紐付け: 紐付いている '*) unlinked_stop "$issue" 'PR がタスクに紐付いた'; return 0 ;;
+	esac
+	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
+	if [[ -z $thread ]]; then
+		echo 'metadata に ci_watch_thread がありません。マージ待ちの見張りを登録し直してください。' >&2
+		return 1
+	fi
+	case $link_line in
+	'紐付け: 食い違い '*)
+		comments=$(squad_cli_read issue-comments "$issue")
+		prefix=$'紐付けの食い違いを検出しました。\n'"$link_line"$'\n'
+		if ! unlinked_seen "$comments" "$prefix"; then
+			notice=$(unlinked_notice "$leader" "$monitor")
+			content=$(printf '%s' "$prefix"; if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi)
+			unlinked_post "$issue" "$thread" "$content"
+		fi
+		unlinked_clear "$issue"
+		ci_record "$link_line"
+		return 0
+		;;
+	esac
+	printf '/note\n'
+	if [[ $link_line == '紐付け: 未確認 '* ]]; then printf '%s\n' "$link_line"; fi
+	if [[ -n $monitor ]]; then
+		ci_check "$issue" "$leader" "$monitor" | sed '1{/^\/note$/d;}'
+	else
+		ci_check "$issue" "$leader" '' now "$thread" | sed '1{/^\/note$/d;}'
+	fi
+	conflict_line=$(conflicts_check "$issue" 1)
+	result=なし
+	if [[ $conflict_line == 'コンフリクト: CONFLICTING head: '* ]]; then
+		head=${conflict_line#* head: }
+		head=${head%% *}
+		short=${head:0:7}
+		prefix="head: ${short}"$'\nコンフリクトを検出しました。\n'
+		comments=$(squad_cli_read issue-comments "$issue")
+		if unlinked_seen "$comments" "$prefix"; then
+			result=知らせ済み
+		else
+			notice=$(unlinked_notice "$leader" "$monitor")
+			content=$(printf '%s' "$prefix"; if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi
+				printf '\nPR: %s\n%s\n' "$pr_url" "$conflict_line")
+			unlinked_post "$issue" "$thread" "$content"
+			result=書いた
+		fi
+	fi
+	printf '%s 知らせ: %s\n' "$conflict_line" "$result"
+}
+
 case ${1:-} in
 link-check)
 	(($# == 2)) || usage
@@ -450,6 +621,16 @@ ci-held)
 	(($# == 3)) || usage
 	require_commands jq python3 multica gh
 	ci_held "$2" "$3"
+	;;
+unlinked)
+	(($# == 3 || $# == 4)) || usage
+	require_commands jq python3 multica
+	unlinked "$2" "$3" "${4-}"
+	;;
+unlinked-check)
+	(($# == 3 || $# == 4)) || usage
+	require_commands jq python3 multica gh
+	unlinked_check "$2" "$3" "${4-}"
 	;;
 *) usage ;;
 esac

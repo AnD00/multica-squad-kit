@@ -34,6 +34,7 @@ case "${1-} ${2-} ${3-}" in
 'version  ') echo 'multica fixture-version' ;;
 'squad list --output') emit squad-list "$dir/squads.json" ;;
 'issue get test-issue') emit issue-get "$dir/task.json" ;;
+'issue pull-requests test-issue') cat "$dir/pulls.json" ;;
 'issue metadata set')
 	[[ "$*" == issue\ metadata\ set\ test-issue\ --key\ ci_watch_thread\ --value\ *\ --output\ json ]]
 	jq --arg thread "$8" '.metadata.ci_watch_thread = $thread' "$dir/task.json" >"$dir/updated.json"
@@ -46,7 +47,11 @@ case "${1-} ${2-} ${3-}" in
  emit agent-get "$dir/agent-response.json" ;;
 'issue runs test-issue') emit issue-runs "$dir/runs.json" ;;
 'issue wakeup list') emit issue-wakeups "$dir/rules.json" ;;
-'issue wakeup delete') echo '{}' ;;
+'issue wakeup delete')
+	jq --arg id "$5" '[.[] | select(.id != $id)]' "$dir/rules.json" >"$dir/updated.json"
+	mv "$dir/updated.json" "$dir/rules.json"
+	echo '{}'
+	;;
 'issue wakeup create')
 	args=$(jq -cn --args '$ARGS.positional' -- "$@")
 	file=$(jq -er 'index("--instruction-file") as $i | .[$i+1]' <<<"$args")
@@ -99,15 +104,25 @@ cat >"$test_dir/bin/gh" <<'EOF'
 set -euo pipefail
 stub="$PR_WATCH_TEST_ROOT/tests/cli-stub.py"
 if [[ ${1-} == --version ]]; then
-	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh - record -- "$@"
+	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
 	echo 'gh fixture-version'; exit 0
 fi
-if [[ "${1-} ${2-} ${3-}" != 'pr view test-pr' || -f $PR_WATCH_TEST_DIR/fail-gh ]]; then
-	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh - record -- "$@"
-	[[ "${1-} ${2-} ${3-}" == 'pr view test-pr' ]] || exit 1
+expected=$(jq -r '.metadata.pr_url' "$PR_WATCH_TEST_DIR/task.json")
+if [[ "${1-} ${2-} ${3-}" != "pr view $expected" || -f $PR_WATCH_TEST_DIR/fail-gh ]]; then
+	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
+	[[ "${1-} ${2-} ${3-}" == "pr view $expected" ]] || exit 1
 	echo 'gh mock failure' >&2; exit 1
 fi
-python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh - emit gh-pr-checks "$PR_WATCH_TEST_DIR/pr.json" -- "$@"
+if [[ ${5-} == state,headRefOid,mergeable ]]; then
+	if [[ -f $PR_WATCH_TEST_DIR/fail-conflicts && -f $PR_WATCH_TEST_DIR/mergeable-read ]]; then
+		python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
+		echo 'gh mock failure' >&2; exit 1
+	fi
+	touch "$PR_WATCH_TEST_DIR/mergeable-read"
+	python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl emit gh-pr-mergeable "$PR_WATCH_TEST_DIR/mergeable.json" -- "$@"
+else
+	python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl emit gh-pr-checks "$PR_WATCH_TEST_DIR/pr.json" -- "$@"
+fi
 EOF
 chmod +x "$test_dir/bin/multica" "$test_dir/bin/gh"
 
@@ -121,6 +136,7 @@ fixture issue-wakeup-create >"$test_dir/wakeup-prototype.json"
 
 reset_fixture() {
 	: >"$test_dir/calls.jsonl"
+	: >"$test_dir/gh-calls.jsonl"
 	: >"$test_dir/posted.jsonl"
 	: >"$test_dir/wakeups.jsonl"
 	printf '[]' >"$test_dir/rules.json"
@@ -128,7 +144,9 @@ reset_fixture() {
 	printf '[]' >"$test_dir/runs.json"
 	printf 'ci-thread' >"$test_dir/allowed-parent"
 	cp "$test_dir/agents.base.json" "$test_dir/agents.json"
-	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh"
+	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh" "$test_dir/fail-conflicts" "$test_dir/mergeable-read"
+	jq '.[0]' "$root/tests/fixtures/cli/issue-pull-requests.json" >"$test_dir/pulls.json"
+	fixture gh-pr-mergeable | jq '.state = "OPEN" | .headRefOid = "abcdef0123456789" | .mergeable = "MERGEABLE"' >"$test_dir/mergeable.json"
 	fixture squad-list | jq '[. + {id:"test-squad",name:"Demo",leader_id:"orchestrator",archived_at:null}]' >"$test_dir/squads.json"
 	fixture issue-get | jq '. + {id:"test-issue",status:"in_progress",status_category:"in_progress",assignee_type:"squad",assignee_id:"test-squad",metadata:{pr_url:"test-pr",ci_watch_thread:"ci-thread"}}' >"$test_dir/task.json"
 	fixture gh-pr-checks | jq '. as $pr | .statusCheckRollup[0] as $check |

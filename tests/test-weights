@@ -88,6 +88,8 @@ tests/squad-pr-watch-ci-now-test.sh 25
 tests/squad-pr-watch-ci-test.sh 42
 tests/squad-pr-watch-register-test.sh 40
 tests/squad-pr-watch-unlinked-test.sh 12
+tests/squad-pr-watch-unlinked-register-test.sh 6
+tests/squad-pr-watch-unlinked-check-test.sh 40
 tests/squad-preflight-test.sh 13
 tests/squad-review-wait-contract-test.sh 20
 tests/squad-review-wait-report-test.sh 24
