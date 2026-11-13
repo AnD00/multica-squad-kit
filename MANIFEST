@@ -24,7 +24,7 @@ bb1303d91ccdff54d4b8c01a51d3597ea0cb051bbbd242d6f315f16e282f277a  ./common/agent
 0e3e40df8d63f2a663e2346a48a1dca02bf17d0d2e8e3dc7b5e6bb846718282b  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 c469e87e9ef355cad173fa9894e020717ab24efa252f54e3b353c7b8bdef050e  ./common/agents/designer.md
-72d9809f22feece16a45f4597e959d76e2f500b000215d3ac39f5bc886d11026  ./common/agents/orchestrator.md
+201470e03f33861deb9b571a92a424ce2836c7f4a77b707e77e16db5ad0d0fa6  ./common/agents/orchestrator.md
 775341f7a54fed2c0ec77b03b8047b88aa557ffe627f6a7b6d0983f759237270  ./common/agents/performance-reviewer.md
 792447cdc0b16290d0a7af7e10f63836a652dbd3fc8837b51304d6b903316ad8  ./common/agents/planner.md
 900c2a485658f332a4181c578422aff5949c9bb66a54db68852464059a52945e  ./common/agents/qa.md
@@ -56,7 +56,7 @@ eb490215ee995135a77146f5d0bde9a1fdd969c234e8ab31b1e28b3ba1fd4880  ./common/skill
 2c3f227990c62f79d548e8a32a5da04a26cf709b1d571ee571e7b116fea79ff3  ./common/skills/squad-handoff/references/leader-pr-checks.md
 23557d062565bea1d38eadcb99ff18327f10fbd5a435d36a1d83f8f553eba704  ./common/skills/squad-handoff/references/leader-principal.md
 bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skills/squad-handoff/references/leader-review-wait.md
-72f290e2794488ba8d0b1bfc7d8b2dfd9602df9fe88c8574fa41e8fe1426933c  ./common/skills/squad-handoff/references/leader-run-status.md
+a9534aadacbd445e24d4e5bd8a6a2141681e47b1698dd24718618fa64ca07734  ./common/skills/squad-handoff/references/leader-run-status.md
 8093bc2d5d0099ee21b373099ae4334be5463fa542c2afce4e0df82dbdd26dc3  ./common/squad.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
 0886af0e51f2bbfb5134455452bfbe9486e6bed5cfa3b05a098f247b43ce2be4  ./docs/asset-names.md
