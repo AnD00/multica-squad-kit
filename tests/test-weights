@@ -82,6 +82,7 @@ tests/squad-dependabot-merge-escalate-scope-test.sh 20
 tests/squad-dependabot-merge-escalate-test.sh 12
 tests/squad-dependabot-merge-list-test.sh 36
 tests/squad-dispatch-pick-test.sh 29
+tests/squad-pr-watch-ci-wait-test.sh 60
 tests/squad-pr-link-test.sh 22
 tests/squad-pr-watch-ci-handoff-test.sh 33
 tests/squad-pr-watch-ci-test.sh 42

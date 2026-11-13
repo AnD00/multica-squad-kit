@@ -10,8 +10,8 @@ eval_dir="$root/tests/leader-eval"
 scenes_dir="$eval_dir/scenes"
 helper=(python3 -I -B "$eval_dir/leader_eval.py")
 
-# 設計の「場面の一覧」にある 19 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
-expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 keep-1 keep-2 keep-3 keep-4 keep-5 keep-6 keep-7'
+# 原則の 19 場面と、最終レビュー・CI 待ちの 9 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
+expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 keep-1 keep-2 keep-3 keep-4 keep-5 keep-6 keep-7 keep-8 keep-9 keep-10 keep-11 keep-12 keep-13 keep-14 keep-15 keep-16'
 pending_scenes=''
 
 # --- 場面の形 ---
@@ -48,7 +48,7 @@ if grep -Eqi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$ev
 	echo "values.json に UUID の形の値があります" >&2
 	exit 1
 fi
-echo "PASS leader-eval: 19 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
+echo "PASS leader-eval: 28 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
 
 # --- 悪い場面を拒む ---
 bad="$test_dir/bad"
@@ -152,6 +152,36 @@ for text in ["返事を待つ役:", "確認するコミット:", "agent-qa", "ag
     assert not passed(wrong), text
 PY
 echo "PASS leader-eval: keep-7 は CI と返事の待ち、依頼の順序・役・コミットを確認する"
+
+# 追加した場面の基準は、正しい記録を通し、最終レビューの省略や CI 待ちの欠落を落とす。
+python3 -I -B - "$eval_dir" <<'PY_FINAL_SCENES'
+import copy, json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import leader_eval as le
+root = Path(sys.argv[1]) / 'scenes'
+for n in range(8, 17):
+    path = root / f'keep-{n}'
+    scene = le.parse_scene(path / 'scene.md')
+    records = json.loads((path / 'cli.json').read_text())['expected_records']
+    def passed(calls):
+        return all(le.check_record(c['predicate'], calls)[0]
+                   for c in scene['criteria'] if c['kind'] == '記録')
+    assert passed(records), (n, '期待する記録が通らない')
+    wrong = copy.deepcopy(records)
+    if n in (8, 9, 10):
+        wrong = [r for r in wrong if 'squad-review-wait watch' not in r['command']]
+    elif n == 11:
+        wrong[-1]['bodies'][0] = wrong[-1]['bodies'][0].replace('見る範囲:', '範囲なし:')
+    elif n in (12, 13, 15):
+        wrong[-1]['bodies'][0] += '\n[@Owner](mention://member/member1)'
+    elif n == 14:
+        wrong[0]['command'] = wrong[0]['command'].replace(' ci-wait-rule', '')
+    elif n == 16:
+        wrong = [wrong[-1], wrong[0]]
+    assert not passed(wrong), (n, '手順を外した記録が通った')
+print('PASS leader-eval: 最終レビューと CI 待ちの 9 場面は、期待する記録と手順を外した記録を区別する')
+PY_FINAL_SCENES
 
 # --- スタブの claude で流す ---
 stub_bin="$test_dir/stub-bin"
@@ -270,4 +300,4 @@ for id in $expected_scenes; do
 	jq -e -s --arg id "$id" 'any(.[]; .scene == $id and .which == "new" and (.criteria | length) > 0)' "$all_out/runs.jsonl" >/dev/null ||
 		{ echo "$id: 全場面の結果に行がありません" >&2; exit 1; }
 done
-echo "PASS leader-eval: 19 場面すべてをスタブで流し、場面ごとに基準の結果が出る"
+echo "PASS leader-eval: 28 場面すべてをスタブで流し、場面ごとに基準の結果が出る"
