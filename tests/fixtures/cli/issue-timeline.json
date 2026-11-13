@@ -1,0 +1,25 @@
+[
+  [
+    {
+      "action": "status_changed",
+      "actor_id": "fixture-metrics-id-000029",
+      "actor_type": "agent",
+      "created_at": "2026-11-13T03:38:06Z",
+      "details": {
+        "from": "backlog",
+        "to": "todo"
+      },
+      "id": "fixture-metrics-id-000011",
+      "type": "activity"
+    },
+    {
+      "action": "created",
+      "actor_id": "fixture-metrics-id-000029",
+      "actor_type": "agent",
+      "created_at": "2026-11-13T03:37:20Z",
+      "details": {},
+      "id": "fixture-metrics-id-000010",
+      "type": "activity"
+    }
+  ]
+]

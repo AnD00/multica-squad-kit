@@ -7,6 +7,7 @@
 - 操作が record なら、ここまで。それ以外は、種類の見本のファイルの関数 run で見本を返す
   種類: gh（gh-fixture.py）、multica（multica-fixture.py）、pr-watch（pr-watch-fixture.py）、
   review-wait（review-wait-fixture.py）、usage（usage-fixture.py。claude・codex の使用量）、none（見本なし）
+  metrics（metrics-cli-fixture.py。指標の収集）
 """
 
 import json
@@ -21,6 +22,7 @@ fixture_files = {
     "pr-watch": "pr-watch-fixture.py",
     "review-wait": "review-wait-fixture.py",
     "usage": "usage-fixture.py",
+    "metrics": "metrics-cli-fixture.py",
 }
 
 

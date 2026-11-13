@@ -3,6 +3,8 @@
 # 重みの上限は 150 秒。macOS の ==== PASS の実測値を写す。
 # 実測元: d8c425a350d0f8fd1a818a6b07007a4f7a5a6e4f
 # https://github.com/AnD00/multica-squad-kit/actions/runs/43386409384 (attempt 1、macOS 全 5 シャード)
+# metrics-test は追加時の目安。macOS CI の実測後に更新する。
+# metrics-collect-test は追加時の手元 23 秒を目安にした。macOS CI の実測後に更新する。
 tests/agent-templates-test.sh 23
 tests/build-assets-test.sh 22
 tests/capture-cli-fixtures-test.sh 2
@@ -22,6 +24,8 @@ tests/installation-test.sh 66
 tests/leader-eval-test.sh 16
 tests/link-scope-questions-test.sh 7
 tests/manual-test.sh 14
+tests/metrics-collect-test.sh 23
+tests/metrics-test.sh 2
 tests/pre-push-test.sh 2
 tests/project-changes-test.sh 20
 tests/project-create-test.sh 62

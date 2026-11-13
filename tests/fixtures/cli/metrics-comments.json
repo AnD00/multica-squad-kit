@@ -1,0 +1,57 @@
+[
+  [
+    {
+      "attachments": [],
+      "author_id": "fixture-metrics-id-000024",
+      "author_type": "member",
+      "content": "fixture",
+      "created_at": "2026-11-13T00:49:45Z",
+      "id": "fixture-metrics-id-000007",
+      "issue_id": "fixture-metrics-id-000002",
+      "parent_id": "fixture-metrics-id-000004",
+      "reactions": [],
+      "resolved_at": null,
+      "resolved_by_id": null,
+      "resolved_by_type": null,
+      "revision": 1,
+      "type": "comment",
+      "updated_at": "2026-11-13T00:49:45Z"
+    },
+    {
+      "attachments": [],
+      "author_id": "fixture-metrics-id-000029",
+      "author_type": "agent",
+      "content": "fixture",
+      "created_at": "2026-11-13T00:38:39Z",
+      "id": "fixture-metrics-id-000004",
+      "issue_id": "fixture-metrics-id-000002",
+      "parent_id": null,
+      "reactions": [],
+      "resolved_at": null,
+      "resolved_by_id": null,
+      "resolved_by_type": null,
+      "revision": 1,
+      "source_task_id": "fixture-metrics-id-000003",
+      "type": "comment",
+      "updated_at": "2026-11-13T00:38:39Z"
+    },
+    {
+      "attachments": [],
+      "author_id": "fixture-metrics-id-000022",
+      "author_type": "agent",
+      "content": "fixture",
+      "created_at": "2026-11-13T00:42:57Z",
+      "id": "fixture-metrics-id-000006",
+      "issue_id": "fixture-metrics-id-000002",
+      "parent_id": "fixture-metrics-id-000004",
+      "reactions": [],
+      "resolved_at": null,
+      "resolved_by_id": null,
+      "resolved_by_type": null,
+      "revision": 1,
+      "source_task_id": "fixture-metrics-id-000005",
+      "type": "comment",
+      "updated_at": "2026-11-13T00:42:57Z"
+    }
+  ]
+]

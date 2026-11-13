@@ -1,0 +1,1 @@
+Next thread cursor: --before 2026-11-13T03:38:40.356795Z --before-id fixture-metrics-id-000004
