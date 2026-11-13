@@ -142,7 +142,7 @@ grep -qF '✖ エラー側' "$test_dir/err"
 if bash -c 'source "$1/lib/ui.sh"; ui_mark out unknown 本文' _ "$root" >"$test_dir/unknown"; then exit 1; fi
 [[ ! -s $test_dir/unknown ]]
 if bash -c 'source "$1/lib/ui.sh"; ui_mark file ok 本文' _ "$root" >/dev/null; then exit 1; fi
-echo 'PASS ui: 8つの印、本文、灰の値、値のない行と、出力先ごとの色の判定を確かめた'
+echo 'PASS ui: 8つの印、本文、灰の値、値のない行と、出力先ごとの色の判定を確認した'
 
 # jq を含む外の道具のない PATH で、ASCII、全角の範囲、4バイト、壊れた UTF-8 を読む。
 mkdir "$test_dir/bin"
@@ -177,7 +177,7 @@ ui_width abc >/dev/null
 [[ $(ui_pad 6 日本語) == 日本語 ]]
 [[ $(ui_pad 3 "") == "   " ]]
 ' _ "$root" "$test_dir"
-echo 'PASS ui: 外の道具なしでUTF-8の幅を数え、全角の範囲と読めないバイト、文字を切らない空白埋めを確かめた'
+echo 'PASS ui: 外の道具なしでUTF-8の幅を数え、全角の範囲と読めないバイト、文字を切らない空白埋めを確認した'
 
 cat >"$test_dir/bin/tput" <<'SH'
 #!/bin/bash

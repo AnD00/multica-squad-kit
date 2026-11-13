@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # チェックリスト（lib/ui.sh の ui_steps_*、ui_step_*）の描き方を、疑似端末の記録と、
-# 記録から読み直した最後の画面で確かめる。
+# 記録から読み直した最後の画面で確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -253,8 +253,8 @@ source "$TMPDIR/lib.sh"
 ui_init
 ui_steps_begin out 0 a b
 ui_step_start 1
-# 描くプロセスが無いので、呼ばない間に描かれることはない。時間を置いて確かめず、子のプロセスが無いことと、
-# 描いた回数（下の確認）が呼んだ回数に一致することで確かめる。
+# 描くプロセスが無いので、呼ばない間に描かれることはない。時間を置いて確認せず、子のプロセスが無いことと、
+# 描いた回数（下の確認）が呼んだ回数に一致することで確認する。
 kids
 [[ -z $(jobs -p) && -z $kids_left ]] || exit 7
 # サブシェルの tick と、前景のコマンド置換の中の tick は描かない。
@@ -326,7 +326,7 @@ ui_step_start 1
 (ui_steps_cleanup; [[ $ui_steps_active == yes ]])
 [[ $ui_steps_active == yes && $ui_steps_live == yes ]]
 # 描くのは呼んだ親の 1 回ごとなので、回数を重ねても結果は変わらない。順序（進み → tick → 待ち → 完了）と、
-# 途中で片付けが走らないことだけを、1 回ずつ確かめる。
+# 途中で片付けが走らないことだけを、1 回ずつ確認する。
 ui_step_progress 1 3 item
 ui_step_tick
 [[ -d $work && ! -e $TMPDIR/restart-cleanup ]]
@@ -394,7 +394,7 @@ for block in blocks:
     plain = plain.replace('\r', '')
     assert plain.count('\n') == 2 and len(plain.rstrip('\n').split('\n')) == 2, repr(plain)
     kinds.append('child' if '1/2' in plain and 'NEW' in plain else 'parent')
-# 手順の始まり（親）→ 子の更新 → tick（親）の順序を 1 回確かめる。
+# 手順の始まり（親）→ 子の更新 → tick（親）の順序を 1 回確認する。
 assert kinds == ['parent', 'child', 'parent'], kinds
 PY
 echo 'PASS ui-steps: 関所確認の子が前景で 1 回描いても、親の描きと混ざらず、親が同じ流れで続けて描く'

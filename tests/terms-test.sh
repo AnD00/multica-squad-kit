@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 置き換えた語がリポジトリに戻っていないことと、その検査が語ごとに働くことを確かめる。設計は docs/terms.md の「テスト」。
+# 置き換えた語がリポジトリに戻っていないことと、その検査が語ごとに働くことを確認する。設計は docs/terms.md の「テスト」。
 # 置き換える前の語は、このファイルに含めない。仮の記号（@HAN@ など）で書き、検査の入力を作るときに文字へ直す。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -23,6 +23,7 @@ words = {
     "@DAI@": chr(0x984c),
     "@SHIN@": chr(0x9032) + chr(0x884c),
     "@ZAN@": chr(0x6b8b) + chr(0x91cf),
+    "@KAKU@": chr(0x78ba) + chr(0x304b) + chr(0x3081),
     "@ISSUE@": "issue",
 }
 text = sys.argv[1]
@@ -55,10 +56,13 @@ deny '@SHIN@役へ頼む。\n' 1 '役の名前の進行は「リーダー」に�
 deny '@SHIN@の役へ頼む。\n' 1 '役の名前の進行は「リーダー」にする'
 deny '@SHIN@の担当へ頼む。\n' 1 '役の名前の進行は「リーダー」にする'
 deny 'AI の@ZAN@を見る。\n' 1 'AI の使用の上限は「使用上限」と書く'
+deny '1 行目。\n動作を@KAKU@る。\n' 2 '「@KAKU@」は確認にする（文に合わなければ検証か照合）'
+deny '動作を@KAKU@て返す。\n' 1 '「@KAKU@」は確認にする（文に合わなければ検証か照合）'
 deny '1 行目。\nこの@ISSUE@を直す。\n' 2 'Multica の `issue` は「タスク」、GitHub の `issue` は「GitHub の issue」と書く'
 deny 'Fix @ISSUE@ を直す。\n' 1 'Multica の `issue` は「タスク」、GitHub の `issue` は「GitHub の issue」と書く'
 echo 'PASS terms: 置き換える前の語を、場所と理由を添えて止める'
 
-# 同じ検査を、仮の記号のない文で、設計の対応表の語に当てて確かめる。
+# 同じ検査を、仮の記号のない文で、設計の対応表の語に当てて確認する。
 allow '進行の記録と利用枠は残す。\n'
-echo 'PASS terms: 残すと決めた語（進行の記録・利用枠）は止めない'
+allow '確かに動き、確かな根拠があり、確認と検証と照合で見る。\n'
+echo 'PASS terms: 残すと決めた語（進行の記録・利用枠・確かに・確かな・確認・検証・照合）は止めない'

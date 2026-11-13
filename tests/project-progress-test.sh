@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/project-progress-test.sh で実行する。
-# セットアップの作る間の一覧: 実際の prepare_project を 13 手順の一覧のまま動かし、手順の並びと値、1 件ごとの文が出ないこと、失敗の ✖ を確かめる
+# セットアップの作る間の一覧: 実際の prepare_project を 13 手順の一覧のまま動かし、手順の並びと値、1 件ごとの文が出ないこと、失敗の ✖ を確認する
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/project-test-lib.sh"

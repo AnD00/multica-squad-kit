@@ -261,7 +261,7 @@ for name in sleeper stubborn; do
 done
 echo 'PASS runner: 上限を超えたファイルを、別のグループの子ごと止めて時間切れの失敗にし、ほかのファイルは流す'
 
-# 既定の上限は、時計だけを進めて確かめ、実際には 450 秒待たない。
+# 既定の上限は、時計だけを進めて確認し、実際には 450 秒待たない。
 mkdir -p "$test_dir/clock"
 cat >"$test_dir/clock/date" <<'STUB'
 #!/usr/bin/env bash
@@ -410,7 +410,7 @@ for file in "$root"/tests/*.sh; do
 done
 echo 'PASS runner: 標準エラーを err に向けた中で止まっても、失敗の後始末は元の標準エラーへ出して終わる'
 
-# 重みと分け方。重みの一覧と流す順は、小さな原本のコピーで確かめる。
+# 重みと分け方。重みの一覧と流す順は、小さな原本のコピーで確認する。
 rm -f "$kit"/tests/*-test.sh
 printf '# 重み\ntests/a-test.sh 50\ntests/b-test.sh 40\ntests/c-test.sh 30\ntests/d-test.sh 20\n tests/e-test.sh   20 \n\n# 一覧にない f・g・h は 30 秒\n' >"$kit/tests/test-weights"
 all_tests=(tests/a-test.sh tests/b-test.sh tests/c-test.sh tests/d-test.sh tests/e-test.sh tests/f-test.sh tests/g-test.sh tests/h-test.sh)

@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# 承認・拒否と、タグと Release の状態からの再開を確かめる。
-# 確かめで止まるケースは release-check-test.sh、途中の失敗は release-failure-test.sh、画面は release-display-test.sh。
+# 承認・拒否と、タグと Release の状態からの再開を確認する。
+# 確認で止まるケースは release-check-test.sh、途中の失敗は release-failure-test.sh、画面は release-display-test.sh。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/release-assertions.sh"
 
-# 承認する: origin に注釈付きのタグができ、main の先頭を指す。下書きを作り、ワークフローを起こして待ち、確かめて公開する。
+# 承認する: origin に注釈付きのタグができ、main の先頭を指す。下書きを作り、ワークフローを起こして待ち、検証して公開する。
 make_case approve
 main_head=$(git -C "$work" rev-parse HEAD)
 run_release "$test_dir/answer-y"
 [[ $rc == 0 ]]
-grep -qF '確かめの 9' "$case_dir/out"
+grep -qF '検証の 9' "$case_dir/out"
 [[ $(git -C "$bare" cat-file -t v1.6.0) == tag ]]
 [[ $(git -C "$bare" rev-parse 'v1.6.0^{commit}') == "$main_head" ]]
 [[ $(git -C "$bare" tag -l --format='%(contents:subject)' v1.6.0) == v1.6.0 ]]
@@ -31,7 +31,7 @@ before_in_log 'releases/assets/' '^attestation verify .* --bundle '
 before_in_log '^attestation verify .* --bundle ' '^release edit'
 # 公開の前に、配布物を 1 回ずつ取得する。
 [[ $(log_count 'api -H Accept: application/octet-stream repos/example/kit/releases/assets/') == 4 ]]
-# 証明は、タグの install.sh の --verify（束なし、2 つ）と、束での確かめ（3 つ）の 5 回。指定は docs/install.md の 4 つ。
+# 証明は、タグの install.sh の --verify（束なし、2 つ）と、束での検証（3 つ）の 5 回。指定は docs/install.md の 4 つ。
 [[ $(log_count '^attestation verify ') == 5 ]]
 [[ $(log_count '^attestation verify .* --bundle ') == 3 ]]
 for file in install.sh SHA256SUMS multica-squad-kit-v1.6.0.tar.gz; do
@@ -80,7 +80,7 @@ for answer in n yes empty eof; do
 	grep -qF '公開を取りやめました。' "$case_dir/err"
 	no_leftover
 done
-# 配布物のそろった下書きがあるときも、承認しなければ、確かめも公開もしない。
+# 配布物のそろった下書きがあるときも、承認しなければ、検証も公開もしない。
 make_case decline-verify
 tag_here
 add_release true
@@ -94,7 +94,7 @@ log_lacks '^attestation verify'
 [[ $(snapshot) == "$before" && $(draft_flag) == true ]]
 grep -qF '公開を取りやめました。' "$case_dir/err"
 
-# 確認の前の画面: 確かめの一覧、本文の罫線、見出し、○の手順が、設計のとおり、することの 4 つの状態ごとに出る。
+# 確認の前の画面: 確認の一覧、本文の罫線、見出し、○の手順が、設計のとおり、することの 4 つの状態ごとに出る。
 # タグも Release もない: 手順は 5 つ。
 make_case screen-tag
 screen_commit=$(git -C "$work" rev-parse HEAD)
@@ -198,7 +198,7 @@ expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" "$
 [[ $(draft_flag) == false ]]
 no_leftover
 
-# 配布物のそろった下書きがある: 承認すると、workflow run を呼ばず、確かめから続ける。
+# 配布物のそろった下書きがある: 承認すると、workflow run を呼ばず、検証から続ける。
 make_case draft-complete
 tag_here
 add_release true
@@ -221,7 +221,7 @@ expect_summary "$(git -C "$work" rev-parse v1.6.0^{commit})" "$published_url" ''
 [[ $(draft_flag) == false ]]
 no_leftover
 
-# 確かめから続けるとき、前に成功した実行があれば、最も新しい成功の実行の URL を、まとめに出す。
+# 確認から続けるとき、前に成功した実行があれば、最も新しい成功の実行の URL を、まとめに出す。
 make_case draft-complete-past-run
 tag_here
 add_release true
@@ -298,4 +298,4 @@ no_write
 [[ $(snapshot) == "$before" ]]
 grep -qF 'すでに出してあります' "$case_dir/out"
 
-echo 'PASS release 前半: 承認でだけ公開し、拒否・端末でない・タグと Release が揃った状態からの続きを確かめた'
+echo 'PASS release 前半: 承認でだけ公開し、拒否・端末でない・タグと Release が揃った状態からの続きを確認した'

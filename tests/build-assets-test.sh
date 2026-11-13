@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# scripts/build-assets.sh の動きを、一時の Git のリポジトリで確かめる。
-# 展開の前の確かめは、git archive を差し替えるスタブで、拒む配布物を流して確かめる。本物の GitHub には触れない。
+# scripts/build-assets.sh の動きを、一時の Git のリポジトリで確認する。
+# 展開の前の検証は、git archive を差し替えるスタブで、拒む配布物を流して検証する。本物の GitHub には触れない。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -171,7 +171,7 @@ regen_manifest
 retag 'Add a symlink'
 expect_stop 'リンクか特殊なファイル'
 
-# 展開の前の確かめ: git archive を、拒む配布物を返すスタブに替える。
+# 展開の前の検証: git archive を、拒む配布物を返すスタブに替える。
 # make_evil <モード>: 正しい配布物（MANIFEST が合う）に、モードの 1 つのものを足した tar.gz を作る。
 make_evil() {
 	python3 -I - "$1" "$case_dir/evil.tar.gz" <<'PY'
@@ -262,7 +262,7 @@ for entry in "${evil_cases[@]}"; do
 	[[ ! -e $case_dir/escape.txt ]]
 	no_leftover
 done
-# 名前に改行がある: 2 つの一覧のどちらかの確かめで止まる。
+# 名前に改行がある: 2 つの一覧のどちらかの検証で止まる。
 make_evil newline
 EVIL_TAR=$case_dir/evil.tar.gz run_build v1.6.0 "$case_dir/assets"
 [[ $rc == 1 && ! -e $case_dir/assets ]]
@@ -410,4 +410,4 @@ for flag in --help -h; do
 	grep -qF '使い方: bash scripts/build-assets.sh' "$case_dir/out"
 	grep -qF -- '--commit <コミット> <出力先>' "$case_dir/out"
 done
-echo 'PASS build-assets: タグの中身から配布物と install.sh と SHA256SUMS を作る。VERSION・HEAD・MANIFEST・リンク・拒む配布物・出力先・引数の誤りで止まることを確かめた'
+echo 'PASS build-assets: タグの中身から配布物と install.sh と SHA256SUMS を作る。VERSION・HEAD・MANIFEST・リンク・拒む配布物・出力先・引数の誤りで止まることを検証した'

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# README.md・manual.md・CONTRIBUTING.md の段落が、1 行 1 文と末尾の半角空白 2 つの改行を守ることを確かめる。
+# README.md・manual.md・CONTRIBUTING.md の段落が、1 行 1 文と末尾の半角空白 2 つの改行を守ることを確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"

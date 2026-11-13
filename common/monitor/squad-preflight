@@ -1,7 +1,7 @@
 #!/bin/sh
 # multica-squad-kit-managed
-# 関所と見張りが、このスクリプトと同じディレクトリから選ばれるか確かめる。
-# BASH_ENV による PATH の修復を受けず、呼び出し元の PATH を確かめる。
+# 関所と見張りが、このスクリプトと同じディレクトリから選ばれるか確認する。
+# BASH_ENV による PATH の修復を受けず、呼び出し元の PATH を確認する。
 set -eu
 
 if [ "$#" -gt 1 ]; then
@@ -29,7 +29,7 @@ for cmd in gh "$@"; do
 	printf 'squad-preflight: %s が使えません。実際の解決先: %s（期待: %s/%s）\n' \
 		"$cmd" "$actual" "$bin_dir" "$cmd" >&2
 	if [ "$cmd" = gh ]; then
-		echo '直し方: 動いているタスクがないときに、同じプロジェクトでセットアップを流し直してください。直らなければ、エージェントの custom_env の CLAUDE_ENV_FILE（Claude）か custom_args（Codex）を確かめてください。' >&2
+		echo '直し方: 動いているタスクがないときに、同じプロジェクトでセットアップを流し直してください。直らなければ、エージェントの custom_env の CLAUDE_ENV_FILE（Claude）か custom_args（Codex）を確認してください。' >&2
 	else
 		echo '直し方: 見張りが欠けたか、別の同じ名前のものが先にあります。動いているタスクがないときに、同じプロジェクトでセットアップを流し直して、見張りを置き直してください。' >&2
 	fi
@@ -44,7 +44,7 @@ set -euo pipefail
 source "$1/squad-cli-lib"
 issue=$2
 if [[ -z ${MULTICA_AGENT_ID:-} ]]; then
-	echo 'squad-preflight: MULTICA_AGENT_ID がないため agent-get を確かめられません。' >&2
+	echo 'squad-preflight: MULTICA_AGENT_ID がないため agent-get を確認できません。' >&2
 	exit 1
 fi
 version=$(multica version 2>/dev/null) || version=
@@ -58,9 +58,9 @@ check_reading() {
 	shift
 	response=$(squad_cli_read "$name" "$@") || return 1
 	if jq -e 'type == "array" and length == 0' >/dev/null <<<"$response"; then
-		printf 'squad-preflight: %s は確かめられない（空）\n' "$name"
+		printf 'squad-preflight: %s は確認できない（空）\n' "$name"
 	else
-		printf 'squad-preflight: %s の欄を確かめました。\n' "$name"
+		printf 'squad-preflight: %s の欄を確認しました。\n' "$name"
 	fi
 }
 check_reading squad-list

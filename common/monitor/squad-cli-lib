@@ -1586,7 +1586,7 @@ try:
         result = value
     print(json.dumps(result, ensure_ascii=False))
 except (ValueError, TypeError, KeyError) as error:
-    print(f"CLI の出力を確かめられません: {name}（{error}）", file=sys.stderr)
+    print(f"CLI の出力を確認できません: {name}（{error}）", file=sys.stderr)
     sys.exit(1)
 PY
 	) || return 1

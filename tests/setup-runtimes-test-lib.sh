@@ -228,7 +228,7 @@ assert {key.split(':')[0] for key in state} == set(db['runtimes'])
 PY
  fi
  fi
- # 更新の権限がない共通スキルと、既存の検証スキルから消えた選択を入口から確かめる。
+ # 更新の権限がない共通スキルと、既存の検証スキルから消えた選択を入口から確認する。
  if [[ $selected == both && $runtime_part != main && $runtime_part != issues ]]; then
   jq '.members=[{user_id:"member-a",name:"Owner",role:"member"},{user_id:"creator",name:"Creator",role:"member"}] |
    .skills |= map(if .name=="squad-handoff" then .content="older content" | .created_by="creator"
@@ -242,7 +242,7 @@ PY
   before_issues=$(jq '.issues|length' "$scenario_dir/db.json")
   /bin/bash "$test_dir/package/setup.sh" <"$scenario_dir/input" >"$scenario_dir/out" 2>"$scenario_dir/err"
   [[ $(jq '.issues|length' "$scenario_dir/db.json") == "$before_issues" ]]
-  echo 'PASS setup changes: 更新を飛ばしたスキルの作成者への起票と既存の検証スキルとの差を入口から確かめ、再実行で重ねない'
+  echo 'PASS setup changes: 更新を飛ばしたスキルの作成者への起票と既存の検証スキルとの差を入口から確認し、再実行で重ねない'
  fi
  if [[ $runtime_part != changes && $runtime_part != issues ]]; then
   echo "PASS setup runtimes: $selected の入口・ホスト・登録・再実行・配置した見張りが通り、使わない側を求めない"

@@ -148,7 +148,7 @@ TEST_WEBHOOK=false run
 jq -e '.triggers==input.triggers' "$TEST_DB/db.json" "$test_dir/leftover-before.json" >/dev/null
 jq -e '.issues | length==1 and (.[0] | .title=="example/one の Dependabot の Webhook を外す" and .assignee_id=="actor" and .metadata.squad_kit_task=="dependabot-webhook-removal" and .metadata.repository=="example/one")' "$TEST_DB/db.json" >/dev/null
 grep -qxF '  ! example/one  Webhook を使わない答えですが、前の実行で作った Webhook のトリガーが残っています。外すよう起票しました。' "$test_dir/out"
-grep -qxF '  ! example/two  前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確かめてください。' "$test_dir/out"
+grep -qxF '  ! example/two  前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確認してください。' "$test_dir/out"
 TEST_WEBHOOK=false run
 jq -e '.issues|length==1' "$TEST_DB/db.json" >/dev/null
 no_leak
