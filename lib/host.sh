@@ -89,7 +89,7 @@ PY
 		fi
 	done
 	if uses_runtime claude; then
-		auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
+		auth=$(CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status </dev/null) || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
 		jq -e 'type=="object" and .loggedIn==true' >/dev/null <<<"$auth" || die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
 	fi
 	if uses_runtime codex; then

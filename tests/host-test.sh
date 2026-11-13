@@ -46,6 +46,11 @@ cat >"$test_dir/bin/claude" <<'STUB'
 #!/bin/bash
 base=$(cd "$(dirname "$0")/.." && pwd)
 [[ $* == 'auth status' && $CLAUDE_CONFIG_DIR == */claude ]] || exit 91
+if [[ -t 0 ]]; then
+ echo 'error: EINVAL: invalid argument, kqueue' >&2
+ exit 1
+fi
+printf 'notty\n' >"$base/claude-stdin"
 if [[ -f $base/no-claude-auth ]]; then echo '{"loggedIn":false}'; else echo '{"loggedIn":true}'; fi
 STUB
 cat >"$test_dir/bin/codex" <<'STUB'
@@ -100,6 +105,25 @@ cmp "$root/common/codex/config.toml" "$TEMPLATE_AGENT_HOME/codex/config.toml"
 grep -qx 'daemon start' "$test_dir/calls"
 grep -qx 'https://example.test' "$test_dir/started-server"
 echo 'PASS host: 新しいホストへ共有ファイルと見張りを配置し、専用環境で一つのデーモンを起動する'
+# 入口から /dev/tty を受け継ぐ場合も、ファイルやパイプの場合も同じ確認を通す。
+printf 'input for setup\n' >"$test_dir/stdin"
+for input in tty pipe file; do
+ set_mode running
+ agent_env
+ rm -f "$test_dir/claude-stdin"
+ case $input in
+ tty)
+  python3 -I "$root/tests/stdin-tty-run.py" tty /dev/null /dev/null "$test_dir/out" "$test_dir/err" -- \
+   /bin/bash -c 'exec </dev/tty; [[ -t 0 ]] || exit 93; exec /bin/bash "$@"' -- "$test_dir/run.sh" "$root"
+  ;;
+ pipe) cat "$test_dir/stdin" | run ;;
+ file) run <"$test_dir/stdin" ;;
+ esac
+ grep -qx 'notty' "$test_dir/claude-stdin"
+ grep -qx 'daemon status --output json' "$test_dir/calls"
+ ! grep -q 'ログインしてください' "$test_dir/err"
+ echo "PASS host: 標準入力が $input でも Claude の確認には端末を渡さず、デーモンの確認へ進む"
+done
 (
  # 原本の VERSION を変えずに、バージョンを取り直したセットアップを再現する。
  source "$root/lib/host.sh"
