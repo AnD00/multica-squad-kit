@@ -2,7 +2,7 @@
 
 公開の GitHub API から取得した応答を保存する。採取の時刻、CLI のバージョン、コマンドは `CAPTURE.json` にある。JSON は `--paginate --slurp` の出力なので、ページごとの配列になっている。説明の自由文とクレジットのユーザーは、鍵と型を保って匿名化している。勧告の ID・要約・対象・範囲と、SHA の実応答はそのまま残す。
 
-`vulnerable.json` は `actions/download-artifact@4.1.2` の勧告、`fixed.json` は修正済みの 4.1.3 の空の応答である。`mixed.json` は両方をまとめて照会した応答で、同じ勧告が返る。テストはこの応答とバージョン範囲を使い、脆弱な版の行だけが検出されることを確かめる。
+`vulnerable.json` は `actions/download-artifact@4.1.2` の勧告、`fixed.json` は修正済みの 4.1.3 の空の応答である。`mixed.json` は両方をまとめて照会した応答で、同じ勧告が返る。テストはこの応答とバージョン範囲を使い、脆弱なバージョンの行だけが検出されることを確かめる。
 
 取り直すときは、原本のルートで次を流す。`CAPTURE.json` の採取の時刻と CLI のバージョンも更新する。
 
@@ -34,4 +34,4 @@ for name, command in json.loads((root / 'CAPTURE.json').read_text())['commands']
 PY
 ```
 
-勧告の照会は [GitHub の API の仕様](https://docs.github.com/en/rest/security-advisories/global-advisories)に従う。まとめた応答から行を対応付ける際の範囲の比較は、[バージョン範囲の仕様](https://docs.github.com/en/code-security/tutorials/fix-reported-vulnerabilities/write-security-advisories#affected-versions)に従う。検査は安定版の X.Y.Z を対象にし、読めない範囲や応答は検査不能として終了コード 2 にする。
+勧告の照会は [GitHub の API の仕様](https://docs.github.com/en/rest/security-advisories/global-advisories)に従う。まとめた応答から行を対応付ける際の範囲の比較は、[バージョン範囲の仕様](https://docs.github.com/en/code-security/tutorials/fix-reported-vulnerabilities/write-security-advisories#affected-versions)に従う。検査は安定したバージョンの X.Y.Z を対象にし、読めない範囲や応答は検査不能として終了コード 2 にする。

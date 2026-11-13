@@ -1,6 +1,6 @@
 # GitHub Actions のサプライチェーン攻撃を防ぐ
 
-原本のリポジトリの main と GitHub Actions を、乗っ取られたアクションや、外からの指示で動いたエージェントの変更から守る。この文書は、ワークフロー・検査のスクリプト・リポジトリの設定の変更と、その理由を書く。管理者が設定画面で行う手順は、実装で `CONTRIBUTING.md` の「リポジトリの設定」へ移す（[利用者向けの文書の変更](#利用者向けの文書の変更)）。
+原本のリポジトリの main と GitHub Actions を、乗っ取られたアクションや、外からの指示で動いたエージェントの変更から守る。この文書は、ワークフロー・検査のスクリプト・リポジトリの設定の変更と、その理由を書く。管理者が設定画面で行う手順は、[CONTRIBUTING.md の「リポジトリの設定」](../CONTRIBUTING.md#リポジトリの設定)にある。
 
 ## 目的と範囲
 
@@ -283,136 +283,9 @@ SHA で固定したアクションは、Dependabot の警告の対象になら�
 
 ## 設定の手順
 
-管理者が、GitHub の設定画面で次の順に行う。実装で `CONTRIBUTING.md` の「リポジトリの設定」へ移す。各手順の確かめ方は、`gh` が管理者の認証でログインした端末で流す。
+管理者が行う操作と確かめ方は、[CONTRIBUTING.md の「リポジトリの設定」](../CONTRIBUTING.md#リポジトリの設定)にある。
 
 順序は、Secret の移し替え、マージ、ruleset、強制の順にする。Environment は、使うワークフローがマージされる前に作る。ない名前の Environment を参照すると、GitHub が保護のない Environment を作り、Repository Secret を使ってしまうため。SHA の固定の強制は、固定が main に入ってからにする。
-
-| 手順 | 時点 | 要件 |
-| --- | --- | --- |
-| 1. Environment を作り、一覧を移す | この変更のマージの前 | R4（設計で足した設定） |
-| 2. Repository Secret を消す | マージの後 | R4 |
-| 3. ruleset を足す | マージの後 | S1 |
-| 4. SHA の固定を強制する | マージの後 | S2 |
-| 5. Dependabot を有効にする | マージの後 | S3 |
-| 6. コードの解析を確かめる | マージの後 | S4 |
-
-### 1. Environment を作り、一覧を移す
-
-1. リポジトリの Settings → Environments → New environment で、名前に `private-terms` を入れ、Configure environment を押す
-2. Deployment branches and tags で「Selected branches and tags」を選び、Add deployment branch or tag rule で、Ref type を Branch、パターンを `main` にして Add rule を押す
-3. Required reviewers と Wait timer は付けない
-4. Environment secrets の Add environment secret で、名前を `FORBIDDEN_TERMS`、値を今の一覧（一行一語）にして保存する
-
-確かめ方: 次の 3 つの出力を見る。1 つ目は `["branch:main"]` になり、2 つ目は `FORBIDDEN_TERMS` を含む。Secret の値は出ない。
-
-```bash
-gh api repos/AnD00/multica-squad-kit/environments/private-terms/deployment-branch-policies --jq '[.branch_policies[] | .type + ":" + .name]'
-gh secret list --repo AnD00/multica-squad-kit --env private-terms
-gh api repos/AnD00/multica-squad-kit/environments/private-terms --jq '.deployment_branch_policy'
-```
-
-3 つ目は `{"custom_branch_policies":true,"protected_branches":false}` になる。
-
-### 2. Repository Secret を消す
-
-この変更のマージのあと、Settings → Secrets and variables → Actions の Repository secrets で、`FORBIDDEN_TERMS` の削除のボタンを押して消す。
-
-確かめ方: 1 つ目のコマンドの出力に `FORBIDDEN_TERMS` がない。2 つ目で `Private terms` を main で手で流し、3 つ目の結論が `success` になる。
-
-```bash
-gh secret list --repo AnD00/multica-squad-kit
-gh workflow run private-terms.yml --repo AnD00/multica-squad-kit --ref main
-gh run list --repo AnD00/multica-squad-kit --workflow private-terms.yml --limit 1 --json conclusion,headBranch,event
-```
-
-結論が出るまで数分かかる。`failure` なら、実行のログで、Environment の Secret が空でないか、語が混入していないかを見る。ログに語の値は出ない。
-
-### 3. ruleset を足す
-
-1. Settings → Rules → Rulesets で `base-barnch-rules` を開く
-2. Bypass list が空であることを見る。空でなければ、すべて外す
-3. Branch rules の「Restrict deletions」と「Block force pushes」が有効のままであることを見る
-4. 「Require a pull request before merging」を有効にし、Required approvals を 0 にする。その下の小項目はすべて無効のままにする
-5. 「Require status checks to pass」を有効にし、「Require branches to be up to date before merging」は無効のままにする
-6. Add checks で `checks-passed` を入れて選び、ソースを GitHub Actions にする
-7. Save changes を押す
-
-確かめ方: 次の出力が、それぞれ `["deletion","non_fast_forward","pull_request","required_status_checks"]`、`[]`、`0`、`checks-passed` を含む 1 件になる。
-
-```bash
-R=repos/AnD00/multica-squad-kit/rulesets/26677466
-gh api "$R" --jq '[.rules[].type] | sort'
-gh api "$R" --jq '.bypass_actors'
-gh api "$R" --jq '.rules[] | select(.type == "pull_request") | .parameters.required_approving_review_count'
-gh api "$R" --jq '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks'
-```
-
-動作は、次の 2 つで確かめる。
-
-1. 原本の手元で、main から空のコミットを作り、main へ直接 push する。`GH013` の決まりの違反で拒まれれば効いている
-
-    ```bash
-    git switch --detach origin/main
-    git commit --allow-empty -m 'ruleset の確かめ'
-    git push origin HEAD:main
-    git switch -
-    ```
-
-    通ってしまったら、空のコミットが main に残る。害はないので残し、手順 3 をやり直す。
-
-2. 次の PR で、Checks が終わる前の `gh pr view <PR> --json mergeStateStatus` が `BLOCKED` になり、終わって通ったあとは承認なしでマージできる
-
-### 4. SHA の固定を強制する
-
-1. Settings → Actions → General の Actions permissions で、「Require actions to be pinned to a full-length commit SHA」を有効にする
-2. Save を押す
-
-確かめ方: 1 つ目の出力が `true` になる。そのあと、main の `Checks`、`Scan`、`Private terms` の最新の実行が `success` のままであることを、2 つ目で見る。
-
-```bash
-gh api repos/AnD00/multica-squad-kit/actions/permissions --jq '.sha_pinning_required'
-for w in check.yml scan.yml private-terms.yml; do gh run list --repo AnD00/multica-squad-kit --workflow "$w" --branch main --limit 1 --json workflowName,conclusion; done
-```
-
-強制が効くことは、`actions/checkout@v4` の手順を足した確かめ用の PR を作り、Checks が始まらずに失敗することで見る。確かめたら、その PR はマージせずに閉じ、ブランチを消す。
-
-### 5. Dependabot を有効にする
-
-1. Settings の Security の欄にある「Advanced Security」（画面によっては「Code security」）を開く
-2. Dependency graph が有効であることを見る。公開のリポジトリでは常に有効である
-3. 「Dependabot alerts」の Enable を押す
-4. 「Dependabot security updates」の Enable を押す
-
-確かめ方: 1 つ目が 403 ではなく、件数（0 でもよい）を返す。2 つ目が `true` を返す。
-
-```bash
-gh api 'repos/AnD00/multica-squad-kit/dependabot/alerts?per_page=100' --jq 'length'
-gh api repos/AnD00/multica-squad-kit/automated-security-fixes --jq '.enabled'
-```
-
-あわせて、Insights → Dependency graph → Dependabot に `.github/dependabot.yml` の `github-actions` が並び、最後の確かめの時刻にエラーがないことを見る。
-
-SHA で固定したアクションには、Dependabot の警告もセキュリティの更新も出ない。原本の依存は固定したアクションだけなので、警告の一覧は 0 件のままでよい。固定したアクションの脆弱性は、`Scan` の `action-advisories` が見つける（[固定したアクションの既知の脆弱性](#固定したアクションの既知の脆弱性)）。
-
-### 6. コードの解析を確かめる
-
-1. 手順 5 と同じ画面の「Code scanning」で、CodeQL analysis の既定の設定（Default）を有効にしない。有効だと、ワークフローからの CodeQL の結果の登録が拒まれる
-2. Security → Code scanning を開き、Tool の絞り込みに `CodeQL` と `action-advisories` の 2 つが並ぶことを見る
-3. 開いた警告がないことを見る。あれば、固定したアクションの警告は直ったバージョンの SHA へ上げる PR で、CodeQL の警告は書き方を直す PR で片付ける
-
-確かめ方: 次の出力に、`/language:actions`、`/language:python`、`action-advisories` の 3 つの解析が、`refs/heads/main` で、main への push の後の時刻で並ぶ。
-
-```bash
-gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?ref=refs/heads/main&per_page=20' --jq '.[] | [.category, .tool.name, .created_at] | @tsv'
-```
-
-定期の実行は、最初の月曜のあとに確かめる。Actions → Scan と Actions → Private terms に、イベントが `schedule` の実行が出て、`Scan` の `action-advisories` のジョブが成功していることを見る。次の出力の先頭が `schedule success` になる。
-
-```bash
-gh run list --repo AnD00/multica-squad-kit --workflow scan.yml --event schedule --limit 1 --json event,conclusion --jq '.[] | [.event, .conclusion] | @tsv'
-```
-
-検出が動くことは、受け入れ条件 8 の確かめ用の PR で確かめる（[確かめ方](#確かめ方)）。
 
 ## 変えるファイル
 

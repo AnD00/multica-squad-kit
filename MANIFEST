@@ -11,8 +11,8 @@ a6075c06025d8c2d6445a942619b5062fd172e5402b77fe4c294029707e0dcba  ./.agents/rule
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 9e31f50f1ec32243a5d62248c6326729552844139dc6df714a3e002f4bc2637a  ./AGENTS.md
-f5b93d1b734f26d25f0d9f0e3fda2d2728e8087dbcbd8dc7c9d82cd5db65995a  ./CHANGELOG.md
-86154f2e5b2e228e4715a5b16b1591952c07859a3a51d6ec4cba6e820ba60ae5  ./CONTRIBUTING.md
+0e408a01d80e1db411281e0409728d25f897a757ef41a2259635e81f6a9738c4  ./CHANGELOG.md
+355003b5c3d316a73df33d39cd16c677ee07b518a556da8702ee3b924f89e6ff  ./CONTRIBUTING.md
 02c000ace7a2ae0b9c6fa8379fd2aa1e3cf8c3e4871ec14a9b3e2082ff2512ef  ./EXTENSIONS.md
 3efd82a186b980b30baf37b965210aa5fd1b3e9e595a8af336dde093c15f7743  ./README.md
 1c7390408c06f10ec2f862559255135f4e3130725e7bd39ce4cce18868ccdc29  ./VERSION
@@ -78,7 +78,7 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 2e01bc767f204b6a3c5fd70b01bdfa5e3ef5457bc7887e9a0a8ba615b75c0435  ./docs/run-status.md
 647a4e08805bec549875d5c1f20d63150e0445cbc4e4e26b05d17651c1b613af  ./docs/screens.md
 d92c09520ff698c6240542eb4f71b60e6f6ff3f6a4f680638965cef32002ccde  ./docs/setup-completion.md
-185fedec2b610c9639b1b2ad9ff4452e764890b0bbae8dc70956f79a0730215b  ./docs/supply-chain.md
+8953e3aa074aac4ae6f7fcc551a3ff99b2718ecefd175ffed6a6658c5f781a7a  ./docs/supply-chain.md
 33392749d2bddf1b063820bdda3df3809340f16d36f3616f40ec5f6c8a1f0bb8  ./docs/terms.md
 a19c253fe604c48bfcd591479cba51b178ffd81ec46a8865ac0a42b36dff89d0  ./docs/unfilled-stop.md
 9799ee10c29a60a0df043ddd4f363cac71f1af2c1c75d172aee6373b8ba191f0  ./docs/vm.md
@@ -116,7 +116,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 8c491e62719b72b6c895199808c2320d960e946d8e883c4fd48d8a9a25f5ef4d  ./skeleton/README.md
 c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/project.md
 8144c1ca0d6dd5632a64dc48f16a79f276e035e772a97c02e7f43bef10756352  ./skeleton/verify-repository.md
-00635db7ccf83431f8497b365e6b2226cbffc68f7b461811b6b9666942bfb37e  ./tests/action-advisories-test.sh
+b0d68464f1046a14c24db8da3febe25516ec8c9beabb07cb90374f9d852ec0ab  ./tests/action-advisories-test.sh
 0a0487caa2c6456e9ac85628368ed93f2badedfe38bb84eed4a1e816f1f1b6d9  ./tests/agent-templates-test.sh
 84d56e72a684628f91d575ca48a41f67cbed0bf47e217b23be2fed4a09c40ec5  ./tests/ansi-to-png.py
 32f57fec8d30c06cfeae763acffbf39e407167676d7adc7fee7d37fec42ea6b1  ./tests/build-assets-test.sh
@@ -145,7 +145,7 @@ ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-li
 f1e145146865ec3a695c57bc7ce4f3951179f3e78cc1173469578dc709ceabbb  ./tests/error-marks-test.sh
 04043ef81863f926477c4b2437a60346617ed9cbab81d82b5d359182c82c7a45  ./tests/extensions-test.sh
 982caa9101339df558030a13d81877ba900527547b2f5cabe0d24b34473c3af0  ./tests/fixtures/action-advisories/CAPTURE.json
-361349352f7f712ff47efc73b1bc5dec259a14406bbe46e0ad61d2b4d96ed963  ./tests/fixtures/action-advisories/SOURCES.md
+5e742146822a305d5b8a04c48213e64989e34ba94fbdad02ddc3b5cf3d4eff65  ./tests/fixtures/action-advisories/SOURCES.md
 93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d  ./tests/fixtures/action-advisories/fixed.json
 40332e57bdb1cd5e0666d3f907077532d238c1c92f7b5e4f0c2c2a93ac11ebe4  ./tests/fixtures/action-advisories/mixed.json
 969e3985c49f9fef0672f9b02b5e36b684df78ad946bb61ee2e7f74cb4d2dc1c  ./tests/fixtures/action-advisories/v4.1.2.sha
@@ -355,7 +355,7 @@ e45a4621e54abb773ee81a439afc0ba097ffcf13bf6d80b5941d98389f34e571  ./tests/vm-wsl
 45cfa8b10d7ae240677ae76844ce23d11f41b8b9bf974e7659c702ea6fdf9736  ./tests/vm-wsl-test.sh
 fd3cd06021c35f13239e1bd31cc7ac40d7c1c5640c923f8a263a3da4899b69c0  ./tests/webhook-gh.py
 b4f5a2321e2ea7ad58cd60b833c78b84a1acda63b10267f47478fb0891f2e918  ./tests/webhooks-test.sh
-59c64d572220124505af7a588f3620aa49d739cf77078ace51940fc44605110c  ./tests/workflow-rules-test.sh
+1326fe73f64de767677771ddc43446dd5519111109bc635b11d229b3f46d73c6  ./tests/workflow-rules-test.sh
 aac2790424e0f9314dded565d99ee1b49ca7c47d194073f49e2dd1f1a072a798  ./tests/workspace-test.sh
 36dd66ce61a8f83a685002fbef0c921bf3715c247a3a536a4fee78c89a3e53ee  ./vm/guest/provision.sh
 060ee2905b252bd3051aa6a7b5aa95a0a1ac924df19d24598b0e0a4cb7e12f66  ./vm/guest/record-server

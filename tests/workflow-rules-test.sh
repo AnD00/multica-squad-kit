@@ -53,7 +53,7 @@ def check(directory):
         lines = path.read_text(encoding='utf-8').splitlines()
         uses = [line for line in lines if re.match(r'^\s*(?:- )?uses:', line)]
         require(uses and all(re.fullmatch(r'\s*(?:- )?uses: [A-Za-z0-9._/-]+@[0-9a-f]{40} # v[0-9]+\.[0-9]+\.[0-9]+', line) for line in uses),
-                f'{path.name}: uses は完全な SHA と版の注記が必要')
+                f'{path.name}: uses は完全な SHA とバージョンの注記が必要')
         checkouts = sum('uses: actions/checkout@' in line for line in uses)
         credentials = [index for index, line in enumerate(lines) if re.match(r'^\s*persist-credentials:', line)]
         require(len(credentials) == checkouts, f'{path.name}: checkout と認証設定の数が違う')
@@ -153,7 +153,7 @@ def check(directory):
     dependabot = directory.parent / 'dependabot.yml'
     require(dependabot.is_file(), 'dependabot: 設定がない')
     lines = dependabot.read_text(encoding='utf-8').splitlines()
-    require('version: 2' in lines, 'dependabot: 設定の版が違う')
+    require('version: 2' in lines, 'dependabot: 設定のバージョンが違う')
     updates = section(lines, 'updates:', 0)
     require([line for line in updates if line.startswith('  - package-ecosystem:')] == ['  - package-ecosystem: github-actions'],
             'dependabot: 対象が github-actions ではない')
@@ -165,7 +165,7 @@ def check(directory):
 
 
 check(workflows)
-print('PASS workflow-rules: SHA と版・認証・秘密の参照と Environment・きっかけ・公開の検査を確かめた')
+print('PASS workflow-rules: SHA とバージョン・認証・秘密の参照と Environment・きっかけ・公開の検査を確かめた')
 print('PASS workflow-rules: まとめが全ジョブを待ち、成功だけを通し、失敗・取り消し・飛ばしを拒む')
 print('PASS workflow-rules: CodeQL の言語・きっかけ・権限と、Dependabot の週次・待機・まとめを確かめた')
 print('PASS workflow-rules: 勧告の検査も同じきっかけで流し、失敗しても SARIF を登録する')
@@ -241,7 +241,7 @@ mutate('codeql-category', 'scan.yml', 'category: /language:${{ matrix.language }
 mutate('codeql-tag', 'scan.yml', 'github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3',
        'github/codeql-action/init@v4', 'uses は')
 mutate('scan-credentials', 'scan.yml', '          persist-credentials: false\n', '', '認証設定の数')
-mutate('dependabot-version', 'dependabot.yml', 'version: 2', 'version: 1', 'dependabot: 設定の版が違う')
+mutate('dependabot-version', 'dependabot.yml', 'version: 2', 'version: 1', 'dependabot: 設定のバージョンが違う')
 mutate('dependabot-ecosystem', 'dependabot.yml', 'package-ecosystem: github-actions', 'package-ecosystem: npm', 'dependabot: 対象が github-actions ではない')
 mutate('dependabot-directory', 'dependabot.yml', 'directory: /', 'directory: /other', 'dependabot: 対象のディレクトリが違う')
 mutate('dependabot-schedule', 'dependabot.yml', 'interval: weekly', 'interval: daily', 'dependabot: 更新が毎週ではない')

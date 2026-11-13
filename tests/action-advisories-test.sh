@@ -102,7 +102,7 @@ assert [result['ruleId'] for result in report['results']] == [ghsa]
 assert location(report['results'][0]) == {'artifactLocation': {'uri': 'workflows/probe.yml'}, 'region': {'startLine': 8}}
 assert report['tool']['driver']['rules'][0]['helpUri'] == 'https://github.com/advisories/' + ghsa
 run('fixed', [patched], fixed, 0)
-print('PASS action-advisories: 実応答で脆弱な版を検出し、修正版を通し、SARIF の場所と要約を確かめる')
+print('PASS action-advisories: 実応答で脆弱なバージョンを検出し、修正済みのバージョンを通し、SARIF の場所と要約を確かめる')
 
 report, calls = run('mismatch', [f'actions/download-artifact@{sha_old} # v4.1.3'], fixed, 1)
 assert [result['ruleId'] for result in report['results']] == ['version-mismatch']
@@ -114,7 +114,7 @@ for name, value in [('tag', 'actions/download-artifact@v4'),
     assert not calls and report['results'][0]['ruleId'] == 'version-mismatch'
 report, calls = run('local', ['./local-action'], fixed, 0)
 assert not calls
-print('PASS action-advisories: 注記と SHA の食い違い、固定や版の欠落を拒み、手元のアクションを飛ばす')
+print('PASS action-advisories: 注記と SHA の食い違い、固定やバージョンの欠落を拒み、手元のアクションを飛ばす')
 
 uses = [old, old.replace('download-artifact@', 'download-artifact/subpath@'), patched,
         f'actions/checkout@{sha_checkout} # v7.0.1']
@@ -164,5 +164,5 @@ for index, (expression, expected) in enumerate([
     response = copy.deepcopy(vulnerable)
     response[0][0]['vulnerabilities'][0]['vulnerable_version_range'] = expression
     run('range-' + str(index), [old], response, expected)
-print('PASS action-advisories: 範囲の上下限・等号・桁・安定版とプレリリースの順を数として比べる')
+print('PASS action-advisories: 範囲の上下限・等号・桁・安定したバージョンとプレリリースの順を数として比べる')
 PY
