@@ -185,7 +185,9 @@ python3 scripts/metrics.py count tmp/metrics/snapshot.json \
 | 区切りと範囲を替えて流せる | `--from` と `--cutoff` を替え、対象のタスクの数と値が変わる |
 | 計画の表との差を出せる | `--compare` に合計の見本を渡す |
 
-`collect` は、`tests/cli-stub.py` の CLI のスタブで確かめる。すべてのページを読むこと、切り詰めの警告で止まること、欄の欠けで止まること、本文を残さずメンションの ID だけを残すことを見る。スタブの応答は、実物の見本から作る。状態の変化（`issue timeline`）の実物の見本はまだないので、実装で取る。
+`collect` は、`tests/cli-stub.py` の CLI のスタブで確かめる。すべてのページを読むこと、切り詰めの警告で止まること、欄の欠けで止まること、本文を残さずメンションの ID だけを残すことを見る。スタブの応答は、実物の見本から作る。状態の変化（`issue timeline`）を含めて追加採取した見本のコマンドとバージョンは、`tests/fixtures/cli/METRICS-CAPTURE.json` にある。
+
+実装した収集では、タスク一覧の `has_more` に従って `offset` を進める。コメントは `--recent` と `--full` で読み、CLI が標準エラーへ出す `Next thread cursor` の時刻と ID で次へ進める。このカーソル以外の標準エラーは警告として止める。状態変更の前後は実応答の `details.from` と `details.to` から読む。実行の `started_at` と `completed_at` は null を許し、`usage` が省略された形は未確認として空の配列へ直す。それ以外の、スナップショットへ残す必須欄の欠落はエラーにする。読み取りと検証がすべて成功してから出力を置き換えるので、失敗しても前のスナップショットは保つ。
 
 ## 要件の再合意が要る点
 

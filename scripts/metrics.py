@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Count workflow metrics from a normalized snapshot; never contact Multica.
+"""Collect Multica records, then count workflow metrics from a saved snapshot.
 
 Snapshot v1 has collected_at, cli_version, project_id and the arrays issues,
 comments, transitions, runs and agents. See tests/fixtures/metrics/snapshot.json
@@ -11,9 +11,12 @@ from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
+import tempfile
 
 
 TOKEN_FIELDS = ("input_tokens", "cache_write_tokens", "cache_read_tokens", "output_tokens")
@@ -26,6 +29,150 @@ ROLES = frozenset((
     "dependabot-merger", "designer", "orchestrator", "performance-reviewer",
     "planner", "qa", "security-reviewer", "usage-monitor", "ux-reviewer",
 ))
+
+
+def cli(arguments, cursor=False, version=False):
+    """Only the comment paginator may emit the documented cursor on stderr."""
+    command = ["multica", *arguments]
+    if not version:
+        command += ["--output", "json"]
+    result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+    if result.returncode:
+        raise ValueError(f"Multica の読み取りに失敗しました: {' '.join(arguments[:3])}")
+    next_page = None
+    for line in result.stderr.splitlines():
+        if not line.strip():
+            continue
+        match = re.fullmatch(r"Next thread cursor: --before (\S+) --before-id (\S+)", line)
+        if not cursor or not match or next_page is not None:
+            raise ValueError(f"Multica の警告で読み取りを止めました: {line}")
+        timestamp(match[1])
+        next_page = (match[1], match[2])
+    if version:
+        lines = result.stdout.splitlines()
+        if not lines or not lines[0].startswith("multica "):
+            raise ValueError("CLI のバージョンを読めません")
+        return lines[0]
+    return json.loads(result.stdout), next_page
+
+
+def records(value):
+    if not isinstance(value, list) or any(not isinstance(row, dict) for row in value):
+        raise ValueError("CLI の記録はオブジェクトの配列にしてください")
+    return value
+
+
+def fields(row, names, nullable=()):
+    selected = {name: row[name] for name in names}
+    for name, value in selected.items():
+        if name in nullable and value is None:
+            continue
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"必須の文字列の欄がありません: {name}")
+    return selected
+
+
+def ordered(rows):
+    return sorted(rows, key=lambda row: (timestamp(row["created_at"]), row["id"]))
+
+
+def collect(project):
+    snapshot = {"schema_version": 1, "project_id": project,
+                "collected_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                "cli_version": cli(["version"], version=True),
+                "issues": [], "comments": [], "transitions": [], "runs": [], "agents": []}
+    offset = 0
+    while True:
+        page, _ = cli(["issue", "list", "--project", project, "--limit", "100",
+                       "--offset", str(offset), "--sort", "created_at", "--direction", "asc"])
+        rows = records(page["issues"])
+        if (type(page["has_more"]) is not bool or type(page["offset"]) is not int
+                or page["offset"] != offset or type(page["limit"]) is not int
+                or page["limit"] <= 0 or type(page["total"]) is not int or page["total"] < 0):
+            raise ValueError("タスクのページの情報が不正です")
+        snapshot["issues"].extend(fields(row, ("id", "identifier", "created_at", "status")) for row in rows)
+        if not page["has_more"]:
+            break
+        if not rows:
+            raise ValueError("次のページがあるのにタスクが空です")
+        offset += len(rows)
+    snapshot["issues"] = ordered(snapshot["issues"])
+    if len({row["id"] for row in snapshot["issues"]}) != len(snapshot["issues"]):
+        raise ValueError("タスクのページが重複しています")
+    agents, _ = cli(["agent", "list", "--include-archived"])
+    snapshot["agents"] = sorted((fields(row, ("id", "name")) for row in records(agents)),
+                                 key=lambda row: row["id"])
+    for issue in snapshot["issues"]:
+        issue_id = issue["id"]
+        before = None
+        seen_cursors = set()
+        while True:
+            arguments = ["issue", "comment", "list", issue_id, "--recent", "100", "--full"]
+            if before:
+                arguments += ["--before", before[0], "--before-id", before[1]]
+            comments, next_page = cli(arguments, cursor=True)
+            for row in records(comments):
+                comment = fields(row, ("id", "issue_id", "author_type", "author_id", "created_at"))
+                content = row["content"]
+                if not isinstance(content, str) or comment["issue_id"] != issue_id:
+                    raise ValueError("コメントの本文の型かタスクが不正です")
+                comment["member_mentions"] = sorted(set(re.findall(
+                    r"mention://member/([A-Za-z0-9_-]+)", content)))
+                snapshot["comments"].append(comment)
+            if next_page is None:
+                break
+            if not comments or next_page in seen_cursors:
+                raise ValueError("コメントのページが進みません")
+            seen_cursors.add(next_page)
+            before = next_page
+        timeline, _ = cli(["issue", "timeline", issue_id, "--activity-only"])
+        for row in ordered(records(timeline)):
+            activity = fields(row, ("id", "type", "action", "created_at"))
+            if activity["type"] != "activity":
+                raise ValueError("状態の変化に活動以外の記録があります")
+            if activity["action"] == "status_changed":
+                change = fields(row["details"], ("from", "to"))
+                snapshot["transitions"].append({"id": activity["id"], "issue_id": issue_id,
+                    "created_at": activity["created_at"],
+                    "from_status": change["from"], "to_status": change["to"]})
+        runs, _ = cli(["issue", "runs", issue_id])
+        for row in records(runs):
+            run = fields(row, ("id", "issue_id", "agent_id", "status", "created_at",
+                               "started_at", "completed_at"), nullable=("started_at", "completed_at"))
+            if run["issue_id"] != issue_id:
+                raise ValueError("実行のタスクが一致しません")
+            # CLI 0.7.0 omits usage on runs without a usage record (captured fixture).
+            usage = row["usage"] if "usage" in row else []
+            run["usage"] = []
+            for item in records(usage):
+                normalized = fields(item, ("provider", "model"))
+                normalized.update({field: item[field] for field in TOKEN_FIELDS})
+                run["usage"].append(normalized)
+            add_usage(empty_role(), run["usage"])
+            run["usage"].sort(key=lambda item: (item["provider"], item["model"],
+                                               *(item[field] for field in TOKEN_FIELDS)))
+            snapshot["runs"].append(run)
+    for name in ("comments", "runs"):
+        snapshot[name] = ordered(snapshot[name])
+    snapshot["transitions"] = [{key: value for key, value in row.items() if key != "id"}
+                               for row in ordered(snapshot["transitions"])]
+    validate_snapshot(snapshot)
+    return snapshot
+
+
+def write_snapshot(path, snapshot):
+    """Publish only a fully read and validated snapshot; keep an older file on failure."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                         prefix=path.name + ".", delete=False) as stream:
+            temporary = Path(stream.name)
+            stream.write(json.dumps(snapshot, ensure_ascii=False, sort_keys=True, indent=2) + "\n")
+        os.replace(temporary, path)
+    finally:
+        if temporary is not None and temporary.exists():
+            temporary.unlink()
 
 
 def timestamp(value):
@@ -302,6 +449,9 @@ def markdown(result):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
+    collector = subparsers.add_parser("collect", help="Multica の記録をスナップショットに残す")
+    collector.add_argument("--project", required=True)
+    collector.add_argument("--output", type=Path, required=True)
     counter = subparsers.add_parser("count", help="保存したスナップショットから数える")
     counter.add_argument("snapshot", type=Path)
     for flag in ("cutoff", "truncate", "project-key", "member-key"):
@@ -312,6 +462,9 @@ def main():
     counter.add_argument("--output", type=Path, required=True, help="結果のディレクトリ")
     args = parser.parse_args()
     try:
+        if args.command == "collect":
+            write_snapshot(args.output, collect(args.project))
+            return
         raw = args.snapshot.read_bytes()
         plan = json.loads(args.compare.read_bytes()) if args.compare else None
         result = count(json.loads(raw), raw, args, plan)
@@ -320,7 +473,7 @@ def main():
         (args.output / "metrics.json").write_text(
             json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
         (args.output / "metrics.md").write_text(rendered, encoding="utf-8")
-    except (OSError, ValueError, KeyError, TypeError, ArithmeticError) as error:
+    except (OSError, ValueError, KeyError, TypeError, ArithmeticError, subprocess.TimeoutExpired) as error:
         parser.exit(1, f"エラー: 数えられません: {error}\n")
 
 

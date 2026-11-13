@@ -60,6 +60,14 @@ Multica と合わせた取り込みでは、外部で採取した応答のディ
 
 PR・コメントの `user`、チェックの `app` は、[GitHub の公開 OpenAPI](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.json)で null 可の必須欄である。PR の `author` も [GraphQL の仕様](https://docs.github.com/en/graphql/reference/pulls)では null 可である。公開元で null の形は取れなかったため「見本なし」と記録し、子の欄を条件付きとしてテストする。
 
+## 指標の収集の読み取り
+
+`metrics-*.json` と `issue-timeline.json` は、2026-11-13 に CLI 0.7.0 の読み取りから追加採取した。コマンド、バージョン、保存した応答の数は `METRICS-CAPTURE.json` にある。`metrics-comments-cursor.txt` は、同じ採取のコメント読み取りが標準エラーに出した次ページのカーソルである。タスク一覧は途中と最後のページ、状態の変化は `status_changed` とそれ以外、実行は使用量のある完了と使用量のない実行中の形を保存した。
+
+キーと値の型を保ち、自由文・名前・識別子を置き換えた。ID は採取内で共通の対応表を使い、`fixture-metrics-id-` で始め、同一性と比較順を保った。元の ID と対応表は保存していない。既存の採取の ID とは比較しない。
+
+この見本は見張りの契約には加えず、`metrics-cli-fixture.py` がケースのキーと型を検証する。必須欄の欠落を試すケースだけは削除を許す。実行中の実応答では `usage` が省略されていたので、この欄のない形も許す。コメントの本文とエージェントの指示は見本では匿名化し、収集したスナップショットには残さない。
+
 ## 使用量の読み取り
 
 `codex-rate-limits.json` と `claude-usage.json` は、2026-11-11 に実物から採取した。バージョン・コマンド・形ごとの件数は `USAGE-CAPTURE.json` にある。Claude の使用率・リセットの表示は残し、診断・提案・作業パスを含む自由文は置き換えた。アカウントとクレジットの ID も匿名化している。
