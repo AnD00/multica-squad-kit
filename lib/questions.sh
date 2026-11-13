@@ -149,6 +149,7 @@ question_open() {
 question_choice() {
 	local number=$1 text=$2 line first=yes pad
 	pad=$(printf '%*s' $((${#number} + 2)) '')
+	if [[ -t 2 ]]; then ui_size err; text=$(question_choice_wrap "$text" "$((ui_columns - 4 - ${#number} - 2))"); fi
 	while IFS= read -r line; do
 		if [[ $first == yes ]]; then
 			{ printf '    '; ui_paint err choice "$number"; printf '  %s\n' "$line"; } >&2
@@ -158,6 +159,31 @@ question_choice() {
 			printf '    %s%s\n' "$pad" "$line" >&2
 			question_count "    $pad$line"
 		fi
+	done <<<"$text"
+}
+
+# 端末の選択肢の本文を、番号と字下げを除いた幅で折り返す。
+# 元の行の字下げは続く行にも付け、補足の説明の開始位置を保つ。
+question_choice_wrap() {
+	local LC_ALL=C
+	local text=$1 limit=$2 line indent body chunk offset width budget
+	while IFS= read -r line; do
+		indent=${line%%[! ]*}; body=${line#"$indent"}
+		budget=$((limit - ${#indent}))
+		# 字下げと全角 1 文字が収まらないほど狭い端末では、元の行を残す。
+		if ((budget < 2)); then printf '%s\n' "$line"; continue; fi
+		chunk=$indent; offset=0; width=0
+		while ((offset < ${#body})); do
+			_ui_character "$body" "$offset"
+			if ((width + ui_character_width > budget)); then
+				printf '%s\n' "$chunk"
+				chunk=$indent; width=0
+			fi
+			chunk+=${body:offset:ui_character_bytes}
+			width=$((width + ui_character_width))
+			offset=$((offset + ui_character_bytes))
+		done
+		printf '%s\n' "$chunk"
 	done <<<"$text"
 }
 

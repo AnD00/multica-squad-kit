@@ -65,6 +65,44 @@ cp "$test_dir/err" "$test_dir/err-plain"
 { printf '\n'; printf 'x\n'; cat "$test_dir/input"; } >"$test_dir/pty-input"
 pty_setup() { env -u NO_COLOR "$@" python3 "$root/tests/ui-pty.py" err "$test_dir/pty-out" "$test_dir/pty-err" --stdin "$test_dir/pty-input" -- /bin/bash "$test_dir/package/setup.sh"; }
 pty_setup TERM=xterm-256color
+# 端末の選択肢は 100 桁に収まり、続く行も元の説明の開始列から始まる。
+# ファイル出力との照合で、6 番と 12 番を含む説明の文字が欠けないことも確かめる。
+python3 - "$test_dir/role-question" "$test_dir/pty-err" <<'PY'
+import re
+import sys
+import unicodedata
+from pathlib import Path
+
+plain = Path(sys.argv[1]).read_text()
+terminal = re.sub(r"\x1b\[[0-9;]*m", "", Path(sys.argv[2]).read_text())
+
+def choices(text):
+    start = text.index("    1  要件定義:")
+    end = text.index("    0  何も外さない", start) + len("    0  何も外さない")
+    return text[start:end].splitlines()
+
+expected, actual = choices(plain), choices(terminal)
+position = 0
+wrapped = []
+for line in expected:
+    indent = len(line) - len(line.lstrip(" "))
+    combined = actual[position]
+    position += 1
+    while combined != line:
+        assert line.startswith(combined), (line, combined)
+        continuation = actual[position]
+        assert continuation.startswith(" " * indent), continuation
+        combined += continuation[indent:]
+        wrapped.append(line)
+        position += 1
+assert position == len(actual)
+assert any("脆弱性チェック" in line for line in wrapped)
+assert any("Dependabot の PR の週次の確認" in line for line in wrapped)
+for line in actual:
+    width = sum(2 if unicodedata.east_asian_width(c) in "WF" else 1 for c in line)
+    assert width <= 100, (width, line)
+PY
+echo 'PASS wrap: 長い選択肢は端末の幅に収まり、説明の文字と継続行の字下げを保つ'
 grep -qF "$esc[1;38;5;32m? ワークスペース$esc[0m  $esc[38;5;32m●$esc[0m$esc[38;5;244m○$esc[0m" "$test_dir/pty-err"
 grep -qF "$esc[38;5;32m●$esc[0m$esc[38;5;32m●$esc[0m$esc[38;5;244m○$esc[0m" "$test_dir/pty-err"
 # 説明と例は、字下げ 2 の灰の行。例は例の値だけ。
