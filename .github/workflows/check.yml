@@ -25,12 +25,14 @@ jobs:
           - { os: ubuntu-24.04, shard: 2/2 }
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Cache key for tools
         id: tools-key
         run: echo "key=tools-${RUNNER_OS}-${RUNNER_ARCH}-${ImageOS:-unknown}-${ImageVersion:-unknown}-${{ hashFiles('scripts/ci-install.sh') }}" >> "$GITHUB_OUTPUT"
       - name: Restore tools cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/ci-install-cache
           key: ${{ steps.tools-key.outputs.key }}
@@ -41,7 +43,7 @@ jobs:
         run: bash scripts/ci-install.sh "$RUNNER_OS"
       - name: Save tools cache
         if: steps.install.outputs.source == 'mirror'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/ci-install-cache
           key: ${{ steps.tools-key.outputs.key }}
@@ -59,7 +61,7 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           persist-credentials: false
@@ -69,12 +71,24 @@ jobs:
     timeout-minutes: 10
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Content scan
+        run: bash tests/check-content.sh --public
+  checks-passed:
+    if: always()
+    needs: [scripts, assets, content]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every job to succeed
         env:
-          FORBIDDEN_TERMS: ${{ secrets.FORBIDDEN_TERMS }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          umask 077
-          mkdir -p tmp
-          printf '%s\n' "$FORBIDDEN_TERMS" > tmp/forbidden.txt
-          SQUAD_KIT_FORBIDDEN_FILE="$PWD/tmp/forbidden.txt" bash tests/check-content.sh
+          for result in $RESULTS; do
+            if [ "$result" != success ]; then
+              echo "成功していないジョブがあります: $RESULTS" >&2
+              exit 1
+            fi
+          done

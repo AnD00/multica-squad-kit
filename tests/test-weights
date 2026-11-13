@@ -106,3 +106,5 @@ tests/vm-lima-test.sh 16
 tests/vm-wsl-test.sh 33
 tests/webhooks-test.sh 97
 tests/workspace-test.sh 8
+tests/action-advisories-test.sh 5
+tests/workflow-rules-test.sh 5
