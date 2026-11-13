@@ -53,49 +53,67 @@ host_gate_summary() {
 
 # 最初の JSON の値と終了コードで、ログイン切れと確認そのものの失敗を分ける。
 host_check_claude_auth() {
-	local work state result=0 stream label line
+	local work state diagnosis result=0
 	mkdir -p "$root/tmp" || die 'ログインの確認の作業場所を作れませんでした。'
 	work=$(mktemp -d "$root/tmp/claude-auth.XXXXXX") || die 'ログインの確認の作業場所を作れませんでした。'
 	CLAUDE_CONFIG_DIR="$agent_home/claude" claude auth status </dev/null >"$work/stdout" 2>"$work/stderr" || result=$?
-	if ! state=$(python3 - "$work/stdout" <<'PY'
+	if ! diagnosis=$(python3 - "$work/stdout" "$work/stderr" "$result" 2>/dev/null <<'PY'
 import json
 import sys
 from pathlib import Path
 
-try:
-    text = Path(sys.argv[1]).read_text()
-    value, _ = json.JSONDecoder().raw_decode(text.lstrip(" \t\r\n"))
-except (OSError, UnicodeError, ValueError):
-    value = None
-if isinstance(value, dict) and type(value.get("loggedIn")) is bool:
-    print("true" if value["loggedIn"] else "false")
+stdout = Path(sys.argv[1]).read_bytes()
+stderr = Path(sys.argv[2]).read_bytes()
+result = int(sys.argv[3])
+text = stdout.decode("utf-8", errors="replace").lstrip(" \t\r\n")
+state = "unknown"
+if not text:
+    first = "空"
 else:
-    print("unknown")
+    try:
+        value, _ = json.JSONDecoder().raw_decode(text)
+    except ValueError:
+        first = "JSON として読めない"
+    else:
+        if not isinstance(value, dict):
+            first = "オブジェクトでない"
+        elif type(value.get("loggedIn")) is not bool:
+            first = "loggedIn が真偽値でない"
+        else:
+            state = "true" if value["loggedIn"] else "false"
+            first = "loggedIn が " + state
+
+if b"EINVAL" in stderr and b"kqueue" in stderr:
+    category = "Claude の CLI の既知の不具合（kqueue）"
+elif state == "true" and result != 0:
+    category = "CLI がログイン済みと答えたまま失敗した"
+else:
+    category = "CLI の出力を読めない（詳細は省略）"
+
+print(state)
+print("  診断（claude auth status）:")
+print("    分類: " + category)
+print("    終了コード: " + str(result))
+print("    標準出力の最初の値: " + first)
+print("    標準出力: " + ("あり（内容は省略）" if stdout else "なし"))
+print("    標準エラー: " + ("あり（内容は省略）" if stderr else "なし"))
 PY
 	); then
 		rm -rf -- "$work"
 		die 'Claude のログインの確認の出力を読めませんでした。'
 	fi
+	rm -rf -- "$work"
+	state=${diagnosis%%$'\n'*}
 	case $state:$result in
-	true:0) rm -rf -- "$work"; return 0 ;;
+	true:0) return 0 ;;
 	false:*)
-		rm -rf -- "$work"
 		die "エージェント用の Claude にログインしてください: CLAUDE_CONFIG_DIR=$agent_home/claude claude"
 		;;
 	esac
-	# die は終了するため、同じ表示の部品でエラーを出してから CLI の出力を続ける。
+	# CLI の文字列は表示せず、固定の診断だけをエラーに続ける。
 	ui_phase_fail
-	ui_error "エージェント用の Claude のログインを確かめられませんでした（claude auth status の終了コード ${result}）。ログインが切れているとは限りません。下の出力を確かめ、端末から CLAUDE_CONFIG_DIR=$agent_home/claude claude auth status を流して、ログインの状態を確かめてから流し直してください。"
-	for stream in stdout stderr; do
-		if [[ $stream == stdout ]]; then label=標準出力; else label=標準エラー; fi
-		printf '  claude auth status の%s:\n' "$label" >&2
-		if [[ -s $work/$stream ]]; then
-			while IFS= read -r line || [[ -n $line ]]; do printf '    %s\n' "$line" >&2; done <"$work/$stream"
-		else
-			printf '    （なし）\n' >&2
-		fi
-	done
-	rm -rf -- "$work"
+	ui_error "エージェント用の Claude のログインを確かめられませんでした。ログインが切れているとは限りません。端末から CLAUDE_CONFIG_DIR=$agent_home/claude claude auth status を流して、ログインの状態を確かめてから流し直してください。問い合わせるときは、下の診断の行だけを添えてください。"
+	printf '%s\n' "${diagnosis#*$'\n'}" >&2
 	exit 1
 }
 
