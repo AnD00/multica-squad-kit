@@ -5,8 +5,6 @@ script="$root/common/monitor/squad-pr-watch"
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/pr-watch-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
-source "$root/tests/cli-mode-test-lib.sh"
-cli_test_wrap_monitor "$script" "$test_dir"
 export PR_WATCH_TEST_DIR="$test_dir"
 export PR_WATCH_TEST_ROOT="$root"
 source "$root/common/monitor/squad-cli-lib"

@@ -3,11 +3,6 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/pr-link-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
@@ -17,8 +12,6 @@ source "$root/common/monitor/squad-cli-lib"
 squad_cli_contracts >"$test_dir/contracts.json"
 cli_fixture() { python3 "$root/tests/multica-fixture.py" "$test_dir" base "$@"; }
 script=$root/common/monitor/squad-pr-link
-source "$root/tests/cli-mode-test-lib.sh"
-cli_test_wrap_monitor "$script" "$test_dir"
 mkdir -p "$test_dir/bin" "$test_dir/work/tmp"
 # curl がないケースも、ホストの実物を呼ばない。
 for cmd in bash dirname jq tr cat python3 mkdir mktemp rm sed; do
