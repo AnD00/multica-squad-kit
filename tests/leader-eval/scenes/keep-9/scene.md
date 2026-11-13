@@ -3,17 +3,16 @@
 
 ## 元の出来事
 
-紐付いていない PR をマージへ回すとき、期限付きの見張りと人間への行を添える。
+文書だけの変更でも、設計した系統と違う系統へ最終レビューを頼む。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` に QA の役が書いた「返事がそろいました」というコメント `comment-5` で起きました。返信は `--parent comment-5` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-レビューと E2E はどちらも成功し、人間のマージへ回すところです。metadata の `pr_url` は `https://github.com/example/shop/pull/7`、タスクは `in_progress` です。PR に触れる実行はありません。
-PR は紐付いていません。以前の引き継ぎには、PR の URL の下に `紐付けの失敗:` の警告の段落が残っています。
+文書だけの変更です。実装と修正の実行はありません。設計の役のモデルは gpt-6.1-sol です。ラベル `重要` と最終レビューの結果はありません。
 
 ## 合格の基準
 
-1. [記録] 区切りで確認し、従来の規則に定期確認を加えている。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && called: ^squad-pr-watch ci-now issue-shop-1 && called: ^squad-pr-watch conflicts-check issue-shop-1 && called: ^squad-pr-watch ci issue-shop-1 && called: ^squad-pr-watch conflicts issue-shop-1 && called: ^squad-pr-watch unlinked issue-shop-1 comment-5 agent-ci-monitor`
-2. [記録] 人間を呼び、マージ後の done の依頼と期限の行、警告の段落を残す。 `判定: posted: mention://member/member1 && posted: done && posted: 見張り: 1 時間おき、2026-01-13T10:00Z まで && posted: 紐付けの失敗: && called: ^multica issue status issue-shop-1 in_review`
-3. [採点] 紐付けだけで止まらずマージの判断を頼み、警告の段落をそのまま写している。連携を確認する案内も添えている。
+1. [記録] 設計の役のモデルを確認し、Codex と違う系統を選ぶ。 `判定: called: ^multica agent get agent-designer && called: ^squad-dispatch-pick principal Codex$`
+2. [記録] 文書の最終レビューを Claude の別の回で頼む。 `判定: called: ^squad-review-wait watch .*agent-claude-principal && posted: ^見直しの種類: 最終レビュー$ && posted: ^見る範囲: PR の差分全体$`
+3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`

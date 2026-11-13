@@ -3,17 +3,16 @@
 
 ## 元の出来事
 
-一覧を読めないときは、空の一覧と読み替えず、一度流し直しても未確認なら止まる。
+最終レビューのあとに head が変われば、前の確認からの差分で頼み直す。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` の実装の役のコメント `comment-3` で起きました。返信は `--parent comment-3` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-最後の実装を push した引き継ぎです。承認済みのフェーズは全部そろい、レビューと QA の E2E が残っています。metadata の `pr_url` は `https://github.com/example/shop/pull/7` です。紐付けの一覧は読み取れていません。タスクは `in_progress`、返事を待つ回や PR に触れる実行はなく、重要の新しい判断の時機ではありません。
-`link-check` は何度流しても未確認を返します。
+前の最終レビューは `1f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` で ✅ でした。そのコミットは今の head の祖先です。コンフリクト解消で head が変わりました。必要な観点のレビューと E2E は今の head でそろっています。ラベル `重要` はありません。
 
 ## 合格の基準
 
-1. [記録] 判定を流し、未確認の行を添えて人間へ返している。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && posted: 紐付け: 未確認 && posted: mention://member/member1 && called: ^multica issue status issue-shop-1 in_review`
-2. [記録] 紐付いていないものとして先へ進めず、次の役や見張りを呼んでいない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-wait watch && not-called: ^squad-pr-watch ci-now && not-called: ^squad-pr-watch unlinked issue-shop-1`
-3. [採点] 同じ実行で一度だけ流し直し、link-check の呼び出しは合計 2 回である。読めない一覧を空の一覧とは説明していない。
+1. [記録] 今の head で最終レビューを頼み直す。 `判定: posted: ^確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$ && posted: ^見直しの種類: 最終レビュー$`
+2. [記録] 再確認の範囲を前の確認からの差分にする。 `判定: posted: ^見る範囲: 1f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\.\.3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$`
+3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`

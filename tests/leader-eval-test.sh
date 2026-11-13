@@ -10,8 +10,8 @@ eval_dir="$root/tests/leader-eval"
 scenes_dir="$eval_dir/scenes"
 helper=(python3 -I -B "$eval_dir/leader_eval.py")
 
-# 設計の「場面の一覧」と「PR の紐付け」にある 27 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
-expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 keep-1 keep-2 keep-3 keep-4 keep-5 keep-6 keep-7 keep-8 keep-9 keep-10 keep-11 keep-12 keep-13 keep-14 keep-15'
+# 原則の 19 場面、最終レビュー・CI 待ちの 9 場面、PR の紐付けの 8 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
+expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 keep-1 keep-2 keep-3 keep-4 keep-5 keep-6 keep-7 keep-8 keep-9 keep-10 keep-11 keep-12 keep-13 keep-14 keep-15 keep-16 keep-17 keep-18 keep-19 keep-20 keep-21 keep-22 keep-23 keep-24'
 pending_scenes=''
 
 # --- 場面の形 ---
@@ -48,7 +48,7 @@ if grep -Eqi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$ev
 	echo "values.json に UUID の形の値があります" >&2
 	exit 1
 fi
-echo "PASS leader-eval: 27 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
+echo "PASS leader-eval: 36 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
 
 # --- 悪い場面を拒む ---
 bad="$test_dir/bad"
@@ -175,26 +175,26 @@ human = post("mention://member/member1 https://github.com/example/shop/pull/7 ht
 cases = {
     "keep-3": [link, post("mention://agent/agent-claude-implementer pr_url を補ってください")],
     "5-2": [link, now, conflicts, review, ask_review],
-    "keep-8": [link, now, conflicts, review, ask_review],
-    "keep-9": [link, now, conflicts, ci_watch, conflicts_watch,
+    "keep-17": [link, now, conflicts, review, ask_review],
+    "keep-18": [link, now, conflicts, ci_watch, conflicts_watch,
                command("squad-pr-watch unlinked issue-shop-1 comment-5 agent-ci-monitor"),
                post("mention://member/member1 マージ後 done にしてください\n見張り: 1 時間おき、2026-01-13T10:00Z まで\n紐付けの失敗: 警告"), in_review],
-    "keep-10": [link, human, in_review],
-    "keep-11": [link, link, post("mention://member/member1 紐付け: 未確認"), in_review],
-    "keep-12": [link, human],
-    "keep-13": [link, command("squad-pr-watch ci-now issue-shop-1 agent-orchestrator comment-3"), conflicts, review, ask_review],
-    "keep-14": [link, conflicts, ci_watch, conflicts_watch, human, in_review],
-    "keep-15": [link, post("mention://member/member1 紐付け: 作業先と違う pr: https://github.com/elsewhere/shop/pull/7 作業先: example/shop metadata の修正をお願いします"), in_review],
+    "keep-19": [link, human, in_review],
+    "keep-20": [link, link, post("mention://member/member1 紐付け: 未確認"), in_review],
+    "keep-21": [link, human],
+    "keep-22": [link, command("squad-pr-watch ci-now issue-shop-1 agent-orchestrator comment-3"), conflicts, review, ask_review],
+    "keep-23": [link, conflicts, ci_watch, conflicts_watch, human, in_review],
+    "keep-24": [link, post("mention://member/member1 紐付け: 作業先と違う pr: https://github.com/elsewhere/shop/pull/7 作業先: example/shop metadata の修正をお願いします"), in_review],
 }
 scenes = {id: le.parse_scene(Path(sys.argv[1]) / "scenes" / id / "scene.md") for id in cases}
 def passed(id, calls):
     return all(le.check_record(c["predicate"], calls)[0] for c in scenes[id]["criteria"] if c["kind"] == "記録")
 for id, calls in cases.items():
     assert passed(id, calls), id
-    if id != "keep-13":
+    if id != "keep-22":
         assert not passed(id, [c for c in calls if c != link]), (id, "判定なし")
 # 追加した場面では、一覧と link-check の見本が同じ PR の状態を表す。
-for n in range(8, 16):
+for n in range(17, 25):
     id = f"keep-{n}"
     table = json.loads((Path(sys.argv[1]) / "scenes" / id / "cli.json").read_text())["commands"]
     def response(prefix):
@@ -216,34 +216,64 @@ for n in range(8, 16):
         assert urls == [], id
     else:
         assert "紐付け: 食い違い " in state and urls and pr not in urls, id
-for id in ("5-2", "keep-8", "keep-9", "keep-13"):
+for id in ("5-2", "keep-17", "keep-18", "keep-22"):
     assert not passed(id, [c for c in cases[id] if c != conflicts]), (id, "コンフリクトの確認なし")
     assert not passed(id, [c for c in cases[id] if "ci-now" not in c["command"]]), (id, "CI の確認なし")
-for id in ("keep-3", "keep-8", "keep-13"):
+for id in ("keep-3", "keep-17", "keep-22"):
     assert not passed(id, cases[id] + [human]), (id, "紐付けだけで人間を呼ぶ")
-for id in ("keep-10", "keep-11", "keep-12", "keep-15"):
+for id in ("keep-19", "keep-20", "keep-21", "keep-24"):
     assert not passed(id, cases[id] + [ask_review]), (id, "止まらずレビューへ回す")
 for forbidden in (command("multica issue metadata set issue-shop-1 --key pr_url --value wrong"),
                   now, conflicts, review, command("gh pr view https://github.com/elsewhere/shop/pull/7"),
                   command("multica issue pull-requests issue-shop-1 --output json")):
-    assert not passed("keep-15", cases["keep-15"] + [forbidden]), forbidden
+    assert not passed("keep-24", cases["keep-24"] + [forbidden]), forbidden
 for missing in ("https://github.com/elsewhere/shop/pull/7", "作業先: example/shop", "mention://member/member1"):
     import copy
-    wrong = copy.deepcopy(cases["keep-15"])
+    wrong = copy.deepcopy(cases["keep-24"])
     wrong[1]["bodies"][0] = wrong[1]["bodies"][0].replace(missing, "なし")
-    assert not passed("keep-15", wrong), missing
+    assert not passed("keep-24", wrong), missing
 assert not passed("5-2", cases["5-2"] + [in_review])
 assert not passed("keep-3", cases["keep-3"] + [review])
 assert not passed("keep-3", cases["keep-3"] + [ask_review])
-assert not passed("keep-13", [c if "ci-now" not in c["command"] else now for c in cases["keep-13"]])
-assert not passed("keep-14", cases["keep-14"] + [command("squad-pr-watch unlinked issue-shop-1 comment-5 agent-ci-monitor")])
+assert not passed("keep-22", [c if "ci-now" not in c["command"] else now for c in cases["keep-22"]])
+assert not passed("keep-23", cases["keep-23"] + [command("squad-pr-watch unlinked issue-shop-1 comment-5 agent-ci-monitor")])
 for missing in ("done", "見張り:", "紐付けの失敗:"):
     import copy
-    wrong = copy.deepcopy(cases["keep-9"])
+    wrong = copy.deepcopy(cases["keep-18"])
     wrong[-2]["bodies"][0] = wrong[-2]["bodies"][0].replace(missing, "なし")
-    assert not passed("keep-9", wrong), missing
+    assert not passed("keep-18", wrong), missing
 PY
 echo "PASS leader-eval: 紐付けの判定ごとの進め方、停止、マージへの依頼を記録で区別する"
+
+# 追加した場面の基準は、正しい記録を通し、最終レビューの省略や CI 待ちの欠落を落とす。
+python3 -I -B - "$eval_dir" <<'PY_FINAL_SCENES'
+import copy, json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import leader_eval as le
+root = Path(sys.argv[1]) / 'scenes'
+for n in range(8, 17):
+    path = root / f'keep-{n}'
+    scene = le.parse_scene(path / 'scene.md')
+    records = json.loads((path / 'cli.json').read_text())['expected_records']
+    def passed(calls):
+        return all(le.check_record(c['predicate'], calls)[0]
+                   for c in scene['criteria'] if c['kind'] == '記録')
+    assert passed(records), (n, '期待する記録が通らない')
+    wrong = copy.deepcopy(records)
+    if n in (8, 9, 10):
+        wrong = [r for r in wrong if 'squad-review-wait watch' not in r['command']]
+    elif n == 11:
+        wrong[-1]['bodies'][0] = wrong[-1]['bodies'][0].replace('見る範囲:', '範囲なし:')
+    elif n in (12, 13, 15):
+        wrong[-1]['bodies'][0] += '\n[@Owner](mention://member/member1)'
+    elif n == 14:
+        wrong[0]['command'] = wrong[0]['command'].replace(' ci-wait-rule', '')
+    elif n == 16:
+        wrong = [wrong[-1], wrong[0]]
+    assert not passed(wrong), (n, '手順を外した記録が通った')
+print('PASS leader-eval: 最終レビューと CI 待ちの 9 場面は、期待する記録と手順を外した記録を区別する')
+PY_FINAL_SCENES
 
 # --- スタブの claude で流す ---
 stub_bin="$test_dir/stub-bin"
@@ -367,20 +397,20 @@ for id in $expected_scenes; do
 	jq -e -s --arg id "$id" 'any(.[]; .scene == $id and .which == "new" and (.criteria | length) > 0)' "$all_out/runs.jsonl" >/dev/null ||
 		{ echo "$id: 全場面の結果に行がありません" >&2; exit 1; }
 done
-jq -e -s 'any(.[]; .scene == "keep-13" and .exit_code == 0)' "$all_out/runs.jsonl" >/dev/null
+jq -e -s 'any(.[]; .scene == "keep-22" and .exit_code == 0)' "$all_out/runs.jsonl" >/dev/null
 grep -q 'agent-ci-monitor' "$all_out/instructions/new/instructions.md"
-if grep -q 'agent-ci-monitor' "$all_out/instructions/new/scenes/keep-13/instructions.md"; then
-	echo "keep-13: CI の見張り役が指示に残っています" >&2; exit 1
+if grep -q 'agent-ci-monitor' "$all_out/instructions/new/scenes/keep-22/instructions.md"; then
+	echo "keep-22: CI の見張り役が指示に残っています" >&2; exit 1
 fi
-echo "PASS leader-eval: 27 場面すべてをスタブで流し、見張り役のない場面では指示からも外す"
+echo "PASS leader-eval: 36 場面すべてをスタブで流し、場面ごとに基準の結果が出て、見張り役のない場面では指示からも外す"
 
 # 比較する前の指示にも、場面に合わせた役の構成を使う。
 no_monitor_out="$test_dir/no-monitor"
-PATH="$stub_bin:$PATH" bash "$eval_dir/run.sh" --baseline HEAD --scenes keep-13 --runs 1 --jobs 2 --out "$no_monitor_out" >"$test_dir/no-monitor.out" 2>"$test_dir/no-monitor.err" ||
+PATH="$stub_bin:$PATH" bash "$eval_dir/run.sh" --baseline HEAD --scenes keep-22 --runs 1 --jobs 2 --out "$no_monitor_out" >"$test_dir/no-monitor.out" 2>"$test_dir/no-monitor.err" ||
 	{ cat "$test_dir/no-monitor.err" >&2; exit 1; }
 jq -e -s 'length == 2 and all(.[]; .exit_code == 0)' "$no_monitor_out/runs.jsonl" >/dev/null
 for which in old new; do
-	if grep -q 'agent-ci-monitor' "$no_monitor_out/runs/keep-13/$which-1/work/CLAUDE.md"; then
+	if grep -q 'agent-ci-monitor' "$no_monitor_out/runs/keep-22/$which-1/work/CLAUDE.md"; then
 		echo "$which: 見張り役のない場面の作業場所に、その役が残っています" >&2; exit 1
 	fi
 done

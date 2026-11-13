@@ -335,6 +335,24 @@ done
 [[ -f $test_dir/runtime-claude-only/claude-principal && -f $test_dir/runtime-codex-only/codex-principal && -f $test_dir/all/claude-principal && -f $test_dir/all/codex-principal ]]
 echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと high を持ち、使わない系統には置かない'
 
+# 最終レビューは印から切り離し、見る範囲と証拠の扱いを全構成で残す。
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
+	grep -qF '全タスクで最終レビュー' "$test_dir/$scenario/orchestrator"
+	for role in claude-principal codex-principal; do
+		file="$test_dir/$scenario/$role"
+		[[ -f $file ]] || continue
+		grep -qF '最終レビューは、文書だけのものも含むすべてのタスク' "$file"
+		grep -qF '見る範囲:' "$file"
+		grep -qF '行がなければ初回として全体を見る' "$file"
+		grep -qF '祖先でないときも全体を見る' "$file"
+		grep -qF 'それだけで ❌ にしない' "$file"
+		if grep -qF 'ラベル `重要` があるタスクだけで呼ばれます' "$file"; then exit 1; fi
+	done
+done
+grep -qxF '重要|#dc2626|リスクが高いタスク。最上位の役に設計を見直してもらい、レビューの観点をすべて回す' "$root/common/labels"
+grep -qF '最終レビューを経て人間へ回す' "$test_dir/no-reviews/orchestrator"
+echo 'PASS templates: 印なし・文書だけ・レビュー役なしでも最終レビューを案内し、範囲と証拠、ラベルの意味を保つ'
+
 # 重要の基準は指示に、手順は参照に、系統の事実は役の節に残す。
 refs="$root/common/skills/squad-handoff/references"
 for heading in 判断する時機 印の記録 修正の依頼の数え方 最上位の役を呼ぶところ 返事の待ち方 最上位の役の選び方; do
@@ -533,6 +551,18 @@ done
 for phrase in 'squad-dispatch-pick principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
 	grep -qF -- "$phrase" "$refs/leader-principal.md"
 done
+for phrase in 'すべてのタスクで、人間へ回す直前に' '見る範囲:' '状態が `completed`' '`failed` と取り消しは数えない' '成功で終えたが変更を積まなかった実行も数える'; do
+	grep -qF "$phrase" "$refs/leader-principal.md"
+done
+grep -qF '最終レビューの結果は数えない' "$refs/leader-principal.md"
+for phrase in 'ci-wait <タスク>' 'ci-wait-clear <タスク>' 'CI が読めなくても待つ' 'マージの依頼: <head の完全な SHA>' '依頼も状態変更もせず'; do
+	grep -qF "$phrase" "$refs/leader-pr-checks.md"
+done
+# 共通 4 の付く条件と時機・4 回目の停止は維持し、リスクの説明を足す。
+grep -qxF '4. 共通 4: 手戻りが続いている。実装を始めたあとに設計を変えた、または同じ PR の修正の依頼が 3 回を超えた' "$test_dir/all/orchestrator"
+grep -qF '手戻りが設計と要件の食い違いを表すリスク' "$test_dir/all/orchestrator"
+grep -qF 'N が 4 になる依頼の前に、基準の共通 4 で印を付けて止める' "$refs/leader-principal.md"
+grep -qF '| 修正を振り分けるとき | 共通 4 だけ |' "$refs/leader-principal.md"
 for phrase in '作業先' '同じ誤り' '原因'; do
 	grep -qF -- "$phrase" "$refs/leader-flow.md"
 done

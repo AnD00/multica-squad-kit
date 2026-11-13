@@ -3,16 +3,15 @@
 
 ## 元の出来事
 
-成果物の PR がタスクの作業先と違うとき、metadata を勝手に合わせず、人間に修正を頼んで止まる。
+別のコメントで先にマージを頼んだあと、終わった規則から起きても重ねない。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` の実装の役のコメント `comment-3` で起きました。返信は `--parent comment-3` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-最後の実装を push した引き継ぎで、承認済みのフェーズは全部そろい、レビューと QA の E2E が残っています。タスクは `in_progress` です。作業先は metadata の `repository` の `example/shop` ですが、成果物の `pr_url` は `https://github.com/elsewhere/shop/pull/7` です。返事を待つ回や動いている役はありません。
+CI 待ちの古い規則 `old-ci-rule` で起きました。待ちの記録は解除済みです。ほかのコメントで起きた実行が、今の head の CI 成功を確認してマージを依頼済みです。
 
 ## 合格の基準
 
-1. [記録] 判定の両方の値を示して人間を呼び、in_review にしている。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && posted: mention://member/member1 && posted: https://github.com/elsewhere/shop/pull/7 && posted: 作業先: example/shop && called: ^multica issue status issue-shop-1 in_review`
-2. [記録] 先へ進まず、自分で metadata や紐付けを書き換えていない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-wait watch && not-called: ^multica issue metadata set && not-called: ^squad-pr-link && not-called: ^multica issue pull-requests && not-called: ^gh pr view && not-called: ^squad-pr-watch (ci|ci-now|ci-held|conflicts|conflicts-check|unlinked)( |$)`
-3. [採点] タスクの画面で metadata の pr_url か repository を直してもらう依頼になっている。作業先か PR のどちらかへ自分で合わせず、レビューにも回していない。
+1. [記録] 古い規則の ID を渡して終了を確認する。 `判定: called: ^squad-pr-watch ci-wait issue-shop-1 agent-orchestrator comment-final old-ci-rule$`
+2. [記録] 依頼も状態変更も重ねない。 `判定: not-posted: mention:// && not-posted: ^マージの依頼: && not-called: ^multica issue (status|assign)`

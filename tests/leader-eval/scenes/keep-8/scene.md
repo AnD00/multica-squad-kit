@@ -3,15 +3,17 @@
 
 ## 元の出来事
 
-紐付いていない PR を受け取っても、区切りの確認を行ってレビューへ進める。
+印のないタスクにも最終レビューを頼み、失敗実行を系統の数に入れない。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` の実装の役のコメント `comment-3` で起きました。返信は `--parent comment-3` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-最後の実装を push した引き継ぎです。承認済みのフェーズは全部そろい、レビューと QA の E2E が残っています。metadata の `pr_url` は `https://github.com/example/shop/pull/7` で、PR は紐付いていません。タスクは `in_progress`、返事を待つ回や PR に触れる実行はなく、重要の新しい判断の時機ではありません。
+ラベル `重要` はありません。Claude の実装が 1 回成功し、Codex の修正は変更を残さず 2 回失敗しました。最終レビューはまだありません。
 
 ## 合格の基準
 
-1. [記録] 判定とその場の CI・コンフリクトの確認を流している。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && called: ^squad-pr-watch ci-now issue-shop-1 agent-orchestrator comment-3 agent-ci-monitor && called: ^squad-pr-watch conflicts-check issue-shop-1`
-2. [記録] 人間を呼ばず、返事の待ちを登録してレビューと QA へ回している。 `判定: not-posted: mention://member/member1 && called: ^squad-review-wait watch issue-shop-1 comment-3 && posted: mention://agent/agent-qa && posted: mention://agent/agent-(code|ux|security|performance)-reviewer && not-called: ^squad-pr-link`
+1. [記録] 最終レビューを、ほかの役と別の回で頼む。 `判定: called: ^squad-review-wait watch issue-shop-1 comment-final agent-codex-principal && posted: ^見直しの種類: 最終レビュー$ && posted: ^返事を待つ役:.*mention://agent/agent-codex-principal`
+2. [記録] 初回は差分全体と今のコミットを指定する。 `判定: posted: ^見る範囲: PR の差分全体$ && posted: ^確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$`
+3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`
+4. [記録] 成功した実装の Claude と違う系統を選ぶ。 `判定: called: ^multica issue runs issue-shop-1 && called: ^squad-dispatch-pick principal Claude$ && not-called: ^squad-dispatch-pick principal Codex$`

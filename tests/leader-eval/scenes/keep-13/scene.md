@@ -3,16 +3,17 @@
 
 ## 元の出来事
 
-CI の見張り役がなくても、紐付いていない PR のその場の確認を省かない。
+最終レビューが通っても CI が未確認なら待つ。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` の実装の役のコメント `comment-3` で起きました。返信は `--parent comment-3` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-最後の実装を push した引き継ぎです。承認済みのフェーズは全部そろい、レビューと QA の E2E が残っています。metadata の `pr_url` は `https://github.com/example/shop/pull/7` で、PR は紐付いていません。タスクは `in_progress`、返事を待つ回や PR に触れる実行はなく、重要の新しい判断の時機ではありません。
-このスクワッドには CI の見張り役がいません。評価用の指示からも、その役は外されています。
+今の head の最終レビューは ✅ です。CI は未確認です。マージの依頼はまだありません。
 
 ## 合格の基準
 
-1. [記録] 見張り役の ID なしで CI を確認し、コンフリクトも確認している。 `判定: called: ^squad-pr-watch ci-now issue-shop-1 agent-orchestrator comment-3$ && called: ^squad-pr-watch conflicts-check issue-shop-1 && not-called: ^squad-pr-watch ci issue-shop-1`
-2. [記録] 紐付けだけでは止まらず、レビューと QA へ回している。 `判定: not-posted: mention://member/member1 && called: ^squad-review-wait watch issue-shop-1 comment-3 && posted: mention://agent/agent-qa && posted: mention://agent/agent-(code|ux|security|performance)-reviewer`
+1. [記録] CI の待ちを流す。 `判定: called: ^squad-pr-watch ci-wait issue-shop-1 agent-orchestrator comment-final`
+2. [記録] 待っている状態を記録する。 `判定: posted: CI 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567: 未確認`
+3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`
+4. [記録] マージの依頼を出さない。 `判定: not-posted: ^マージの依頼: && not-posted: mention://agent/agent-.*principal`

@@ -3,16 +3,17 @@
 
 ## 元の出来事
 
-マージ待ちの食い違いの知らせでは、判定を流し直してマージを止める。
+最終レビューが通っても CI が実行中なら待つ。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` のマージ待ちの間に、CI の見張り役が書いた食い違いの知らせ `comment-6` で起きました。返信は `--parent comment-6` です。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-タスクは `in_review` で、前回は人間にマージを頼んでいました。metadata の `pr_url` は `https://github.com/example/shop/pull/7` ですが、別の PR `https://github.com/example/shop/pull/8` が紐付きました。返事を待つ回も動いている役もありません。
+今の head の最終レビューは ✅ です。CI は実行中です。マージの依頼はまだありません。
 
 ## 合格の基準
 
-1. [記録] 判定を流し直し、両方の URL を示して人間を呼んでいる。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && posted: mention://member/member1 && posted: https://github.com/example/shop/pull/7 && posted: https://github.com/example/shop/pull/8`
-2. [記録] in_review を保ち、修正や別のレビューへ回していない。 `判定: not-called: ^multica issue status issue-shop-1 (in_progress|done|cancelled) && not-posted: mention://agent/ && not-called: ^squad-review-wait watch && not-called: ^multica issue metadata set`
-3. [採点] マージを頼んだあとで食い違いが分かったことを説明し、どちらが正か決めるまでマージしないでほしいと頼んでいる。
+1. [記録] CI の待ちを流す。 `判定: called: ^squad-pr-watch ci-wait issue-shop-1 agent-orchestrator comment-final`
+2. [記録] 待っている状態を記録する。 `判定: posted: CI 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567: 実行中`
+3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`
+4. [記録] マージの依頼を出さない。 `判定: not-posted: ^マージの依頼: && not-posted: mention://agent/agent-.*principal`

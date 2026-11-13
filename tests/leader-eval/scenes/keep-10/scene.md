@@ -3,16 +3,17 @@
 
 ## 元の出来事
 
-成果物と別の PR が紐付いていたら、どちらかへ勝手に合わせず人間へ返す。
+人間が印を外しても、設計の見直しを再依頼せず最終レビューをする。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` の実装の役のコメント `comment-3` で起きました。返信は `--parent comment-3` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-最後の実装を push した引き継ぎです。承認済みのフェーズは全部そろい、レビューと QA の E2E が残っています。metadata の `pr_url` は `https://github.com/example/shop/pull/7` で、一覧には別の PR `https://github.com/example/shop/pull/8` だけが紐付いています。タスクは `in_progress`、返事を待つ回や PR に触れる実行はなく、重要の新しい判断の時機ではありません。
+人間がラベル `重要` を外しました。今は印がありません。設計の見直しの必要な時点ではありません。
 
 ## 合格の基準
 
-1. [記録] 両方の URL を示して人間へ返し、in_review にしている。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && posted: mention://member/member1 && posted: https://github.com/example/shop/pull/7 && posted: https://github.com/example/shop/pull/8 && called: ^multica issue status issue-shop-1 in_review`
-2. [記録] レビューや修正を頼まず、metadata と紐付けも変えていない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-wait watch && not-called: ^multica issue metadata set && not-called: ^squad-pr-link`
-3. [採点] どちらの PR が正かを人間に決めてもらっている。自分で片方に決めていない。
+1. [記録] 最終レビューを、ほかの役と別の回で頼む。 `判定: called: ^squad-review-wait watch issue-shop-1 comment-final agent-codex-principal && posted: ^見直しの種類: 最終レビュー$ && posted: ^返事を待つ役:.*mention://agent/agent-codex-principal`
+2. [記録] 初回は差分全体と今のコミットを指定する。 `判定: posted: ^見る範囲: PR の差分全体$ && posted: ^確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$`
+3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`
+4. [記録] 印を付け直さず、設計の見直しも頼まない。 `判定: not-called: ^multica issue label add && not-posted: ^見直しの種類: 設計`

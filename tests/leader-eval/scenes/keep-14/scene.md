@@ -3,16 +3,17 @@
 
 ## 元の出来事
 
-紐付いた PR のマージ待ちでは、既存の見張りだけを登録する。
+待ちの規則で CI の成功を拾ったら、一度だけマージを頼む。
 
 ## 入力
 
-あなたはスクワッドのリーダーです。タスク `issue-shop-1` に QA の役が書いた「返事がそろいました」というコメント `comment-5` で起きました。返信は `--parent comment-5` にしてください。
+あなたはスクワッドのリーダーです。タスク `issue-shop-1` のコメント `comment-final` で起きました。返信は `--parent comment-final` を使います。PR は `https://github.com/example/shop/pull/7` で、タスクに紐付いています。設計と全フェーズは承認・実装済みです。レビューと E2E は今の head `3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567` でそろい、❌ はありません。
 
-レビューと E2E はどちらも成功し、人間のマージへ回すところです。metadata の `pr_url` は `https://github.com/example/shop/pull/7`、タスクは `in_progress` です。PR に触れる実行はありません。
-PR はタスクに紐付いています。
+CI 待ちの規則 `ci-wait-rule` で起きました。この規則は今の待ちの規則です。今の head の最終レビューは ✅ で、CI も成功しました。マージ依頼のコメントはまだありません。
 
 ## 合格の基準
 
-1. [記録] 紐付けとコンフリクトを確認し、従来の CI・コンフリクトの規則を登録している。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && called: ^squad-pr-watch conflicts-check issue-shop-1 && called: ^squad-pr-watch ci issue-shop-1 && called: ^squad-pr-watch conflicts issue-shop-1`
-2. [記録] 紐付いていない PR 用の定期確認を登録せず、人間のマージへ回している。 `判定: not-called: ^squad-pr-watch unlinked issue-shop-1 && posted: mention://member/member1 && called: ^multica issue status issue-shop-1 in_review`
+1. [記録] 起きた規則の ID を渡す。 `判定: called: ^squad-pr-watch ci-wait issue-shop-1 agent-orchestrator comment-final ci-wait-rule$`
+2. [記録] 成功を読んでからマージを依頼する。 `判定: before: ^squad-pr-watch ci-wait => ^multica issue comment add && posted: mention://member/member1`
+3. [記録] 今の完全な head で依頼の行を残す。 `判定: posted: ^マージの依頼: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$`
+4. [採点] マージの依頼は、同じ head に 1 回だけである。

@@ -25,6 +25,10 @@
 #     紐付いていない PR のマージ待ちを、1 時間おき・72 時間まで確認する規則を登録する。
 #   squad-pr-watch unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>]
 #     終了・紐付けを先に確認し、CI とコンフリクト、食い違いを重複なく知らせる。
+#   squad-pr-watch ci-wait <タスク> <リーダー> <きっかけのコメント> [<起きた規則>]
+#     CI が成功するまで、2 時間を上限に、リーダーを起こす 1 回きりの規則で待つ。
+#   squad-pr-watch ci-wait-clear <タスク>
+#     待ちの規則と metadata を消す。
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
 PR_WATCH_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-pr-watch"
@@ -34,7 +38,7 @@ UNLINKED_LIMIT_HOURS=72
 UNLINKED_MAX_FIRES=100
 
 usage() {
-	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント> | unlinked <タスク> <きっかけのコメント> [<見張り役の ID>] | unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>]' >&2
+	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント> | unlinked <タスク> <きっかけのコメント> [<見張り役の ID>] | unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>] | ci-wait <タスク> <リーダー> <きっかけのコメント> [<起きた規則>] | ci-wait-clear <タスク>' >&2
 	exit 2
 }
 
@@ -712,6 +716,155 @@ unlinked_check() {
 	return "$status"
 }
 
+# 継続的な CI 見張りやコンフリクトの規則は残し、待ち専用の規則だけを消す。
+ci_wait_delete_rules() {
+	local issue=$1 task=$2 rules ids id
+	rules=$(squad_cli_read issue-wakeups "$issue") || return 1
+	ids=$(jq -r --arg old "$(jq -r '.metadata.ci_wait_rule | select(. != null)' <<<"$task")" '
+		.[] | select(.id == $old or (.mode == "once"
+			and .condition.type == "pull_request" and .condition.event == "checks_finished"
+			and (.instruction | startswith("CI の待ちの規則で起きました。")))) | .id' <<<"$rules")
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		multica issue wakeup delete "$issue" "$id" --output json >/dev/null || return 1
+	done <<<"$ids"
+}
+
+ci_wait_clear() {
+	local issue=$1 task=${2:-} key
+	[[ -n $task ]] || task=$(squad_cli_read issue-get "$issue") || return 1
+	ci_wait_delete_rules "$issue" "$task" || return 1
+	for key in ci_wait_rule ci_wait_head ci_wait_since; do
+		if jq -e --arg key "$key" '.metadata | has($key)' <<<"$task" >/dev/null; then
+			multica issue metadata delete "$issue" --key "$key" --output json >/dev/null || return 1
+		fi
+	done
+}
+
+ci_wait_line() {
+	local head=$1 state=$2
+	printf 'CI%s: %s\n' "${head:+ $head}" "$state"
+}
+
+ci_wait_finish() {
+	local issue=$1 task=$2 trigger=$3 comments=$4 head=$5 state=$6 failures=$7 body
+	if [[ $state == 失敗あり ]] && ! ci_handled "$comments" "${head:0:7}"; then
+		mkdir -p tmp
+		body=$(mktemp tmp/pr-watch-ci-wait-held.XXXXXX)
+		trap "$(printf 'rm -f -- %q' "$body")" EXIT
+		ci_record "CI ${head:0:7}: 保留した失敗をリーダーが引き継ぎで受けた" >"$body"
+		multica issue comment add "$issue" --parent "$trigger" --content-file "$body" --output table >/dev/null || return 1
+		rm -f "$body"
+		trap - EXIT
+	fi
+	ci_wait_clear "$issue" "$task" || return 1
+	ci_wait_line "$head" "$state"
+	if [[ $state == 失敗あり ]]; then jq -r '.[]' <<<"$failures"; fi
+}
+
+ci_wait() {
+	local issue=$1 leader=$2 trigger=$3 fired=${4:-} task head since now pass pr_url pr new_head checks failures state comments
+	local instruction response rule remaining key
+	local limit=7200 interval=1800
+	task=$(squad_cli_read issue-get "$issue") || return 1
+	# 削除の直前に起動が決まっていた規則も、今の規則と違えば何もせず終える。
+	if [[ -n $fired ]] && ! jq -e --arg fired "$fired" '
+		.metadata | has("ci_wait_head") and .ci_wait_since != null and .ci_wait_rule == $fired' <<<"$task" >/dev/null; then
+		echo 'CI 待ち: 終わった規則で起きた'
+		return 0
+	fi
+	if ! jq -e '.metadata |
+		(.ci_wait_head == null or (.ci_wait_head | type) == "string") and
+		(.ci_wait_rule == null or (.ci_wait_rule | type) == "string") and
+		(.ci_wait_since == null or (.ci_wait_since | type == "number" and . >= 0 and . == floor))' <<<"$task" >/dev/null; then
+		echo 'CI 待ちの metadata の形式が不正です。' >&2
+		return 1
+	fi
+	head=$(jq -r '.metadata.ci_wait_head | select(. != null)' <<<"$task")
+	since=$(jq -r '.metadata.ci_wait_since | select(. != null)' <<<"$task")
+	case $(jq -r '.status_category' <<<"$task") in
+	done | cancelled)
+		ci_wait_clear "$issue" "$task" || return 1
+		echo 'CI 待ち: タスクが終わっている'
+		return 0
+		;;
+	esac
+	pr_url=$(jq -r '.metadata.pr_url | select(. != null)' <<<"$task")
+	# 登録の直前に終わった CI は条件で起きないため、登録後にも必ず読む。
+	for pass in 1 2; do
+		now=$(date +%s)
+		state=未確認 new_head= failures='[]'
+		if [[ -n $pr_url ]] && pr=$(squad_cli_read gh-pr-checks "$pr_url" 2>/dev/null); then
+			new_head=$(jq -r '.headRefOid' <<<"$pr")
+			case $(jq -r '.state' <<<"$pr") in
+			MERGED | CLOSED)
+				ci_wait_finish "$issue" "$task" "$trigger" '[]' "$new_head" 'PR がマージ済みか閉じている' '[]'
+				return $?
+				;;
+			esac
+			if [[ -n $new_head && $(jq -r '.state' <<<"$pr") == OPEN ]]; then
+				checks=$(jq '.statusCheckRollup' <<<"$pr")
+				failures=$(ci_failures "$checks")
+				if [[ $(jq length <<<"$checks") == 0 ]]; then state=チェックなし
+				elif [[ $(jq length <<<"$failures") != 0 ]]; then state=失敗あり
+				elif jq -e 'any(.[];
+					if .__typename == "CheckRun" then .status != "COMPLETED"
+					elif .__typename == "StatusContext" then (.state != "SUCCESS" and .state != "FAILURE" and .state != "ERROR")
+					else true end)' <<<"$checks" >/dev/null; then state=実行中
+				elif jq -e 'all(.[];
+					if .__typename == "CheckRun" then .status == "COMPLETED" and .conclusion == "SUCCESS"
+					elif .__typename == "StatusContext" then .state == "SUCCESS"
+					else false end)' <<<"$checks" >/dev/null; then state=成功
+				else state=未確認; fi
+			fi
+		fi
+		if [[ -n $new_head && $new_head != "$head" ]]; then head=$new_head; since=$now; fi
+		[[ -n $since ]] || since=$now
+		comments=$(squad_cli_read issue-comments "$issue") || return 1
+		if [[ -n $head ]] && jq -e --arg head "$head" --arg leader "$leader" '
+			any(.[]; .author_type == "agent" and .author_id == $leader
+				and (.content | split("\n") | index("マージの依頼: " + $head)) != null)' <<<"$comments" >/dev/null; then
+			state=マージを依頼済み
+		fi
+		case $state in
+		成功 | チェックなし | 失敗あり | マージを依頼済み)
+			ci_wait_finish "$issue" "$task" "$trigger" "$comments" "$head" "$state" "$failures"
+			return $?
+			;;
+		esac
+		remaining=$((limit - (now - since)))
+		if ((remaining <= 0)); then
+			ci_wait_finish "$issue" "$task" "$trigger" "$comments" "$head" "${state}（待つ上限の 2 時間を超えた）" "$failures"
+			return $?
+		fi
+		if ((pass == 1)); then ci_wait_delete_rules "$issue" "$task" || return 1; fi
+		multica issue metadata set "$issue" --key ci_wait_head --value "$head" --type string --output json >/dev/null || return 1
+		multica issue metadata set "$issue" --key ci_wait_since --value "$since" --type number --output json >/dev/null || return 1
+		task=$(jq --arg head "$head" --argjson since "$since" '.metadata += {ci_wait_head:$head, ci_wait_since:$since}' <<<"$task")
+		if ((pass == 2)); then
+			ci_wait_line "$head" "$state"
+			return 0
+		fi
+		((remaining <= interval)) || remaining=$interval
+		mkdir -p tmp
+		instruction=$(mktemp tmp/pr-watch-ci-wait.XXXXXX)
+		trap "$(printf 'rm -f -- %q' "$instruction")" EXIT
+		{
+			echo 'CI の待ちの規則で起きました。'
+			echo 'タスクとコメントを読み、マージの前の確認を最初から流してください。'
+			printf 'CI の待ちは squad-pr-watch ci-wait %q %q %q に、この実行を起こした規則の ID を最後の引数として渡してください。\n' "$issue" "$leader" "$trigger"
+			echo '実行中と未確認なら、マージを頼まず人間を呼ばずに待ちます。終了済みの PR とタスク、依頼済みと終わった規則では、依頼も状態変更もしません。'
+		} >"$instruction"
+		response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr checks --mode once \
+			--agent-id "$leader" --parent "$trigger" --expires-in "${remaining}s" --on-timeout wake) || return 1
+		rule=$(jq -r '.id' <<<"$response")
+		multica issue metadata set "$issue" --key ci_wait_rule --value "$rule" --type string --output json >/dev/null || return 1
+		task=$(jq --arg rule "$rule" '.metadata.ci_wait_rule = $rule' <<<"$task")
+		rm -f "$instruction"
+		trap - EXIT
+	done
+}
+
 case ${1:-} in
 link-check)
 	(($# == 2)) || usage
@@ -755,6 +908,16 @@ unlinked-check)
 	(($# == 3 || $# == 4)) || usage
 	require_commands jq python3 multica gh
 	unlinked_check "$2" "$3" "${4-}"
+	;;
+ci-wait)
+	(($# == 4 || $# == 5)) || usage
+	require_commands jq python3 multica
+	ci_wait "$2" "$3" "$4" "${5:-}"
+	;;
+ci-wait-clear)
+	(($# == 2)) || usage
+	require_commands jq python3 multica
+	ci_wait_clear "$2"
 	;;
 *) usage ;;
 esac
