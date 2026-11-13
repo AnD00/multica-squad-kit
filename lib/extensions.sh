@@ -3,7 +3,7 @@ choose_extension() {
 	kit_root=$root
 	kit_version=$(cat "$kit_root/VERSION") || die 'VERSION を読めません。'
 	[[ $kit_version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die 'VERSION が不正です。'
-	# 引数で受けたときは質問を出さず、答えたときと同じ確かめに進む。
+	# 引数で受けたときは質問を出さず、答えたときと同じ確認に進む。
 	if [[ -n ${extension_option:-} ]]; then
 		extension_dir=$extension_option
 		ui_mark err keep '拡張のディレクトリ' "$extension_dir"

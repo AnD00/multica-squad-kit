@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/squad-dependabot-merge-advance-request-test.sh。
-# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance のマージ・引数の検査と、ハッシュのない rebase を確かめる。
+# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance のマージ・引数の検査と、ハッシュのない rebase を確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"

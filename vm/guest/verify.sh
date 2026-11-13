@@ -71,7 +71,7 @@ daemon_environment() {
 	observed=$(ps eww -o command= -p "$pid") || return 1
 	[[ " $observed " == *" CODEX_HOME=$HOME/.multica-agent/codex "* && " $observed " == *" PATH=$HOME/.multica-agent/bin:"* ]]
 }
-# record-server を 1 回流し、記録がデーモンの接続先と同じことを確かめる。
+# record-server を 1 回流し、記録をデーモンの接続先と照合する。
 # 最初の記録の前に VM を止めても、接続先が残るようにするため。
 server_recorded() {
 	local login_path status expected
@@ -90,14 +90,14 @@ else
 	printf 'FAIL verify: Docker が rootless で動いていません。hello-world は飛ばします。\n' >&2
 	failed=1
 fi
-# Docker を使ったあとにも閉じ込めが保たれていることを確かめる。
+# Docker を使ったあとにも閉じ込めが保たれていることを確認する。
 isolation
 check 'デーモンの unit が有効' systemctl is-enabled --quiet multica-squad-daemon.service
 check '接続先を記録する timer が有効' systemctl is-enabled --quiet multica-squad-record-server.timer
 check '使う人の linger が有効' has_linger
 if [[ -f $HOME/.multica-agent/bin/gh ]]; then
 	check '起動中のデーモンの環境がセットアップと同じ' daemon_environment
-	# 環境が違うデーモンは記録の元にならないので、環境が合ったときだけ確かめる。
+	# 環境が違うデーモンは記録の元にならないので、環境が合ったときだけ確認する。
 	if [[ $passed == yes ]]; then
 		check '記録した接続先が起動中のデーモンと同じ' server_recorded
 	fi

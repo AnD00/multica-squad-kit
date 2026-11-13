@@ -131,7 +131,7 @@ source "$root/lib/host.sh"
 source "$root/lib/render.sh"
 source "$root/lib/project.sh"
 source "$root/lib/project-changes.sh"
-# エージェント登録の試験ではスクワッドの設定を差し替え、呼び出す順序を確かめる。
+# エージェント登録の試験ではスクワッドの設定を差し替え、呼び出す順序を確認する。
 complete_project() { echo "followup after agents"; }
 prepare_project_issues() { :; }
 prepare_project_webhooks() { :; }

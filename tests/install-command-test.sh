@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# README.md の 1 行のコマンドと手動の手順を取り出して、bash と zsh で流し、スタブの curl・gh と一時の置き場で確かめる。本物の GitHub には触れない。
-# 1 行のコマンドは、スタブの curl が返した入口（ルートの install.sh）を、擬似端末の中で流す。入口は最新のバージョンを出して取得・確かめ・展開し、
+# README.md の 1 行のコマンドと手動の手順を取り出して、bash と zsh で流し、スタブの curl・gh と一時の置き場で確認する。本物の GitHub には触れない。
+# 1 行のコマンドは、スタブの curl が返した入口（ルートの install.sh）を、擬似端末の中で流す。入口は最新のバージョンを出して取得・検証・展開し、
 # セットアップは端末から答えを読む。切れた入口と端末のないときは、何も取らずに終わる。
 # 手動の手順は、取り直しをせず、1 行のコマンドと同じ setup.sh を同じ引数で流す。
 set -euo pipefail
@@ -233,7 +233,7 @@ nothing_ran() {
 # one_line_args <末尾の引数>: README の 1 行のコマンドの末尾の bash に、bash -s -- のあとの引数を足したもの。
 one_line_args() { printf '%s' "${oneline%| bash}| bash -s -- $1"; }
 
-# 1 行のコマンド: curl が最新の Release の入口を取り、入口が最新のバージョンを出して、そのバージョンで取得・確かめ・展開・セットアップを流す。
+# 1 行のコマンド: curl が最新の Release の入口を取り、入口が最新のバージョンを出して、そのバージョンで取得・検証・展開・セットアップを流す。
 new_case oneline
 for shell in "${shells[@]}"; do
 	run_script "$shell" c "$oneline"
@@ -244,15 +244,15 @@ for shell in "${shells[@]}"; do
 	grep -qxF "使うバージョン: $version" "$case_dir/out" || fail "$shell: 読んだバージョンを出していません"
 	# バージョンを出してから、取得する。
 	[[ $(grep -n '使うバージョン: ' "$case_dir/out" | head -1 | cut -d: -f1) -lt $(grep -n '取得します' "$case_dir/out" | head -1 | cut -d: -f1) ]] || fail "$shell: バージョンを出す前に取得しています"
-	# 入口の取得は curl で済んでおり、gh は配布物と SHA256SUMS を 1 回だけ取る。証明は SHA256SUMS、配布物の順に、4 つの指定で確かめる。
+	# 入口の取得は curl で済んでおり、gh は配布物と SHA256SUMS を 1 回だけ取る。証明は SHA256SUMS、配布物の順に、4 つの指定で検証する。
 	[[ $(calls 'release download ') == 1 ]] || fail "$shell: 取得が 1 回ではありません"
 	grep -qx "release download $version --repo $repo_name --pattern $asset --pattern SHA256SUMS --dir .*" "$case_dir/gh.log" || fail "$shell: 配布物の取得が違います"
-	[[ $(normalized_attestations | tr '\n' '|') == "attestation verify SHA256SUMS$specs|attestation verify $asset$specs|" ]] || fail "$shell: 証明の確かめが違います"
+	[[ $(normalized_attestations | tr '\n' '|') == "attestation verify SHA256SUMS$specs|attestation verify $asset$specs|" ]] || fail "$shell: 証明を検証する引数が違います"
 	[[ $(<"$case_dir/setup.log") == $'args:\n'"pwd:"* ]] || fail "$shell: 展開した setup.sh が引数なしで流れていません"
 	[[ -s $case_dir/err ]] && fail "$shell: 標準エラー出力に出ています: $(<"$case_dir/err")"
 	cp "$case_dir/setup.log" "$case_dir/setup.log.$shell.oneline"
 done
-echo "PASS oneline: bash と zsh の擬似端末で、curl が取った入口が最新のバージョンを出し、そのバージョンで取得・確かめ・展開・セットアップが流れる"
+echo "PASS oneline: bash と zsh の擬似端末で、curl が取った入口が最新のバージョンを出し、そのバージョンで取得・検証・展開・セットアップが流れる"
 
 # セットアップの質問には、端末から答える（標準入力は入口を流すパイプで、答えはそこから読まれない）。
 printf 'yes\n' >"$case_dir/answers"
@@ -309,7 +309,7 @@ for shell in "${shells[@]}"; do
 	[[ $rc == 1 ]] || fail "$shell: 端末がないときの終了コードが 1 ではありません（${rc}）"
 	grep -qF '端末（/dev/tty）を開けません' "$case_dir/err" || fail "$shell: 端末がないことを出していません"
 	grep -qF 'bash install.sh' "$case_dir/err" || fail "$shell: ファイルに取ってから流すことを出していません"
-	[[ $(calls 'release ') == 0 && $(calls 'attestation ') == 0 ]] || fail "$shell: 端末がないのに取得か確かめに進んでいます"
+	[[ $(calls 'release ') == 0 && $(calls 'attestation ') == 0 ]] || fail "$shell: 端末がないのに取得か検証に進んでいます"
 	not_started
 done
 echo 'PASS oneline: 端末がないときは、取得の前に止まる'
@@ -324,7 +324,7 @@ for shell in "${shells[@]}"; do
 		gh_out=$old_out run_script "$shell" c "$oneline"
 		[[ $rc != 0 ]] || fail "$shell: 止まるはずが通りました: $old_out"
 		grep -qF '2.102.0 以上' "$case_dir/err" || fail "$shell: 必要なバージョンを出していません: $old_out"
-		[[ $(calls 'release ') == 0 && $(calls 'attestation ') == 0 ]] || fail "$shell: 古い gh で取得か確かめに進んでいます: $old_out"
+		[[ $(calls 'release ') == 0 && $(calls 'attestation ') == 0 ]] || fail "$shell: 古い gh で取得か検証に進んでいます: $old_out"
 		not_started
 	done
 	GH_VERSION_FAIL=1 run_script "$shell" c "$oneline"
@@ -332,7 +332,7 @@ for shell in "${shells[@]}"; do
 	grep -qF '2.102.0 以上' "$case_dir/err" || fail "$shell: gh --version の失敗で必要なバージョンを出していません"
 	not_started
 done
-echo 'PASS oneline: gh が 2.102.0 より古いか読めないときは、必要なバージョンを出して、取得も確かめも流さない'
+echo 'PASS oneline: gh が 2.102.0 より古いか読めないときは、必要なバージョンを出して、取得も検証も流さない'
 
 # 失敗したらその先を流さない: 最新を読めない・形が違う、SHA256SUMS か配布物の証明が通らない。
 for shell in "${shells[@]}"; do
@@ -351,12 +351,12 @@ for shell in "${shells[@]}"; do
 	setup_not_run
 	GH_FAIL_ON=$asset run_script "$shell" c "$oneline"
 	[[ $rc != 0 ]] || fail "$shell: 配布物の証明が通らないのに通りました"
-	grep -qF "証明を確かめられませんでした: $asset" "$case_dir/err" || fail "$shell: 配布物の証明の失敗が出ていません"
+	grep -qF "証明を検証できませんでした: $asset" "$case_dir/err" || fail "$shell: 配布物の証明の失敗が出ていません"
 	setup_not_run
 done
 echo 'PASS oneline: 最新を読めない・証明が通らないときは、その先（展開とセットアップ）を流さない'
 
-# 手動の手順: 同じシェルで順に流すと、取り直しがなく、1 行のコマンドと同じ確かめをして、同じ setup.sh が同じ引数で流れる。
+# 手動の手順: 同じシェルで順に流すと、取り直しがなく、1 行のコマンドと同じ検証をして、同じ setup.sh が同じ引数で流れる。
 manual_ext="$test_dir/manual-ext.sh"
 sed '$ s|$| --extension /ext/dir|' "$test_dir/manual.sh" >"$manual_ext"
 for shell in "${shells[@]}"; do
@@ -364,7 +364,7 @@ for shell in "${shells[@]}"; do
 	[[ $rc == 0 ]] || fail "$shell: 手動の手順が失敗しました（${rc}）"
 	[[ $(calls 'release download ') == 1 ]] || fail "$shell: 手動の手順で取得が 1 回ではありません（取り直しています）"
 	grep -qx "release download $version --repo $repo_name --pattern $asset --pattern SHA256SUMS --dir .*" "$case_dir/gh.log" || fail "$shell: 手動の手順の取得が違います"
-	[[ $(normalized_attestations | tr '\n' '|') == "attestation verify SHA256SUMS$specs|attestation verify $asset$specs|" ]] || fail "$shell: 手動の手順の証明の確かめが違います"
+	[[ $(normalized_attestations | tr '\n' '|') == "attestation verify SHA256SUMS$specs|attestation verify $asset$specs|" ]] || fail "$shell: 手動の手順の証明を検証する引数が違います"
 	grep -qxF "使うバージョン: $version" "$case_dir/out" || fail "$shell: 手動の手順がバージョンを出していません"
 	grep -qxF "$asset: OK" "$case_dir/out" || fail "$shell: 手動の手順のチェックサムの照合が通っていません"
 	grep -q " multica-squad-kit-$version/\$" "$case_dir/out" || fail "$shell: 一覧を出していません"
@@ -376,9 +376,9 @@ for shell in "${shells[@]}"; do
 	[[ $rc == 0 ]] || fail "$shell: 拡張を足した手動の手順が失敗しました（${rc}）"
 	cmp "$case_dir/setup.log" "$case_dir/setup.log.$shell.oneline-ext" || fail "$shell: 拡張を渡した 1 行のコマンドと setup.sh の流れ方が違います"
 done
-echo 'PASS manual: bash と zsh で、手動の手順は取り直さず、1 行のコマンドと同じ確かめをして、同じ setup.sh を同じ引数で流す'
+echo 'PASS manual: bash と zsh で、手動の手順は取り直さず、1 行のコマンドと同じ検証をして、同じ setup.sh を同じ引数で流す'
 
-# 手動の手順は、確かめが通らなければそこで止まり、展開も実行もしない。
+# 手動の手順は、検証が通らなければそこで止まり、展開も実行もしない。
 for shell in "${shells[@]}"; do
 	GH_FAIL_ON=SHA256SUMS run_script "$shell" e "$test_dir/manual.sh"
 	[[ $rc != 0 ]] || fail "$shell: SHA256SUMS の証明が通らないのに手動の手順が通りました"

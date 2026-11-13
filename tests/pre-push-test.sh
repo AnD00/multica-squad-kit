@@ -5,7 +5,7 @@ mkdir -p "$root/tmp"
 test_dir=$(mktemp -d "$root/tmp/pre-push.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 mkdir -p "$test_dir/repo" "$test_dir/temp"
-# 実際の履歴で fast-forward と巻き戻しを確かめる。remote への push はしない。
+# 実際の履歴で fast-forward と巻き戻しを確認する。remote への push はしない。
 git init -q "$test_dir/repo"
 cd "$test_dir/repo"
 export GIT_AUTHOR_NAME=Fixture GIT_AUTHOR_EMAIL=fixture@example.invalid

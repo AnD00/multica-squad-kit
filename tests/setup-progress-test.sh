@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# セットアップの作る間の表示（lib/ui.sh の ui_phase_*、ui_notice）を確かめる。
+# セットアップの作る間の表示（lib/ui.sh の ui_phase_*、ui_notice）を確認する。
 # 一覧が動いていないときは今までの表示のまま、書き換えない出力では終わった手順の行だけ、端末では同じ行の書き換えで出る。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)

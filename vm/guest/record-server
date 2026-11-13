@@ -20,7 +20,7 @@ jq -e 'type=="object" and (.status=="running" or .status=="stopped" or .status==
 [[ $(jq -r '.status' <<<"$status") == running ]] || exit 0
 pid=$(jq -er '.pid | select(type=="number" and .>0 and floor==.)' <<<"$status") || die 'デーモンの PID が不正です。'
 
-# lib/host.sh の daemon_has_agent_env と同じ確かめ。セットアップか start-daemon が起動した
+# lib/host.sh の daemon_has_agent_env と同じ確認。セットアップか start-daemon が起動した
 # デーモンだけを記録の元にし、手で別の設定で起動したデーモンの接続先を残さない。
 observed=$(ps eww -o command= -p "$pid") || exit 0
 [[ " $observed " == *" CODEX_HOME=$agent_home/codex "* && " $observed " == *" PATH=$agent_home/bin:"* ]] || exit 0

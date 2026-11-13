@@ -2,7 +2,7 @@
 # 記録はホストに 1 つだけ置き、セットアップが最後まで終わったときだけ書く。
 version_record_file() { printf '%s/template/version' "${TEMPLATE_AGENT_HOME:-$HOME/.multica-agent}"; }
 # 拡張を読むと root が付け替わるので、今流している原本のバージョンは、読み込んだ時点で控える。
-# 道具の確かめの前に読むので、外部のコマンドは使わない。
+# 道具の確認の前に読むので、外部のコマンドは使わない。
 IFS= read -r version_running_value <"$root/VERSION" || true
 version_running_value=${version_running_value//[[:space:]]/}
 version_running() { printf '%s' "$version_running_value"; }
@@ -43,7 +43,7 @@ check_update() {
 	installed=$(version_installed)
 	latest=$(gh api repos/AnD00/multica-squad-kit/releases/latest --jq .tag_name 2>/dev/null) || latest=''
 	if ! version_valid "$latest" || ! version_valid "$running"; then
-		ui_warning '最新のバージョンを確かめられませんでした。導入は続けます。'
+		ui_warning '最新のバージョンを確認できませんでした。導入は続けます。'
 		return 0
 	fi
 	version_newer "$latest" "$installed" || return 0

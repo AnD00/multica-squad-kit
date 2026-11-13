@@ -96,7 +96,7 @@ agent_name() {
 	squad_cli_read agent-get "$1" | jq -r '.name'
 }
 
-# 引数の ID が有効なエージェントかを、前の見張りを消す前に確かめる。
+# 引数の ID が有効なエージェントかを、前の見張りを消す前に確認する。
 check_agent() {
 	squad_cli_read agent-get "$1" | jq -e --arg id "$1" '
 		.id == $id and .archived_at == null' >/dev/null
@@ -116,7 +116,7 @@ unwatch() {
 watch() {
 	local issue=$1 parent=$2 id ids='' instruction response
 	shift 2
-	# ID の誤りでは前の見張りを失わないよう、消す前に全員を確かめる。
+	# ID の誤りでは前の見張りを失わないよう、消す前に全員を確認する。
 	for id in "$@"; do
 		check_agent "$id" || return 1
 		ids+="${id}"$'\n'
@@ -255,7 +255,7 @@ report() {
 		echo "結果のファイルが読めない: ${file}" >&2
 		exit 1
 	}
-	# 回のない依頼を /note で返すと、orchestrator に届かず止まる。投稿する前に確かめる。
+	# 回のない依頼を /note で返すと、orchestrator に届かず止まる。投稿する前に確認する。
 	round=$(comments_of "$issue" | latest_round)
 	if [[ -z $round ]]; then
 		echo '返事を待つ役の登録がありません。結果は投稿していません。スキル squad-handoff の「引き継ぐとき」に従い、orchestrator をメンションして返してください。' >&2

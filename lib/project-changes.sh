@@ -30,7 +30,7 @@ prepare_project_change_issues() {
 			queue_project_issue handoff-skill-update "$target" "$assignee"
 		fi
 	else
-		record_project_issue_failure handoff-skill-update '' '共通スキルを読み直せなかったため、更新を頼む対象を確かめられませんでした。'
+		record_project_issue_failure handoff-skill-update '' '共通スキルを読み直せなかったため、更新を頼む対象を確認できませんでした。'
 	fi
 	if [[ $(jq length <<<"${setup_removed_targets:-[]}") != 0 ]]; then
 		queue_project_issue removed-roles "$setup_removed_targets" "$host_owner_id"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確かめる。
+# scripts/release.sh の動きを、一時の Git のリポジトリとスタブの gh で確認する。
 # origin は一時の bare のリポジトリで、本物の GitHub には push せず、Release もワークフローの実行も作らない。
 # 設計は docs/release.md の「テストと CI」。スタブの gh は、Release の一覧を JSON の状態として持ち、
 # release create、run watch、release edit で状態を動かす。配布物は、スタブが scripts/build-assets.sh をタグに流して作る。
@@ -45,7 +45,7 @@ step_names=(
 	'タグを作って push する'
 	'下書きの Release を作る'
 	'発行のワークフローに配布物を作らせ、終わるまで待つ'
-	'配布物を確かめる'
+	'配布物を検証する'
 	'Release を公開する'
 )
 # steps_expected <最初の手順の番号>: 確認に出す、灰の○の一覧。
@@ -95,7 +95,7 @@ assert at + len(start) + len(body) <= output.index('エラー:'.encode())
 assert '出力 ここから'.encode() not in output and '出力 ここまで'.encode() not in output
 PY
 }
-# 配布物の確かめは、4 項目が 1 行ずつ、4 の手順の続きの行として出る。タグの install.sh の出力と、「展開も実行もしていません」は出ない。
+# 配布物の検証は、4 項目が 1 行ずつ、4 の手順の続きの行として出る。タグの install.sh の出力と、「展開も実行もしていません」は出ない。
 expect_verify_rows() {
 	local expected
 	expected=$(
@@ -106,13 +106,13 @@ expect_verify_rows() {
 	)
 	[[ $(grep '^      ✔ ' "$case_dir/out") == "$expected" ]]
 	! grep -qF '展開も実行もしていません' "$case_dir/out" "$case_dir/err"
-	! grep -qF '確かめが通りました' "$case_dir/out" "$case_dir/err"
+	! grep -qF '確認が通りました' "$case_dir/out" "$case_dir/err"
 }
 # expect_summary <コミット> <Release の URL> <ワークフローの実行の URL か、見つからないとき空>: 終わりの表示が設計のとおり、出力の末尾にある。
 expect_summary() {
 	local run_line expected
 	run_line=$3
-	[[ -n $run_line ]] || run_line='! 発行のワークフローの実行が見つかりません。GitHub の Actions の画面で確かめてください。'
+	[[ -n $run_line ]] || run_line='! 発行のワークフローの実行が見つかりません。GitHub の Actions の画面で確認してください。'
 	expected=$(
 		printf '\n✔ v1.6.0  %s\n' "$2"
 		printf '  %s\n\n' "$1"
@@ -122,8 +122,8 @@ expect_summary() {
 	[[ $(tail -n 10 "$case_dir/out") == "$expected" ]]
 	grep -qE '^  ✔ Release を公開する$' "$case_dir/out"
 }
-# expect_screen <結果の語> <タグと Release の値> <タグを付けるコミット> <最初の手順の番号>: 確認の前の画面の全体（確かめの一覧から、することの一覧まで）が設計のとおり。
-# 配布物を作らせる状態（最初の手順が 1〜3）では、確かめの 9 の案内の行が先頭に出る。
+# expect_screen <結果の語> <タグと Release の値> <タグを付けるコミット> <最初の手順の番号>: 確認の前の画面の全体（確認の一覧から、することの一覧まで）が設計のとおり。
+# 配布物を作らせる状態（最初の手順が 1〜3）では、検証の 9 の案内の行が先頭に出る。
 expect_screen() {
 	local head12 commit12
 	head12=$(git -C "$work" rev-parse HEAD)
@@ -132,7 +132,7 @@ expect_screen() {
 	local expected
 	expected=$(
 		if (($4 <= 3)); then
-			printf 'タグを付ける前に、配布物を作って確かめます（確かめの 9）。\n'
+			printf 'タグを付ける前に、配布物を作って確認します（検証の 9）。\n'
 		fi
 		printf '  ✔ 道具              git gh tar shasum diff cmp  gh 2.102.0  2.102.0 以上\n'
 		printf '  ✔ 場所              example/kit  main\n'
@@ -151,7 +151,7 @@ expect_screen() {
 	grep -qF '公開しますか [y/N]: ' "$case_dir/err"
 }
 
-# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確かめる。タグがあるケース用。
+# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確認する。タグがあるケース用。
 expect_stop_keep() {
 	local before
 	before=$(snapshot)
