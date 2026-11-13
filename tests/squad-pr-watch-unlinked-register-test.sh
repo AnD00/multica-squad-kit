@@ -16,7 +16,7 @@ printf '%s\n' "$(rule old "$mark"$'\n古い指示')" "$(rule disabled "$mark")" 
 	"$(rule ci 'PR の CI が終わりました。')" "$(rule other "${mark}別の文")" | jq -s . >"$test_dir/rules.json"
 (cd "$test_dir" && bash "$script" unlinked test-issue trigger-comment monitor) >"$test_dir/output"
 [[ $(deleted_ids) == disabled,old ]]
-assert_jq '[.[].id] | sort == ["ci","other"]' "$test_dir/rules.json"
+assert_jq --arg created "$(jq -r .id "$test_dir/wakeup-prototype.json")" '[.[].id] | sort == (["ci","other",$created] | sort)' "$test_dir/rules.json"
 assert_jq -s 'length == 1 and (.[] | .args as $args |
 	all([["--kind","every"],["--every","1h"],["--expires-in","72h"],["--on-timeout","end"],
 		["--max-fires","100"],["--agent-id","monitor"],["--parent","ci-thread"]][];
@@ -91,3 +91,15 @@ for value in absent null; do
 	assert_jq 'map(.id) == ["old"]' "$test_dir/rules.json"
 done
 echo 'PASS unlinked: 作成日時が欠けた一覧では、規則を変えずに失敗を返す'
+
+# 記録先は実物にある必須欄から読み、欄の欠落をきっかけのコメントで補わない。
+assert_jq '.entries["issue-wakeups"].items.fields | any(.[]; .path == "parent_comment_id" and .class == "required" and .nullable == true)' "$test_dir/contracts.json"
+reset_fixture
+touch "$test_dir/allow-missing-fields"
+fixture issue-wakeups | jq 'del(.parent_comment_id) | [. + {id:"old"}]' >"$test_dir/rules.json"
+status=0
+(cd "$test_dir" && bash "$script" unlinked test-issue trigger-comment monitor) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/wakeups.jsonl ]]
+grep -q 'parent_comment_id' "$test_dir/error"
+assert_jq 'map(.id) == ["old"]' "$test_dir/rules.json"
+echo 'PASS unlinked: 規則の返信先の欄が欠けた一覧では、規則と記録先を変更しない'

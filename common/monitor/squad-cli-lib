@@ -293,6 +293,11 @@ squad_cli_contracts() {
             "nullable": false
           },
           {
+            "path": "parent_comment_id",
+            "class": "required",
+            "nullable": true
+          },
+          {
             "path": "agent_id",
             "class": "required",
             "nullable": false

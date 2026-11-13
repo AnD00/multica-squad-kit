@@ -493,18 +493,34 @@ unlinked_clear() {
 
 # 同時登録でも、作成日時と ID の同じ順で 1 つを残す。
 unlinked_deduplicate() {
-	local issue=$1 rules ids id status
-	rules=$(squad_cli_read issue-wakeups "$issue") || return 1
-	ids=$(jq -r --arg mark "$UNLINKED_MARK" '[.[] | select((.instruction | split("\n")[0]) == $mark)]
-		| sort_by(.created_at, .id) | .[1:][] | .id' <<<"$rules") || return 1
-	while IFS= read -r id; do
-		[[ -n $id ]] || continue
-		if multica issue wakeup delete "$issue" "$id" --output json >/dev/null; then :; else
-			status=$?
-			# 同時に同じ余分な規則を消した場合の 404 だけは、整理済みとする。
-			((status == 4)) || return "$status"
+	local issue=$1 rules ordered ids id status survivor thread task current
+	while :; do
+		rules=$(squad_cli_read issue-wakeups "$issue") || return 1
+		ordered=$(jq --arg mark "$UNLINKED_MARK" '[.[] | select((.instruction | split("\n")[0]) == $mark)]
+			| sort_by(.created_at, .id)' <<<"$rules") || return 1
+		survivor=$(jq -r '.[0].id // empty' <<<"$ordered")
+		[[ -n $survivor ]] || return 0
+		thread=$(jq -er '.[0].parent_comment_id | select(type == "string" and length > 0)' <<<"$ordered") || return 1
+		ids=$(jq -r '.[1:][] | .id' <<<"$ordered")
+		while IFS= read -r id; do
+			[[ -n $id ]] || continue
+			if multica issue wakeup delete "$issue" "$id" --output json >/dev/null; then :; else
+				status=$?
+				# 同時に同じ余分な規則を消した場合の 404 だけは、整理済みとする。
+				((status == 4)) || return "$status"
+			fi
+		done <<<"$ids"
+		# 初期化の最後の書き込みではなく、残す規則の返信先に記録をそろえる。
+		task=$(squad_cli_read issue-get "$issue") || return 1
+		if [[ $(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task") != "$thread" ]]; then
+			multica issue metadata set "$issue" --key ci_watch_thread --value "$thread" --output json >/dev/null || return "$?"
 		fi
-	done <<<"$ids"
+		# 別の登録が規則を入れ直した場合、消された規則の記録先を残さない。
+		rules=$(squad_cli_read issue-wakeups "$issue") || return 1
+		current=$(jq -r --arg mark "$UNLINKED_MARK" '[.[] | select((.instruction | split("\n")[0]) == $mark)]
+			| sort_by(.created_at, .id) | .[0].id // empty' <<<"$rules") || return 1
+		[[ $current != "$survivor" ]] || return 0
+	done
 }
 
 unlinked() {
@@ -520,7 +536,6 @@ unlinked() {
 	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
 	if [[ -z $thread ]]; then
 		thread=$trigger
-		multica issue metadata set "$issue" --key ci_watch_thread --value "$thread" --output json >/dev/null
 	fi
 	target=${monitor:-$leader}
 	mkdir -p tmp

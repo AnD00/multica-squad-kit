@@ -56,6 +56,17 @@ case "${1-} ${2-} ${3-}" in
 	args=$(jq -cn --args '$ARGS.positional' -- "$@")
 	file=$(jq -er 'index("--instruction-file") as $i | .[$i+1]' <<<"$args")
 	jq -Rs --argjson args "$args" '{args:$args, body:.}' <"$file" >>"$dir/wakeups.jsonl"
+	if [[ $(head -n 1 "$file") == '紐付いていない PR のマージ待ちの見張りで起きました。' ]]; then
+		# 登録後に残す規則の返信先を読むため、作成を一覧にも反映する。
+		python3 "$PR_WATCH_TEST_ROOT/tests/pr-watch-fixture.py" base issue-wakeups >"$dir/rule-prototype.json"
+		jq -n --slurpfile base "$dir/rule-prototype.json" --slurpfile created "$dir/wakeup-prototype.json" \
+			--rawfile instruction "$file" --argjson args "$args" '$base[0] + {
+			id:$created[0].id, created_at:$created[0].created_at, instruction:$instruction,
+			parent_comment_id:($args | index("--parent") as $i | .[$i+1])
+		}' >"$dir/created-rule.json"
+		jq --slurpfile created "$dir/created-rule.json" '. + [$created[0]]' "$dir/rules.json" >"$dir/updated.json"
+		mv "$dir/updated.json" "$dir/rules.json"
+	fi
 	if [[ -f $dir/wakeup-response.json ]]; then
 		emit issue-wakeup-create "$dir/wakeup-response.json"
 	else
