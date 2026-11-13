@@ -415,6 +415,13 @@ ci_wait() {
 	fi
 	head=$(jq -r '.metadata.ci_wait_head | select(. != null)' <<<"$task")
 	since=$(jq -r '.metadata.ci_wait_since | select(. != null)' <<<"$task")
+	case $(jq -r '.status_category' <<<"$task") in
+	done | cancelled)
+		ci_wait_clear "$issue" "$task" || return 1
+		echo 'CI 待ち: タスクが終わっている'
+		return 0
+		;;
+	esac
 	pr_url=$(jq -r '.metadata.pr_url | select(. != null)' <<<"$task")
 	# 登録の直前に終わった CI は条件で起きないため、登録後にも必ず読む。
 	for pass in 1 2; do
@@ -422,6 +429,12 @@ ci_wait() {
 		state=未確認 new_head= failures='[]'
 		if [[ -n $pr_url ]] && pr=$(squad_cli_read gh-pr-checks "$pr_url" 2>/dev/null); then
 			new_head=$(jq -r '.headRefOid' <<<"$pr")
+			case $(jq -r '.state' <<<"$pr") in
+			MERGED | CLOSED)
+				ci_wait_finish "$issue" "$task" "$trigger" '[]' "$new_head" 'PR がマージ済みか閉じている' '[]'
+				return $?
+				;;
+			esac
 			if [[ -n $new_head && $(jq -r '.state' <<<"$pr") == OPEN ]]; then
 				checks=$(jq '.statusCheckRollup' <<<"$pr")
 				failures=$(ci_failures "$checks")
@@ -469,7 +482,7 @@ ci_wait() {
 			echo 'CI の待ちの規則で起きました。'
 			echo 'タスクとコメントを読み、マージの前の確認を最初から流してください。'
 			printf 'CI の待ちは squad-pr-watch ci-wait %q %q %q に、この実行を起こした規則の ID を最後の引数として渡してください。\n' "$issue" "$leader" "$trigger"
-			echo '実行中と未確認なら、マージを頼まず人間を呼ばずに待ちます。依頼済みと終わった規則では、依頼も状態変更もしません。'
+			echo '実行中と未確認なら、マージを頼まず人間を呼ばずに待ちます。終了済みの PR とタスク、依頼済みと終わった規則では、依頼も状態変更もしません。'
 		} >"$instruction"
 		response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr checks --mode once \
 			--agent-id "$leader" --parent "$trigger" --expires-in "${remaining}s" --on-timeout wake) || return 1

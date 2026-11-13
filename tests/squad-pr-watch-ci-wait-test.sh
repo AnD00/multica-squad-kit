@@ -50,6 +50,48 @@ requested() {
 		'[$base[0] + {author_type:"agent",author_id:$author,content:$value}]' >"$test_dir/comments.json"
 }
 
+# 終了状態は CI の結果や期限より優先し、待ちの規則だけを解除する。
+for ended in CLOSED MERGED done cancelled; do
+	for age in none 0 7200; do
+		wait_fixture
+		if [[ $age != none ]]; then old_wait "$age"; fi
+		case $ended in
+		CLOSED | MERGED)
+			jq --arg state "$ended" '.state=$state' "$test_dir/pr.json" >"$test_dir/updated.json"
+			mv "$test_dir/updated.json" "$test_dir/pr.json"
+			expected="CI $head: PR がマージ済みか閉じている"
+			;;
+		done | cancelled)
+			jq --arg state "$ended" '.status=$state | .status_category=$state' "$test_dir/task.json" >"$test_dir/updated.json"
+			mv "$test_dir/updated.json" "$test_dir/task.json"
+			# 終了タスクは PR が読めなくても待たない。
+			touch "$test_dir/fail-gh"
+			expected='CI 待ち: タスクが終わっている'
+			;;
+		esac
+		wait_output "$expected"
+		assert_cleared
+		if [[ $age != none ]]; then
+			assert_jq 'length==2 and all(.[]; .id=="monitor-rule" or .id=="conflicts-rule")' "$test_dir/rules.json"
+		fi
+		assert_jq --arg ended "$ended" 'if $ended=="done" or $ended=="cancelled" then .status==$ended and .status_category==$ended else .status=="in_progress" end' "$test_dir/task.json"
+		[[ ! -s $test_dir/wakeups.jsonl && ! -s $test_dir/posted.jsonl ]]
+		assert_jq -s 'all(.[]; .[0:3]!=["issue","metadata","set"] and .[0:2]!=["issue","status"])' "$test_dir/calls.jsonl"
+	done
+done
+echo 'PASS ci-wait: 終了済み PR と終了・取り消し済みタスクでは、期限にかかわらず依頼も状態変更もせず待ちだけを解除する'
+
+# 規則を作った直後に PR が終わったときも、新しい規則を残さない。
+for ended in CLOSED MERGED; do
+	wait_fixture
+	jq --arg state "$ended" '.state=$state' "$test_dir/pr.json" >"$test_dir/pr-after-first.json"
+	wait_output "CI $head: PR がマージ済みか閉じている"
+	assert_cleared
+	assert_jq -s 'length==1' "$test_dir/wakeups.jsonl"
+	[[ ! -s $test_dir/posted.jsonl ]]
+done
+echo 'PASS ci-wait: 規則の登録直後に PR が終了した場合も、再読で規則を解除する'
+
 for status in SUCCESS CANCELLED none FAILURE; do
 	wait_fixture
 	old_wait
