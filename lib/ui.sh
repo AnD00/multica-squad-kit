@@ -250,12 +250,17 @@ ui_rewind() {
 
 # チェックリスト。1 つの出す先に出し、一度に一つだけ動かす。呼ぶ側は、終わるときの片付け
 # （trap）でも ui_steps_cleanup を呼ぶ。
+#
+# 端末へ描くのは、一覧を始めたプロセス（親）だけにする。裏で描くプロセスも、時間で合わせる
+# 止め方もない。そのため、止める・待つ・競り合う場面がなく、サブシェルの二重描きも起きない。
+# スピナーは、描くたびに 1 コマ進む。親が自分の間隔で回したいときは、ui_step_tick を呼ぶ。
+# 一覧が動いている間、バックグラウンドのサブシェルから ui_* を呼んではいけない（前景で待つサブ
+# シェルが 1 回描くのは、親が止まっているので順に並ぶ）。
 ui_steps_active=no
 ui_steps_live=no
 ui_steps_count=0
 ui_steps_wait_interval=30
-ui_spinner_pid=
-ui_steps_dir=
+ui_steps_resized=no
 ui_steps_notice_file=
 ui_steps_subject=
 ui_steps_phase_began=0
@@ -264,19 +269,8 @@ ui_steps_owner_subshell=
 ui_steps_cleanup() {
 	# bash 3.2 には BASHPID がない。継承した状態は、その一覧を始めたサブシェルの深さで区別する。
 	[[ -z ${ui_steps_owner_subshell:-} || $BASH_SUBSHELL == "$ui_steps_owner_subshell" ]] || return 0
-	_ui_spinner_stop
-	if [[ -n ${ui_steps_dir:-} ]]; then rm -rf -- "$ui_steps_dir"; fi
 	if [[ -n ${ui_steps_notice_file:-} ]]; then rm -f -- "$ui_steps_notice_file" "$ui_steps_notice_file.failed"; fi
-	ui_steps_dir= ui_steps_notice_file= ui_steps_active=no ui_steps_live=no
-}
-
-_ui_spinner_stop() {
-	if [[ -n ${ui_spinner_pid:-} ]]; then
-		# 子の起動前でも消せる印で止める。trap を準備する前の子にシグナルを送らない。
-		rm -f -- "$ui_steps_dir/spinner-running"
-		{ wait "$ui_spinner_pid"; } 2>/dev/null || :
-		ui_spinner_pid=
-	fi
+	ui_steps_notice_file= ui_steps_active=no ui_steps_live=no ui_steps_resized=no
 }
 
 # _ui_steps_clip <色の列を含む行> <幅>: 行を幅に収めて ui_steps_clipped に置く。収まらないときは、
@@ -431,7 +425,7 @@ _ui_steps_refresh() {
 	[[ $ui_steps_live == yes ]] || return 0
 	ui_size "$ui_steps_target"
 	if [[ $ui_columns != "$ui_steps_columns" || $ui_lines != "$ui_steps_lines" ]]; then changed=yes; fi
-	if [[ -n $ui_steps_dir && -f $ui_steps_dir/resized ]]; then changed=yes; fi
+	if [[ $ui_steps_resized == yes ]]; then changed=yes; fi
 	while ((next < ui_steps_count)) && [[ ${ui_steps_states[$next]} == ok ]]; do next=$((next + 1)); done
 	for ((i = next; i < ui_steps_count; i++)); do
 		pending=$((pending + 1))
@@ -461,44 +455,28 @@ _ui_steps_refresh() {
 	ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines
 }
 
-# 動いている手順の行のスピナーを、0.1 秒ごとに裏で回す。回すたびに大きさを読み、変わっていたら
-# 回すのをやめて、表に書き換えをやめさせる印のファイルを置く。
-_ui_spinner_start() {
-	[[ $ui_steps_live == yes && $ui_steps_active == yes ]] || return 0
+# ui_step_tick: 動いている手順の行のスピナーを 1 コマ回す。呼んだプロセスが、自分の間隔で呼ぶ
+# （待つ間のループなど）。描くのは、一覧を始めたプロセスだけで、ほかは何もしない。大きさが変わって
+# いたら描かずに印を立て、次に ui_step_* が一覧を切らずに出し直す。常に 0 を返す。
+ui_step_tick() {
+	[[ $ui_steps_live == yes && $ui_steps_active == yes && $ui_steps_resized != yes ]] || return 0
 	((ui_steps_cache_active >= 0)) || return 0
-	[[ -n $ui_steps_dir ]] || return 0
-	: >"$ui_steps_dir/spinner-running" || return 0
-	local owner=$$
-	(
-		# 親の作業場所を片付ける trap は、この子では実行しない。
-		trap - EXIT TERM HUP INT
-		ticks=0
-		while [[ -f $ui_steps_dir/spinner-running ]]; do
-			sleep 0.1
-			[[ -f $ui_steps_dir/spinner-running ]] || break
-			kill -0 "$owner" 2>/dev/null || break
-			# 親が終わってもまだ受け取られていない（zombie）あいだは kill -0 が通るので、1 秒おきに状態も見る。
-			ticks=$((ticks + 1))
-			if ((ticks % 10 == 0)); then
-				state=$(ps -o stat= -p "$owner" 2>/dev/null) || state=
-				[[ $state != Z* ]] || break
-			fi
-			ui_size "$ui_steps_target"
-			if [[ $ui_columns != "$ui_steps_columns" || $ui_lines != "$ui_steps_lines" ]]; then
-				if [[ -n $ui_steps_dir ]]; then : >"$ui_steps_dir/resized"; fi
-				break
-			fi
-			ui_steps_frame=$((ui_steps_frame + 1))
-			ui_steps_text=$(_ui_steps_main "$ui_steps_current" 2>&1)
-			_ui_steps_clip "$ui_steps_text" "$((ui_columns - 1))"
-			ui_steps_cache[$ui_steps_cache_active]=$ui_steps_clipped
-			_ui_steps_rewind_text
-			ui_steps_buffer=$ui_steps_rewind
-			for ((i = 0; i < ui_steps_cache_count; i++)); do ui_steps_buffer+=${ui_steps_cache[$i]}$'\n'; done
-			_ui_steps_write "$ui_steps_buffer"
-		done
-	) &
-	ui_spinner_pid=$!
+	[[ $BASH_SUBSHELL == "$ui_steps_owner_subshell" ]] || return 0
+	ui_size "$ui_steps_target"
+	if [[ $ui_columns != "$ui_steps_columns" || $ui_lines != "$ui_steps_lines" ]]; then
+		ui_steps_resized=yes
+		return 0
+	fi
+	ui_steps_frame=$((ui_steps_frame + 1))
+	ui_steps_text=$(_ui_steps_main "$ui_steps_current" 2>&1)
+	_ui_steps_clip "$ui_steps_text" "$((ui_columns - 1))"
+	ui_steps_cache[$ui_steps_cache_active]=$ui_steps_clipped
+	_ui_steps_rewind_text
+	ui_steps_buffer=$ui_steps_rewind
+	local i
+	for ((i = 0; i < ui_steps_cache_count; i++)); do ui_steps_buffer+=${ui_steps_cache[$i]}$'\n'; done
+	_ui_steps_write "$ui_steps_buffer"
+	return 0
 }
 
 # ui_steps_begin <out|err> <字下げ> <名前…>: 手順の名前を覚える。書き換えるときは、すべての手順を
@@ -531,7 +509,7 @@ ui_steps_begin() {
 	done
 	ui_steps_active=yes
 	if [[ $ui_steps_live == yes ]]; then
-		ui_steps_dir=$(mktemp -d "${TMPDIR:-/tmp}/squad-ui.XXXXXX" 2>/dev/null) || ui_steps_dir=
+		ui_steps_resized=no
 		ui_size "$ui_steps_target"
 		ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines
 		_ui_steps_refresh
@@ -541,10 +519,8 @@ ui_steps_begin() {
 # ui_steps_show: 書き換えるかによらず、今の一覧を出す。
 ui_steps_show() {
 	local i line rest
-	_ui_spinner_stop
 	if [[ $ui_steps_live == yes ]]; then
 		_ui_steps_refresh
-		_ui_spinner_start
 		return 0
 	fi
 	ui_steps_buffer=
@@ -568,7 +544,6 @@ ui_steps_show() {
 # 出した範囲が流れたときや、その間にリサイズされたときは戻らない。
 ui_steps_tail() {
 	local rest=$1 line rows=$ui_steps_shown_rows capable
-	_ui_spinner_stop
 	ui_steps_tail_lines=() ui_steps_tail_count=0
 	ui_size "$ui_steps_target"
 	while [[ -n $rest ]]; do
@@ -585,35 +560,29 @@ ui_steps_tail() {
 		ui_steps_live=no
 		return 0
 	fi
-	ui_steps_live=yes ui_steps_drawn=$rows ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines
-	if [[ -z $ui_steps_dir ]]; then ui_steps_dir=$(mktemp -d "${TMPDIR:-/tmp}/squad-ui.XXXXXX" 2>/dev/null) || ui_steps_dir=; fi
+	ui_steps_live=yes ui_steps_drawn=$rows ui_steps_columns=$ui_columns ui_steps_lines=$ui_lines ui_steps_resized=no
 }
 
 ui_step_start() {
-	_ui_spinner_stop
 	ui_steps_current=$(($1 - 1))
 	((ui_steps_current >= 0 && ui_steps_current < ui_steps_count)) || return 1
 	ui_steps_states[$ui_steps_current]=active
 	ui_steps_progress=0 ui_steps_total=0 ui_steps_elapsed= ui_steps_subname= ui_steps_last_wait=0 ui_steps_hide_count=no
 	_ui_steps_refresh
-	_ui_spinner_start
 }
 
 # ui_step_progress <済んだ数> <全体の数> [名前] [nocount]: ゲージを描く。4 つ目に nocount を渡すと、
 # ゲージのあとの「済んだ数/全体の数」を出さない（数を読めても、画面に出したくないとき）。
 ui_step_progress() {
-	_ui_spinner_stop
 	ui_steps_progress=$1 ui_steps_total=$2 ui_steps_subname=${3-} ui_steps_hide_count=no
 	if [[ ${4-} == nocount ]]; then ui_steps_hide_count=yes; fi
 	if ((ui_steps_progress < 0)); then ui_steps_progress=0; fi
 	if ((ui_steps_progress > ui_steps_total)); then ui_steps_progress=$ui_steps_total; fi
 	_ui_steps_refresh
-	_ui_spinner_start
 }
 
 # ui_step_wait <経過の秒>: 書き換えないときは、ui_steps_wait_interval 秒ごとに 1 行だけ足す。
 ui_step_wait() {
-	_ui_spinner_stop
 	_ui_steps_time "$1"
 	ui_steps_elapsed=$ui_steps_time_text
 	_ui_steps_refresh
@@ -622,7 +591,6 @@ ui_step_wait() {
 		_ui_steps_write "$ui_steps_text"$'\n'
 		ui_steps_last_wait=$1
 	fi
-	_ui_spinner_start
 }
 
 # 書き換えないときに、今の手順の行と、まだ出していない続きの行を順に出す。
@@ -643,7 +611,6 @@ _ui_steps_plain_done() {
 
 # ui_step_done <値>
 ui_step_done() {
-	_ui_spinner_stop
 	ui_steps_states[$ui_steps_current]=ok ui_steps_values[$ui_steps_current]=${1-}
 	_ui_steps_refresh
 	if [[ $ui_steps_live == no && $ui_steps_flushed == no ]]; then _ui_steps_plain_done; fi
@@ -651,7 +618,6 @@ ui_step_done() {
 
 # ui_step_fail [名前]: 動いている手順を ✖ にして、以後は書き換えない。
 ui_step_fail() {
-	_ui_spinner_stop
 	ui_steps_states[$ui_steps_current]=fail ui_steps_values[$ui_steps_current]=${1-}
 	_ui_steps_refresh final
 	if [[ $ui_steps_live == no && $ui_steps_flushed == no ]]; then _ui_steps_plain_done; fi
@@ -661,7 +627,6 @@ ui_step_fail() {
 # ui_step_line <印|-> <本文> [値]: 今の手順の行の下に続きの行を足す。
 ui_step_line() {
 	local index=$ui_steps_extra_count
-	_ui_spinner_stop
 	ui_steps_extra_steps[$index]=$ui_steps_current ui_steps_extra_marks[$index]=$1
 	ui_steps_extra_texts[$index]=$2 ui_steps_extra_values[$index]=${3-} ui_steps_extra_printed[$index]=no
 	ui_steps_extra_count=$((index + 1))
@@ -678,7 +643,6 @@ ui_step_line() {
 		_ui_steps_write "$ui_steps_text"$'\n'
 		ui_steps_extra_printed[$index]=yes
 	fi
-	_ui_spinner_start
 }
 
 # 子のプロセス（サブシェル）の中の通知を、一覧を動かしている親へ渡す。子は一覧の状態を書き換えても親へ戻せない

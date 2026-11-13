@@ -35,33 +35,55 @@ print(re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', Path(sys.argv[1]).read_bytes().decode
 PY
 }
 
+# 流すスクリプトが読む道具。スピナーは描くプロセスが 1 つだけで、時間では回らないので、回すときは
+# ui_step_tick を数えて呼び、待つときは条件（大きさが変わった、など）を上限つきで待つ。
+cat >"$test_dir/lib.sh" <<'SH'
+# ticks <回数>: ui_step_tick を回数だけ呼ぶ。
+ticks() { local t; for ((t = 0; t < $1; t++)); do ui_step_tick; done; }
+# wait_size <out|err> <桁> <行>: 疑似端末の大きさがその値になるまで、上限つきで待つ。
+wait_size() {
+	local n
+	for ((n = 0; n < 200; n++)); do
+		ui_size "$1"
+		if [[ $ui_columns == "$2" && $ui_lines == "$3" ]]; then return 0; fi
+		sleep 0.05
+	done
+	return 1
+}
+# kids: この関数を呼んだシェルの子のプロセス（ps 自身を除く）を、kids_left に置く。裏で描くプロセスが残っていない
+# ことの確認。ps は呼んだシェルから直接起こし（コマンド置換の中では起こさない）、一覧を取ってから読む。
+kids() {
+	ps -A -o pid=,ppid=,comm= >"$TMPDIR/kids.ps"
+	kids_left=$(awk -v parent="$$" '$2 == parent && $3 !~ /(^|\/)ps$/' "$TMPDIR/kids.ps")
+}
+SH
+
 # 一覧の通常の流れ。スピナーと値、ゲージ、経過、続きの行、失敗を、同じ行の書き換えで出す。
 cat >"$test_dir/flow.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 ui_steps_begin out 2 "push" "draft を作る" "確認"
 ui_step_start 1
-sleep 0.35
+ticks 5
 ui_step_done "1.2.3"
 ui_step_start 2
 ui_step_progress 3 10 "名前"
-sleep 0.35
+ticks 5
 ui_step_wait 75
 ui_step_line - "補足の行" "値"
-sleep 0.25
-pid=$ui_spinner_pid
-kill -0 "$pid"
+ticks 5
 ui_step_done "PR #1"
-if kill -0 "$pid" 2>/dev/null; then echo "spinner-left"; fi
 ui_step_start 3
 ui_step_fail "確認"
-printf 'end pid=[%s]\n' "$ui_spinner_pid"
+kids
+printf 'end jobs=[%s] kids=[%s]\n' "$(jobs -p | tr -d '\n')" "$kids_left"
 SH
-run_steps out "$test_dir/flow.sh"
+run_steps out "$test_dir/flow.sh" TMPDIR="$test_dir"
 screen "$test_dir/out" >"$test_dir/screen"
-printf '  ✔ push          1.2.3\n  ✔ draft を作る  PR #1\n      補足の行  値\n  ✖ 確認          確認\nend pid=[]\n' >"$test_dir/expected"
+printf '  ✔ push          1.2.3\n  ✔ draft を作る  PR #1\n      補足の行  値\n  ✖ 確認          確認\nend jobs=[] kids=[]\n' >"$test_dir/expected"
 cmp "$test_dir/screen" "$test_dir/expected"
-# スピナーは 0.1 秒ごとにコマ送りし、色は active の青、ゲージは青と灰、値と名前は灰、✖ は太字の赤。
+# スピナーは呼ぶたびにコマ送りし、色は active の青、ゲージは青と灰、値と名前は灰、✖ は太字の赤。
 python3 - "$test_dir/out" <<'PY'
 from pathlib import Path
 import re
@@ -74,7 +96,6 @@ assert f'{esc}[38;5;32m━━━━━{esc}[0m{esc}[38;5;244m──────�
 assert f'{esc}[38;5;244m1m15s{esc}[0m' in data
 assert f'{esc}[1;38;5;196m✖{esc}[0m' in data
 assert f'{esc}[38;5;28m✔{esc}[0m push' in data
-assert 'spinner-left' not in data
 # 上へ戻る行の数は、その時点で描いた行の数を超えない。
 total = 0
 for match in re.finditer(esc + r'\[(\d+)A', data):
@@ -82,7 +103,7 @@ for match in re.finditer(esc + r'\[(\d+)A', data):
 assert esc + '[2K' not in data and esc + '[J' in data
 PY
 [[ ! -s $test_dir/err ]]
-echo 'PASS ui-steps: スピナーとゲージ、経過、続きの行、失敗の ✖ を、同じ行の書き換えで出し、終わるとスピナーが残らない'
+echo 'PASS ui-steps: スピナーとゲージ、経過、続きの行、失敗の ✖ を、同じ行の書き換えで出し、描く裏のプロセスが無い'
 
 # 終わった手順の下に続きの行を足しても、画面に残した行の順を保つ。
 cat >"$test_dir/insert.sh" <<'SH'
@@ -94,7 +115,7 @@ ui_step_done v1
 ui_step_line - URL x
 ui_step_start 2
 ui_step_line - 中の行
-sleep 0.15
+ui_step_tick
 ui_step_done v2
 ui_step_start 3
 ui_step_done v3
@@ -108,18 +129,19 @@ echo 'PASS ui-steps: 終わった手順の下の続きの行は、画面の行�
 # 幅が狭いとき、書き換える範囲の行は幅 - 1 に切って灰の … を付け、終わった行は切らずに残す。
 cat >"$test_dir/narrow.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 printf 'go\n'
-sleep 0.5
+wait_size out 40 10
 ui_steps_begin out 0 "とても長い名前の手順その一その二その三" "短い手順"
 ui_step_start 1
-sleep 0.35
+ticks 3
 ui_step_done "とても長い値の文字がここに続く"
 ui_step_start 2
-sleep 0.15
+ticks 2
 ui_step_done 値
 SH
-run_steps out "$test_dir/narrow.sh" --resize-on go 40 10
+run_steps out "$test_dir/narrow.sh" --resize-on go 40 10 TMPDIR="$test_dir"
 python3 - "$test_dir/out" <<'PY'
 from pathlib import Path
 import re
@@ -146,9 +168,10 @@ echo 'PASS ui-steps: 幅 40 の端末で、書き換える範囲の行は幅 - 1
 # 範囲が高さ - 1 を超えるときは、一覧を切らずに 1 回だけ出し、上へ戻らずに行を足していく。
 cat >"$test_dir/tall.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 printf 'go\n'
-sleep 0.5
+wait_size out 100 10
 names=()
 for i in 1 2 3 4 5 6 7 8 9 10 11 12; do names+=("手順 $i"); done
 ui_steps_begin out 0 "${names[@]}"
@@ -158,7 +181,7 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
 	ui_step_done "v$i"
 done
 SH
-run_steps out "$test_dir/tall.sh" --resize-on go 100 10
+run_steps out "$test_dir/tall.sh" --resize-on go 100 10 TMPDIR="$test_dir"
 python3 - "$test_dir/out" <<'PY'
 from pathlib import Path
 import re
@@ -178,33 +201,39 @@ assert plain[1:] == expected + done + [''], plain
 PY
 echo 'PASS ui-steps: 高さ 10 に収まらない一覧は、切らずに 1 回出し、そのあと上へ戻らずに終わった行を順に足す'
 
-# 動かしている途中で端末の大きさが変わると、スピナーが読み取って書き換えをやめ、以後は一覧を切らずに
-# 上へ戻らずに出し、終わった行を足す。
+# 動かしている途中で端末の大きさが変わると、次の ui_step_tick が読み取って描くのをやめ、以後は一覧を
+# 切らずに上へ戻らずに出し、終わった行を足す。
 cat >"$test_dir/resize.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 ui_steps_begin out 0 "手順 一" "手順 二" "手順 三"
 ui_step_start 1
-sleep 0.25
+ticks 2
 ui_step_progress 1 4 RESIZE
-sleep 0.8
-pid=$ui_spinner_pid
-if kill -0 "$pid" 2>/dev/null; then echo "spinner-still-running"; fi
+# 疑似端末が大きさを変えるまで、条件を上限つきで待つ（時間でコマを数えない）。
+for ((n = 0; n < 200; n++)); do
+	[[ $ui_steps_resized == yes ]] && break
+	ui_step_tick
+	sleep 0.05
+done
+[[ $ui_steps_resized == yes ]] || exit 8
+# 印が立ったあとの tick は、何も描かない。
+ticks 5
 ui_step_done 値1
 ui_step_start 2
-sleep 0.15
+ticks 2
 ui_step_done 値2
 ui_step_start 3
 ui_step_done 値3
 SH
-run_steps out "$test_dir/resize.sh" --resize-on RESIZE 50 20
+run_steps out "$test_dir/resize.sh" --resize-on RESIZE 50 20 TMPDIR="$test_dir"
 python3 - "$test_dir/out" <<'PY'
 from pathlib import Path
 import re
 import sys
 esc = '\x1b'
 data = Path(sys.argv[1]).read_bytes().decode()
-assert 'spinner-still-running' not in data
 rewinds = [m.end() for m in re.finditer(esc + r'\[\d+A\r' + esc + r'\[J', data)]
 assert rewinds
 tail = data[rewinds[-1]:]
@@ -215,45 +244,72 @@ assert plain[-6:] == ['✔ 手順 一  値1', '○ 手順 二', '○ 手順 三'
 # スピナーの行は、大きさが変わったあとの出力に残らない。
 assert not re.search(r'[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]', '\n'.join(plain[-6:]))
 PY
-echo 'PASS ui-steps: 端末の大きさが変わったら、スピナーが読み取って止まり、以後は上へ戻らずに一覧を出し直して行を足す'
+echo 'PASS ui-steps: 端末の大きさが変わったら、次の tick が読み取って描くのをやめ、以後は上へ戻らずに一覧を出し直して行を足す'
 
-# 片付け: 終わらずに止まっても、スピナーの裏のプロセスが残らず、メッセージも出ない。
-cat >"$test_dir/cleanup.sh" <<'SH'
+# 描くのは、一覧を始めたプロセスだけ。呼んだ回数だけ描き、サブシェルの tick は何も描かない。
+cat >"$test_dir/owner.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
-trap ui_steps_cleanup EXIT
 ui_steps_begin out 0 a b
 ui_step_start 1
-printf '%s\n' "$ui_spinner_pid" >"$2.pid"
-sleep 0.3
+# 描くプロセスが無いので、呼ばない間に描かれることはない。時間を置いて確かめず、子のプロセスが無いことと、
+# 描いた回数（下の確認）が呼んだ回数に一致することで確かめる。
+kids
+[[ -z $(jobs -p) && -z $kids_left ]] || exit 7
+# サブシェルの tick と、前景のコマンド置換の中の tick は描かない。
+(ticks 5)
+x=$(ticks 5)
+[[ -z $x ]]
+ui_step_done 1
+ui_step_start 2
+ui_step_done 2
+SH
+run_steps out "$test_dir/owner.sh" TMPDIR="$test_dir"
+python3 - "$test_dir/out" <<'PY'
+from pathlib import Path
+import re
+import sys
+data = Path(sys.argv[1]).read_bytes().decode()
+# 描いたのは、始め・手順 1 の始まり・手順 1 の終わり・手順 2 の始まり・手順 2 の終わりの 5 回だけ。
+assert len(re.findall(r'\x1b\[\d+A\r\x1b\[J', data)) == 4, data
+PY
+echo 'PASS ui-steps: 描くのは親だけで、呼んだ回数だけ描き、サブシェルの tick は何も描かない'
+
+# 片付け: 終わらずに止まっても、描く裏のプロセスが残らず、メッセージも出ない。
+cat >"$test_dir/cleanup.sh" <<'SH'
+source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
+ui_init
+trap 'ui_steps_cleanup; kids; printf "kids=[%s]\n" "$kids_left"' EXIT
+ui_steps_begin out 0 a b
+ui_step_start 1
+ticks 3
 exit 3
 SH
 cat >"$test_dir/abandon.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 ui_steps_begin out 0 a b
 ui_step_start 1
-printf '%s\n' "$ui_spinner_pid" >"$2.pid"
-sleep 0.3
+ticks 3
+kids
+printf 'kids=[%s]\n' "$kids_left"
 SH
 for name in cleanup abandon; do
-	env -i PATH="$PATH" HOME="$test_dir" TERM=xterm-256color python3 "$root/tests/ui-pty.py" both "$test_dir/out" "$test_dir/err" -- bash "$test_dir/$name.sh" "$root" "$test_dir/$name" || true
-	pid=$(cat "$test_dir/$name.pid")
-	sleep 0.5
-	if kill -0 "$pid" 2>/dev/null; then
-		printf '%s: スピナー %s が残った\n' "$name" "$pid" >&2
-		kill "$pid" 2>/dev/null || true
-		exit 1
-	fi
+	run_steps both "$test_dir/$name.sh" TMPDIR="$test_dir" || true
+	grep -qF 'kids=[]' "$test_dir/out"
 	[[ ! -s $test_dir/err ]]
 	! grep -q 'Terminated' "$test_dir/out"
 done
-echo 'PASS ui-steps: 片付けか親の終了で、スピナーの裏のプロセスが残らず、Terminated も出ない'
+echo 'PASS ui-steps: 片付けか親の終了のあとも、描く裏のプロセスが残らず、Terminated も出ない'
 
-# 親の後片付けとシグナルの trap を置き、起動直後の更新と停止を繰り返す。
+# 親の後片付けとシグナルの trap を置き、進み・tick・待ちを順に呼ぶ。サブシェルの片付けは親の一覧を壊さない。
 cat >"$test_dir/restart.sh" <<'SH'
 set -euo pipefail
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 work=$(mktemp -d "$TMPDIR/restart.XXXXXX")
 cleanup() {
@@ -267,19 +323,21 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 ui_steps_begin out 0 restart
 ui_step_start 1
-steps_dir=$ui_steps_dir
-(ui_steps_cleanup)
-[[ -d $steps_dir ]]
-for ((n = 1; n <= 60; n++)); do
-	ui_step_progress "$n" 60 item
-	ui_step_wait "$n"
-	[[ -d $work && -d $steps_dir && ! -e $TMPDIR/restart-cleanup ]]
-done
-pid=$ui_spinner_pid
+(ui_steps_cleanup; [[ $ui_steps_active == yes ]])
+[[ $ui_steps_active == yes && $ui_steps_live == yes ]]
+# 描くのは呼んだ親の 1 回ごとなので、回数を重ねても結果は変わらない。順序（進み → tick → 待ち → 完了）と、
+# 途中で片付けが走らないことだけを、1 回ずつ確かめる。
+ui_step_progress 1 3 item
+ui_step_tick
+[[ -d $work && ! -e $TMPDIR/restart-cleanup ]]
+ui_step_wait 1
+ui_step_progress 3 3 item
+[[ -d $work && ! -e $TMPDIR/restart-cleanup ]]
 ui_step_done finished
-if kill -0 "$pid" 2>/dev/null; then exit 9; fi
+kids
+[[ -z $(jobs -p) && -z $kids_left ]] || exit 9
 ui_steps_cleanup
-[[ ! -e $steps_dir && -d $work ]]
+[[ $ui_steps_active == no && -d $work ]]
 printf 'restart-finished\n'
 SH
 run_steps both "$test_dir/restart.sh" TMPDIR="$test_dir"
@@ -288,62 +346,60 @@ grep -qF 'restart-finished' "$test_dir/out"
 ! grep -qE 'run_pending_traps|Terminated|No such file' "$test_dir/out"
 printf 'cleanup\n' >"$test_dir/expected"
 cmp "$test_dir/restart-cleanup" "$test_dir/expected"
-echo 'PASS ui-steps: 起動直後の進みと待ちを60回ずつ繰り返しても停止せず、親だけが作業場所を片付ける'
+echo 'PASS ui-steps: 進み・tick・待ちを順に呼んでも止まらず、サブシェルの片付けは親の状態を壊さず、親だけが作業場所を片付ける'
 
-# prepare_project_host が関所確認のサブシェルへ表示を渡す経路。外の確認だけを置き換える。
+# prepare_project_host が関所確認のサブシェルへ表示を渡す経路。外の確認だけを置き換える。子は前景で
+# 1 回だけ描き、その間の親は止まっているので、描きが重ならない。親が引き取ったあとも、1 つの流れで描く。
 cat >"$test_dir/handoff.sh" <<'SH'
 set -euo pipefail
 source "$1/lib/ui.sh"
 source "$1/lib/host.sh"
+source "$TMPDIR/lib.sh"
 root=$1
 TEMPLATE_AGENT_HOME="$TMPDIR/handoff-home"
 die() { printf '%s\n' "$*" >&2; exit 1; }
 host_check_guards() (
-	trap _ui_spinner_stop EXIT
-	# この子からは wait できない旧 PID が、呼び出し前に終了していなければ失敗。
-	if kill -0 "$original" 2>/dev/null; then exit 9; fi
 	ui_phase_progress 1 2 NEW
-	printf 'child-updated\n'
-	sleep 0.35
-	if kill -0 "$original" 2>/dev/null; then exit 10; fi
-	child_spinner=$ui_spinner_pid
-	_ui_spinner_stop
-	if kill -0 "$child_spinner" 2>/dev/null; then exit 11; fi
-	printf 'child-finished\n'
+	printf 'child-updated\n' >>"$TMPDIR/handoff-log"
 )
 ui_init
 trap ui_steps_cleanup EXIT
 ui_steps_begin out 0 old next
 for ((round = 0; round < 3; round++)); do
 	ui_step_start 1
-	original=$ui_spinner_pid
 	prepare_project_host project-a example/one
-	# 子の終了後は、親が新しいスピナーを持ち、待って止められる。
-	[[ -n $ui_spinner_pid && $ui_spinner_pid != "$original" ]]
-	kill -0 "$ui_spinner_pid"
-	_ui_spinner_stop
-	printf 'parent-resumed\n'
+	ui_step_tick
+	kids
+	[[ -z $(jobs -p) && -z $kids_left ]] || exit 9
+	printf 'parent-resumed\n' >>"$TMPDIR/handoff-log"
 done
 printf 'handoff-finished\n'
 SH
 run_steps both "$test_dir/handoff.sh" TMPDIR="$test_dir"
 grep -qF 'handoff-finished' "$test_dir/out"
 [[ ! -s $test_dir/err ]]
+printf 'child-updated\nparent-resumed\nchild-updated\nparent-resumed\nchild-updated\nparent-resumed\n' >"$test_dir/expected"
+cmp "$test_dir/handoff-log" "$test_dir/expected"
 python3 - "$test_dir/out" <<'PY'
 from pathlib import Path
 import re
 import sys
-data = re.sub(r'\x1b\[[0-9;]*m', '', Path(sys.argv[1]).read_text())
-chunks = data.split('child-updated')[1:]
-assert len(chunks) == 3
-for chunk in chunks:
-    child = chunk.split('child-finished', 1)[0]
-    # 子が回す複数のフレームが、いずれも更新後のゲージと対象名を保つ。
-    frames = re.findall(r'[^\n]*old[^\n]*', child)
-    assert sum('1/2' in frame and 'NEW' in frame for frame in frames) >= 2, frames
-    assert all('1/2' in frame and 'NEW' in frame for frame in frames), frames
+raw = Path(sys.argv[1]).read_bytes().decode()
+assert raw.count('\x1b[2A\r\x1b[J') == 9, raw.count('\x1b[2A\r\x1b[J')
+assert not re.search(r'\x1b\[(?!2A)\d+A', raw)
+blocks = raw.split('\x1b[2A\r\x1b[J')[1:]
+blocks[-1] = blocks[-1].split('handoff-finished')[0]
+kinds = []
+for block in blocks:
+    plain = re.sub(r'\x1b\[[0-9;]*m', '', block)
+    # どの描きも、ちょうど 2 行で、別の描きと混ざらない。
+    plain = plain.replace('\r', '')
+    assert plain.count('\n') == 2 and len(plain.rstrip('\n').split('\n')) == 2, repr(plain)
+    kinds.append('child' if '1/2' in plain and 'NEW' in plain else 'parent')
+# 手順の始まり（親）→ 子の更新 → tick（親）を、3 回続けて繰り返す。
+assert kinds == ['parent', 'child', 'parent'] * 3, kinds
 PY
-echo 'PASS ui-steps: 関所確認の子へ渡す前に旧スピナーを待ち切り、子の更新を古い表示へ戻さず、親が再開する'
+echo 'PASS ui-steps: 関所確認の子が前景で 1 回描いても、親の描きと混ざらず、親が同じ流れで続けて描く'
 
 # 確認の前は切らずに出し、答えた問いと空行を、そのあとで書き換える範囲に含める。
 cat >"$test_dir/tail.sh" <<'SH'
@@ -361,7 +417,7 @@ printf '\nQ: y\n'
 ui_steps_tail $'\nQ: y\n'
 [[ $ui_steps_drawn == 4 ]]
 ui_step_start 1
-sleep 0.25
+ui_step_tick
 ui_step_done 1
 ui_step_start 2
 ui_step_done 2
@@ -406,6 +462,7 @@ echo 'PASS ui-steps: 折り返した問いの行数を含めて戻り、その�
 # 問いを待つ間に端末が変わったときや、一覧と問いが高さを超えたときは戻らない。
 cat >"$test_dir/tail-guard.sh" <<'SH'
 source "$1/lib/ui.sh"
+source "$TMPDIR/lib.sh"
 ui_init
 trap ui_steps_cleanup EXIT
 live=$ui_live_out
@@ -414,7 +471,7 @@ ui_steps_begin out 0 a b
 ui_live_out=$live
 ui_steps_show
 printf '\nQ: RESIZE\n'
-sleep 0.5
+wait_size out 40 10
 ui_steps_tail $'\nQ: RESIZE\n'
 [[ $ui_steps_live == no ]] || exit 8
 ui_step_start 1
@@ -473,9 +530,9 @@ cmp "$test_dir/plain-err" "$test_dir/expected"
 echo 'PASS ui-steps: 端末でない出力では、終わった行を順に出し、30 秒おきの経過の行と続きの行も制御文字なしで順に出す'
 
 # 色を付けない端末（NO_COLOR）でも書き換えない。
-run_steps both "$test_dir/flow.sh" NO_COLOR=1
+run_steps both "$test_dir/flow.sh" NO_COLOR=1 TMPDIR="$test_dir"
 stripped "$test_dir/out" >"$test_dir/screen"
-printf '  ✔ push          1.2.3\n  ✔ draft を作る  PR #1\n      補足の行  値\n  ✖ 確認          確認\nend pid=[]\n' >"$test_dir/expected"
+printf '  ✔ push          1.2.3\n  ✔ draft を作る  PR #1\n      補足の行  値\n  ✖ 確認          確認\nend jobs=[] kids=[]\n' >"$test_dir/expected"
 ! grep -qF "$esc" "$test_dir/out"
 cmp <(grep -v '…' "$test_dir/screen") "$test_dir/expected"
 echo 'PASS ui-steps: NO_COLOR の端末では書き換えの制御文字を出さず、行の並びだけで進みが分かる'
@@ -487,13 +544,13 @@ ui_init
 ui_steps_begin out 0 s1 s2
 ui_step_start 1
 ui_step_progress 0 1 "" nocount
-sleep 0.35
+ui_step_tick
 ui_step_progress 3 10 "名前" nocount
-sleep 0.35
+ui_step_tick
 ui_step_done v1
 ui_step_start 2
 ui_step_progress 3 10 "名前"
-sleep 0.35
+ui_step_tick
 ui_step_done v2
 SH
 run_steps out "$test_dir/nocount.sh"

@@ -29,8 +29,7 @@ prepare_project() (
 	repository=$(jq -r '.[0].repository' <<<"$selected_repositories")
 	mkdir -p "$root/tmp"
 	project_work=$(mktemp -d "$root/tmp/project.XXXXXX") || die 'プロジェクトの作業場所を作れませんでした。'
-	# 作る間の一覧のスピナーは、この子のプロセスが動かすので、終わるときに止める。
-	trap 'rm -rf -- "$project_work"; _ui_spinner_stop' EXIT
+	trap 'rm -rf -- "$project_work"' EXIT
 	enabled=''
 	jq -e --arg known " $template_roles " 'type=="array" and all(.[]; . as $role | type=="string" and ($known|contains(" "+$role+" ")))' >/dev/null <<<"$excluded_roles" || die '外す役の指定が不正です。'
 	# 登録する系統だけに反映する。保存済みの回答には自分で外した役だけを残す。

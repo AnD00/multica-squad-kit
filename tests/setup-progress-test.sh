@@ -87,7 +87,7 @@ grep -qF 'エラー: 親も止まりました' "$test_dir/err"
 [[ -z $(ls "$test_dir" | grep -e '^notice\.' || true) ]] || { ls "$test_dir"; exit 1; }
 echo 'PASS setup-progress: 子と親の die が続いても ✖ は 1 度だけ出る'
 
-# 端末では、○ の一覧がスピナーを経て ✔ に変わり、サブシェルの中で止めたスピナーも残らない。
+# 端末では、○ の一覧がスピナーを経て ✔ に変わり、サブシェルの通知は手順の下に出て、描く裏のプロセスも無い。
 cat >"$test_dir/live.sh" <<'SH'
 source "$1/lib/ui.sh"
 ui_init
@@ -95,18 +95,18 @@ ui_steps_begin err 2 "手順 一" "手順 二" "手順 三"
 ui_steps_notice_file=$(mktemp "$1/tmp/${2}/notice.XXXXXX")
 trap ui_steps_cleanup EXIT
 ui_phase_start 1
-sleep 0.3
+ui_step_tick
+ui_step_tick
 ui_phase_done "値 一"
 ui_phase_start 2
 ui_phase_progress 0 2 "名前乙"
 (
-	trap _ui_spinner_stop EXIT
-	sleep 0.3
+	ui_step_tick
 	ui_notice add "子の通知" "値"
 )
 ui_phase_progress 2 2 "名前乙"
 ui_phase_done_counted 2
-printf 'spinner=[%s]\n' "$(jobs -p | tr -d '\n')"
+printf 'jobs=[%s]\n' "$(jobs -p | tr -d '\n')"
 SH
 env -i PATH="$PATH" HOME="$test_dir" TERM=xterm-256color python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- bash "$test_dir/live.sh" "$root" "${test_dir##*/}"
 python3 "$root/tests/ansi-to-png.py" "$test_dir/err" --text >"$test_dir/screen"

@@ -395,7 +395,8 @@ read_gauge() {
 	[[ $gauge_done =~ ^[0-9]+$ && $gauge_total =~ ^[0-9]+$ && $gauge_total -gt 0 ]]
 }
 
-# gh run watch を裏で流し、終わるまで、動いている手順の行のスピナー、ゲージ、経過の時間を更新する。
+# gh run watch を裏で流し（出力はファイルへ。端末には書かない）、終わるまで、この親のループが 0.1 秒ごとに
+# 動いている手順の行のスピナーを回し、ゲージと経過の時間を更新する。端末へ描くのは、この親だけ。
 # ゲージは書き換えるときだけ読む（書き換えないときは gh を余分に呼ばない）。読めなければ前の割合のまま。
 # 成否は gh run watch の終了コードだけで決める。出力はファイルに受けて、画面に出さない。
 watch_workflow() {
@@ -413,6 +414,8 @@ watch_workflow() {
 		if ((elapsed != last_elapsed)); then
 			last_elapsed=$elapsed
 			ui_step_wait "$elapsed"
+		else
+			ui_step_tick
 		fi
 		sleep 0.1
 	done
