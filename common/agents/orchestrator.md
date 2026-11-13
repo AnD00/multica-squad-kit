@@ -42,7 +42,7 @@ skills: squad-handoff
 | 実装・修正の依頼 | その場の使用率で役を選び、重要の印を確認する | `leader-dispatch.md`、`leader-principal.md` |
 | 重要の判断・最上位の役 | 3 つの時機だけで判断し、印と記録を残し、返事の待ちを付ける | `leader-principal.md` |
 | レビュー・E2E の依頼と返事 | 依頼前に `squad-review-wait watch` を流し、`返事を待つ役:` と `確認するコミット:` を置く。`返事の待ち: 次に進む` の実行だけ進む | `leader-review-wait.md` |
-| PR を受け取る・返事を待つ回の前後・人間を呼ぶ・食い違い | `link-check` で判定し、食い違いと未確認で止まる。マージへ回す前の確認と見張りも流す | `leader-pr-checks.md` |
+| PR を受け取る・返事を待つ回の前後・人間を呼ぶ・食い違い | `link-check` で食い違い・作業先と違う・不正・未確認なら止まる。マージへ回す前に確認・登録 | `leader-pr-checks.md` |
 | 進捗・遅れ・方針を変える追加・実行の停止 | 状態と記録を読んで答える。停止は人間の指示か承認があるときだけ | `leader-run-status.md` |
 | PR があり、ほかのきっかけ | 原則 6 の確認・解消の条件・遅れの知らせを守る | `leader-pr-checks.md`、`leader-run-status.md` |
 

@@ -11,13 +11,13 @@ e26217d9263a7ee07305e8624b87471bdf97acb3c4695c0046804fd6ffeb837a  ./.agents/rule
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 4e6e603eff2528c21eda05a1674becefe6a1d8ebc8e037c33a7074f6f04d8b0b  ./AGENTS.md
-cbb8f455d997de002c083336aa524029796d854e4fbec2ed88b34e592b9b3db6  ./CHANGELOG.md
+a67e9c19fdc788714dc9c811ecc5b79d3f091a612d6f6207b6751206c2dfa863  ./CHANGELOG.md
 ff8f448a4a6257ac722f222c24f82f4bebdb8530f0d8e49a8a30144d5c790ab9  ./CONTRIBUTING.md
 356323ff62c3e0975af6d2f1de505473004878446d809eecb956a07d82ba4b45  ./EXTENSIONS.md
 5fc150ffa7481bf72f085255936a6c42e83589a161771193dbe1c10526b075c7  ./README.md
 1c7390408c06f10ec2f862559255135f4e3130725e7bd39ce4cce18868ccdc29  ./VERSION
 b094346d398b71ead5dfa83633c0ff6cf65efc5bd0c4429d33fd38b63a5df4bf  ./common/agents/FORMAT
-f2ca40970992ab6f19c9936acd3e9a22f0596c861ef1595a315ca339efe91035  ./common/agents/ci-monitor.md
+ecd720685c958c917a4f59cdad3e24839c83342bcf60a895e627352cf91e4e31  ./common/agents/ci-monitor.md
 4199c05fbc735a33d3240ae4bba3bb02c152fe90a956605358c186a041e49f63  ./common/agents/claude-fixer.md
 33bb5c574cffa54c6a06b69708d02c9020b218115760e6966c93fe06ef8ac736  ./common/agents/claude-implementer.md
 3ffa376ee5c6bd4e4406d756767d34a05ea823d721de79bd0c4511b9c8ea54df  ./common/agents/claude-principal.md
@@ -27,7 +27,7 @@ f2ca40970992ab6f19c9936acd3e9a22f0596c861ef1595a315ca339efe91035  ./common/agent
 a2d3cd261c36dec2c40c81e38021c2a153eb7248392438308cbf5af0db4dc1e2  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 11bc2ac5c7a1f009867c727d79b6383e6f492a4fb0246d6990988ba8f15a583c  ./common/agents/designer.md
-7cb5c6b560d80f84f977e3cf6fbdf2662b6bdc29dfa213af9a81eac9f1fa6d00  ./common/agents/orchestrator.md
+a8fea24226332dcca80bda7c6126ff74b154efde9a167d5df19dfcd9bf702ae4  ./common/agents/orchestrator.md
 d39bbc7902468a54a6cf37da73e1b646fcaa7a44da88179cc30e2cf3348c1cc7  ./common/agents/performance-reviewer.md
 814f53e1c1e8038b4190fd12c55093515d93baa9fa92f527ffcbfeda27e5e3c5  ./common/agents/planner.md
 4b1fbe9cce308144181b3bf3a89437ca23abf8795eaa023396ac00994959399c  ./common/agents/qa.md
@@ -56,7 +56,7 @@ ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell
 bd6df7944c4c3f94b88dcce27eeaed94bb766fc0f0add8dfe2404c1424919e3a  ./common/skills/squad-handoff/SKILL.md
 a34bcef70bf5c463a54ff6ba4611615389ace3f6d45d781356432a084c5eaa39  ./common/skills/squad-handoff/references/leader-dispatch.md
 6913fa18409e44ab8ba467b4cd8fcc923ec56c95d2f0c8f138e2c09dd5e684a3  ./common/skills/squad-handoff/references/leader-flow.md
-a3ace6fa80e57938ed4b884eb74c16992b88da49e2991231a6c42162a49123a6  ./common/skills/squad-handoff/references/leader-pr-checks.md
+174580a00d36dadc62ec5dc78a17a736ad5fbaef4b38533bd3986d4c5b384446  ./common/skills/squad-handoff/references/leader-pr-checks.md
 6713009d9123bee1e9088e594f5f777d6290cbc14c84837e7493d4ff0af67e89  ./common/skills/squad-handoff/references/leader-principal.md
 c0589ea3137393b59c5b266cf98bfb12dd59af53040f95b550455c490cc03af5  ./common/skills/squad-handoff/references/leader-review-wait.md
 1fbf8b4c9e9af6be1a00070f26a5e872b34f3505fa89ca054a32fd7aa1754ff5  ./common/skills/squad-handoff/references/leader-run-status.md
@@ -122,7 +122,7 @@ b32839416a050ff7beca6305431c9a2a22d7b3dcfb4d6eac72b628e7c6e0f8e2  ./skeleton/REA
 960203a258ffcf68053734f74c3d9f36377e587f82f3df55de631d0e9f84dbca  ./skeleton/project.md
 b9033019a1fe0384a555a447fe064ade71c427af27a9caa4b175868fdd2085ad  ./skeleton/verify-repository.md
 ec94c1189f1071bf59f9c20765667893b12a24881b6a68739d14f2ecbe0ff678  ./tests/action-advisories-test.sh
-6f3acd10f56752825e0d17087bec81aae69c1d35a659baabf28afe02247bfa03  ./tests/agent-templates-test.sh
+d1f5b2fec1a664b105ad09778e702b033833f72dbc180d7ddcee1308f6cbe90d  ./tests/agent-templates-test.sh
 2c4dce6d55a2bec00a23cf829eb9939041a27c4bb78891f0aeb0d485ad1713c4  ./tests/ansi-to-png.py
 527977df9ef47cba1afcded7ab38a921de4e65916e97bdd4c460b53b5fae4e3d  ./tests/build-assets-test.sh
 f1db731d8bb0b395b68825d7f4c8f3bcb29c194b03faf77f77785cc6c742be38  ./tests/capture-cli-fixtures-test.sh
@@ -220,7 +220,7 @@ c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-
 f7bdab38a415c2f1b4311099efce191ff9ce35c17871e8fd4cce605b21ebd00b  ./tests/install-test.sh
 3c0fa1a48253b3b7543a6522f6f0c18d08b846238964a8cf2b61ae9e7f0be117  ./tests/installation-fixture.py
 ca5885f271a4b360f7d7a1eea50fe17cf8f3fa38034a6358be097e7fe46876a7  ./tests/installation-test.sh
-be980b9401bfc1a85e8fccacd37b411ca029d598d7ec7014c2a7af5a52bd2086  ./tests/leader-eval-test.sh
+a477320f5f6ea01106f5d411df7c429f7e3e700e5dfe9933c408a6cd49935fbe  ./tests/leader-eval-test.sh
 a799c77778f55d9e3a7dbe47df7986e939a736eea537b93a849eedeaaade8516  ./tests/leader-eval/leader_eval.py
 005eeb7f21cbcb85a4a7c20feef72526ac5c1444a2143dfa58602b5a5df31455  ./tests/leader-eval/run.sh
 3370b1172bd48a18ca61f592f375ebef86fbaa5027d60b7ddeb232c25aa790e3  ./tests/leader-eval/runtime-brief.md
@@ -260,6 +260,8 @@ bb41347638cc40ce722d21f071693bfd963bfaf373491817cbf4baf248706280  ./tests/leader
 26c0eac5ec74511dff03980d674619be36aa30825b4a5ac47ade932fad67aa3c  ./tests/leader-eval/scenes/keep-13/scene.md
 b94b8b9209ff4748320dff6a1d4fa5c40e4606a9956d3f068b253f270d69eb1f  ./tests/leader-eval/scenes/keep-14/cli.json
 bb2ddd006508f99ea004da022770949e25159d5a9ff236f036216bd12c12e630  ./tests/leader-eval/scenes/keep-14/scene.md
+1c11acf112835cb4c71c4eff11ccb2fdce9cf8988492f8900cd6bd947cf8757d  ./tests/leader-eval/scenes/keep-15/cli.json
+f9f30e7a2f64582a032548535697d1fc21dc28c5e784f6217b84ce7bb2cfbdec  ./tests/leader-eval/scenes/keep-15/scene.md
 89f8f76492355003c25735d08841f21060cbcaaa2a05744eae8e63c5147862d8  ./tests/leader-eval/scenes/keep-2/cli.json
 5dfd46f3b99c45025cc83ef3f0ad860ce5ece33a7e53fb476d9b4ecc4cbaef52  ./tests/leader-eval/scenes/keep-2/scene.md
 753d66f73b998721dbe2538f6bcf728f6409a98102a5915aa851c5946a46c5b6  ./tests/leader-eval/scenes/keep-3/cli.json
