@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # docs/supply-chain.md のワークフローの決まりを、YAML のパーサを使わず行で読む。
-# 固定したアクションの勧告検査の決まりは、追加するときに広げる。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -136,6 +135,21 @@ def check(directory):
     analyze = action_body(codeql, 'github/codeql-action/analyze')
     require('          category: /language:${{ matrix.language }}' in analyze, 'codeql: 解析の分類が言語別ではない')
 
+    advisories = section(lines, 'action-advisories:', 2)
+    require('    runs-on: ubuntu-24.04' in advisories, 'action-advisories: 実行場所が違う')
+    require('    timeout-minutes: 5' in advisories, 'action-advisories: 時間の上限が違う')
+    require(section(advisories, 'permissions:', 4) == ['      contents: read', '      security-events: write'],
+            'action-advisories: 解析を登録する権限が違う')
+    require(not any(line.startswith('    if:') for line in codeql + advisories), 'scan: 解析のジョブを条件で飛ばす')
+    require('          GH_TOKEN: ${{ github.token }}' in advisories, 'action-advisories: API のトークンを渡していない')
+    require('        run: python3 -I tests/check-action-advisories.py --sarif action-advisories.sarif .github/workflows' in advisories,
+            'action-advisories: 勧告の検査を呼んでいない')
+    upload = section(advisories, '- if: always()', 6)
+    require(any(line.startswith('        uses: github/codeql-action/upload-sarif@') for line in upload),
+            'action-advisories: SARIF の登録が always() ではない')
+    require(section(upload, 'with:', 8) == ['          sarif_file: action-advisories.sarif', '          category: action-advisories'],
+            'action-advisories: SARIF のファイルか分類が違う')
+
     dependabot = directory.parent / 'dependabot.yml'
     require(dependabot.is_file(), 'dependabot: 設定がない')
     lines = dependabot.read_text(encoding='utf-8').splitlines()
@@ -154,6 +168,7 @@ check(workflows)
 print('PASS workflow-rules: SHA と版・認証・秘密の参照と Environment・きっかけ・公開の検査を確かめた')
 print('PASS workflow-rules: まとめが全ジョブを待ち、成功だけを通し、失敗・取り消し・飛ばしを拒む')
 print('PASS workflow-rules: CodeQL の言語・きっかけ・権限と、Dependabot の週次・待機・まとめを確かめた')
+print('PASS workflow-rules: 勧告の検査も同じきっかけで流し、失敗しても SARIF を登録する')
 
 
 def copy_configuration(name):
@@ -232,6 +247,19 @@ mutate('dependabot-directory', 'dependabot.yml', 'directory: /', 'directory: /ot
 mutate('dependabot-schedule', 'dependabot.yml', 'interval: weekly', 'interval: daily', 'dependabot: 更新が毎週ではない')
 mutate('dependabot-cooldown', 'dependabot.yml', 'default-days: 7', 'default-days: 0', 'dependabot: 更新を 7 日待たない')
 mutate('dependabot-groups', 'dependabot.yml', "patterns: ['*']", "patterns: ['actions/checkout']", 'dependabot: 更新を 1 つにまとめていない')
+
+mutate('advisories-missing', 'scan.yml', '  action-advisories:', '  other-advisories:', 'action-advisories: 実行場所が違う')
+mutate('advisories-runner', 'scan.yml', '  action-advisories:\n    runs-on: ubuntu-24.04',
+       '  action-advisories:\n    runs-on: ubuntu-latest', 'action-advisories: 実行場所が違う')
+mutate('advisories-timeout', 'scan.yml', 'timeout-minutes: 5', 'timeout-minutes: 6', 'action-advisories: 時間の上限が違う')
+mutate('advisories-permissions', 'scan.yml', 'timeout-minutes: 5\n    permissions:\n      contents: read\n      security-events: write',
+       'timeout-minutes: 5\n    permissions:\n      contents: read\n      security-events: read', 'action-advisories: 解析を登録する権限が違う')
+mutate('advisories-conditional', 'scan.yml', '  action-advisories:', '  action-advisories:\n    if: false', 'scan: 解析のジョブを条件で飛ばす')
+mutate('advisories-token', 'scan.yml', '          GH_TOKEN: ${{ github.token }}\n', '', 'action-advisories: API のトークンを渡していない')
+mutate('advisories-command', 'scan.yml', 'tests/check-action-advisories.py --sarif', 'tests/check-action-advisories.py --other', 'action-advisories: 勧告の検査を呼んでいない')
+mutate('advisories-always', 'scan.yml', '      - if: always()', '      - if: success()', 'action-advisories: SARIF の登録が always() ではない')
+mutate('advisories-sarif', 'scan.yml', 'sarif_file: action-advisories.sarif', 'sarif_file: other.sarif', 'action-advisories: SARIF のファイルか分類が違う')
+mutate('advisories-category', 'scan.yml', 'category: action-advisories', 'category: other', 'action-advisories: SARIF のファイルか分類が違う')
 
 extra = copy_configuration('new-yaml-workflow')
 (extra / 'extra.yaml').write_text('on:\n  workflow_dispatch:\njobs:\n  probe:\n    steps:\n      - uses: actions/checkout@v7\n', encoding='utf-8')

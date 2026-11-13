@@ -7,7 +7,7 @@ a6075c06025d8c2d6445a942619b5062fd172e5402b77fe4c294029707e0dcba  ./.agents/rule
 307384c3e014d3337f38bef72c00ffa39ccb9d39fdeb567be5175f8655341cb8  ./.github/workflows/check.yml
 752d794e4f743c4f713def62c4bea75af747856c96ddf4c6f83caf3aefb0c495  ./.github/workflows/private-terms.yml
 84c6d113ac418d9812edad92f27dfe8af5a645de6e5bf5914af361ffca807aeb  ./.github/workflows/release-assets.yml
-98bb07ed9d8949721aab406b83c61f8c0f49e84be8831995dd467400d108ae86  ./.github/workflows/scan.yml
+2a8b8daabebe323f6e4fd5a2350ae5aa764cbfbfb7fe4c561aa8eeaa76ba0c94  ./.github/workflows/scan.yml
 75ed3a73825327df6e3a81782fd814fe45823b4f059b16f3afe3cc004e4b9071  ./.gitignore
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 9e31f50f1ec32243a5d62248c6326729552844139dc6df714a3e002f4bc2637a  ./AGENTS.md
@@ -116,6 +116,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 8c491e62719b72b6c895199808c2320d960e946d8e883c4fd48d8a9a25f5ef4d  ./skeleton/README.md
 c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/project.md
 8144c1ca0d6dd5632a64dc48f16a79f276e035e772a97c02e7f43bef10756352  ./skeleton/verify-repository.md
+00635db7ccf83431f8497b365e6b2226cbffc68f7b461811b6b9666942bfb37e  ./tests/action-advisories-test.sh
 0a0487caa2c6456e9ac85628368ed93f2badedfe38bb84eed4a1e816f1f1b6d9  ./tests/agent-templates-test.sh
 84d56e72a684628f91d575ca48a41f67cbed0bf47e217b23be2fed4a09c40ec5  ./tests/ansi-to-png.py
 32f57fec8d30c06cfeae763acffbf39e407167676d7adc7fee7d37fec42ea6b1  ./tests/build-assets-test.sh
@@ -124,6 +125,7 @@ c864080d90586f1ec7372703ba228eac38ade55796f7368fe6edc5dfce71dfd3  ./skeleton/pro
 7915f34f30cd4712d3265f354edf354c00bf495e0faa26f36f3f375e4900825b  ./tests/capture-cli-fixtures.sh
 292592a829c52cac9f3d439a44d23384822841ee22e93f32581430faa3bc338d  ./tests/capture-gh-fixtures.py
 c8a083d46d9d7358cb8f9195d27c3f41b3977192cd40c7229b1fb60e3e23a264  ./tests/capture-usage-fixtures.py
+4dc16bccb152557a16292f86ab7f9dce307cc44deff7a239f72f8c30ee5b8fda  ./tests/check-action-advisories.py
 a45d1322e85b50c7c56f4c020f273bc7b5dfe9bff7e300ed2344c3c563682a5c  ./tests/check-content.py
 8df7e3dd3668613a56637dcdc4e8345e127c7445aa621e54e193eff480d31431  ./tests/check-content.sh
 ca57b2d3fb51c612235c7615222adc93a7c35115988d57b8e63881d6ab0914e6  ./tests/check-doc-lines.py
@@ -142,6 +144,14 @@ e8368dbbd8991557806ad104ab9195cdbf35e29f5a28fcfb02f385cdbfe0f2e3  ./tests/depend
 ecb64224ade6919e39de2824c0f6aaaa73e782b4f44aaef1f28bbf1af9dc48ee  ./tests/doc-lines-test.sh
 f1e145146865ec3a695c57bc7ce4f3951179f3e78cc1173469578dc709ceabbb  ./tests/error-marks-test.sh
 04043ef81863f926477c4b2437a60346617ed9cbab81d82b5d359182c82c7a45  ./tests/extensions-test.sh
+982caa9101339df558030a13d81877ba900527547b2f5cabe0d24b34473c3af0  ./tests/fixtures/action-advisories/CAPTURE.json
+361349352f7f712ff47efc73b1bc5dec259a14406bbe46e0ad61d2b4d96ed963  ./tests/fixtures/action-advisories/SOURCES.md
+93a632246f28a39eedc6577fda8be826f662ca408592e96b1b2b26b4256eea3d  ./tests/fixtures/action-advisories/fixed.json
+40332e57bdb1cd5e0666d3f907077532d238c1c92f7b5e4f0c2c2a93ac11ebe4  ./tests/fixtures/action-advisories/mixed.json
+969e3985c49f9fef0672f9b02b5e36b684df78ad946bb61ee2e7f74cb4d2dc1c  ./tests/fixtures/action-advisories/v4.1.2.sha
+65239128e615a4abd24bfb024a57d8e56ab1c2785c145e76d97e218de5edd1ea  ./tests/fixtures/action-advisories/v4.1.3.sha
+b1cef9be9ef1716ab0f0aac354b07666619e016b4eb43ef30559f91e5a58c86f  ./tests/fixtures/action-advisories/v7.0.1.sha
+40332e57bdb1cd5e0666d3f907077532d238c1c92f7b5e4f0c2c2a93ac11ebe4  ./tests/fixtures/action-advisories/vulnerable.json
 ec5cef23dc19fbcc621e52a3a5fd5d7604484515ff48b435163724ddad02fb43  ./tests/fixtures/ci-install/InRelease
 5da2715152d18bfb6bbbecb7f35a2537a23cb70982838668ee40d41661254cad  ./tests/fixtures/ci-install/InRelease.attacker
 2c9c496819f49cc5f558e4ed3d2ea8c24bcf33c58dd65cd19898ae5aabdfac49  ./tests/fixtures/ci-install/InRelease.backports
@@ -332,7 +342,7 @@ f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-s
 b212af80366faa54e2a8e9183179a9dea4321f9228d3c33fea49adc6ae1e3a47  ./tests/terminal-screen-test.sh
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-e49705b88b50d2d48e287aba1953323c928cad2f5a7db8d462eb68f7a9adfd94  ./tests/test-weights
+b40365c1b7d3f238ec0e803ac8fb2dbc606ab3721b355537c4a826ed4896f2b2  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 318b7373d24df9969728c1e9effd14bf03c0dc0f17fd1b4aa92bc9dfeced3d0f  ./tests/ui-pty.py
 99afc1d394a9de6328dd135f2a18b273b535336acafab49494f4d44db11f6c56  ./tests/ui-steps-test.sh
@@ -345,7 +355,7 @@ e45a4621e54abb773ee81a439afc0ba097ffcf13bf6d80b5941d98389f34e571  ./tests/vm-wsl
 45cfa8b10d7ae240677ae76844ce23d11f41b8b9bf974e7659c702ea6fdf9736  ./tests/vm-wsl-test.sh
 fd3cd06021c35f13239e1bd31cc7ac40d7c1c5640c923f8a263a3da4899b69c0  ./tests/webhook-gh.py
 b4f5a2321e2ea7ad58cd60b833c78b84a1acda63b10267f47478fb0891f2e918  ./tests/webhooks-test.sh
-363be531a32270361ca8c4e6069be67a303cce7e9d81d218174d5dbd1fab2e74  ./tests/workflow-rules-test.sh
+59c64d572220124505af7a588f3620aa49d739cf77078ace51940fc44605110c  ./tests/workflow-rules-test.sh
 aac2790424e0f9314dded565d99ee1b49ca7c47d194073f49e2dd1f1a072a798  ./tests/workspace-test.sh
 36dd66ce61a8f83a685002fbef0c921bf3715c247a3a536a4fee78c89a3e53ee  ./vm/guest/provision.sh
 060ee2905b252bd3051aa6a7b5aa95a0a1ac924df19d24598b0e0a4cb7e12f66  ./vm/guest/record-server
