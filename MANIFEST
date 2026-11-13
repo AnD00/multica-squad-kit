@@ -58,13 +58,14 @@ eb490215ee995135a77146f5d0bde9a1fdd969c234e8ab31b1e28b3ba1fd4880  ./common/skill
 bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skills/squad-handoff/references/leader-review-wait.md
 a9534aadacbd445e24d4e5bd8a6a2141681e47b1698dd24718618fa64ca07734  ./common/skills/squad-handoff/references/leader-run-status.md
 8093bc2d5d0099ee21b373099ae4334be5463fa542c2afce4e0df82dbdd26dc3  ./common/squad.md
+d761d529f50b30c94a7f1ce68179ac00252f526794be176f84c43850c7692069  ./docs/agent-login-check.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
 0886af0e51f2bbfb5134455452bfbe9486e6bed5cfa3b05a098f247b43ce2be4  ./docs/asset-names.md
 3ce8df5a172765aff2d94625e033837254f94ba912c45868e037a7dc2fcf4dab  ./docs/attach-images.md
 a3a2167c7bac17803303a074c7b068f257930481348fc1a2246100f56f8dd2a6  ./docs/ci.md
 96d55905b21fbf942acb9f97711eccb68190334d9f80a8d994f03980bca46ba2  ./docs/conflict-resolution.md
 c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate-path.md
-95c078330176b1308f371fa86eaea75cf5fe55f601c3d4c7b1e08d2eb8a6830c  ./docs/install.md
+74df31cae90af8a311804bcd1cd955f25a8fd4fcc2cf664d46baae2d841586e1  ./docs/install.md
 3a18a3e30e78572a1a19ef0791f70283115640c38fe0c006c51ac22924e92a54  ./docs/leader-principles.md
 3d1a737f836ed6790d0e861bee47fcfe210c0e1619c39c4ba44d373ed1b59286  ./docs/local-verification.md
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
