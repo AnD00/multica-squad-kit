@@ -65,7 +65,7 @@ a5b64c07c704e17ec1aae614354e9fa5aed633afbd3f1ff06d56683e1ab5accb  ./common/squad
 e627a7f4d99d5cd1309125d01a5b1eeb5c42461be722b3a27019d53013dc27bd  ./docs/agent-path.md
 495dd20add8952a3ef0301fd0624f63a7225f4b601760abb246fd64bc174ace5  ./docs/asset-names.md
 96cc34f645a600b1828a2c9788d3007620bb381638d8baae14c585052dd4e80c  ./docs/attach-images.md
-1f615d7ea714cfd5e99a0119d5d46c285aaf25bfe3f0564ff08329f80e03304f  ./docs/ci.md
+0158bce4c17e21dff58c576810e07dcdb989de4a2562fff0c4268ed29c8e4131  ./docs/ci.md
 ac13fa5e1b6432de8245bee6baad647233c1397040116359e86320c37547b613  ./docs/conflict-resolution.md
 ce182a70f89defd4407cb96f91446ef5352ba94006292a862eb436132f548fb9  ./docs/gh-gate-path.md
 aeb3a3f8a67f0cb232bda5477deac063518fb6d8b1e7a40409789d77d3b1dda4  ./docs/install.md
@@ -274,7 +274,9 @@ dd1f5baba17bbda8af7d1f97e7885b6e2ff870b1d8d25babdd869f0d0270261a  ./tests/pre-pu
 32bdfe52ae6a0e5949e26846ad289256ea94603c7d697af78dfb978e61d3b971  ./tests/project-changes-test.sh
 325fed47f129dd86da4ea48f2f64192214f57d60eb43bd28c3abd64d59b84a46  ./tests/project-create-test.sh
 03695b7195d4e55a905c477dbeff96fb6164d5b44795d557fba54ef1844b1fc3  ./tests/project-environment-test.sh
-14d8be867eeda1d83219afaa109a316ddc648d6c399f7591b8a633031611e5aa  ./tests/project-failure-test.sh
+3360d0fc689cddcf89325a4933315d8df3b154f10e5f0775b2633b5b2948bae9  ./tests/project-failure-render-cache-check.sh
+e90a5edb6b1b0b97bcb8cb5e220f789d1148904978bf0b20f8d37e0541f5ef96  ./tests/project-failure-render-cache.sh
+63ab29bf9d6e9ffdb4b477b4d71421cb4b91f35431dd8cc46751f89e0ee92dea  ./tests/project-failure-test.sh
 caa58464c53d717ee5c0452a3cf122a5a64d748063fc3614972c9635d0585d87  ./tests/project-followup-failure-test.sh
 9c744f7baee9fadd46d3cf103a99df870456ee8ebcbbb038d91f51f462bf0ddf  ./tests/project-followup-repositories-test.sh
 f51b603e07f2a7064b437a1e59f1bf7cbd008376f470f9f472b7ed0ecc735135  ./tests/project-followup-test-lib.sh
@@ -372,7 +374,7 @@ fed6d2880cbdd02752bf5d377de7f0ad1912765a6a92436eedb5d77999c59632  ./tests/vm-wsl
 e45a4621e54abb773ee81a439afc0ba097ffcf13bf6d80b5941d98389f34e571  ./tests/vm-wsl-test.ps1
 45cfa8b10d7ae240677ae76844ce23d11f41b8b9bf974e7659c702ea6fdf9736  ./tests/vm-wsl-test.sh
 cb3daf8833557713622351d1787b013c5d547561a29af3536aa2696e3f54a3ff  ./tests/webhook-gh.py
-ed358584c7df60592cf7bc9ddbcf625b07376eea3c28790aaf109bd462cc8a65  ./tests/webhooks-test.sh
+ab3bc7237ea426a9f1d56d978004adec93d8cf0f32227692a6cbe8632ee5ed29  ./tests/webhooks-test.sh
 38148ff34cd8ff7ae9bfcf37c020f93b0a89b0053389fb945d90090700691ecc  ./tests/workflow-rules-test.sh
 aac2790424e0f9314dded565d99ee1b49ca7c47d194073f49e2dd1f1a072a798  ./tests/workspace-test.sh
 36dd66ce61a8f83a685002fbef0c921bf3715c247a3a536a4fee78c89a3e53ee  ./vm/guest/provision.sh
