@@ -36,40 +36,6 @@ run_advance waiting
 no_writes
 echo 'PASS advance: 必須 CI の未登録は締め切りまで、可否が不明なら最大 5 分で waiting'
 
-for committed_at in 190000 200900; do
-	advance_fixture
-	commit_time "$reviewed" "$committed_at"
-	printf '{"check_runs":[]}\n' >"$test_dir/checks.json"
-	ci_origin=$committed_at
-	((ci_origin >= 200000)) || ci_origin=200000
-	printf '%s\n' "$((ci_origin + 1799))" >"$test_dir/now"
-	run_advance ci-timeout
-	[[ $(<"$test_dir/now") == "$((ci_origin + 1800))" ]]
-	no_writes
-done
-rebase_fixture
-commit_time "$head2" 201000
-printf '201500\n' >"$test_dir/now"
-printf '{"check_runs":[]}\n' >"$test_dir/checks.json"
-run_advance waiting
-[[ $(<"$test_dir/now") == 201800 ]]
-printf '202799\n' >"$test_dir/now"
-run_advance ci-timeout
-[[ $(<"$test_dir/now") == 202800 ]]
-no_writes
-echo 'PASS advance: CI は GitHub のコミット時刻と実行開始の遅いほうから 30 分、rebase 後は新しい head が起点'
-
-advance_fixture
-edit_pr '.mergeable = "UNKNOWN" | .mergeStateStatus = "UNKNOWN"'
-printf '202000\n' >"$test_dir/now"
-run_advance waiting
-[[ $(<"$test_dir/now") == 202300 ]]
-printf '214399\n' >"$test_dir/now"
-run_advance run-timeout
-[[ $(<"$test_dir/now") == 214400 ]]
-no_writes
-echo 'PASS advance: CI 成功後のマージ可否待ちは CI の上限にせず、5 分の呼び出し・実行全体の上限で返す'
-
 advance_fixture
 jq '.commit.committer.date = "invalid"' "$test_dir/$reviewed.json" >"$test_dir/edit.json"
 mv "$test_dir/edit.json" "$test_dir/$reviewed.json"

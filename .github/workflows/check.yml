@@ -55,6 +55,16 @@ jobs:
           bash scripts/check.sh
           bash scripts/manifest.sh
           git diff --exit-code -- MANIFEST
+  assets:
+    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Build and check the assets
+        run: bash scripts/build-assets.sh --commit HEAD "$RUNNER_TEMP/assets"
   content:
     timeout-minutes: 10
     runs-on: ubuntu-latest

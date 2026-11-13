@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# release-test.sh と画面の画像の仕組みが共有する準備。単独では実行しない。
+# release-test.sh・release-check-test.sh・release-failure-test.sh・release-display-test.sh と画面の画像の仕組みが共有する準備。単独では実行しない。
 # 呼び出し元は root（原本のルート）と test_dir（自分の一時ディレクトリ）を用意し、片付けも行う。
 # 手元の Git の設定（環境変数で入る GIT_CONFIG_COUNT 以降を含む）から切り離す。push は一時の bare にだけ届く。
 unset GIT_CONFIG_COUNT

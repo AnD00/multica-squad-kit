@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 取り出したタグの中身から、配布物（tar.gz）と install.sh と SHA256SUMS を出力先に作る。
+# タグかコミットの中身から、配布物（tar.gz）と install.sh と SHA256SUMS を出力先に作る。
 # 設計は docs/release.md の「配布物を作る」と docs/install.md の「展開の前の確かめ」。bash 3.2 で動かす。
 set -euo pipefail
 # 出力先は、呼んだ場所からの相対で渡されても、リポジトリのルートへ移ったあとで同じ場所を指すようにする。
@@ -14,7 +14,9 @@ export LC_ALL=C
 usage() {
 	cat <<'USAGE'
 使い方: bash scripts/build-assets.sh <バージョン> <出力先>
+        bash scripts/build-assets.sh --commit <コミット> <出力先>
 取り出したタグ（HEAD がそのタグの指すコミット）の中身から、配布物と install.sh と SHA256SUMS を出力先に作る。
+--commit は、タグを必要とせず、渡したコミットの VERSION を読んで同じ配布物を作る。
 <バージョン> は vX.Y.Z の形。出力先は、なければ作り、あれば空にしておく。
 USAGE
 }
@@ -23,6 +25,7 @@ stop() {
 	exit 1
 }
 
+mode=tag
 case $# in
 1)
 	case $1 in
@@ -34,18 +37,19 @@ case $# in
 	usage >&2
 	exit 2
 	;;
-2) ;;
+2) [[ $1 != --commit ]] || { usage >&2; exit 2; } ;;
+3)
+	[[ $1 == --commit ]] || { usage >&2; exit 2; }
+	mode=commit
+	shift
+	;;
 *)
 	usage >&2
 	exit 2
 	;;
 esac
-version=$1
+ref_arg=$1
 out_arg=$2
-[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
-	usage >&2
-	stop "バージョンは vX.Y.Z の形で渡してください: $version"
-}
 [[ -n $out_arg ]] || {
 	usage >&2
 	exit 2
@@ -59,15 +63,26 @@ command -v git >/dev/null || stop 'git がありません。'
 command -v tar >/dev/null || stop 'tar がありません。'
 command -v shasum >/dev/null || stop 'shasum がありません。'
 
-# 1: HEAD がタグの指すコミットで、VERSION がバージョンと一致する
-tag_ref=refs/tags/$version
-tag_commit=$(git rev-parse --verify --quiet "$tag_ref^{commit}") || stop "タグ $version がありません。"
-head_commit=$(git rev-parse --verify --quiet 'HEAD^{commit}') || stop 'HEAD を読めません。'
-[[ $head_commit == "$tag_commit" ]] || stop "HEAD（${head_commit}）が、タグ $version の指すコミット（${tag_commit}）と違います。タグを取り出してから流してください。"
-tag_version=$(git show "$tag_ref:VERSION" 2>/dev/null) || stop "タグ $version に VERSION がありません。"
-[[ $tag_version == "$version" ]] || stop "タグ $version の VERSION（${tag_version}）が、バージョンと違います。"
-install_mode=$(git ls-tree "$tag_ref" -- install.sh | cut -c1-6)
-[[ $install_mode == 100644 || $install_mode == 100755 ]] || stop "タグ $version に、通常のファイルの install.sh がありません。"
+# 1: 対象を決める。コミットの形では、HEAD やタグとの一致は求めない。
+version_re='^v[0-9]+\.[0-9]+\.[0-9]+$'
+if [[ $mode == commit ]]; then
+	target=$(git rev-parse --verify --quiet "$ref_arg^{commit}") || stop "コミットを読めません: $ref_arg"
+	version=$(git show "$target:VERSION" 2>/dev/null) || stop "コミット $target に VERSION がありません。"
+	[[ $version =~ $version_re ]] || stop "コミット $target の VERSION は vX.Y.Z の形で書いてください: $version"
+	target_label="コミット $target"
+else
+	version=$ref_arg
+	[[ $version =~ $version_re ]] || { usage >&2; stop "バージョンは vX.Y.Z の形で渡してください: $version"; }
+	target=refs/tags/$version
+	tag_commit=$(git rev-parse --verify --quiet "$target^{commit}") || stop "タグ $version がありません。"
+	head_commit=$(git rev-parse --verify --quiet 'HEAD^{commit}') || stop 'HEAD を読めません。'
+	[[ $head_commit == "$tag_commit" ]] || stop "HEAD（${head_commit}）が、タグ $version の指すコミット（${tag_commit}）と違います。タグを取り出してから流してください。"
+	tag_version=$(git show "$target:VERSION" 2>/dev/null) || stop "タグ $version に VERSION がありません。"
+	[[ $tag_version == "$version" ]] || stop "タグ $version の VERSION（${tag_version}）が、バージョンと違います。"
+	target_label="タグ $version"
+fi
+install_mode=$(git ls-tree "$target" -- install.sh | cut -c1-6)
+[[ $install_mode == 100644 || $install_mode == 100755 ]] || stop "$target_label に、通常のファイルの install.sh がありません。"
 
 # 出力先は、空にしておく。前に作ったものと混ざらないようにするため。
 if [[ -e $out || -L $out ]]; then
@@ -80,39 +95,42 @@ trap 'rm -rf -- "$work"' EXIT
 asset=multica-squad-kit-$version.tar.gz
 prefix=multica-squad-kit-$version/
 
-# 2: タグの中身から、配布物を作る
-git archive --format=tar.gz --prefix="$prefix" -o "$work/$asset" "$tag_ref" || stop '配布物を作れませんでした。'
+# 名前を表示するときは、制御文字だけを 8 進の形にし、漢字などのバイトは保つ。
+display_name() {
+	local name=$1 escaped= char i
+	for ((i = 0; i < ${#name}; i++)); do
+		char=${name:i:1}
+		if [[ $char == [[:cntrl:]] ]]; then
+			printf -v escaped '%s\\%03o' "$escaped" "'$char"
+		else
+			escaped=$escaped$char
+		fi
+	done
+	printf '%s' "$escaped"
+}
 
-# 3: 展開の前に、一覧を読んで、展開先の外へ書くもの、読み違えのおそれがあるものを拒む
-names=$(tar -tzf "$work/$asset") || stop '配布物の一覧を読めません。'
-verbose=$(tar -tvzf "$work/$asset") || stop '配布物の詳細な一覧を読めません。'
-[[ -n $names ]] || stop '配布物が空です。'
-names_count=$(printf '%s\n' "$names" | wc -l)
-verbose_count=$(printf '%s\n' "$verbose" | wc -l)
-[[ $names_count -eq $verbose_count ]] || stop "配布物の 2 つの一覧の行の数が違います（${names_count} と ${verbose_count}）。名前に改行があるおそれがあります。"
-while IFS= read -r name; do
-	case $name in
-	/*) stop "配布物に絶対パスがあります: $name" ;;
-	esac
-	case /$name/ in
-	*/../*) stop "配布物に上へ出るパスがあります: $name" ;;
-	esac
-	case $name in
-	"$prefix"* | "${prefix%/}") ;;
-	*) stop "配布物に、$prefix の下ではないものがあります: $name" ;;
-	esac
-	if [[ $name == *[[:cntrl:]]* || $name == *\\* ]]; then
-		stop "配布物に、制御文字かバックスラッシュを含む名前があります: $name"
+# 2: Git の木を NUL 区切りで読み、ディレクトリを含めて名前を確かめる。
+git ls-tree -r -t -z --name-only "$target" >"$work/names" || stop '対象の木の名前を読めません。'
+bad_names=0
+while IFS= read -r -d '' name; do
+	reason=
+	if [[ $name == *[![:print:]]* ]]; then reason='印字できる ASCII ではない文字がある'; fi
+	if [[ $name == *\\* ]]; then reason=${reason:+${reason}、}'バックスラッシュがある'; fi
+	if [[ -n $reason ]]; then
+		bad_names=$((bad_names + 1))
+		if [[ $bad_names -le 20 ]]; then ui_error "$(display_name "$name"): $reason"; fi
 	fi
-done <<<"$names"
-while IFS= read -r line; do
-	case ${line:0:1} in
-	- | d) ;;
-	*) stop "配布物に、通常のファイルとディレクトリのどちらでもないもの（リンクか特殊なファイル）があります: $line" ;;
-	esac
-done <<<"$verbose"
+done <"$work/names"
+if [[ $bad_names -gt 0 ]]; then
+	if [[ $bad_names -gt 20 ]]; then ui_error "ほかに $((bad_names - 20)) 件の名前が決まりに合いません。"; fi
+	stop 'CONTRIBUTING.md の「ファイルとディレクトリの名前」に沿って、名前を ASCII に替えてください。'
+fi
 
-# 4: 新しい一時の置き場に展開し、MANIFEST の一覧と中のファイルが一致し、MANIFEST の確かめが通ることを確かめる
+# 3: 対象の中身から配布物を作り、4: 作業ツリーの入口に一覧の確かめを委譲する。
+git archive --format=tar.gz --prefix="$prefix" -o "$work/$asset" "$target" || stop '配布物を作れませんでした。'
+bash install.sh --check-listing "$version" "$work/$asset" || stop 'CONTRIBUTING.md の「ファイルとディレクトリの名前」と docs/install.md の「展開の前の確かめ」を確認してください。'
+
+# 5: 新しい一時の置き場に展開し、MANIFEST の一覧と中のファイルが一致し、MANIFEST の確かめが通ることを確かめる
 extract=$work/extract
 mkdir "$extract"
 tar -xzf "$work/$asset" -C "$extract" || stop '配布物を展開できませんでした。'
@@ -128,9 +146,9 @@ cmp -s "$work/files.actual" "$work/files.manifest" || stop 'MANIFEST の一覧�
 	stop '配布物の中のファイルが、MANIFEST のハッシュと合いません。'
 }
 
-# 5: install.sh を写し、2 つの SHA-256 を SHA256SUMS に書く
+# 6: 対象の install.sh を写し、2 つの SHA-256 を SHA256SUMS に書く
 mkdir -p "$out"
 cp "$work/$asset" "$out/$asset"
-git show "$tag_ref:install.sh" >"$out/install.sh"
+git show "$target:install.sh" >"$out/install.sh"
 (cd "$out" && shasum -a 256 "$asset" install.sh >SHA256SUMS)
 ui_line out success "配布物を作りました: ${out}（${asset}、install.sh、SHA256SUMS）"

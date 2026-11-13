@@ -321,6 +321,21 @@ else
 	add_check 既存 'タグと Release' "手元 あり  origin あり（同じ）  Release $release_text"
 fi
 
+# 9: これから配布物を作らせる状態だけ、タグを付けるコミットを発行と同じ道で確かめる。
+# そろった下書きは公開の前の確かめに任せ、公開済みでは行わない。
+case $action in
+tag | draft | workflow)
+	printf 'タグを付ける前に、配布物を作って確かめます（確かめの 9）。\n'
+	if ! bash scripts/build-assets.sh --commit "$commit" "$work_tmp/preflight-assets" >"$work_tmp/preflight-output" 2>&1; then
+		show_failure "bash scripts/build-assets.sh --commit $commit $work_tmp/preflight-assets" "$work_tmp/preflight-output"
+		if [[ -n $local_tag ]]; then
+			ui_error "$version のタグでは出せません。直したコミットを新しいバージョンで出してください。"
+		fi
+		stop 'タグを付ける前の配布物の確かめ（9）で止まりました。CONTRIBUTING.md の「ファイルとディレクトリの名前」を確認してください。'
+	fi
+	;;
+esac
+
 # 公開済みのバージョンは、確かめを済ませてから、何もせずに成功で終わる。端末でなくても終わる。
 if [[ $action == published ]]; then
 	printf '%s のタグと Release は、すでに出してあります: %s\n' "$version" "$release_url"

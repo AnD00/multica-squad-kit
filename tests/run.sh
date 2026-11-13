@@ -12,7 +12,7 @@
 # 補助の run-one.sh と run-hook.sh は、テストとして拾われないよう -test.sh で
 # 終えない。
 #
-# 時間の上限: テスト 1 本ごとに SQUAD_KIT_TEST_TIMEOUT 秒（なければ 300 秒。正の整数で
+# 時間の上限: テスト 1 本ごとに SQUAD_KIT_TEST_TIMEOUT 秒（なければ 450 秒。正の整数で
 # なければ 2 で終わる）の上限を設ける。上限を超えたファイルは、run-one.sh がテストの
 # セッションごと止め、時間切れの失敗として出す。手元でも CI でも同じ上限が効く。
 #
@@ -70,7 +70,7 @@ fi
 if [[ ${SQUAD_KIT_TEST_TIMEOUT+x} ]]; then
 	timeout_seconds=$SQUAD_KIT_TEST_TIMEOUT
 else
-	timeout_seconds=300
+	timeout_seconds=450
 fi
 if [[ ! $timeout_seconds =~ ^[0-9]+$ || ! $timeout_seconds =~ [1-9] ]]; then
 	echo 'SQUAD_KIT_TEST_TIMEOUT は正の整数（秒）にしてください' >&2

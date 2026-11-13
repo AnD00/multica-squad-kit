@@ -146,3 +146,22 @@ expect_screen() {
 	[[ $(cat "$case_dir/out") == "$expected" ]]
 	grep -qF '公開しますか [y/N]: ' "$case_dir/err"
 }
+
+# expect_stop_keep <理由に含む文字>: 作業コピーに手を入れたあとで流し、止まって何も変えないことを確かめる。タグがあるケース用。
+expect_stop_keep() {
+	local before
+	before=$(snapshot)
+	run_release "$test_dir/answer-y"
+	[[ $rc == 1 ]]
+	no_write
+	no_download
+	[[ $(snapshot) == "$before" ]]
+	grep -qF "$1" "$case_dir/err"
+	! grep -qF '公開しますか' "$case_dir/err"
+	! grep -qF '✔ 道具' "$case_dir/out"
+}
+# expect_stop <理由に含む文字>: expect_stop_keep に、手元にも origin にもタグがないことを足す。
+expect_stop() {
+	expect_stop_keep "$1"
+	no_tag
+}

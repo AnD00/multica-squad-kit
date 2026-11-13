@@ -6,6 +6,33 @@ test_dir=$(mktemp -d "$root/tmp/test-runner.XXXXXX")
 # 標準エラーを err に向けたまま止まっても、trap が err 自身へ書き足し続けないよう、元の標準エラーを控えて出す。
 exec 8>&2
 trap 'test_exit=$?; if [[ $test_exit != 0 ]]; then cat "$test_dir/out" "$test_dir/err" >&8; fi; rm -rf -- "$test_dir"' EXIT
+: >"$test_dir/out"
+: >"$test_dir/err"
+check_weight_budget() {
+	awk '
+		/^[[:space:]]*(#|$)/ {next}
+		$2 + 0 > 150 {
+			printf "%s の重み %s 秒は 150 秒を超えています\n", $1, $2 > "/dev/stderr"
+			failed = 1
+		}
+		END {exit failed}
+	' "$1"
+}
+# 150 秒は許可し、151 秒ならファイルの名前と理由を出して失敗する。
+printf '# 重みの上限\ntests/at-limit-test.sh 150\n' >"$test_dir/budget"
+check_weight_budget "$test_dir/budget" >"$test_dir/out" 2>"$test_dir/err"
+[[ ! -s $test_dir/out && ! -s $test_dir/err ]]
+printf 'tests/over-budget-test.sh 151\n' >>"$test_dir/budget"
+if check_weight_budget "$test_dir/budget" >"$test_dir/out" 2>"$test_dir/err"; then
+	echo '151 秒の重みを拒否しませんでした' >&8
+	false
+fi
+grep -qxF 'tests/over-budget-test.sh の重み 151 秒は 150 秒を超えています' "$test_dir/err"
+: >"$test_dir/err"
+echo 'PASS runner: 重みが 150 秒なら許可し、151 秒ならファイルの名前と理由を出して失敗する'
+check_weight_budget "$root/tests/test-weights"
+echo 'PASS runner: すべてのテストの重みが 150 秒以下である'
+
 # 小さな原本のコピーを使い、本物のテストの再帰実行や一覧の書き換えを避ける。
 kit="$test_dir/kit"
 fixtures="$test_dir/fixtures with spaces"
@@ -233,6 +260,55 @@ for name in sleeper stubborn; do
 	pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
 done
 echo 'PASS runner: 上限を超えたファイルを、別のグループの子ごと止めて時間切れの失敗にし、ほかのファイルは流す'
+
+# 既定の上限は、時計だけを進めて確かめ、実際には 450 秒待たない。
+mkdir -p "$test_dir/clock"
+cat >"$test_dir/clock/date" <<'STUB'
+#!/usr/bin/env bash
+set -euo pipefail
+[[ $* == +%s ]]
+clock="$TEST_RUNNER_STATE/clock.$PPID"
+if [[ ! -f $clock ]]; then
+	echo 0 >"$clock"
+	echo 0
+	exit 0
+fi
+# テストとその子が起きてから時計を進め、起動前の時間切れを避ける。
+for ((attempt=0; attempt<200; attempt++)); do
+	[[ -s $TEST_RUNNER_STATE/child.pid && -s $TEST_RUNNER_STATE/test.pid ]] && break
+	sleep 0.1
+done
+[[ -s $TEST_RUNNER_STATE/child.pid && -s $TEST_RUNNER_STATE/test.pid ]]
+read -r seconds <"$clock"
+seconds=$((seconds + 450))
+printf '%s\n' "$seconds" | tee "$clock"
+STUB
+chmod +x "$test_dir/clock/date"
+(
+	# このテスト自身を流す外側のランナーから渡された上限も外す。
+	unset SQUAD_KIT_TEST_TIMEOUT
+	export PATH="$test_dir/clock:$PATH"
+	rm -rf -- "$TEST_RUNNER_STATE"
+	mkdir -p "$TEST_RUNNER_STATE"
+	GITHUB_ACTIONS=true run_suite 1 1 "$fixtures/sleeper.sh"
+	grep -qxF "done TIMEOUT $fixtures/sleeper.sh 450s" "$test_dir/out"
+	grep -qxF "==== FAIL $fixtures/sleeper.sh（時間切れ: 450 秒で止めた）" "$test_dir/out"
+	grep -qF "::error file=$fixtures/sleeper.sh," "$test_dir/out"
+	grep -qF '時間切れ%3A 450 秒で止めた' "$test_dir/out"
+	grep -qxF "FAIL suite: 1 本が失敗: $fixtures/sleeper.sh" "$test_dir/out"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/test.pid")"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
+	# run-one.sh を直接呼んだときの既定も、同じ値である。
+	rm -rf -- "$TEST_RUNNER_STATE"
+	mkdir -p "$TEST_RUNNER_STATE" "$test_dir/direct/0/home" "$test_dir/direct/0/tmp"
+	bash "$kit/tests/run-one.sh" "$kit" "$test_dir/direct" 0 "$fixtures/sleeper.sh" >"$test_dir/out" 2>"$test_dir/err"
+	grep -qxF "done TIMEOUT $fixtures/sleeper.sh 450s" "$test_dir/out"
+	read -r status elapsed limit <"$test_dir/direct/0/result"
+	[[ $status == 124 && $limit == 450 ]]
+	pid_gone "$(cat "$TEST_RUNNER_STATE/test.pid")"
+	pid_gone "$(cat "$TEST_RUNNER_STATE/child.pid")"
+)
+echo 'PASS runner: 上限の指定がなければ run.sh と run-one.sh は 450 秒で止め、見出し・進み具合・注釈に出す'
 
 # 上限の中で終わるファイルは、上限を設ける前と同じ結果と出力になる。
 SQUAD_KIT_TEST_TIMEOUT=2 run_suite 0 1 "$fixtures/pass.sh"

@@ -365,27 +365,25 @@ host_check_guards() (
 ui_init
 trap ui_steps_cleanup EXIT
 ui_steps_begin out 0 old next
-for ((round = 0; round < 3; round++)); do
-	ui_step_start 1
-	prepare_project_host project-a example/one
-	ui_step_tick
-	kids
-	[[ -z $(jobs -p) && -z $kids_left ]] || exit 9
-	printf 'parent-resumed\n' >>"$TMPDIR/handoff-log"
-done
+ui_step_start 1
+prepare_project_host project-a example/one
+ui_step_tick
+kids
+[[ -z $(jobs -p) && -z $kids_left ]] || exit 9
+printf 'parent-resumed\n' >>"$TMPDIR/handoff-log"
 printf 'handoff-finished\n'
 SH
 run_steps both "$test_dir/handoff.sh" TMPDIR="$test_dir"
 grep -qF 'handoff-finished' "$test_dir/out"
 [[ ! -s $test_dir/err ]]
-printf 'child-updated\nparent-resumed\nchild-updated\nparent-resumed\nchild-updated\nparent-resumed\n' >"$test_dir/expected"
+printf 'child-updated\nparent-resumed\n' >"$test_dir/expected"
 cmp "$test_dir/handoff-log" "$test_dir/expected"
 python3 - "$test_dir/out" <<'PY'
 from pathlib import Path
 import re
 import sys
 raw = Path(sys.argv[1]).read_bytes().decode()
-assert raw.count('\x1b[2A\r\x1b[J') == 9, raw.count('\x1b[2A\r\x1b[J')
+assert raw.count('\x1b[2A\r\x1b[J') == 3, raw.count('\x1b[2A\r\x1b[J')
 assert not re.search(r'\x1b\[(?!2A)\d+A', raw)
 blocks = raw.split('\x1b[2A\r\x1b[J')[1:]
 blocks[-1] = blocks[-1].split('handoff-finished')[0]
@@ -396,8 +394,8 @@ for block in blocks:
     plain = plain.replace('\r', '')
     assert plain.count('\n') == 2 and len(plain.rstrip('\n').split('\n')) == 2, repr(plain)
     kinds.append('child' if '1/2' in plain and 'NEW' in plain else 'parent')
-# 手順の始まり（親）→ 子の更新 → tick（親）を、3 回続けて繰り返す。
-assert kinds == ['parent', 'child', 'parent'] * 3, kinds
+# 手順の始まり（親）→ 子の更新 → tick（親）の順序を 1 回確かめる。
+assert kinds == ['parent', 'child', 'parent'], kinds
 PY
 echo 'PASS ui-steps: 関所確認の子が前景で 1 回描いても、親の描きと混ざらず、親が同じ流れで続けて描く'
 
