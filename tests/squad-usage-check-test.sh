@@ -5,11 +5,6 @@ set -euo pipefail
 unset USAGE_CHECK_RUNTIMES
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/usage-check-test.XXXXXX")
@@ -19,8 +14,6 @@ script=$root/common/monitor/squad-usage-check
 source "$(dirname "$script")/squad-usage-lib"
 awk '/^[a-z_]+\(\) \{/ {inside=1} inside {print} /^}$/ {inside=0}' "$script" >"$test_dir/functions.sh"
 source "$test_dir/functions.sh"
-source "$root/tests/cli-mode-test-lib.sh"
-cli_test_wrap_monitor "$script" "$test_dir"
 source "$root/common/monitor/squad-cli-lib"
 squad_cli_contracts >"$test_dir/contracts.json"
 

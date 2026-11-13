@@ -4,11 +4,6 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 
 source "$root/tests/pr-watch-test-lib.sh"
 
@@ -310,8 +305,8 @@ for missing in gh jq multica; do
 		*) ln -sf "$(command -v "$cmd")" "$bare/$cmd" ;;
 		esac
 	done
-	# BASH_ENV などが PATH を足さないよう、環境を空にして流す。差し替えた monitor は PATH の道具を使うので、実物の見張りを直接呼ぶ。
-	line=$(cd "$test_dir" && env -i PATH="$bare" PR_WATCH_TEST_DIR="$test_dir" "$BASH" "$SQUAD_CLI_TEST_ACTUAL_SCRIPT" conflicts-check test-issue)
+	# BASH_ENV などが PATH を足さないよう、環境を空にして実物の見張りを呼ぶ。
+	line=$(cd "$test_dir" && env -i PATH="$bare" PR_WATCH_TEST_DIR="$test_dir" "$BASH" "$script" conflicts-check test-issue)
 	[[ $line == "コンフリクト: 未確認 head: 不明 理由: $missing が見つからない" ]] || { echo "$line" >&2; exit 1; }
 	cc_no_nashi "$line"
 done

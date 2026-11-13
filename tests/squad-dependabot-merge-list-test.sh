@@ -4,11 +4,6 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 
 source "$root/tests/dependabot-merge-test-lib.sh"
 

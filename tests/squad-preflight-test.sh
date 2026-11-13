@@ -3,11 +3,6 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 mkdir -p "$root/tmp"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 test_dir=$(mktemp -d "$root/tmp/preflight.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 mkdir -p "$test_dir/guard bin" "$test_dir/tools" "$test_dir/other"
@@ -85,7 +80,6 @@ run_preflight() {
 	: >"$test_dir/calls.jsonl"
 	BASH_ENV= PATH="$test_path" /bin/bash -c 'squad-preflight "$@"' -- "$@" \
 		>"$test_dir/out" 2>"$test_dir/err" || status=$?
-	python3 "$root/tests/cli-test-trace.py" "$test_dir" result "$guard_bin/squad-preflight" "$status" "$test_dir/out" "$@"
 	if [[ $status != "$expected" ]]; then
 		cat "$test_dir/out" "$test_dir/err" >&2
 		echo "FAIL preflight: status=$status (expected $expected)" >&2
@@ -124,7 +118,6 @@ STUB
 status=0
 BASH_ENV="$test_dir/child-env.sh" PATH="$guard_bin:$test_dir/tools" /bin/sh "$guard_bin/squad-preflight" fixture-issue \
 	>"$test_dir/out" 2>"$test_dir/err" || status=$?
-python3 "$root/tests/cli-test-trace.py" "$test_dir" result "$guard_bin/squad-preflight" "$status" "$test_dir/out" fixture-issue
 [[ $status == 0 && ! -e $test_dir/repaired && ! -s $test_dir/err ]]
 echo 'PASS preflight: 欄を読む子のBashも、BASH_ENVを読み直してPATHを変えない'
 

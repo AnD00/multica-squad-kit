@@ -4,20 +4,13 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	export USAGE_FIXTURE_NOW=$(date '+%s')
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
+export USAGE_FIXTURE_NOW=$(date '+%s')
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/usage-read-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 export USAGE_FIXTURE_ROOT=$root
 script=$root/common/monitor/squad-usage-read
 source "$script"
-source "$root/tests/cli-mode-test-lib.sh"
-cli_test_wrap_monitor "$script" "$test_dir"
 export TZ=UTC
 
 now=1793059200

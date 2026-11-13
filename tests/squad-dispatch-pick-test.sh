@@ -4,11 +4,6 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-if [[ ${SQUAD_CLI_TEST_COMPARING:-} != 1 ]]; then
-	source "$root/tests/cli-mode-test-lib.sh"
-	cli_test_compare_modes "$0" "$@"
-	exit $?
-fi
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/dispatch-pick-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
@@ -151,7 +146,6 @@ run_pick() {
 	mkfifo "$test_dir/usage-ready"
 	(cd "$test_dir"; PATH="$test_dir/bin" BASH_ENV="$test_dir/synchronize.sh" DISPATCH_TEST_INITIALIZE=yes /bin/bash "$script" "$@") \
 		>"$test_dir/out" 2>"$test_dir/err" || status=$?
-	python3 "$root/tests/cli-test-trace.py" "$test_dir" result "$script" "$status" "$test_dir/out" "$@"
 	if [[ "$status" != "$expected_status" ]] \
 		|| [[ $(head -n 1 "$test_dir/out") != "役: $expected_role" ]] \
 		|| [[ $(wc -l <"$test_dir/out" | tr -d ' ') != 2 ]] \
