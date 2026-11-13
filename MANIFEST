@@ -67,6 +67,7 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 95c078330176b1308f371fa86eaea75cf5fe55f601c3d4c7b1e08d2eb8a6830c  ./docs/install.md
 3a18a3e30e78572a1a19ef0791f70283115640c38fe0c006c51ac22924e92a54  ./docs/leader-principles.md
 3d1a737f836ed6790d0e861bee47fcfe210c0e1619c39c4ba44d373ed1b59286  ./docs/local-verification.md
+1b7b8219c24e1b3c329c58296e7c063406cddccb587307236ae206730dbfa4b9  ./docs/metrics.md
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
 5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
@@ -78,7 +79,7 @@ d92c09520ff698c6240542eb4f71b60e6f6ff3f6a4f680638965cef32002ccde  ./docs/setup-c
 33392749d2bddf1b063820bdda3df3809340f16d36f3616f40ec5f6c8a1f0bb8  ./docs/terms.md
 a19c253fe604c48bfcd591479cba51b178ffd81ec46a8865ac0a42b36dff89d0  ./docs/unfilled-stop.md
 9799ee10c29a60a0df043ddd4f363cac71f1af2c1c75d172aee6373b8ba191f0  ./docs/vm.md
-a9017eccebfa23d6a7baffae20ae36ea6f4c8059e8026d7fbf34fddef681d224  ./docs/workflow.md
+0e2fadf218cb443807330634800386a6f1c818fa0389a7b130e4ddfb0c2a6455  ./docs/workflow.md
 0769ca8a584e0c0297c7be5844d8a9209a81b36ca71b3b83c2d007d1e460c4ce  ./install.sh
 f2abc5fa219e425d44db2b4a2dece9625d9027782cb7a251596bfeac7de690b8  ./lib/answers.sh
 59a258d6187f5d51b5cc5169d8870123f7c4cde2602870d40c20255110e21230  ./lib/autopilots.sh
