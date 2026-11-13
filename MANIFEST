@@ -78,7 +78,7 @@ ad9dd6f28649d2ebdebd9200b0f9f443aeb8c3c62b15c120c4bc1ed91a33d61b  ./docs/screens
 4833dc40b67cf3cb5b3c6ed385c78a104bdddf8565302ee694a004171578f91e  ./docs/terms.md
 23061b8ec0c5beb312ba15cac63653ab55e05eca0d2ac1b49e2806b43ec0be4a  ./docs/unfilled-stop.md
 70be5b5ecc77fcea752d97787058e228ddadf66ff1685b021775fad7cc51dee9  ./docs/vm.md
-a4181b255699deed24ec41f519e2f3b900cbf8f2cb192f9c603e4d7ac7d14933  ./docs/workflow.md
+d14837efcd156fce1e414fb341c6e4cdae8aef9f9f717e8fe74325ea7f85437c  ./docs/workflow.md
 5ce1cce4066b84f500d25f947b62cdd88377393c0b17968de895a9ccab7b1c6b  ./install.sh
 fe3a4bb1f7b8b60cc2f5c851aa9dfafeb5f9fe85b8df1a52e3357044cda1ff1e  ./lib/answers.sh
 59a258d6187f5d51b5cc5169d8870123f7c4cde2602870d40c20255110e21230  ./lib/autopilots.sh
@@ -331,7 +331,7 @@ be7d0a25e7bbab93fc3fa0c3e50f216c953e1bd25f1401df43a2d042e22791c0  ./tests/test-r
 135ccbaccedfabb375e33d13b352edd3dfd9e7d9b0be9a969a73f161329cabbe  ./tests/test-weights
 b553963e04a2016611fc503983739328077c2daf794433065e033fe585cff2c8  ./tests/ui-contrast.py
 43c7c5e6929bc863a92ad6fa2304c65bff89c679a110ed2944aeca137d45f6ec  ./tests/ui-pty.py
-23720b28eb802c881382dc143d36f12841aeec1dba9213e440e39aab8b8d8a2d  ./tests/ui-steps-test.sh
+f38f20053d7f9557b93f37a8a551961ad18d5103f8221887df996bb6dd32dd23  ./tests/ui-steps-test.sh
 bf7d356e0a95f6ee564dea87688e72229e24ca586af0bd90a3a921b374887194  ./tests/ui-test.sh
 5ed8e11099875df22e4ac7f26be25561489d0939111df11a8d1c4e1d437f6809  ./tests/usage-fixture.py
 6f1791c21dc810ff1bbe7310394e554395ecfbf73b9b737a11950374e6cf6b63  ./tests/vm-guest-test.sh
