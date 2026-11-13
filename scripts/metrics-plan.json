@@ -1,0 +1,20 @@
+{
+  "metrics": {
+    "fixer_runs": 73,
+    "human_calls": 285,
+    "human_comments": 337,
+    "in_review_transitions": 238,
+    "issue_count": 41,
+    "run_count": 1156,
+    "run_seconds": 350700
+  },
+  "roles": {
+    "claude-implementer": {"total_tokens": 260100000},
+    "claude-principal": {"total_tokens": 14600000},
+    "codex-implementer": {"total_tokens": null},
+    "codex-principal": {"total_tokens": 14500000},
+    "designer": {"total_tokens": 118400000},
+    "orchestrator": {"total_tokens": 173000000},
+    "planner": {"total_tokens": 62500000}
+  }
+}

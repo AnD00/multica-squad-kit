@@ -1,0 +1,115 @@
+[
+  [
+    {
+      "agent_id": "fixture-metrics-id-000023",
+      "attempt": 1,
+      "attribution": {
+        "delegated_from_task_id": "fixture-metrics-id-000014",
+        "evidence": {
+          "kind": "comment",
+          "ref_id": "fixture-metrics-id-000015"
+        },
+        "initiator": {
+          "avatar_url": "fixture",
+          "email": "fixture",
+          "id": "fixture-metrics-id-000024",
+          "name": "fixture"
+        },
+        "originator": {
+          "avatar_url": "fixture",
+          "email": "fixture",
+          "id": "fixture-metrics-id-000024",
+          "name": "fixture"
+        },
+        "precise": true,
+        "source": "fixture"
+      },
+      "can_supplement": true,
+      "completed_at": null,
+      "created_at": "2026-11-13T06:35:57Z",
+      "delivered_comment_ids": [
+        "fixture-metrics-id-000015"
+      ],
+      "dispatched_at": "2026-11-13T06:35:57Z",
+      "error": null,
+      "id": "fixture-metrics-id-000016",
+      "issue_id": "fixture-metrics-id-000009",
+      "kind": "comment",
+      "max_attempts": 2,
+      "priority": 0,
+      "relative_work_dir": "fixture",
+      "result": null,
+      "runtime_id": "fixture-metrics-id-000021",
+      "started_at": "2026-11-13T06:35:57Z",
+      "status": "running",
+      "supplement_capability": "fixture",
+      "trigger_comment_id": "fixture-metrics-id-000015",
+      "trigger_summary": "fixture",
+      "work_dir": "fixture",
+      "workspace_id": "fixture-metrics-id-000030"
+    },
+    {
+      "agent_id": "fixture-metrics-id-000029",
+      "attempt": 1,
+      "attribution": {
+        "delegated_from_task_id": "fixture-metrics-id-000012",
+        "evidence": {
+          "kind": "comment",
+          "ref_id": "fixture-metrics-id-000013"
+        },
+        "initiator": {
+          "avatar_url": "fixture",
+          "email": "fixture",
+          "id": "fixture-metrics-id-000024",
+          "name": "fixture"
+        },
+        "originator": {
+          "avatar_url": "fixture",
+          "email": "fixture",
+          "id": "fixture-metrics-id-000024",
+          "name": "fixture"
+        },
+        "precise": true,
+        "source": "fixture"
+      },
+      "completed_at": "2026-11-13T06:36:01Z",
+      "created_at": "2026-11-13T06:35:07Z",
+      "delivered_comment_ids": [
+        "fixture-metrics-id-000013"
+      ],
+      "dispatched_at": "2026-11-13T06:35:07Z",
+      "error": null,
+      "id": "fixture-metrics-id-000014",
+      "is_leader_task": true,
+      "issue_id": "fixture-metrics-id-000009",
+      "kind": "comment",
+      "max_attempts": 2,
+      "priority": 0,
+      "relative_work_dir": "fixture",
+      "result": {
+        "output": "fixture",
+        "pr_url": "",
+        "session_id": "fixture-metrics-id-000019",
+        "work_dir": "fixture"
+      },
+      "runtime_id": "fixture-metrics-id-000018",
+      "started_at": "2026-11-13T06:35:07Z",
+      "status": "completed",
+      "supplement_capability": "fixture",
+      "trigger_comment_id": "fixture-metrics-id-000013",
+      "trigger_summary": "fixture",
+      "usage": [
+        {
+          "cache_read_tokens": 405039,
+          "cache_write_tokens": 7516,
+          "input_tokens": 16,
+          "model": "claude-sonnet-5-5",
+          "output_tokens": 3765,
+          "provider": "claude"
+        }
+      ],
+      "work_dir": "fixture",
+      "workspace_id": "fixture-metrics-id-000030"
+    }
+  ]
+]

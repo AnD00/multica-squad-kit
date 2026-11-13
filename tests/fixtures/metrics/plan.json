@@ -1,0 +1,25 @@
+{
+  "metrics": {
+    "issue_count": 2,
+    "human_comments": 5,
+    "human_calls": 3,
+    "run_seconds": 240,
+    "run_count": 6,
+    "fixer_runs": 4,
+    "in_review_transitions": 2
+  },
+  "roles": {
+    "claude-fixer": {
+      "total_tokens": 100
+    },
+    "codex-fixer": {
+      "total_tokens": null
+    },
+    "planner": {
+      "total_tokens": 20
+    },
+    "designer": {
+      "total_tokens": 10
+    }
+  }
+}

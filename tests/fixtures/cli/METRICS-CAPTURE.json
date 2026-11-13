@@ -1,0 +1,27 @@
+{
+  "captured_on": "2026-11-13",
+  "version": "multica 0.7.0 (commit: dbdbb2991, built: 2026-10-23T09:55:25Z)",
+  "commands": {
+    "metrics-issues": "multica issue list --project {project} --limit 1 --offset {offset} --output json",
+    "metrics-agents": "multica agent list --include-archived --output json",
+    "issue-timeline": "multica issue timeline {issue} --activity-only --output json",
+    "metrics-comments": "multica issue comment list {issue} --recent 1 --full --output json",
+    "metrics-runs": "multica issue runs {issue} --output json"
+  },
+  "samples": {
+    "metrics-issues": 2,
+    "metrics-agents": 1,
+    "issue-timeline": 1,
+    "metrics-runs": 1,
+    "metrics-comments": 1
+  },
+  "timeline_shapes": [
+    "status_changed",
+    "other_activity"
+  ],
+  "run_shapes": [
+    "running_without_usage",
+    "completed_with_usage"
+  ],
+  "redaction": "自由文・名前・識別子を匿名化。キーと型を保持。ID の同一性と比較順を採取内で保持。元の ID と対応表は保存しない。"
+}

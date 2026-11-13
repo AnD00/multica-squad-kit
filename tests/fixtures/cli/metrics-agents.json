@@ -1,0 +1,44 @@
+[
+  [
+    {
+      "archived_at": null,
+      "archived_by": null,
+      "avatar_url": "fixture",
+      "conversation_starters": [],
+      "created_at": "2026-11-10T03:30:30Z",
+      "custom_args": [],
+      "custom_env_key_count": 0,
+      "description": "fixture",
+      "disabled_runtime_skills": [],
+      "has_custom_env": false,
+      "id": "fixture-metrics-id-000020",
+      "instructions": "",
+      "invocation_targets": [
+        {
+          "target_id": "fixture-metrics-id-000030",
+          "target_type": "fixture"
+        }
+      ],
+      "max_concurrent_tasks": 3,
+      "mcp_config": null,
+      "mcp_config_redacted": false,
+      "model": "",
+      "name": "fixture",
+      "owner_id": "fixture-metrics-id-000024",
+      "permission_mode": "fixture",
+      "runtime_bound": true,
+      "runtime_config": {},
+      "runtime_id": "fixture-metrics-id-000018",
+      "runtime_mode": "fixture",
+      "service_tier": "",
+      "skills": [],
+      "status": "idle",
+      "system_instructions": "fixture",
+      "system_key": "fixture",
+      "thinking_level": "",
+      "updated_at": "2026-11-10T03:30:30Z",
+      "visibility": "fixture",
+      "workspace_id": "fixture-metrics-id-000030"
+    }
+  ]
+]
