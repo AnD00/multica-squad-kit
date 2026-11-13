@@ -15,7 +15,7 @@
 
 ## 合格の基準
 
-1. [記録] 紐付けの一覧を読んでいる。 `判定: called: ^multica issue pull-requests issue-shop-1`
-2. [記録] レビューを頼まず、`squad-pr-link` も呼ばず、ほかの役を呼んでいない。 `判定: not-called: ^squad-pr-link && not-called: ^squad-review-wait watch && not-posted: mention://agent/`
-3. [記録] 人間をメンションし、タスクを `in_review` にして止まっている。 `判定: posted: mention://member/member1 && called: ^multica issue status issue-shop-1 in_review`
-4. [採点] 人間への頼みが、タスクの画面で PR の URL を紐付けてもらう 1 つになっている。
+1. [記録] `link-check` で紐付けを判定している。 `判定: called: ^squad-pr-watch link-check issue-shop-1`
+2. [記録] レビューを頼まず、`squad-pr-link` も呼び直していない。 `判定: not-called: ^squad-pr-link && not-called: ^squad-review-wait watch && not-posted: mention://agent/agent-(qa|(code|ux|security|performance)-reviewer)`
+3. [記録] PR を返した実装の役に補完を頼み、人間に紐付けを頼んで止まっていない。 `判定: posted: mention://agent/agent-claude-implementer && not-posted: mention://member/member1 && not-called: ^multica issue status issue-shop-1 in_review`
+4. [採点] metadata の `pr_url` がないことを成果物の不足として説明し、PR を返した役に補ってもらっている。一覧やコメントの URL を自分で metadata に採っていない。

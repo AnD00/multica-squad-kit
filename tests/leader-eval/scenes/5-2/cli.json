@@ -6,11 +6,11 @@
     },
     {
       "match": "multica issue get issue-shop-1",
-      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"カートに商品数を出す\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
+      "stdout": "{\n  \"id\": \"issue-shop-1\",\n  \"identifier\": \"SHOP-1\",\n  \"title\": \"カートに商品数を出す\",\n  \"status\": \"in_progress\",\n  \"assignee_type\": \"squad\",\n  \"assignee_id\": \"squad-shop\",\n  \"project_id\": \"project-shop\",\n  \"labels\": [],\n  \"metadata\": {\n    \"repository\": \"example/shop\",\n    \"branch\": \"feat/cart-badge\",\n    \"pr_url\": \"https://github.com/example/shop/pull/7\"\n  },\n  \"description\": \"カートのアイコンに、入っている商品の数を出す。\"\n}"
     },
     {
       "match": "multica issue comment list issue-shop-1",
-      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-designer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 設計の draft PR を作りました。\\n\\nタスク SHOP-1 に PR https://github.com/example/shop/pull/6 を紐付けられませんでした（サーバーが PR を見つけられない（120 秒待った））。タスクの画面の PR の欄で、この URL を指定して紐付けてください。\\nサーバーは、example/shop がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、example/shop がつながっていることを確認してから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\",\n    \"created_at\": \"2026-01-09T10:00:00Z\"\n  },\n  {\n    \"id\": \"comment-2\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-orchestrator\",\n    \"parent_id\": null,\n    \"content\": \"[@member1](mention://member/member1) 設計の PR がタスクに紐付いていません。タスクの画面で紐付けてください。\",\n    \"created_at\": \"2026-01-09T10:10:00Z\"\n  },\n  {\n    \"id\": \"comment-3\",\n    \"author_type\": \"member\",\n    \"author_id\": \"member1\",\n    \"parent_id\": null,\n    \"content\": \"紐付けました。同じことが前のタスクでもありました\",\n    \"created_at\": \"2026-01-09T10:40:00Z\"\n  },\n  {\n    \"id\": \"comment-4\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-claude-implementer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。\\n\\nタスク SHOP-1 に PR https://github.com/example/shop/pull/7 を紐付けられませんでした（サーバーが PR を見つけられない（120 秒待った））。タスクの画面の PR の欄で、この URL を指定して紐付けてください。\\nサーバーは、example/shop がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、example/shop がつながっていることを確認してから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\\n\\nPR: https://github.com/example/shop/pull/7\\n\\n確認したこと:\\n- 単体テストが通った\\n\\n残っていること:\\n- レビュー\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  }\n]"
+      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-designer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 設計の draft PR を作りました。\\n\\nタスク SHOP-1 に PR https://github.com/example/shop/pull/6 を紐付けられませんでした（サーバーが PR を見つけられない（120 秒待った））。タスクの画面の PR の欄で、この URL を指定して紐付けてください。\\nサーバーは、example/shop がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、example/shop がつながっていることを確認してから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\",\n    \"created_at\": \"2026-01-09T10:00:00Z\"\n  },\n  {\n    \"id\": \"comment-2\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-orchestrator\",\n    \"parent_id\": null,\n    \"content\": \"[@member1](mention://member/member1) 設計の PR がタスクに紐付いていません。タスクの画面で紐付けてください。\",\n    \"created_at\": \"2026-01-09T10:10:00Z\"\n  },\n  {\n    \"id\": \"comment-3\",\n    \"author_type\": \"member\",\n    \"author_id\": \"member1\",\n    \"parent_id\": null,\n    \"content\": \"紐付けました。同じことが前のタスクでもありました\",\n    \"created_at\": \"2026-01-09T10:40:00Z\"\n  },\n  {\n    \"id\": \"comment-4\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-claude-implementer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。\\n\\nPR: https://github.com/example/shop/pull/7\\n紐付けの失敗: タスク SHOP-1 に PR https://github.com/example/shop/pull/7 を紐付けられませんでした（サーバーが PR を見つけられない（120 秒待った））。タスクの画面の PR の欄で、この URL を指定して紐付けてください。\\nサーバーは、example/shop がワークスペースの GitHub 連携につながり、PR が同期されるまで、PR を見つけられません。ワークスペースの設定のコードの画面で、example/shop がつながっていることを確認してから紐付けてください。つながっていないと、タスクの画面からも紐付けられません。\\n\\n確認したこと:\\n- 単体テストが通った\\n\\n残っていること:\\n- レビュー\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  }\n]"
     },
     {
       "match": "multica issue pull-requests issue-shop-1",
@@ -54,7 +54,39 @@
     },
     {
       "match": "gh pr view",
-      "stdout": "{\n  \"number\": 7,\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\"\n}"
+      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
+    },
+    {
+      "match": "squad-pr-watch conflicts-check issue-shop-1",
+      "stdout": "コンフリクト: MERGEABLE head: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"
+    },
+    {
+      "match": "multica issue runs issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "squad-review-wait status issue-shop-1",
+      "stdout": "返事の待ち: 登録なし"
+    },
+    {
+      "match": "squad-review-wait watch issue-shop-1",
+      "stdout": "返事の待ちの見張りを入れました。"
+    },
+    {
+      "match": "squad-pr-watch ci issue-shop-1",
+      "stdout": "CI の見張りを入れました。"
+    },
+    {
+      "match": "squad-pr-watch ci-held issue-shop-1",
+      "stdout": ""
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いていない pr: https://github.com/example/shop/pull/7"
+    },
+    {
+      "match": "squad-pr-watch ci-now issue-shop-1",
+      "stdout": "/note\nCI 3f9a2c1: 失敗なし"
     }
   ]
 }

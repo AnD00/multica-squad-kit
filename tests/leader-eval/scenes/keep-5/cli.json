@@ -51,6 +51,10 @@
     {
       "match": "gh pr view",
       "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: ログインの有効期限を 30 日に延ばす\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/login-expiry\",\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/auth/session.ts\"\n    },\n    {\n      \"path\": \"src/auth/session.test.ts\"\n    }\n  ],\n  \"body\": \"ログインの有効期限を、7 日から 30 日に延ばす。トークンの発行と検証の期限を合わせる。\"\n}"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }
