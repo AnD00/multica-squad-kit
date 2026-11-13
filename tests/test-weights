@@ -1,6 +1,8 @@
 # ファイル 秒（macOS の CI での目安）
 # 追記と更新の決まりは CONTRIBUTING.md の「テストを書く決まり」を参照する。
 # 重みの上限は 150 秒。macOS の ==== PASS の実測値を写す。
+# metrics-test は追加時の目安。macOS CI の実測後に更新する。
+tests/metrics-test.sh 2
 # 更新したテストの採取元: e0c9734 https://github.com/AnD00/multica-squad-kit/actions/runs/43234806235
 # 更新したテストの採取元: 8a2381b https://github.com/AnD00/multica-squad-kit/actions/runs/43239563120
 # 更新したテストの採取元: 425558f https://github.com/AnD00/multica-squad-kit/actions/runs/43247237925

@@ -53,6 +53,8 @@ python3 scripts/metrics.py count tmp/metrics/snapshot.json \
 
 スナップショットは、キーの順と配列の並び（作られた時刻、次に ID）を固定して書く。読んだ時刻と CLI のバージョンも記録するが、数える手順の結果には影響させない。
 
+実装した数える手順の入力は、`schema_version: 1` と、`project_id`、`collected_at`、`cli_version`、`issues`、`comments`、`transitions`、`runs`、`agents` を持つ JSON である。各配列の欄と合成の例は `tests/fixtures/metrics/snapshot.json` にある。コメントのメンションの ID は `member_mentions`、状態の変化は `from_status` と `to_status` に残す。実行の時刻と使用量の欄は `created_at`、`started_at`、`completed_at`、`usage` とし、開始・終了の時刻がないときは `null`、使用量がないときは空の配列にする。`usage` の各行は、CLI と同じ `input_tokens`、`cache_write_tokens`、`cache_read_tokens`、`output_tokens` を持つ。
+
 ### 数える
 
 `count` は、スナップショットと次の入力から、タスクごとの値を数える。入力は、すべて引数で受け、環境や今の時刻を読まない。
@@ -77,6 +79,8 @@ python3 scripts/metrics.py count tmp/metrics/snapshot.json \
 8. 参考の値として、`in_review` へ移った状態の変化の数も出す
 
 時刻は、秒の小数を含めて比べる。合計は整数の秒で足し、分への直しと 1 タスクあたりの平均は、表示するときにだけ行う。四捨五入は小数第 1 位までとし、浮動小数点を使わずに計算する。
+
+実装では、実行ごとの秒の小数を切り捨ててから整数の秒を足す。JSON の合計とタスクごとの値は整数、分と平均は小数第 1 位までの文字列で残す。使用量が読めた実行は内訳と合計を足し、未確認の実行数を別に残す。役のすべての実行が未確認なら、その役のトークン数は `null` にする。対象のタスクが 0 件なら平均も `null` にする。
 
 実行の役は、エージェントの名前から読む。セットアップは名前を `<プロジェクトの印>-<役>-<メンバーの印>` にするので、前後の印を外した残りが [common/agents](../common/agents/) の役の名前と一致すれば、その役とする。一致しないエージェントの実行は「その他」にまとめ、エージェントの名前を添える。
 
@@ -107,6 +111,8 @@ python3 scripts/metrics.py count tmp/metrics/snapshot.json \
 基準値の結果には、計画の表の値との差と、その理由を添える。比べる値は、[workflow.md の指標の現状と目標](workflow.md#指標の現状と目標)の表と、[使用量の見積り](workflow.md#使用量の見積り)の役ごとの表である。
 
 比べる値は、`count` に `--compare` で渡すファイルに書く。基準値で使うファイルは `scripts/metrics-plan.json` として原本に置く。計画の表の合計だけを持ち、タスクごとの値を持たないためである。差の理由は、数えた人が結果のコメントに書く。
+
+比較ファイルの実装の形は `tests/fixtures/metrics/plan.json` にある。`metrics` に指標名と整数の合計（実行時間は `run_seconds`）、`roles` に役名と `total_tokens` を渡す。計画で未確認のトークン合計は `null` にする。結果の差は今回の確認済みの合計から計画の値を引き、どちらかが未確認なら差も `null` にする。未確認の実行数は差と並べて出す。
 
 トークン数は、出どころが違うので差が出る見込みである。計画の表は会話の記録から数え、この手順は実行の記録の使用量から数えるためである。差のある役について、差と、その役の未確認の数を並べて書く。
 

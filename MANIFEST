@@ -67,7 +67,7 @@ c1cfcc2bf66288a795cf06e6b1c390f65eca10c6bbcb49c56790ff2de6812321  ./docs/gh-gate
 95c078330176b1308f371fa86eaea75cf5fe55f601c3d4c7b1e08d2eb8a6830c  ./docs/install.md
 3a18a3e30e78572a1a19ef0791f70283115640c38fe0c006c51ac22924e92a54  ./docs/leader-principles.md
 3d1a737f836ed6790d0e861bee47fcfe210c0e1619c39c4ba44d373ed1b59286  ./docs/local-verification.md
-698ff0288cd4d17fedbf4d440c2ba52ba81b29ecd8272a8255317f9ebc8adc8f  ./docs/metrics.md
+6d9396cd9d128e191d212d0c55ae38a429c5daeb367be5a8a740e2c6b01f844a  ./docs/metrics.md
 940ca5c75c83205e735351441fdabb66a32a24fceabad159bb1ccc5c5639df6d  ./docs/pr-conflict-check.md
 392c6f52ca0e3fbd7ff2319bfc7abecc61f7bb5525f0e9d7eb8df3005b304e24  ./docs/pr-link.md
 5ce842442c6f3c4a44e32a499fc25af0faf6e812dd1db5a7bcadedd820d6cacb  ./docs/principal-review.md
@@ -103,6 +103,7 @@ a5266ab6bfd01aab4c8744777b707d510d1cd38b1a7761be916ad2ce2f61f9b4  ./lib/workspac
 5502cd894d01488bcf22a4d332d3f8b87271923e2e05fd72e8a50bb847b774e2  ./scripts/check.sh
 2b1d474d9d51940cde91cb4529ca3c16d16d4be3e0d7548d1066986f615a812d  ./scripts/ci-install.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
+7568c25e8aeb2b9dd24c76c09c84b7c2c2ff6146776a289bee2d9a8554cc931b  ./scripts/metrics.py
 3cb35a27b2c588645afbe7094a1c26902affc63dea952cb758eeac2b1d377705  ./scripts/release.sh
 aa902f7a6e632852891f227758367ecfa14653acf1360dbdfe2a5d100e16977d  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
@@ -185,6 +186,8 @@ a47bc82793dd740d74e5b8a1ae4d161245a91790c540dd7b52e7521754d2e9d0  ./tests/fixtur
 e4d026426a279f70dc9b746853fb482ce103b670f5726ce24747de8e9c923bce  ./tests/fixtures/cli/label-list.json
 73eb4d65e38382c60b5e28591ff076d74f5e764af5d25796d1df16ce9782f80b  ./tests/fixtures/cli/member-list.json
 f9ce3f4c67b1550210e811f353db239e2f9ca2a4bbf8c5ee1a2306c200526142  ./tests/fixtures/cli/squad-list.json
+a5bd1e16ebe71227d19112b61f795654383c56593bc865bc389d1b2e62fa3e6e  ./tests/fixtures/metrics/plan.json
+c04d7621b21d3ad8dca222219ef9de610463c0b4c0725ab6a53f0dba59ae1d84  ./tests/fixtures/metrics/snapshot.json
 941bedae10cb90cd9865ff3cb98b4c9d5ff26c027104c990fc6b75136ad96224  ./tests/gh-fixture.py
 ddb25a5382ca2b59d39cd5f300438b8ab0c5513a9d252713b0173ca05542bdfe  ./tests/gh-test.sh
 c3f75e65cd15eb61b157e683f2df71b04e4313a7e41e2e7072476001f6427f69  ./tests/guard-backend.sh
@@ -239,6 +242,7 @@ f63f5823cb3efeb845a4c06f0123eb6deb2982c8ac1826f5ad3455a594d456e6  ./tests/leader
 f3a6d60757b256592e9a1a6d21072d8e4d8026b76c25c16891992584a618f520  ./tests/leader-eval/values.json
 d1b3a1d4027607320e238396168780d67a30fc4186503b288fe05076d80f1955  ./tests/link-scope-questions-test.sh
 72f6c63084712a16f9f22c5b9113c058b0214f6a237f9c00d932ac820c423cd4  ./tests/manual-test.sh
+89b7fc81c13a01f0d1c7b7daf486d25caa4b29a9cb672a28fc04c02558c7e0cc  ./tests/metrics-test.sh
 4e821def23057c68c2b54904b18bbc57eecd33ffba6d5730600a84c3d51a7bef  ./tests/multica-fixture.py
 53c8729001728a604bb778fd2b9943915f3c00bd87b698b9735633f1474feed0  ./tests/pr-watch-fixture.py
 321ba38eaed72caa945859fdfd6b086bd465ea50bb6230b883b1ba5021e4643a  ./tests/pr-watch-test-lib.sh
@@ -329,7 +333,7 @@ f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-s
 b212af80366faa54e2a8e9183179a9dea4321f9228d3c33fea49adc6ae1e3a47  ./tests/terminal-screen-test.sh
 47731c021891567967965c56fa5f57174b6b7d0bdc1fe00260075dc83a3fba94  ./tests/terms-test.sh
 b2a204f48fc4f079324e4481415b1eba244e0312a0104945b0cf7e73a1c3acc0  ./tests/test-runner-test.sh
-135ccbaccedfabb375e33d13b352edd3dfd9e7d9b0be9a969a73f161329cabbe  ./tests/test-weights
+9d7ad02bb33648ba79c52c819a5274a808036d703150279fa83eba88b4bf0496  ./tests/test-weights
 d38dc1637f75acc3218a7d5c5166ba48ff770de101cd5654db9543c563588cd2  ./tests/ui-contrast.py
 318b7373d24df9969728c1e9effd14bf03c0dc0f17fd1b4aa92bc9dfeced3d0f  ./tests/ui-pty.py
 99afc1d394a9de6328dd135f2a18b273b535336acafab49494f4d44db11f6c56  ./tests/ui-steps-test.sh
