@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# リーダーの評価の場面の形と、流す仕組みを、本物のモデルを呼ばずに確かめる。
+# リーダーの評価の場面の形と、流す仕組みを、本物のモデルを呼ばずに確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 export PYTHONDONTWRITEBYTECODE=1
@@ -151,7 +151,7 @@ for text in ["返事を待つ役:", "確認するコミット:", "agent-qa", "ag
     wrong[-1]["bodies"][0] = wrong[-1]["bodies"][0].replace(text, "missing")
     assert not passed(wrong), text
 PY
-echo "PASS leader-eval: keep-7 は CI と返事の待ち、依頼の順序・役・コミットを確かめる"
+echo "PASS leader-eval: keep-7 は CI と返事の待ち、依頼の順序・役・コミットを確認する"
 
 # --- スタブの claude で流す ---
 stub_bin="$test_dir/stub-bin"
@@ -238,7 +238,7 @@ grep -q '^leader claude-sonnet-5-5 high' "$test_dir/stub.log"
 grep -q '^scorer claude-opus-5-5 high' "$test_dir/stub.log"
 echo "PASS leader-eval: モデルと思考の深さは展開した front matter から、採点は opus の high で流す"
 
-# keep-6 の最後の返答だけを変え、採点が合格と不合格に分かれることを確かめる。
+# keep-6 の最後の返答だけを変え、採点が合格と不合格に分かれることを確認する。
 for mode in good bad denied; do
 	case $mode in good | denied) reply=$'/note\n返事の待ち: 回ごと済み' ;; bad) reply='別の返答' ;; esac
 	denial=

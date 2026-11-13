@@ -83,7 +83,7 @@ for dir in "$test_dir/"*/; do
 	grep -qF '実行の状態と記録を読んで答える' "$test_dir/principles"
 	grep -qF '同じ誤りや差し戻しが 2 回続いたら' "$test_dir/principles"
 	awk '/^## / {print}' "$file" >"$test_dir/headings"
-	printf '%s\n' '## 判断の優先の原則' '## 受け取ったら確かめること' '## 場面と手順' '## 重要の基準' '## このスクワッドの役' '## 人間を待つところ' '## このプロジェクトの値' >"$test_dir/want-headings"
+	printf '%s\n' '## 判断の優先の原則' '## 受け取ったら確認すること' '## 場面と手順' '## 重要の基準' '## このスクワッドの役' '## 人間を待つところ' '## このプロジェクトの値' >"$test_dir/want-headings"
 	cmp "$test_dir/headings" "$test_dir/want-headings"
 	grep -qF 'in_review' "$file"
 	grep -qF 'ほかの役を呼ばない' "$file"
@@ -155,7 +155,7 @@ grep -qF 'squad-preflight <タスク>' "$test_dir/preflight"
 grep -qF 'どちらもしない実行では、この確認は流さない' "$test_dir/preflight"
 for dir in "$test_dir/"*/; do
 	[[ -f $dir/orchestrator ]] || continue
-	first_check=$(awk '/^## 受け取ったら確かめること$/ {inside=1; next} inside && /^- / {print; exit}' "$dir/orchestrator")
+	first_check=$(awk '/^## 受け取ったら確認すること$/ {inside=1; next} inside && /^- / {print; exit}' "$dir/orchestrator")
 	[[ $first_check == *'squad-handoff の「実行の始めの確認」'* && $first_check == *'分かれ道より先'* ]]
 	[[ $first_check == *'squad-preflight <タスク>'* ]]
 	for role in ci-monitor dependabot-merger usage-monitor; do
@@ -235,12 +235,12 @@ grep -qF '未確認' <<<"$state_section"
 grep -qF '「なし」' <<<"$state_section"
 echo 'PASS templates: 参照は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
 
-# PR の紐付けを確かめる時機と、空のときの停止も、同じ確認を参照へ向ける。
+# PR の紐付けを確認する時機と、空のときの停止も、同じ確認を参照へ向ける。
 link_section=$(awk '/^## PR の紐付けの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
 for phrase in 'multica issue pull-requests <タスク> --output json' 'PR を受け取ったとき' '人間のマージへ回す前' '返事を待つ回を始める前' '`pull_requests` が空なら' 'タスクの画面で PR の URL を紐付けてもらうよう頼んで止まる'; do
 	grep -qF "$phrase" <<<"$link_section"
 done
-echo 'PASS templates: 参照は PR の紐付けを 3 つの時点で確かめ、空なら人間に頼んで止まる'
+echo 'PASS templates: 参照は PR の紐付けを 3 つの時点で確認し、空なら人間に頼んで止まる'
 
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
@@ -391,7 +391,7 @@ for role in claude-fixer codex-fixer; do
 	grep -qF 'git diff --name-only --diff-filter=U' "$test_dir/all/$role"
 	grep -qF 'git diff --name-only origin/main...HEAD' "$test_dir/all/$role"
 	grep -qF '検証のスキルの節「コンフリクトを解消したときの検証」' "$test_dir/all/$role"
-	grep -qF 'テスト全体は手元で流さず、push のあとの CI で確かめる' "$test_dir/all/$role"
+	grep -qF 'テスト全体は手元で流さず、push のあとの CI で確認する' "$test_dir/all/$role"
 	grep -qF '落ちたテストは流し直さない' "$test_dir/all/$role"
 	grep -qF '落ちたテストの名前と出力を添える' "$test_dir/all/$role"
 	grep -qF 'git show --remerge-diff <マージのコミット>' "$test_dir/all/$role"
@@ -458,20 +458,20 @@ echo 'PASS templates: 返事の手順の参照は、開始時の確認が通っ�
 for phrase in 'runs <タスク> --active' '--siblings' 'run-messages' '--help' '実行の ID' '役' '状態' '始まった時刻' '直近にしていたこと' '終わった' '失敗した' '止められた' 'cancel-task' '人間の指示か承認があるときだけ' '自分の判断では止めない' '最後に push されたコミット' '編集・コミット' '失うおそれ' '未確認' '「なし」とは書かない' '確認の 4 項目を挟まずに止める' 'メンションで呼び' '止めた実行の ID' '`multica issue rerun` は使わない'; do
 	grep -qF -- "$phrase" "$refs/leader-run-status.md"
 done
-echo 'PASS templates: 進捗と停止の参照が、実行の状態の確かめ・止める条件・止めたあとの手順を持つ'
+echo 'PASS templates: 進捗と停止の参照が、実行の状態の確認・止める条件・止めたあとの手順を持つ'
 
 for phrase in '45 分' '実行の遅れ:' '同じ実行につき 1 回だけ' '知らせても、実行は止めない'; do
 	grep -qF -- "$phrase" "$refs/leader-run-status.md"
 done
-for phrase in 'squad-pr-watch conflicts-check' '起きたときの確かめ' '返事を待つ回の途中でない' 'その PR に触れる実行が動いていない' '重ねて呼ばない' '2 回続けて `CONFLICTING`' 'squad-pr-watch conflicts <タスク>' 'squad-pr-watch ci-held'; do
+for phrase in 'squad-pr-watch conflicts-check' '起きたときの確認' '返事を待つ回の途中でない' 'その PR に触れる実行が動いていない' '重ねて呼ばない' '2 回続けて `CONFLICTING`' 'squad-pr-watch conflicts <タスク>' 'squad-pr-watch ci-held'; do
 	grep -qF -- "$phrase" "$refs/leader-pr-checks.md"
 done
-echo 'PASS templates: 起きたときの確かめは、実行の長さとコンフリクトを見て、動いている PR に修正の役を重ねない'
+echo 'PASS templates: 起きたときの確認は、実行の長さとコンフリクトを見て、動いている PR に修正の役を重ねない'
 
 for phrase in 'multica issue pull-requests <タスク>' '紐付けていません:' 'ワークスペースの設定のコードの画面' '警告の文を、そのまま添える' '`squad-pr-link` は、PR を作った直後の 1 回だけ'; do
 	grep -qF -- "$phrase" "$refs/leader-pr-checks.md"
 done
-echo 'PASS templates: PR の紐付けの参照は、一覧で確かめ、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
+echo 'PASS templates: PR の紐付けの参照は、一覧で確認し、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
 
 for phrase in 'squad-dispatch-pick implement' 'squad-dispatch-pick fix' 'squad-usage-read'; do
 	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
