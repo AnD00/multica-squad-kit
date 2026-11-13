@@ -16,13 +16,16 @@
 #   squad-pr-watch ci-check <タスク> <リーダーの ID> <見張り役の ID>
 #     今の head で確定した CI の失敗があれば、ほかの役の作業中は保留し、それ以外は一度だけ知らせる。
 #     0 で終わるときは、記録のスレッドに残す /note と 1 行を標準出力に出す。
+#   squad-pr-watch ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>]
+#     同じ判定をその場で行い、メンションなしで知らせる。見張り役は省ける。
+#     記録のスレッドがなければ、きっかけのコメントを metadata に書いて使う。
 #   squad-pr-watch ci-held <タスク> <きっかけのコメント>
 #     今の head の未処理の失敗を一度だけ出し、引き継ぎで受けた記録をきっかけへの返信に残す。
 set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
 
 usage() {
-	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-held <タスク> <きっかけのコメント>' >&2
+	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント>' >&2
 	exit 2
 }
 
@@ -266,11 +269,17 @@ ci_handled() {
 
 ci_check() {
 	local issue=$1 id=$2 monitor_id=$3 orchestrator task thread pr_url pr checks failures head short comments body runs active names role name agent squad handoffs notice target selection_status
+	local mode=${4:-watch} trigger=${5-}
 	task=$(squad_cli_read issue-get "$issue")
 	thread=$(jq -r '.metadata.ci_watch_thread | select(. != null)' <<<"$task")
 	if [[ -z $thread ]]; then
-		echo 'metadata に ci_watch_thread がありません。CI の見張りを登録し直してください。' >&2
-		return 1
+		if [[ $mode == now ]]; then
+			thread=$trigger
+			multica issue metadata set "$issue" --key ci_watch_thread --value "$thread" --output json >/dev/null
+		else
+			echo 'metadata に ci_watch_thread がありません。CI の見張りを登録し直してください。' >&2
+			return 1
+		fi
 	fi
 	case $(jq -r '.status_category' <<<"$task") in
 	done | cancelled)
@@ -314,8 +323,10 @@ ci_check() {
 		ci_record "CI ${short}: 失敗は知らせ済み"
 		return 0
 	fi
-	agent=$(squad_cli_read agent-get "$id")
-	orchestrator=$(jq -r '.name' <<<"$agent")
+	if [[ $mode == watch ]]; then
+		agent=$(squad_cli_read agent-get "$id")
+		orchestrator=$(jq -r '.name' <<<"$agent")
+	fi
 	runs=$(squad_cli_read issue-runs "$issue")
 	# 引き継ぎ後も run は短時間 running のまま残る。引き継ぎ済みの run では
 	# 保留しない。取得の確認より後に確定した失敗も、通常の通知で拾えるようにする。
@@ -341,26 +352,35 @@ ci_check() {
 		ci_record "CI ${short}: 失敗あり（${names} の作業中なので保留）"
 		return 0
 	fi
-	# 欄の検証と通信の失敗は通知にすり替えない。候補が 0 件・複数のときだけ従来の通知先へ戻す。
-	if target=$(squad_cli_squad_for_leader "$id"); then
-		notice=$(jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$target")
-	else
-		selection_status=$?
-		((selection_status == 2)) || return "$selection_status"
-		notice="[@${orchestrator}](mention://agent/${id})"
+	notice=''
+	if [[ $mode == watch ]]; then
+		# 欄の検証と通信の失敗は通知にすり替えない。候補が 0 件・複数のときだけ従来の通知先へ戻す。
+		if target=$(squad_cli_squad_for_leader "$id"); then
+			notice=$(jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$target")
+		else
+			selection_status=$?
+			((selection_status == 2)) || return "$selection_status"
+			notice="[@${orchestrator}](mention://agent/${id})"
+		fi
 	fi
 	mkdir -p tmp
 	body=$(mktemp tmp/pr-watch-ci-result.XXXXXX)
 	trap "$(printf 'rm -f -- %q' "$body")" EXIT
 	{
-		printf 'head: %s\nCI の失敗を検出しました。\n\n%s\n\nPR: %s\n\n失敗したチェック:\n' "$short" "$notice" "$pr_url"
+		printf 'head: %s\nCI の失敗を検出しました。\n' "$short"
+		if [[ -n $notice ]]; then printf '\n%s\n' "$notice"; fi
+		printf '\nPR: %s\n\n失敗したチェック:\n' "$pr_url"
 		jq -r '.[] | "- " + .' <<<"$failures"
 	} >"$body"
 	# Actions の URL は書かず、PR とチェックの名前で知らせる。
 	multica issue comment add "$issue" --parent "$thread" --content-file "$body" --output table >/dev/null
 	rm -f "$body"
 	trap - EXIT
-	ci_record "CI ${short}: 失敗をリーダーに知らせた"
+	if [[ $mode == now ]]; then
+		ci_record "CI ${short}: 失敗あり"
+	else
+		ci_record "CI ${short}: 失敗をリーダーに知らせた"
+	fi
 }
 
 ci_held() {
@@ -420,6 +440,11 @@ ci-check)
 	(($# == 4)) || usage
 	require_commands jq python3 multica gh
 	ci_check "$2" "$3" "$4"
+	;;
+ci-now)
+	(($# == 4 || $# == 5)) || usage
+	require_commands jq python3 multica gh
+	ci_check "$2" "$3" "${5-}" now "$4"
 	;;
 ci-held)
 	(($# == 3)) || usage

@@ -84,6 +84,7 @@ tests/squad-dependabot-merge-list-test.sh 36
 tests/squad-dispatch-pick-test.sh 29
 tests/squad-pr-link-test.sh 22
 tests/squad-pr-watch-ci-handoff-test.sh 33
+tests/squad-pr-watch-ci-now-test.sh 25
 tests/squad-pr-watch-ci-test.sh 42
 tests/squad-pr-watch-register-test.sh 40
 tests/squad-pr-watch-unlinked-test.sh 12

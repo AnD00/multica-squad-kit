@@ -34,6 +34,12 @@ case "${1-} ${2-} ${3-}" in
 'version  ') echo 'multica fixture-version' ;;
 'squad list --output') emit squad-list "$dir/squads.json" ;;
 'issue get test-issue') emit issue-get "$dir/task.json" ;;
+'issue metadata set')
+	[[ "$*" == issue\ metadata\ set\ test-issue\ --key\ ci_watch_thread\ --value\ *\ --output\ json ]]
+	jq --arg thread "$8" '.metadata.ci_watch_thread = $thread' "$dir/task.json" >"$dir/updated.json"
+	mv "$dir/updated.json" "$dir/task.json"
+	echo '{}'
+	;;
 'agent list --output') cat "$dir/agents.json" ;;
 "agent get $3")
  jq --arg id "$3" '.[] | select(.id == $id)' "$dir/agents.json" >"$dir/agent-response.json"
