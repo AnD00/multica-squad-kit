@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# clone した原本は最新のリリースのタグを取り出して流し直し、ZIP の原本と --no-checkout は今のバージョンのまま流すことを確かめる。
+# clone した原本は最新のリリースのタグを取り出して流し直し、ZIP の原本と --no-checkout は今のバージョンのまま流すことを確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"

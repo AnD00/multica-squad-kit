@@ -24,7 +24,7 @@ SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh  # 
 関連テストは、変えたテストのファイルと、変えたファイルの名前（パスの最後の部分）を含むテストのファイルである。  
 `MANIFEST` は、作り直すと毎回変わるので、変えたファイルに数えない。  
 `README.md`、`manual.md`、`CONTRIBUTING.md` を変えたときは、`tests/doc-lines-test.sh` も流す。  
-関連テストが 1 本も選べないときは、選べなかったことを PR の確認に書き、CI で確かめる。
+関連テストが 1 本も選べないときは、選べなかったことを PR の確認に書き、CI で確認する。
 
 次のどれかに当たるときは、関連テストの代わりに、手元で `bash tests/run.sh` の全件を流す。
 
@@ -36,7 +36,7 @@ SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh  # 
 | CI の定義 | `.github/workflows/` の下のすべて |
 | 数と自信 | 関連テストが 10 本を超えるとき。または、選び方に自信が持てないとき（名前を含まずに読み込まれるファイルを変えたときなど） |
 
-手元で流さなかった全件は、PR の確認に「CI で確かめる」と書く。  
+手元で流さなかった全件は、PR の確認に「CI で確認する」と書く。  
 エージェントは、検証スキルの同じ条件に従う。  
 条件を変えるときは、検証スキルとそろえる。
 
@@ -66,7 +66,7 @@ SQUAD_KIT_TEST_SHARD=2/4 bash tests/run.sh   # 4 つに分けた 2 つ目だけ�
 
 並列数は、指定しなければ論理 CPU の数になる。  
 1 本ずつ流しても、起こす順と出力は並べたときと同じで、途中で失敗しても最後まで流す。  
-並べたときだけ失敗するかを確かめるときに使う。
+並べたときだけ失敗するかを確認するときに使う。
 
 CI は、テストをシャードごとのジョブに分けて流す。
 
@@ -78,7 +78,7 @@ CI は、テストをシャードごとのジョブに分けて流す。
 ### コンフリクトを解消したときに流すテスト
 
 コンフリクトを解消したときは、テスト全体を手元で流さず、関わるテストだけを流す。  
-テスト全体は CI で確かめる。
+テスト全体は CI で確認する。
 
 関わるテストは、衝突したファイルと PR が変えたファイルのそれぞれについて、次の和にする。
 
@@ -86,8 +86,8 @@ CI は、テストをシャードごとのジョブに分けて流す。
 2. ファイルの名前から拡張子を除いた語を含むテストのファイル（`grep -lF -- <語> tests/*-test.sh`）
 3. テストの補助（`tests/*-lib.sh` など）を変えたときは、それを読み込むテストのファイル。2 の探し方で当たる
 
-テストは、確かめるスクリプトや文書を名前で読むので、名前で探せば当たる。  
-どれにも当たらないファイルは、関わるテストがないと報告し、CI で確かめる。
+テストは、確認するスクリプトや文書を名前で読むので、名前で探せば当たる。  
+どれにも当たらないファイルは、関わるテストがないと報告し、CI で確認する。
 
 手元で全件を流す条件（上の表）に当たるファイルを PR が変えていても、コンフリクトの解消では全件を流さず、CI に任せる。  
 引き継ぎに、条件に当たったファイルと、全件を CI に任せたことを書く。
@@ -131,23 +131,23 @@ SQUAD_KIT_TEST_TIMEOUT=600 bash tests/run.sh tests/release-test.sh   # 上限を
   - 分けたファイルを足したときと、CI の秒数が目安から 2 倍以上ずれたときは、macOS の `tests/run.sh` の `==== PASS` の行の秒数を写して直す。手で小さくして上限に収めず、超えたテストを速くするか分ける
 - CLI の出力のデータは実物から取る。取り方とバージョンの記録は [CLI の実物の見本](tests/fixtures/cli/README.md)に従い、CLI のバージョンを上げたら取り直す
 - 見張りが読む欄は、先に `common/monitor/squad-cli-lib` の約束に必須・条件付き・省略可能の分類を書く。`// 既定値` や `--compact` で欄の欠けを隠さない
-- 見張りのテストは、整形の前と後で同じ動作になることを確かめる。終了コード・標準出力・CLI のコマンドと引数を比べる
+- 見張りのテストは、整形の前と後で同じ動作になることを確認する。終了コード・標準出力・CLI のコマンドと引数を比べる
 
-## テストで確かめる範囲
+## テストで確認する範囲
 
-自動テストで確かめる範囲は、macOS と Ubuntu 24.04 のセットアップ・再実行、導入の確認、Webhook の登録・配信確認、起票、関所の許可と拒否、見張り、シェル設定と時刻の読み取り、VM を作るスクリプトの引数と閉じ込めの設定である。  
-実行の始めの確認と、ランタイムのコマンドの組み立てをまねた PATH の復元も確かめる。  
-入口のスクリプト（`install.sh`）の確かめと展開、README の 1 行のコマンドの擬似端末での実行、配布物を作るスクリプト、発行のコマンド（`scripts/release.sh`）、発行のワークフローの定義の決まりも確かめる。  
-CI が apt・brew で足りないツールだけを取得する `scripts/ci-install.sh` は、署名の確認を含むキャッシュの検証と破棄、再試行、取得後の確認を、スタブで確かめる。  
+自動テストで確認する範囲は、macOS と Ubuntu 24.04 のセットアップ・再実行、導入の確認、Webhook の登録・配信確認、起票、関所の許可と拒否、見張り、シェル設定と時刻の読み取り、VM を作るスクリプトの引数と閉じ込めの設定である。  
+実行の始めの確認と、ランタイムのコマンドの組み立てをまねた PATH の復元も確認する。  
+入口のスクリプト（`install.sh`）の検証と展開、README の 1 行のコマンドの擬似端末での実行、配布物を作るスクリプト、発行のコマンド（`scripts/release.sh`）、発行のワークフローの定義の決まりも確認する。  
+CI が apt・brew で足りないツールだけを取得する `scripts/ci-install.sh` は、署名の確認を含むキャッシュの検証と破棄、再試行、取得後の確認を、スタブで確認する。  
 署名つきのパッケージ情報は `tests/fixtures/ci-install/` に置き、作り直すときは同じ場所の `generate.sh` を実行する。  
 CI でも両 OS に同じテストを流す。  
 外部 CLI とサーバー、`limactl` と `wsl.exe` はスタブを使う。  
-発行のワークフローの実行と、本物の GitHub での証明の確かめは、最初のバージョンを出すときに人が確かめる。
+発行のワークフローの実行と、本物の GitHub での証明の検証は、最初のバージョンを出すときに人が確認する。
 
 認証済みのデーモン・ランタイムの実行と、WSL 実機の動作は、VM を使わない普段のユーザーでは未確認である。  
 WSL 2 は Linux との互換性と各ツールの公式対応に基づく対応である。
 
-Mac の Lima の VM と WSL の専用のディストリは、[バージョンを出す前に VM で確かめる](#バージョンを出す前に-vm-で確かめる)で人が実機で確かめる。
+Mac の Lima の VM と WSL の専用のディストリは、[バージョンを出す前に VM で確認する](#バージョンを出す前に-vm-で確認する)で人が実機で確認する。
 
 ## 画面に出す文
 
@@ -161,7 +161,7 @@ Mac の Lima の VM と WSL の専用のディストリは、[バージョンを
 止まるときの `エラー:` の行と、`警告:` の行も、色の有無によらず同じ文字を出す。  
 コマンド置換で受け取る文や、タスク・答え・ログに入る文は、色を付けずに作る。
 
-色の判定と記号の割り当ては `tests/ui-test.sh`、行の書き換えは `tests/ui-steps-test.sh` で、疑似端末と、色を付けない各条件の両方を確かめる。  
+色の判定と記号の割り当ては `tests/ui-test.sh`、行の書き換えは `tests/ui-steps-test.sh` で、疑似端末と、色を付けない各条件の両方を確認する。  
 質問の画面は `tests/questions-ui-test.sh`、完了の表示は `tests/completion-colors-test.sh` で、画面の全行を照合する。
 
 `lib/` やエージェントの指示は、`manual.md` の節を名前やリンクで指している。  
@@ -172,7 +172,7 @@ Mac の Lima の VM と WSL の専用のディストリは、[バージョンを
 ## 出力を変える PR で画面の画像を作る
 
 `scripts/release.sh` の出力を変える PR では、変える前と後の画面を、同じ場面・同じ入力で PNG にして、見比べられるようにする。  
-テストの文字列の一致に加えて、人が見た目で確かめるためである。  
+テストの文字列の一致に加えて、人が見た目で確認するためである。  
 設計は `docs/release.md` の[画面を画像で見比べる](docs/release.md#画面を画像で見比べる)にある。
 
 前は変える前の `main` の `scripts/release.sh`、後は PR の `scripts/release.sh` を、同じ仕組みで流す。  
@@ -193,7 +193,7 @@ RELEASE_SCREENS_PYTHON=tmp/screens-venv/bin/python bash tests/release-screens.sh
 
 PR のコメントに、場面ごとの前と後の画像の組、上のコマンド、前に使った `main` のコミットを書く。  
 画像は、作った人が `gh pr comment <PR> --body-file <本文> --attach '<画像>#<説明>'` で、前 10 枚と後 10 枚の合計 20 枚を 1 つのコメントに載せる。  
-載せたあとに `gh pr view <PR> --json comments` で、コメントに画像の URL があり、手元のパスが残っていないことを確かめる。  
+載せたあとに `gh pr view <PR> --json comments` で、コメントに画像の URL があり、手元のパスが残っていないことを確認する。  
 載せられなかったときだけ、画像を Multica のタスクのコメントに添え、試したコマンドと終了コードと出力も添えて、人に頼む。
 
 ## 文書の改行
@@ -204,7 +204,7 @@ PR のコメントに、場面ごとの前と後の画像の組、上のコマ�
 
 ほかの文書（`EXTENSIONS.md`、`CHANGELOG.md`、`docs/`、`skeleton/`、`common/`）は、段落の文を改行せずに 1 行に続ける。
 
-3 つの文書の段落は、`tests/doc-lines-test.sh` で確かめる。  
+3 つの文書の段落は、`tests/doc-lines-test.sh` で確認する。  
 括弧（「」、（））とバッククォートの中の「。」は、文の終わりに数えない。
 
 ## ファイルとディレクトリの名前
@@ -213,8 +213,8 @@ PR のコメントに、場面ごとの前と後の画像の組、上のコマ�
 漢字やかなは、ファイルの中身には書いてよいが、名前には使わない。
 
 ASCII 以外の名前があると、配布物を作れず、バージョンを出せない。  
-PR の CI の `assets` のジョブと、`scripts/release.sh` がこの決まりを確かめる。  
-手元では、次で同じ確かめを流せる。
+PR の CI の `assets` のジョブと、`scripts/release.sh` がこの決まりを確認する。  
+手元では、次で同じ検証を流せる。
 
 ```bash
 bash scripts/build-assets.sh --commit HEAD tmp/assets
@@ -227,13 +227,13 @@ bash scripts/build-assets.sh --commit HEAD tmp/assets
 `MANIFEST` はファイル不足と改変を、登録前に検出するために残す。  
 変更したらスクリプトで作り直す。
 
-CI は同じ生成をして差分がないか確かめる。  
+CI は同じ生成をして、コミットした `MANIFEST` と照合する。  
 Git の管理領域と `tmp/` は一覧から除く。
 
 混入の検査の一覧は、公開リポジトリに置かない。  
 管理者が Environment `private-terms` の Secret `FORBIDDEN_TERMS` に一行一語で設定する。  
 Environment は main のブランチだけに限り、main にマージ済みの検査コードだけが一覧を読む。  
-設定と確かめ方は[リポジトリの設定](#リポジトリの設定)に従う。
+設定と確認の方法は[リポジトリの設定](#リポジトリの設定)に従う。
 
 PR の CI は、一覧を受け取らず、公開の検査だけを流す。  
 公開の検査は UUID の混入とシンボリックリンクを調べ、秘密の語は見ない。  
@@ -245,15 +245,15 @@ fork の PR も同じ公開の検査を流す。
 一覧が空のときは失敗する。
 
 秘密の語が見つかったら、その語を除く PR を作ってマージする。  
-語は main の履歴に入ってから見つかるので、発行の前には最後の検査の成功を確かめる。
+語は main の履歴に入ってから見つかるので、発行の前には最後の検査の成功を確認する。
 
-## バージョンを出す前に VM で確かめる
+## バージョンを出す前に VM で確認する
 
-VM を作るスクリプト（`vm/lima.sh` と `vm/wsl.ps1`）と、中で流すセットアップは、スタブを使う自動テストでは、実機の動作を確かめきれない。  
-バージョンを出す前に、人が Mac と Windows の実機で次を確かめ、結果をバージョンを上げる PR に書く。
+VM を作るスクリプト（`vm/lima.sh` と `vm/wsl.ps1`）と、中で流すセットアップは、スタブを使う自動テストでは、実機の動作を確認しきれない。  
+バージョンを出す前に、人が Mac と Windows の実機で次を確認し、結果をバージョンを上げる PR に書く。
 
 `manual.md` の「閉じ込めて動かす」の手順を使う。  
-まだタグがないバージョンを確かめるので、中では確かめるコミットを取り出して `bash setup.sh --no-checkout` で流す。
+まだタグがないバージョンを確認するので、中では確認するコミットを取り出して `bash setup.sh --no-checkout` で流す。
 
 1. スクリプトで VM を作り、中でセットアップを最後まで流す
 2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる。関所のディレクトリを含まない PATH でセットアップの外からデーモンを起動し直した状態でも、Claude と Codex のエージェントの実行で `command -v gh` が関所の `gh` を返し、`squad-dispatch-pick`・`squad-pr-watch`・`squad-review-wait` が名前で解決する。最上位の役（Claude の `claude-principal` と Codex の `codex-principal`）のエージェントの実行でも、同じく名前で解決する
@@ -261,8 +261,8 @@ VM を作るスクリプト（`vm/lima.sh` と `vm/wsl.ps1`）と、中で流す
 4. VM を止めて起動し直し、中に入らずに、デーモンがオンラインになってタスクが動く。WSL では、窓をすべて閉じたあとも動く
 5. VM を消したあと、ホストのホームに、セットアップが書いたファイル（`~/.multica-agent`、`~/.multica`、`~/multica_workspaces`）がない
 
-Mac は Lima、Windows は WSL の専用のディストリで、それぞれ確かめる。  
-片方の実機が使えないときは、確かめなかった側と理由を PR に書き、そのままバージョンを出すかを人が決める。
+Mac は Lima、Windows は WSL の専用のディストリで、それぞれ確認する。  
+片方の実機が使えないときは、確認しなかった側と理由を PR に書き、そのままバージョンを出すかを人が決める。
 
 ## タグと Release を出す
 
@@ -270,7 +270,7 @@ Mac は Lima、Windows は WSL の専用のディストリで、それぞれ確�
 タグの名前は `VERSION` から読む。  
 `gh` は 2.102.0 以上が要る。
 
-発行の前に、main の最後の `Private terms` の実行が成功していることを確かめる。
+発行の前に、main の最後の `Private terms` の実行が成功していることを確認する。
 
 ```bash
 git switch main
@@ -278,15 +278,15 @@ git pull --ff-only origin main
 bash scripts/release.sh
 ```
 
-タグを付ける前に配布物を作って確かめ、名前の決まりに合わないと、タグも下書きの Release も作らずに止まる。  
-この確かめで止まり、タグがすでにあるときは、そのタグは使わず、直したコミットを新しいバージョンで出す。
+タグを付ける前に配布物を作って検証し、名前の決まりに合わないと、タグも下書きの Release も作らずに止まる。  
+この検証で止まり、タグがすでにあるときは、そのタグは使わず、直したコミットを新しいバージョンで出す。
 
-コマンドは、確認を求める前に、確かめた項目の一覧、Release の本文（`CHANGELOG.md` のそのバージョンの節）、バージョンとタグを付けるコミットの要約、手順のチェックリストを出す。  
+コマンドは、確認を求める前に、確認した項目の一覧、Release の本文（`CHANGELOG.md` のそのバージョンの節）、バージョンとタグを付けるコミットの要約、手順のチェックリストを出す。  
 確認は端末で答えるので、端末から流す。  
 パイプや自動の実行では、公開されない。
 
 `y` を答えたときだけ、注釈付きのタグを作って `origin` に push し、下書きの Release を作る。  
-そのあと、配布物を作るワークフローの終わりを待ち、配布物と証明を確かめて、確かめが通ったときだけ公開する。
+そのあと、配布物を作るワークフローの終わりを待ち、配布物と証明を検証して、検証が通ったときだけ公開する。
 
 公開の手順は、チェックリストの印をスピナー、`✔` の順に変えて進む。  
 外のコマンドの出力は、失敗したときだけそのまま出る。  
@@ -300,7 +300,7 @@ bash scripts/release.sh
 下書きの作成、ワークフロー、公開のどこで失敗したときも、同じコマンドを流し直す。  
 タグは作り直さず、続きから進む。
 
-配布物の確かめで止まったときは、流し直さない。  
+配布物の検証で止まったときは、流し直さない。  
 下書きの配布物を GitHub の画面で見て、差し替えられていないかを調べる。
 
 発行済みのタグは動かさない。  
@@ -312,7 +312,7 @@ bash scripts/release.sh
 
 #### Release とタグの保護
 
-README の 1 行のコマンドは、入口のスクリプト（`install.sh`）を確かめずに流す。  
+README の 1 行のコマンドは、入口のスクリプト（`install.sh`）を検証せずに流す。  
 入口は公開した Release にあるので、公開したあとに差し替えられると、そのまま流れてしまう。  
 これを防ぐため、リポジトリの管理者が、公開したあとの Release の配布物とタグを差し替えられない次の 2 つを設定する。  
 この変更を入れた最初のバージョンを出す前に行う。  
@@ -326,7 +326,7 @@ README の 1 行のコマンドは、入口のスクリプト（`install.sh`）�
 ruleset は、タグを作ることを止めない。  
 `scripts/release.sh` が、タグを push できるようにするため。
 
-設定のあと、最初のバージョンを出したら、公開済みの Release とそのタグが、差し替えられないことを確かめる。  
+設定のあと、最初のバージョンを出したら、公開済みの Release とそのタグが、差し替えられないことを確認する。  
 `V` には、公開したバージョンのタグを入れる。
 
 ```bash
@@ -344,7 +344,7 @@ git push --force origin "refs/tags/$V^{commit}:refs/tags/$V"
 #### main と Actions の保護
 
 原本の main と Actions を保護するため、管理者が次の順に設定する。  
-各手順の確かめ方は、`gh` が管理者の認証でログインした端末で流す。
+各手順の確認の方法は、`gh` が管理者の認証でログインした端末で流す。
 
 > この保護は、管理者の権限を持つエージェントなら ruleset ごと外せるので、誤った push と、外からの指示による直接の push を止めるだけである。
 
@@ -355,7 +355,7 @@ git push --force origin "refs/tags/$V^{commit}:refs/tags/$V"
 | 3. ruleset を足す | マージの後 |
 | 4. SHA の固定を強制する | マージの後 |
 | 5. Dependabot を有効にする | マージの後 |
-| 6. コードの解析を確かめる | マージの後 |
+| 6. コードの解析を確認する | マージの後 |
 
 ##### 1. Environment を作り、一覧を移す
 
@@ -364,7 +364,7 @@ git push --force origin "refs/tags/$V^{commit}:refs/tags/$V"
 3. Required reviewers と Wait timer は付けない
 4. Environment secrets の Add environment secret で、名前を `FORBIDDEN_TERMS`、値を今の一覧（一行一語）にして保存する
 
-確かめ方: 次の 3 つの出力を見る。  
+確認の方法: 次の 3 つの出力を見る。  
 1 つ目は `["branch:main"]` になり、2 つ目は `FORBIDDEN_TERMS` を含む。  
 Secret の値は出ない。
 
@@ -380,7 +380,7 @@ gh api repos/AnD00/multica-squad-kit/environments/private-terms --jq '.deploymen
 
 この変更のマージのあと、Settings → Secrets and variables → Actions の Repository secrets で、`FORBIDDEN_TERMS` の削除のボタンを押して消す。
 
-確かめ方: 1 つ目のコマンドの出力に `FORBIDDEN_TERMS` がない。  
+確認の方法: 1 つ目のコマンドの出力に `FORBIDDEN_TERMS` がない。  
 2 つ目で `Private terms` を main で手で流し、3 つ目の結論が `success` になる。
 
 ```bash
@@ -403,7 +403,7 @@ gh run list --repo AnD00/multica-squad-kit --workflow private-terms.yml --limit 
 6. Add checks で `checks-passed` を入れて選び、ソースを GitHub Actions にする
 7. Save changes を押す
 
-確かめ方: 次の出力が、それぞれ `["deletion","non_fast_forward","pull_request","required_status_checks"]`、`[]`、`0`、`checks-passed` を含む 1 件になる。
+確認の方法: 次の出力が、それぞれ `["deletion","non_fast_forward","pull_request","required_status_checks"]`、`[]`、`0`、`checks-passed` を含む 1 件になる。
 
 ```bash
 R=repos/AnD00/multica-squad-kit/rulesets/26677466
@@ -413,13 +413,13 @@ gh api "$R" --jq '.rules[] | select(.type == "pull_request") | .parameters.requi
 gh api "$R" --jq '.rules[] | select(.type == "required_status_checks") | .parameters.required_status_checks'
 ```
 
-動作は、次の 2 つで確かめる。
+動作は、次の 2 つで確認する。
 
 1. 原本の手元で、main から空のコミットを作り、main へ直接 push する。`GH013` の決まりの違反で拒まれれば効いている
 
     ```bash
     git switch --detach origin/main
-    git commit --allow-empty -m 'ruleset の確かめ'
+    git commit --allow-empty -m 'ruleset の確認'
     git push origin HEAD:main
     git switch -
     ```
@@ -433,7 +433,7 @@ gh api "$R" --jq '.rules[] | select(.type == "required_status_checks") | .parame
 1. Settings → Actions → General の Actions permissions で、「Require actions to be pinned to a full-length commit SHA」を有効にする
 2. Save を押す
 
-確かめ方: 1 つ目の出力が `true` になる。  
+確認の方法: 1 つ目の出力が `true` になる。  
 そのあと、main の `Checks`、`Scan`、`Private terms` の最新の実行が `success` のままであることを、2 つ目で見る。
 
 ```bash
@@ -441,8 +441,8 @@ gh api repos/AnD00/multica-squad-kit/actions/permissions --jq '.sha_pinning_requ
 for w in check.yml scan.yml private-terms.yml; do gh run list --repo AnD00/multica-squad-kit --workflow "$w" --branch main --limit 1 --json workflowName,conclusion; done
 ```
 
-強制が効くことは、`actions/checkout@v4` の手順を足した確かめ用の PR を作り、Checks が始まらずに失敗することで見る。  
-確かめたら、その PR はマージせずに閉じ、ブランチを消す。
+強制が効くことは、`actions/checkout@v4` の手順を足した確認用の PR を作り、Checks が始まらずに失敗することで見る。  
+確認したら、その PR はマージせずに閉じ、ブランチを消す。
 
 ##### 5. Dependabot を有効にする
 
@@ -451,7 +451,7 @@ for w in check.yml scan.yml private-terms.yml; do gh run list --repo AnD00/multi
 3. 「Dependabot alerts」の Enable を押す
 4. 「Dependabot security updates」の Enable を押す
 
-確かめ方: 1 つ目が 403 ではなく、件数（0 でもよい）を返す。  
+確認の方法: 1 つ目が 403 ではなく、件数（0 でもよい）を返す。  
 2 つ目が `true` を返す。
 
 ```bash
@@ -459,25 +459,25 @@ gh api 'repos/AnD00/multica-squad-kit/dependabot/alerts?per_page=100' --jq 'leng
 gh api repos/AnD00/multica-squad-kit/automated-security-fixes --jq '.enabled'
 ```
 
-あわせて、Insights → Dependency graph → Dependabot に `.github/dependabot.yml` の `github-actions` が並び、最後の確かめの時刻にエラーがないことを見る。
+あわせて、Insights → Dependency graph → Dependabot に `.github/dependabot.yml` の `github-actions` が並び、最後の確認の時刻にエラーがないことを見る。
 
 SHA で固定したアクションには、Dependabot の警告もセキュリティの更新も出ない。  
 原本の依存は固定したアクションだけなので、警告の一覧は 0 件のままでよい。  
 固定したアクションの脆弱性は、`Scan` の `action-advisories` が見つける（[固定したアクションの既知の脆弱性](docs/supply-chain.md#固定したアクションの既知の脆弱性)）。
 
-##### 6. コードの解析を確かめる
+##### 6. コードの解析を確認する
 
 1. 手順 5 と同じ画面の「Code scanning」で、CodeQL analysis の既定の設定（Default）を有効にしない。有効だと、ワークフローからの CodeQL の結果の登録が拒まれる
 2. Security → Code scanning を開き、Tool の絞り込みに `CodeQL` と `action-advisories` の 2 つが並ぶことを見る
 3. 開いた警告がないことを見る。あれば、固定したアクションの警告は直ったバージョンの SHA へ上げる PR で、CodeQL の警告は書き方を直す PR で片付ける
 
-確かめ方: 次の出力に、`/language:actions`、`/language:python`、`action-advisories` の 3 つの解析が、`refs/heads/main` で、main への push の後の時刻で並ぶ。
+確認の方法: 次の出力に、`/language:actions`、`/language:python`、`action-advisories` の 3 つの解析が、`refs/heads/main` で、main への push の後の時刻で並ぶ。
 
 ```bash
 gh api 'repos/AnD00/multica-squad-kit/code-scanning/analyses?ref=refs/heads/main&per_page=20' --jq '.[] | [.category, .tool.name, .created_at] | @tsv'
 ```
 
-定期の実行は、最初の月曜のあとに確かめる。  
+定期の実行は、最初の月曜のあとに確認する。  
 Actions → Scan と Actions → Private terms に、イベントが `schedule` の実行が出て、`Scan` の `action-advisories` のジョブが成功していることを見る。  
 次の出力の先頭が `schedule success` になる。
 
@@ -485,4 +485,4 @@ Actions → Scan と Actions → Private terms に、イベントが `schedule` 
 gh run list --repo AnD00/multica-squad-kit --workflow scan.yml --event schedule --limit 1 --json event,conclusion --jq '.[] | [.event, .conclusion] | @tsv'
 ```
 
-検出が動くことは、設計文書の[確かめ用の PR](docs/supply-chain.md#確かめ方)で確かめる。
+検出が動くことは、設計文書の[確認用の PR](docs/supply-chain.md#確認の方法)で確認する。

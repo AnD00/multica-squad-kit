@@ -10,7 +10,7 @@
     },
     {
       "match": "multica issue comment list issue-shop-1",
-      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-claude-implementer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。PR: https://github.com/example/shop/pull/7\\n\\n確かめたこと:\\n- 単体テストが通った\\n\\n残っていること:\\n- レビュー\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  }\n]"
+      "stdout": "[\n  {\n    \"id\": \"comment-1\",\n    \"author_type\": \"agent\",\n    \"author_id\": \"agent-claude-implementer\",\n    \"parent_id\": null,\n    \"content\": \"[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。PR: https://github.com/example/shop/pull/7\\n\\n確認したこと:\\n- 単体テストが通った\\n\\n残っていること:\\n- レビュー\",\n    \"created_at\": \"2026-01-10T10:00:00Z\"\n  }\n]"
     },
     {
       "match": "multica issue pull-requests issue-shop-1",

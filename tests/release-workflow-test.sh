@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# .github/workflows/release-assets.yml と check.yml の配布物の検査の決まりを、読んで確かめる。
+# .github/workflows/release-assets.yml と check.yml の配布物の検査の決まりを、読んで確認する。
 # ワークフローそのものは手元で動かせないので、きっかけ、権限、固定したバージョン、実行場所の決まりだけを見る。
 # 設計は docs/release.md の「発行のワークフロー」と「テストと CI」。YAML のパーサは使わず、行を読む。
 set -euo pipefail
@@ -77,7 +77,7 @@ fi
 # 配布物の作成はスクリプトに任せる。ワークフローに処理を書かない。
 grep -q 'bash scripts/build-assets.sh' "$workflow" || fail 'scripts/build-assets.sh を呼んでいません'
 
-# PR の CI は、発行と同じ OS とスクリプトで、PR の head の木を確かめる。
+# PR の CI は、発行と同じ OS とスクリプトで、PR の head の木を検証する。
 check_assets_job() {
 	local workflow=${CHECK_WORKFLOW_FILE:-$root/.github/workflows/check.yml} assets_lines permissions_lines
 	[[ -f $workflow ]] || fail 'ファイルがありません'
@@ -87,14 +87,14 @@ check_assets_job() {
 	printf '%s\n' "$assets_lines" | grep -qxF '    timeout-minutes: 10' || fail 'assets の時間の上限が 10 分ではありません'
 	printf '%s\n' "$assets_lines" | grep -qxF '          ref: ${{ github.event.pull_request.head.sha || github.sha }}' || fail 'assets が PR の head を取り出していません'
 	printf '%s\n' "$assets_lines" | grep -qxF '          persist-credentials: false' || fail 'assets の checkout に認証情報が残ります'
-	printf '%s\n' "$assets_lines" | grep -qxF '        run: bash scripts/build-assets.sh --commit HEAD "$RUNNER_TEMP/assets"' || fail 'assets が --commit HEAD で配布物を確かめていません'
+	printf '%s\n' "$assets_lines" | grep -qxF '        run: bash scripts/build-assets.sh --commit HEAD "$RUNNER_TEMP/assets"' || fail 'assets が --commit HEAD で配布物を検証していません'
 	permissions_lines=$(section 'permissions:' 0)
 	[[ $permissions_lines == '  contents: read' ]] || fail '全体の権限が contents: read だけではありません'
 	if printf '%s\n' "$assets_lines" | grep -q 'permissions:'; then fail 'assets に権限を追加しています'; fi
 }
 check_assets_job
 
-# この検査自身が、決まりを破る定義を見つけられることを、壊した写しで確かめる。
+# この検査自身が、決まりを破る定義を見つけられることを、壊した写しで確認する。
 if [[ -z ${RELEASE_WORKFLOW_FILE:-} ]]; then
 	mutate() {
 		local name=$1 from=$2 to=$3
@@ -122,7 +122,7 @@ PY
 	mutate expression 'run: bash scripts/build-assets.sh "$TAG"' 'run: bash scripts/build-assets.sh ${{ steps.guard.outputs.tag }}'
 fi
 
-# CI の確かめも、壊した写しを拒むことを確かめる。
+# CI の検証も、壊した写しを拒むことを確認する。
 if [[ -z ${RELEASE_WORKFLOW_FILE:-} && -z ${CHECK_WORKFLOW_FILE:-} ]]; then
 	mutate_check() {
 		local name=$1 from=$2 to=$3
@@ -152,5 +152,5 @@ PY
 	mutate_check build '--commit HEAD "$RUNNER_TEMP/assets"' 'HEAD "$RUNNER_TEMP/assets"'
 	mutate_check permissions '  contents: read' '  contents: write'
 fi
-echo 'PASS release-workflow: きっかけは workflow_dispatch だけ、権限は全体が {} でジョブが決めた 3 つ、uses は SHA で固定、runs-on は ubuntu-24.04、persist-credentials: false、--clobber なし、run に式なしを確かめた'
-echo 'PASS assets-workflow: PR の head を ubuntu-24.04 で取り出し、認証を残さず、10 分の上限と contents: read の権限で --commit HEAD の配布物を確かめる'
+echo 'PASS release-workflow: きっかけは workflow_dispatch だけ、権限は全体が {} でジョブが決めた 3 つ、uses は SHA で固定、runs-on は ubuntu-24.04、persist-credentials: false、--clobber なし、run に式なしを確認した'
+echo 'PASS assets-workflow: PR の head を ubuntu-24.04 で取り出し、認証を残さず、10 分の上限と contents: read の権限で --commit HEAD の配布物を検証する'

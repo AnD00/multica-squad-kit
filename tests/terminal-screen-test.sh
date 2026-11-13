@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 端末の読み取りと ui-pty.py の指定を、Pillow なしで確かめる。
+# 端末の読み取りと ui-pty.py の指定を、Pillow なしで確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -47,7 +47,7 @@ r = subprocess.run([sys.executable,sys.argv[1],str(p/'after'),str(p/'plain'),'--
 assert r.returncode == 0 and (p/'plain').read_text() == 'y\nnew\n'
 assert 'PIL' not in sys.modules
 PY
-echo 'PASS terminal-screen: 行の更新・消去、40 行の境目、全角の半分の消去、前後の出力と文字の保存を確かめた'
+echo 'PASS terminal-screen: 行の更新・消去、40 行の境目、全角の半分の消去、前後の出力と文字の保存を確認した'
 
 printf 'y\n' >"$test_dir/answer"
 python3 "$root/tests/ui-pty.py" screen "$test_dir/before" "$test_dir/after" \

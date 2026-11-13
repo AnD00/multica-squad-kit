@@ -131,7 +131,7 @@ TEST_SAVE_FAIL=yes deny
 grep -q '保存できませんでした' "$test_dir/err"
 cmp "$saved" "$test_dir/updated"
 [[ -z $(find "$test_dir/state" -name '.answers.*' -print) ]]
-echo 'PASS setup: 保存の失敗を返し、前の答えと一時ファイルの片付けを確かめる'
+echo 'PASS setup: 保存の失敗を返し、前の答えと一時ファイルの片付けを確認する'
 printf '1\nSecond project\nsecond\n1\nmembera\n0\n1\n0\n\nyes\n' >"$test_dir/input"
 run
 jq -e '.project_name=="Second project"' "$test_dir/state/ws-a/second.json" >/dev/null
@@ -156,7 +156,7 @@ if bash "$test_dir/package/setup.sh" --project ignored >"$test_dir/out" 2>"$test
 grep -q '質問に答えて' "$test_dir/err"
 echo 'PASS setup: 引数での値の指定は受け付けない'
 
-# 拡張のディレクトリだけは引数で受け、質問で答えたときと同じ確かめをする。
+# 拡張のディレクトリだけは引数で受け、質問で答えたときと同じ確認をする。
 run_extension() { (cd "$1" && shift && /bin/bash "$test_dir/package/setup.sh" "$@" <"$test_dir/input" >"$test_dir/out" 2>"$test_dir/err"); }
 mkdir -p "$test_dir/callers/extension"
 cp "$test_dir/package/VERSION" "$test_dir/callers/extension/kit-version"

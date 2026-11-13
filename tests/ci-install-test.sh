@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# scripts/ci-install.sh の動きを、スタブの apt-get・brew などで確かめる。
+# scripts/ci-install.sh の動きを、スタブの apt-get・brew などで確認する。
 # 取得を省く判定、キャッシュの検証と使い分け、壊れた・差し替えられたキャッシュを捨てること、再試行、
 # 取得後の確認を、Linux と macOS の両方の流れで見る。本物のパッケージは入れない。
-# Linux のキャッシュは、テスト用の鍵で署名した InRelease・Packages と照らして確かめる（本物の gpgv を使う）。
+# Linux のキャッシュは、テスト用の鍵で署名を検証し、InRelease・Packages が記すハッシュと照合する（本物の gpgv を使う）。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -235,7 +235,7 @@ run_install Linux
 [[ $rc == 0 && $source == mirror && $(count '^apt-get .*no-download') == 0 ]]
 [[ ! -e $cache/extra_1.0_amd64.deb ]]
 
-# 7. Linux: パッケージ情報（apt-meta）がないキャッシュは、確かめられないので使わない。
+# 7. Linux: パッケージ情報（apt-meta）がないキャッシュは、検証できないので使わない。
 restore_linux_cache linux-no-meta "${linux_installed[@]}"
 rm -r "$cache/apt-meta"
 run_install Linux
@@ -332,7 +332,7 @@ printf 'libdigest-sha-perl 1.0\n' >"$case_dir/candidates"
 run_install Linux
 [[ $rc == 0 && $source == mirror-uncached && $(count '^apt-get .*no-download') == 0 && ! -e $cache/PACKAGES ]]
 
-# 7e. Linux: 公開鍵が見つからないときは、キャッシュを確かめられないので使わず、保存もしない。
+# 7e. Linux: 公開鍵が見つからないときは、キャッシュを検証できないので使わず、保存もしない。
 restore_linux_cache linux-no-keyring "${linux_installed[@]}"
 keyring="$test_dir/missing.gpg"
 run_install Linux
@@ -344,7 +344,7 @@ new_case linux-expired-mirror "${linux_installed[@]}"
 lists_src="$test_dir/lists-expired"
 run_install Linux
 [[ $rc == 0 && $source == mirror-uncached && ! -e $cache/PACKAGES ]]
-grep -qF '署名で確かめられませんでした' "$case_dir/stdout"
+grep -qF '署名で検証できませんでした' "$case_dir/stdout"
 
 # 8. Linux: 検証を通ってもローカルの install が失敗したら、キャッシュを捨ててミラーから取る。
 restore_linux_cache linux-local-install-fails "${linux_installed[@]}"
@@ -459,4 +459,4 @@ PATH="$stubs:$PATH" CASE_DIR="$case_dir" bash "$root/scripts/ci-install.sh" Linu
 [[ $rc == 2 ]]
 grep -qF 'CI_INSTALL_CACHE_DIR' "$case_dir/err"
 
-echo 'PASS ci-install: 足りないものだけを取得し、検証したキャッシュ・ミラーの順に使う。壊れたキャッシュの破棄・再試行・取得後の確認を、Linux と macOS で確かめた'
+echo 'PASS ci-install: 足りないものだけを取得し、検証したキャッシュ・ミラーの順に使う。壊れたキャッシュの破棄・再試行・取得後の確認を、Linux と macOS で確認した'

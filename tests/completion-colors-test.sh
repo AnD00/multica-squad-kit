@@ -112,7 +112,7 @@ cat >"$test_dir/expected" <<'EXPECTED'
 ✔ デモ  workspace-id
 
   ! example/old  Webhook を使わない答えですが、前の実行で作った Webhook のトリガーが残っています。外すよう起票しました。
-  ! example/unknown  前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確かめてください。
+  ! example/unknown  前の実行で作った Webhook のトリガーが残っているかを確認できませんでした。Multica の画面で確認してください。
 
   › 表示したタスクを対象のプロジェクトで開き、担当と本文に沿って作業してください。
   › ひな形の記入は skeleton/ の案内を参照してください。

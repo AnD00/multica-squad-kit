@@ -60,7 +60,7 @@
           done
 ```
 
-`scripts` のジョブの名前は、OS とシャードの組で決まる（[ワークフローの変更](ci.md#ワークフローの変更)）。シャードの数を変えるたびに ruleset を直さずに済むよう、必須にするのはこのジョブだけにする。ワークフローの決まりのテストが、`needs` にほかのすべてのジョブがあることを確かめる。ジョブを足して `needs` に入れ忘れると、テストが落ちる。
+`scripts` のジョブの名前は、OS とシャードの組で決まる（[ワークフローの変更](ci.md#ワークフローの変更)）。シャードの数を変えるたびに ruleset を直さずに済むよう、必須にするのはこのジョブだけにする。ワークフローの決まりのテストが、`needs` にほかのすべてのジョブがあることを確認する。ジョブを足して `needs` に入れ忘れると、テストが落ちる。
 
 ### ruleset の中身
 
@@ -74,7 +74,7 @@
 | Require status checks to pass | 有効。`checks-passed` を、ソースを GitHub Actions に限って足す。「Require branches to be up to date before merging」は無効 | CI が落ちた変更のマージ |
 | Bypass list | 空 | 管理者を含む、決まりの迂回 |
 
-チェックのソースを GitHub Actions に限るのは、同じ名前のコミットの状態を、ほかのトークンから書いて通すことを防ぐため。「up to date」を無効にするのは、マージのたびにほかの PR の取り込み直しを求めないため。マージのあとの main は、push の実行で確かめる。
+チェックのソースを GitHub Actions に限るのは、同じ名前のコミットの状態を、ほかのトークンから書いて通すことを防ぐため。「up to date」を無効にするのは、マージのたびにほかの PR の取り込み直しを求めないため。マージのあとの main は、push の実行で確認する。
 
 承認は必須にしない。人間が 1 人で運用し、承認の必須は対象の外であるため。
 
@@ -98,7 +98,7 @@
 
 ### Dependabot の更新
 
-`.github/dependabot.yml` を足し、GitHub Actions の依存を毎週確かめる。
+`.github/dependabot.yml` を足し、GitHub Actions の依存を毎週確認する。
 
 ```yaml
 version: 2
@@ -122,7 +122,7 @@ Dependabot の PR は、ほかの PR と同じく Checks を通してから人�
 
 リポジトリの設定で、SHA で固定していないアクションを使うワークフローを、GitHub が失敗にする（S2）。固定していない参照を足した PR は、ワークフローが始まらずに失敗する。`checks-passed` が成功しないので、マージもできない。
 
-この設定は、すべてのワークフローの固定が main に入ってから有効にする。先に有効にすると、main とすべての PR の Checks が始まらなくなる。再利用のワークフロー（`uses:` でワークフローを呼ぶもの）は、この設定の外でタグを使えるが、原本は使っていない。ワークフローの決まりのテストが、すべての `uses:` を手元でも確かめる。
+この設定は、すべてのワークフローの固定が main に入ってから有効にする。先に有効にすると、main とすべての PR の Checks が始まらなくなる。再利用のワークフロー（`uses:` でワークフローを呼ぶもの）は、この設定の外でタグを使えるが、原本は使っていない。ワークフローの決まりのテストが、すべての `uses:` を手元でも確認する。
 
 ## 秘密の語の検査
 
@@ -173,7 +173,7 @@ jobs:
 
 Environment は、Deployment branches を `main` のブランチだけに限る。GitHub は、この決まりをワークフローの実行の ref と照らす。PR の実行の ref は `refs/pull/<番号>/merge`、ほかのブランチへの push や手での実行の ref はそのブランチなので、どれも Environment を使えず、ジョブが始まらない。PR やブランチでワークフローや検査のスクリプトを書き換えても、Secret に届くのは、レビューを経て main に入ったコードだけになる。
 
-一覧は Repository Secret から消す。Repository Secret は、Environment を使わないジョブにも渡るため。定期の実行は、Secret の一覧に語を足したとき、main の今の中身を確かめ直すために置く。足した直後に確かめたいときは、手で実行する。
+一覧は Repository Secret から消す。Repository Secret は、Environment を使わないジョブにも渡るため。定期の実行は、Secret の一覧に語を足したとき、main の今の中身を確認し直すために置く。足した直後に確認したいときは、手で実行する。
 
 ジョブが Environment を使うたびに、GitHub は配置（deployment）の記録を 1 件作り、リポジトリの画面に出る。検査の記録として害はないので、そのままにする。
 
@@ -183,7 +183,7 @@ Environment は、Deployment branches を `main` のブランチだけに限る�
 
 語が main に入ったら、`Private terms` の実行が失敗し、GitHub が失敗を知らせる。見つけた人は、語を除く PR を作ってマージする。main の履歴には語が残るが、push した時点で同じブランチは公開されているので、マージの前に見つけても公開は防げない。
 
-配布物に語を入れないため、`CONTRIBUTING.md` の「タグと Release を出す」に、発行の前に main の最後の `Private terms` の実行が成功していることを確かめる 1 文を足す。
+配布物に語を入れないため、`CONTRIBUTING.md` の「タグと Release を出す」に、発行の前に main の最後の `Private terms` の実行が成功していることを確認する 1 文を足す。
 
 ## 認証情報を残さない
 
@@ -254,7 +254,7 @@ jobs:
           category: action-advisories
 ```
 
-CodeQL は、GitHub の既定の設定（default setup）ではなく、リポジトリのワークフローで流す。既定の設定が SHA の固定の強制（S2）のもとで動くかは文書に書かれておらず、固定したワークフローなら確実に動き、決まりのテストでも確かめられるため（[検出の道具の案](#検出の道具の案)）。シェルのスクリプトは CodeQL が対象にしないので、今までどおり `scripts/check.sh` の構文の検査とレビューで見る。
+CodeQL は、GitHub の既定の設定（default setup）ではなく、リポジトリのワークフローで流す。既定の設定が SHA の固定の強制（S2）のもとで動くかは文書に書かれておらず、固定したワークフローなら確実に動き、決まりのテストでも確認できるため（[検出の道具の案](#検出の道具の案)）。シェルのスクリプトは CodeQL が対象にしないので、今までどおり `scripts/check.sh` の構文の検査とレビューで見る。
 
 `Scan` は Checks に入れず、必須のチェックにしない。必須にするのは Checks のジョブと決めているため。検出は PR の画面に出るので、レビューとマージの判断で見る。
 
@@ -262,7 +262,7 @@ CodeQL は、GitHub の既定の設定（default setup）ではなく、リポ�
 
 SHA で固定したアクションは、Dependabot の警告の対象にならない。GitHub の文書は、警告を作るのはセマンティック バージョニングで参照するアクションだけで、SHA で固定したものには作らないと書いている（[Monitoring the actions in your workflows](https://docs.github.com/en/actions/reference/security/secure-use#monitoring-the-actions-in-your-workflows)）。そこで、`# vX.Y.Z` の注記をバージョンとして使い、GitHub Advisory Database を `action-advisories` のジョブで引く。
 
-`tests/check-action-advisories.py` は、標準ライブラリだけで書き、GitHub の API は `gh api` で呼ぶ。渡したディレクトリのワークフローを読み、次の順に確かめる。
+`tests/check-action-advisories.py` は、標準ライブラリだけで書き、GitHub の API は `gh api` で呼ぶ。渡したディレクトリのワークフローを読み、次の順に確認する。
 
 1. すべての `uses:` を `OWNER/REPO[/PATH]@<40 桁の SHA> # vX.Y.Z` として読む。`./` で始まる手元のアクションは飛ばし、形の合わないものは検出にする
 2. `gh api repos/OWNER/REPO/commits/vX.Y.Z --jq .sha` で、注記のタグが指すコミットを読む。固定した SHA と違えば「注記のバージョンと SHA の食い違い」として検出にする。注記が偽りだと、バージョンで引いた結果を信じられないため。固定のあとでタグが付け替えられたときも、ここで見つかる
@@ -279,11 +279,11 @@ SHA で固定したアクションは、Dependabot の警告の対象になら�
 | main への push と毎週 | Security → Code scanning の一覧で、ツールを `action-advisories` に絞る。毎週の実行の失敗は、Actions → Scan に出る |
 | 直したあと | 次の実行で、同じ警告が Code scanning で Fixed になる |
 
-毎週の実行が、固定したあとに公表された脆弱性を見つける。PR は、持ち込んだバージョンと、そのときの勧告を確かめる。直し方は、直ったバージョンの SHA と注記に書き換える PR で、Dependabot の更新の PR がそれを出すことも多い。
+毎週の実行が、固定したあとに公表された脆弱性を見つける。PR は、持ち込んだバージョンと、そのときの勧告を確認する。直し方は、直ったバージョンの SHA と注記に書き換える PR で、Dependabot の更新の PR がそれを出すことも多い。
 
 ## 設定の手順
 
-管理者が行う操作と確かめ方は、[CONTRIBUTING.md の「リポジトリの設定」](../CONTRIBUTING.md#リポジトリの設定)にある。
+管理者が行う操作と確認の方法は、[CONTRIBUTING.md の「リポジトリの設定」](../CONTRIBUTING.md#リポジトリの設定)にある。
 
 順序は、Secret の移し替え、マージ、ruleset、強制の順にする。Environment は、使うワークフローがマージされる前に作る。ない名前の Environment を参照すると、GitHub が保護のない Environment を作り、Repository Secret を使ってしまうため。SHA の固定の強制は、固定が main に入ってからにする。
 
@@ -295,15 +295,15 @@ SHA で固定したアクションは、Dependabot の警告の対象になら�
 | `.github/workflows/private-terms.yml` | 新しく足す | 4 |
 | `.github/workflows/scan.yml` | 新しく足す。CodeQL と `action-advisories` のジョブ | 6 |
 | `tests/check-action-advisories.py` | 新しく足す。固定したアクションの勧告と、注記と SHA の食い違いを見つける | 6 |
-| `tests/action-advisories-test.sh`・`tests/fixtures/action-advisories/` | 新しく足す。`gh` の応答を記録した写しで、検出・非検出・食い違い・読めないときを確かめる | 6 |
+| `tests/action-advisories-test.sh`・`tests/fixtures/action-advisories/` | 新しく足す。`gh` の応答を記録した写しで、検出・非検出・食い違い・読めないときを確認する | 6 |
 | `.github/dependabot.yml` | 新しく足す | 3 |
 | `tests/check-content.sh`・`tests/check-content.py` | `--public` を足す | 4 |
-| `tests/content-test.sh` | `--public` が一覧なしで UUID とリンクを見つけ、語は見ないことを確かめる | 4 |
-| `tests/workflow-rules-test.sh` | 新しく足す。ワークフローの決まりを読んで確かめる | 1〜6 |
+| `tests/content-test.sh` | `--public` が一覧なしで UUID とリンクを見つけ、語は見ないことを確認する | 4 |
+| `tests/workflow-rules-test.sh` | 新しく足す。ワークフローの決まりを読んで確認する | 1〜6 |
 | `docs/ci.md` | 必須のチェックが `checks-passed` だけであることを書く | 1 |
 | `CONTRIBUTING.md`・`CHANGELOG.md`・`MANIFEST` | [利用者向けの文書の変更](#利用者向けの文書の変更) | 全部 |
 
-`tests/workflow-rules-test.sh` は、`.github/workflows/` のすべてのファイルと `.github/dependabot.yml` を、`release-workflow-test.sh` と同じく行で読む。確かめる決まりは次のとおり。壊した写しを拒むことも、同じテストで確かめる。
+`tests/workflow-rules-test.sh` は、`.github/workflows/` のすべてのファイルと `.github/dependabot.yml` を、`release-workflow-test.sh` と同じく行で読む。確認する決まりは次のとおり。壊した写しを拒むことも、同じテストで確認する。
 
 - すべての `uses:` が `@<40 桁の SHA> # vX.Y.Z` の形である
 - `actions/checkout` の数と `persist-credentials: false` の数が合う。例外は、理由のコメントのすぐ下の `persist-credentials: true` だけを通す
@@ -315,41 +315,41 @@ SHA で固定したアクションは、Dependabot の警告の対象になら�
 - `dependabot.yml` が `github-actions` を対象にする
 - `scan.yml` の `codeql` と `action-advisories` が、PR、main への push、`schedule` で動き、`action-advisories` の SARIF を `if: always()` で登録する
 
-`release-workflow-test.sh` が確かめる発行のワークフローの決まりは、今のまま残す。
+`release-workflow-test.sh` が確認する発行のワークフローの決まりは、今のまま残す。
 
 ## 利用者向けの文書の変更
 
 原本を変える人と管理者が読む `CONTRIBUTING.md` を、次のとおり変える。
 
-- 「リポジトリの設定」に、[設定の手順](#設定の手順)の 1〜6 と確かめ方を移す。[保護の限り](#保護の限り)の 1 文もそのまま書く。この文書の「設定の手順」は、移した先へのリンクと順序の理由だけに縮める
+- 「リポジトリの設定」に、[設定の手順](#設定の手順)の 1〜6 と確認の方法を移す。[保護の限り](#保護の限り)の 1 文もそのまま書く。この文書の「設定の手順」は、移した先へのリンクと順序の理由だけに縮める
 - 「MANIFEST と混入の検査」の、一覧を Repository Secret に置く説明を、Environment `private-terms` に置き main の実行だけが読む説明に替える。PR の CI は公開の検査だけを流し、秘密の語はマージの直後に見つかることを書く
 - 手元の検査の例に、一覧を持たない人向けの `bash tests/check-content.sh --public` を足す
-- 「タグと Release を出す」に、発行の前に main の最後の `Private terms` の実行が成功していることを確かめる 1 文を足す
+- 「タグと Release を出す」に、発行の前に main の最後の `Private terms` の実行が成功していることを確認する 1 文を足す
 
 `CHANGELOG.md` の次のバージョンの節に、原本を変える人に効く変更（main の PR の必須、CI の必須のチェック、秘密の語の検査がマージの直後になること）を書く。導入した各プロジェクトの動作は変わらない。
 
-## 確かめ方
+## 確認の方法
 
-受け入れ条件ごとの確かめ方は次のとおり。設定のあとの確かめは、[設定の手順](#設定の手順)の確かめ方で人間が行う。
+受け入れ条件ごとの確認の方法は次のとおり。設定のあとの確認は、[設定の手順](#設定の手順)の確認の方法で人間が行う。
 
-| 受け入れ条件 | 確かめ方 | 時点 |
+| 受け入れ条件 | 確認の方法 | 時点 |
 | --- | --- | --- |
-| 1. 直接の push が拒まれ、Checks が通るまでマージできず、承認なしでマージできる | 手順 3 の動作の確かめ | 手順 3 のあと |
+| 1. 直接の push が拒まれ、Checks が通るまでマージできず、承認なしでマージできる | 手順 3 の動作の確認 | 手順 3 のあと |
 | 2. 保護の限りの 1 文が手順書にある | `CONTRIBUTING.md` の「リポジトリの設定」を読む | レビュー |
-| 3. タグの参照が残らず、強制のあとはタグの参照を足した PR が落ちる | `workflow-rules-test.sh`、手順 4 の確かめ用の PR | CI と手順 4 のあと |
-| 4. Dependabot が `github-actions` を対象にし、警告の API が一覧を返す | `workflow-rules-test.sh`、手順 5 の確かめ方 | CI と手順 5 のあと |
-| 5. 検査のスクリプトを書き換えた同じリポジトリの PR に一覧が渡らない | 下の確かめ用の PR | 手順 2 のあと |
-| 6. 秘密の語をマージの直後に見つける | [検出の時点](#検出の時点)、`workflow-rules-test.sh` のきっかけの確かめ、手順 2 の実行 | レビューと手順 2 のあと |
+| 3. タグの参照が残らず、強制のあとはタグの参照を足した PR が落ちる | `workflow-rules-test.sh`、手順 4 の確認用の PR | CI と手順 4 のあと |
+| 4. Dependabot が `github-actions` を対象にし、警告の API が一覧を返す | `workflow-rules-test.sh`、手順 5 の確認の方法 | CI と手順 5 のあと |
+| 5. 検査のスクリプトを書き換えた同じリポジトリの PR に一覧が渡らない | 下の確認用の PR | 手順 2 のあと |
+| 6. 秘密の語をマージの直後に見つける | [検出の時点](#検出の時点)、`workflow-rules-test.sh` のきっかけの確認、手順 2 の実行 | レビューと手順 2 のあと |
 | 7. 認証を残す checkout がなく、例外に理由がある | `workflow-rules-test.sh` | CI |
-| 8. 検出が PR と定期の両方で動き、画面で見える | `action-advisories-test.sh`、下の確かめ用の PR、手順 6 の確かめ方 | CI、マージの前、手順 6 のあと |
-| 9. 手順 1〜6 を上から流すと、調べ物なしで終わり、各手順に確かめ方がある | 管理者が手順を流し、詰まった所を記録する | マージの後 |
+| 8. 検出が PR と定期の両方で動き、画面で見える | `action-advisories-test.sh`、下の確認用の PR、手順 6 の確認の方法 | CI、マージの前、手順 6 のあと |
+| 9. 手順 1〜6 を上から流すと、調べ物なしで終わり、各手順に確認の方法がある | 管理者が手順を流し、詰まった所を記録する | マージの後 |
 
-受け入れ条件 5 の確かめ用の PR は、同じリポジトリのブランチで、次の 2 つの変更を入れて作る。どちらも値ではなく長さだけを出し、マージせずに閉じ、ブランチを消す。
+受け入れ条件 5 の確認用の PR は、同じリポジトリのブランチで、次の 2 つの変更を入れて作る。どちらも値ではなく長さだけを出し、マージせずに閉じ、ブランチを消す。
 
 1. `check.yml` の `content` に、`env: FORBIDDEN_TERMS: ${{ secrets.FORBIDDEN_TERMS }}` と、その長さを出す手順を足す。出る長さが 0 になる
 2. `private-terms.yml` のきっかけに `pull_request` を足す。`private-terms` のジョブが、Environment の決まりで始まらない
 
-受け入れ条件 8 の確かめ用の PR は、この変更の PR の head から、同じリポジトリのブランチで作る。例には、勧告 [GHSA-cxww-7g56-2vh6](https://github.com/advisories/GHSA-cxww-7g56-2vh6) の `actions/download-artifact` を使う。効くのは 4.0.0 以上 4.1.3 未満で、4.1.3 で直っている。
+受け入れ条件 8 の確認用の PR は、この変更の PR の head から、同じリポジトリのブランチで作る。例には、勧告 [GHSA-cxww-7g56-2vh6](https://github.com/advisories/GHSA-cxww-7g56-2vh6) の `actions/download-artifact` を使う。効くのは 4.0.0 以上 4.1.3 未満で、4.1.3 で直っている。
 
 | バージョン | SHA | 期待する結果 |
 | --- | --- | --- |
@@ -362,14 +362,14 @@ SHA で固定したアクションは、Dependabot の警告の対象になら�
 4. 注記を `# v4.1.3` のまま、SHA を v4.1.2 のものに戻して push する。`version-mismatch` で失敗する
 5. PR をマージせずに閉じ、ブランチを消す
 
-SHA は、手順の前に `gh api repos/actions/download-artifact/commits/v4.1.2 --jq .sha` と `v4.1.3` で読み直し、表と合うことを見る。勧告は `gh api -X GET /advisories -f ecosystem=actions -f affects=actions/download-artifact@4.1.2 --jq '.[].ghsa_id'` が `GHSA-cxww-7g56-2vh6` を返し、`@4.1.3` が空を返すことで見る。`action-advisories-test.sh` は、この 2 つの応答の写しで、同じ検出と非検出を CI で確かめる。
+SHA は、手順の前に `gh api repos/actions/download-artifact/commits/v4.1.2 --jq .sha` と `v4.1.3` で読み直し、表と合うことを見る。勧告は `gh api -X GET /advisories -f ecosystem=actions -f affects=actions/download-artifact@4.1.2 --jq '.[].ghsa_id'` が `GHSA-cxww-7g56-2vh6` を返し、`@4.1.3` が空を返すことで見る。`action-advisories-test.sh` は、この 2 つの応答の写しで、同じ検出と非検出を CI で確認する。
 
 ## 残る危うさ
 
 - 管理者の権限を持つエージェントは、ruleset、Environment、Actions の設定を外せる。[保護の限り](#保護の限り)のとおり、止めるのは誤りと外からの指示による直接の操作だけである
-- 秘密の語は、main の履歴に入ってから見つかる。見つけるまでに `release.sh` で発行すると、配布物に入る。発行の前の確かめは手順書の 1 文に頼る。続けて、`release.sh` が `Private terms` の結果を確かめるようにする案がある
+- 秘密の語は、main の履歴に入ってから見つかる。見つけるまでに `release.sh` で発行すると、配布物に入る。発行の前の確認は手順書の 1 文に頼る。続けて、`release.sh` が `Private terms` の結果を確認するようにする案がある
 - 同じリポジトリの PR のワークフローは、`permissions:` で書き込みの権限を求められる。main は ruleset で守られるが、ほかのブランチや Security の警告は書き換えられる。権限の分離は対象の外である
-- SHA の固定の強制が、Dependabot の更新の実行に効くかは、GitHub の文書に書かれていない。手順 5 で Dependabot の最後の確かめにエラーがないことを見る。エラーなら、強制を無効にせず、Dependabot の画面のエラーを人間が確かめる
+- SHA の固定の強制が、Dependabot の更新の実行に効くかは、GitHub の文書に書かれていない。手順 5 で Dependabot の最後の確認にエラーがないことを見る。エラーなら、強制を無効にせず、Dependabot の画面のエラーを人間が確認する
 - `Scan` は必須でないので、検出があってもマージはできる。検出の多さを見てから、必須にするかを決める
 - `action-advisories` は、GitHub Advisory Database の審査済みの勧告だけを見る。公表から審査までの間と、勧告のない乗っ取りは見つけない。乗っ取りは、SHA の固定と Dependabot の `cooldown` で防ぐ
 
@@ -404,7 +404,7 @@ SHA は、手順の前に `gh api repos/actions/download-artifact/commits/v4.1.2
 
 | 案 | 採らない理由 |
 | --- | --- |
-| CodeQL の既定の設定（default setup） | 設定画面だけで済むが、SHA の固定の強制のもとで動くかが文書にない。設定がリポジトリになく、テストで確かめられない |
+| CodeQL の既定の設定（default setup） | 設定画面だけで済むが、SHA の固定の強制のもとで動くかが文書にない。設定がリポジトリになく、テストで確認できない |
 | dependency-review-action を PR で流す | PR でしか動かず、固定のあとに公表された脆弱性を毎週は見ない。SHA で固定したアクションを見るかは文書に書かれておらず、Dependabot の警告は SHA の固定を対象にしない |
 | Dependabot の警告に任せる | SHA で固定したアクションには警告を作らないと、GitHub の文書にある |
 | タグの参照に戻し、Dependabot の警告を使う | R2 の SHA の固定と両立しない |

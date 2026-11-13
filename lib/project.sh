@@ -348,7 +348,7 @@ project_issue_completion() {
 	done < <(jq -c '.[]' <<<"${setup_issue_failures:-[]}")
 }
 
-# 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確かめ直す。
+# 質問中・ホスト準備中に変わりうるため、許可ファイルを書く直前に全件を確認し直す。
 project_repositories_recheck() {
 	local latest_projects eligible_repos blocked_repos line
 	resolve_link_repositories

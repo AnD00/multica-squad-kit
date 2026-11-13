@@ -74,7 +74,7 @@ elif action == 'shell':
             sys.exit('intentional verify failure')
     elif guest[:2] == ['bash', '-lc']:
         assert len(guest) == 3
-        # 関所の判断は、本物の bash と jq でゲスト側のスクリプトを流して確かめる。
+        # 関所の判断は、本物の bash と jq でゲスト側のスクリプトを流して確認する。
         script = guest[2]
         if state.get('cli_missing'):
             script = 'command() { if [[ $* == "-v multica" ]]; then return 1; fi; builtin command "$@"; };\n' + script
@@ -168,7 +168,7 @@ assert not any(call[0] == 'delete' for call in calls)
 PY
 grep -q 'limactl shell multica-squad' "$test_dir/out"
 grep -q manual.md "$test_dir/out"
-echo 'PASS Lima: 共有・鍵・containerd を切って指定の資源で作り、実効設定を確かめてから起動・配置・準備・検証をする'
+echo 'PASS Lima: 共有・鍵・containerd を切って指定の資源で作り、実効設定を確認してから起動・配置・準備・検証をする'
 
 reset
 configure '{"version":"limactl version 2.0.0"}'

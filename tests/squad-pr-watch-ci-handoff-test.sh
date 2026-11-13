@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-pr-watch-ci-handoff-test.sh で実行する。
-# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。ci-check と ci-held の投稿順序・引き継ぎ後の失敗・古い head・CLI の失敗を確かめる。
+# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。ci-check と ci-held の投稿順序・引き継ぎ後の失敗・古い head・CLI の失敗を確認する。
 # 保留・知らせ済みの記録・取得の条件は tests/squad-pr-watch-ci-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -36,7 +36,7 @@ for handoff in mention squad-mention review-report; do
 	fixture issue-runs direct | jq '. as $base | [$base + {"id": "fixer-run", "agent_id": "fixer", "status": "running"}]' >"$test_dir/runs.json"
 	fixture issue-comments agent | jq '. as $base | [$base + {"author_type": "agent", "author_id": "fixer", "source_task_id": "fixer-run", "content": "[@demo-orchestrator-test](mention://agent/orchestrator) 引き継ぎます", "test_thread": "handoff-thread"}]' >"$test_dir/comments.json"
 	if [[ $handoff == review-report ]]; then
-		jq '.[0].content = "/note\n確かめたコミット: abcdef0123456789\nレビュー結果"' \
+		jq '.[0].content = "/note\n確認したコミット: abcdef0123456789\nレビュー結果"' \
 			"$test_dir/comments.json" >"$test_dir/updated.json"
 		mv "$test_dir/updated.json" "$test_dir/comments.json"
 	elif [[ $handoff == squad-mention ]]; then
@@ -56,7 +56,7 @@ for handoff in mention squad-mention review-report; do
 done
 echo 'PASS 引き継ぎ後の失敗: 取得時に未確定でも、引き継ぎ（スクワッドかエージェントのメンション）・レビュー報告後の run の終了前に通常の通知で拾う'
 
-for fixture in old-run other-author no-mention new-run other-squad; do
+for fixture in old-run other-author no-mention new-run other-squad old-report-name; do
 	reset_fixture
 	fixture issue-runs direct | jq '. as $base | [$base + {"id": "fixer-run", "agent_id": "fixer", "status": "running"}]' >"$test_dir/runs.json"
 	jq --slurpfile base "$test_dir/comment-prototype.json" -n --arg fixture "$fixture" '[$base[0] + {author_type: "agent", author_id: "fixer",
@@ -64,7 +64,8 @@ for fixture in old-run other-author no-mention new-run other-squad; do
 		| if $fixture == "old-run" then .[0].source_task_id = "old-fixer-run"
 		  elif $fixture == "other-author" then .[0].author_id = "implementer"
 		  elif $fixture == "no-mention" then .[0].content = "/note\n途中の記録"
-		  elif $fixture == "other-squad" then .[0].content = "[@Demo](mention://squad/other-squad) 引き継ぎます" else . end' >"$test_dir/comments.json"
+		  elif $fixture == "other-squad" then .[0].content = "[@Demo](mention://squad/other-squad) 引き継ぎます"
+		  elif $fixture == "old-report-name" then .[0].content = "/note\n\u78ba\u304b\u3081\u305f\u30b3\u30df\u30c3\u30c8: abcdef0123456789\nレビュー結果" else . end' >"$test_dir/comments.json"
 	if [[ $fixture == new-run ]]; then
 		jq --slurpfile base "$test_dir/run-prototype.json" '. + [$base[0] + {id: "new-fixer-run", agent_id: "fixer", status: "running"}]' \
 			"$test_dir/runs.json" >"$test_dir/updated.json"
@@ -73,7 +74,7 @@ for fixture in old-run other-author no-mention new-run other-squad; do
 	check_ci $'/note\nCI abcdef0: 失敗あり（demo-codex-fixer-test の作業中なので保留）'
 	[[ ! -s $test_dir/posted.jsonl ]]
 done
-echo 'PASS 引き継ぎの対応: 別の run・別の作者・別のスクワッド・途中の記録では作業中の保留を解除しない'
+echo 'PASS 引き継ぎの対応: 別の run・別の作者・別のスクワッド・途中の記録・前の行名のレビュー報告では作業中の保留を解除しない'
 
 # 古い head の取得記録では、今の head の失敗を抑止しない。
 reset_fixture

@@ -165,9 +165,9 @@ def check(directory):
 
 
 check(workflows)
-print('PASS workflow-rules: SHA とバージョン・認証・秘密の参照と Environment・きっかけ・公開の検査を確かめた')
+print('PASS workflow-rules: SHA とバージョン・認証・秘密の参照と Environment・きっかけ・公開の検査を確認した')
 print('PASS workflow-rules: まとめが全ジョブを待ち、成功だけを通し、失敗・取り消し・飛ばしを拒む')
-print('PASS workflow-rules: CodeQL の言語・きっかけ・権限と、Dependabot の週次・待機・まとめを確かめた')
+print('PASS workflow-rules: CodeQL の言語・きっかけ・権限と、Dependabot の週次・待機・まとめを確認した')
 print('PASS workflow-rules: 勧告の検査も同じきっかけで流し、失敗しても SARIF を登録する')
 
 
@@ -203,7 +203,7 @@ mutate('other-workflow', 'release-assets.yml', pin, 'actions/checkout@main', 'us
 mutate('missing-credentials', 'check.yml', '          persist-credentials: false\n', '', '認証設定の数')
 mutate('unjustified-credentials', 'check.yml', 'persist-credentials: false', 'persist-credentials: true', '認証情報を残す理由')
 mutate('justified-credentials', 'check.yml', '          persist-credentials: false',
-       '          # 認証情報を残す理由: 確かめ用の例外\n          persist-credentials: true')
+       '          # 認証情報を残す理由: 確認用の例外\n          persist-credentials: true')
 mutate('empty-reason', 'check.yml', '          persist-credentials: false',
        '          # 認証情報を残す理由:\n          persist-credentials: true', '認証情報を残す理由')
 mutate('missing-always', 'check.yml', '    if: always()\n', '', 'always() がない')

@@ -1,0 +1,121 @@
+[
+  {
+    "has_more": true,
+    "issues": [
+      {
+        "assignee_id": "fixture-metrics-id-000025",
+        "assignee_type": "squad",
+        "created_at": "2026-11-13T00:54:36Z",
+        "creator_id": "fixture-metrics-id-000024",
+        "creator_type": "member",
+        "description": "fixture",
+        "due_date": null,
+        "duplicate_of": null,
+        "id": "fixture-metrics-id-000008",
+        "identifier": "fixture",
+        "labels": [
+          {
+            "color": "fixture",
+            "created_at": "2026-11-12T03:19:15Z",
+            "description": "fixture",
+            "id": "fixture-metrics-id-000017",
+            "name": "fixture",
+            "resource_type": "fixture",
+            "updated_at": "2026-11-12T03:19:15Z",
+            "usage_count": 0,
+            "workspace_id": "fixture-metrics-id-000030"
+          },
+          {
+            "color": "fixture",
+            "created_at": "2026-11-10T07:08:29Z",
+            "description": "fixture",
+            "id": "fixture-metrics-id-000028",
+            "name": "fixture",
+            "resource_type": "fixture",
+            "updated_at": "2026-11-11T15:27:12Z",
+            "usage_count": 0,
+            "workspace_id": "fixture-metrics-id-000030"
+          }
+        ],
+        "last_activity_at": "2026-11-13T06:27:50.322745Z",
+        "metadata": {
+          "branch": "fixture",
+          "pr_url": "fixture",
+          "repository": "fixture"
+        },
+        "number": 44,
+        "parent_issue_id": null,
+        "position": -40,
+        "priority": "none",
+        "project_id": "fixture-metrics-id-000026",
+        "properties": {},
+        "revision": 76,
+        "stage": null,
+        "start_date": null,
+        "status": "done",
+        "status_category": "done",
+        "status_name": "",
+        "title": "fixture",
+        "updated_at": "2026-11-13T06:27:50Z",
+        "workspace_id": "fixture-metrics-id-000030"
+      }
+    ],
+    "limit": 1,
+    "offset": 0,
+    "total": 57
+  },
+  {
+    "has_more": false,
+    "issues": [
+      {
+        "assignee_id": "fixture-metrics-id-000025",
+        "assignee_type": "squad",
+        "created_at": "2026-11-10T07:09:09Z",
+        "creator_id": "fixture-metrics-id-000024",
+        "creator_type": "member",
+        "description": "fixture",
+        "due_date": null,
+        "duplicate_of": null,
+        "id": "fixture-metrics-id-000001",
+        "identifier": "fixture",
+        "labels": [
+          {
+            "color": "fixture",
+            "created_at": "2026-11-10T07:08:29Z",
+            "description": "fixture",
+            "id": "fixture-metrics-id-000027",
+            "name": "fixture",
+            "resource_type": "fixture",
+            "updated_at": "2026-11-11T15:27:12Z",
+            "usage_count": 0,
+            "workspace_id": "fixture-metrics-id-000030"
+          }
+        ],
+        "last_activity_at": "2026-11-10T14:34:22.281076Z",
+        "metadata": {
+          "repository": "fixture",
+          "squad_kit_targets": "fixture",
+          "squad_kit_task": "fixture"
+        },
+        "number": 2,
+        "parent_issue_id": null,
+        "position": -1,
+        "priority": "none",
+        "project_id": "fixture-metrics-id-000026",
+        "properties": {},
+        "revision": 52,
+        "stage": null,
+        "start_date": null,
+        "status": "done",
+        "status_category": "done",
+        "status_name": "",
+        "title": "fixture",
+        "updated_at": "2026-11-10T14:34:22Z",
+        "workspace_id": "fixture-metrics-id-000030"
+      }
+    ],
+    "limit": 1,
+    "offset": 56,
+    "total": 57
+  }
+]

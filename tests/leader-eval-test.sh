@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# リーダーの評価の場面の形と、流す仕組みを、本物のモデルを呼ばずに確かめる。
+# リーダーの評価の場面の形と、流す仕組みを、本物のモデルを呼ばずに確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 export PYTHONDONTWRITEBYTECODE=1
@@ -138,7 +138,7 @@ calls = [
     {"command": "squad-review-wait watch issue-shop-1 comment-3 agent-code-reviewer agent-qa"},
     {"command": "multica issue comment add issue-shop-1 --parent comment-3 --content-file tmp/reply.md",
      "bodies": ["返事を待つ役: [@Code](mention://agent/agent-code-reviewer) [@QA](mention://agent/agent-qa)\n"
-                "確かめるコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"]},
+                "確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"]},
 ]
 def passed(records):
     return all(le.check_record(c["predicate"], records)[0] for c in scene["criteria"])
@@ -146,12 +146,12 @@ assert passed(calls)
 for missing in range(4):
     assert not passed(calls[:missing] + calls[missing + 1:]), missing
 assert not passed(calls[:2] + [calls[3], calls[2]])
-for text in ["返事を待つ役:", "確かめるコミット:", "agent-qa", "agent-code-reviewer", "3f9a2c1"]:
+for text in ["返事を待つ役:", "確認するコミット:", "agent-qa", "agent-code-reviewer", "3f9a2c1"]:
     wrong = copy.deepcopy(calls)
     wrong[-1]["bodies"][0] = wrong[-1]["bodies"][0].replace(text, "missing")
     assert not passed(wrong), text
 PY
-echo "PASS leader-eval: keep-7 は CI と返事の待ち、依頼の順序・役・コミットを確かめる"
+echo "PASS leader-eval: keep-7 は CI と返事の待ち、依頼の順序・役・コミットを確認する"
 
 # --- スタブの claude で流す ---
 stub_bin="$test_dir/stub-bin"
@@ -238,7 +238,7 @@ grep -q '^leader claude-sonnet-5-5 high' "$test_dir/stub.log"
 grep -q '^scorer claude-opus-5-5 high' "$test_dir/stub.log"
 echo "PASS leader-eval: モデルと思考の深さは展開した front matter から、採点は opus の high で流す"
 
-# keep-6 の最後の返答だけを変え、採点が合格と不合格に分かれることを確かめる。
+# keep-6 の最後の返答だけを変え、採点が合格と不合格に分かれることを確認する。
 for mode in good bad denied; do
 	case $mode in good | denied) reply=$'/note\n返事の待ち: 回ごと済み' ;; bad) reply='別の返答' ;; esac
 	denial=

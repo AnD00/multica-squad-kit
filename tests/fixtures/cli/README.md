@@ -34,7 +34,7 @@ bash tests/capture-cli-fixtures.sh --write-samples tmp/採取した応答 <タ�
 
 書き込みも `squad_cli_read` を通せる。応答の検証が失敗しても書き込み自体は済んでいることがあるので、投稿を繰り返さない。
 
-見張りのテストで実物の見本からケースを作るときは、`tests/cli-fixture-lib.py` の `assert_fixture_response` に原本・ケース・その読み取りの約束を渡す。新しい鍵の追加と、必須の鍵の削除を拒否する。`allow_required_deletion=True` は、欠落時の失敗を確かめるケースだけに使う。
+見張りのテストで実物の見本からケースを作るときは、`tests/cli-fixture-lib.py` の `assert_fixture_response` に原本・ケース・その読み取りの約束を渡す。新しい鍵の追加と、必須の鍵の削除を拒否する。`allow_required_deletion=True` は、欠落時の失敗を確認するケースだけに使う。
 
 追加の採取として、2026-11-11 に同じ CLI のバージョンから、`repository` のないタスクの `issue-get` と `issue-metadata` を追加した。この採取の 2 応答で共通の対応表を使い、ID は `fixture-supplement-id-` で始まる。同じ採取の中の同一性・比較順を保ち、先の採取の ID とは比較しない。`CAPTURE.json` の追加した `repository` の形の件数は、保存済み見本と追加応答で数え、その範囲を `scope` に残した。
 
@@ -59,6 +59,14 @@ Multica と合わせた取り込みでは、外部で採取した応答のディ
 `pagination` のある約束は JSON のページをすべて検証してから連結する。入れ子の `items` は、親の `when` に当たるときだけ中の配列の全要素を検証する。`gh-fixture.py` は見本へケースの値を重ね、見本にない鍵を拒否する。必須欄の欠落を試す `raw` のケースでは重ねずにそのまま返す。
 
 PR・コメントの `user`、チェックの `app` は、[GitHub の公開 OpenAPI](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.json)で null 可の必須欄である。PR の `author` も [GraphQL の仕様](https://docs.github.com/en/graphql/reference/pulls)では null 可である。公開元で null の形は取れなかったため「見本なし」と記録し、子の欄を条件付きとしてテストする。
+
+## 指標の収集の読み取り
+
+`metrics-*.json` と `issue-timeline.json` は、2026-11-13 に CLI 0.7.0 の読み取りから追加採取した。コマンド、バージョン、保存した応答の数は `METRICS-CAPTURE.json` にある。`metrics-comments-cursor.txt` は、同じ採取のコメント読み取りが標準エラーに出した次ページのカーソルである。タスク一覧は途中と最後のページ、状態の変化は `status_changed` とそれ以外、実行は使用量のある完了と使用量のない実行中の形を保存した。
+
+キーと値の型を保ち、自由文・名前・識別子を置き換えた。ID は採取内で共通の対応表を使い、`fixture-metrics-id-` で始め、同一性と比較順を保った。元の ID と対応表は保存していない。既存の採取の ID とは比較しない。
+
+この見本は見張りの契約には加えず、`metrics-cli-fixture.py` がケースのキーと型を検証する。必須欄の欠落を試すケースだけは削除を許す。実行中の実応答では `usage` が省略されていたので、この欄のない形も許す。コメントの本文とエージェントの指示は見本では匿名化し、収集したスナップショットには残さない。
 
 ## 使用量の読み取り
 

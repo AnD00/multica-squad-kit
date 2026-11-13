@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# すでにあるタグと Release の不整合、各手順の失敗・流し直し、中断と片付けを確かめる。
-# 承認・拒否と再開は release-test.sh、確かめで止まるケースは release-check-test.sh、公開前の確かめと画面は release-display-test.sh。
+# すでにあるタグと Release の不整合、各手順の失敗・流し直し、中断と片付けを確認する。
+# 承認・拒否と再開は release-test.sh、確認で止まるケースは release-check-test.sh、公開前の確認と画面は release-display-test.sh。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/release-assertions.sh"
@@ -61,7 +61,7 @@ make_case list-fails-with-tag
 tag_here
 GH_LIST_FAIL=1 expect_stop_keep 'GitHub から読めません'
 
-# 6〜8 は、タグが指すコミットで確かめる。main がそのあとで直っていても、タグの中身が悪ければ止まる。
+# 6〜8 は、タグが指すコミットで検証する。main がそのあとで直っていても、タグの中身が悪ければ止まる。
 make_case tag-commit-version
 printf 'v1.5.9\n' >"$work/VERSION"
 commit_work 'Other version'
@@ -77,7 +77,7 @@ changelog_default >"$work/CHANGELOG.md"
 commit_work 'Fill the section'
 expect_stop_keep '節が空です'
 
-# 公開済みのときも、タグが指すコミットで 6〜8 を確かめてから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
+# 公開済みのときも、タグが指すコミットで 6〜8 を検証してから 0 で終わる。悪ければ、端末でなくても 1 で止まる。
 make_case published-tag-commit-version
 printf 'v1.5.9\n' >"$work/VERSION"
 commit_work 'Other version'
@@ -231,7 +231,7 @@ GH_RUNS_MODE=fail run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
 grep -qF '実行の一覧を読めません' "$case_dir/err"
 log_lacks '^release edit'
-# 実行が失敗する: 実行の URL を出し、確かめも release edit もしない。配布物がないので、流し直すと配布物を作らせ直す。
+# 実行が失敗する: 実行の URL を出し、検証も release edit もしない。配布物がないので、流し直すと配布物を作らせ直す。
 make_case workflow-run-fails
 GH_WATCH_FAIL=1 run_release "$test_dir/answer-y"
 [[ $rc == 1 ]]
@@ -256,7 +256,7 @@ log_lacks '^release create'
 [[ $(draft_flag) == false ]]
 
 # 中断すると、裏で待つ見張りも止まり、一時の置き場が残らない。
-# このケースだけ見張りを長く待たせ、実際の PID が消えることを確かめる。
+# このケースだけ見張りを長く待たせ、実際の PID が消えることを確認する。
 make_case workflow-interrupt
 tag_here
 add_release true
@@ -294,4 +294,4 @@ read -r watch_process release_process <"$GH_STATE/watch-process"
 log_lacks '^release edit'
 no_leftover
 
-echo 'PASS release 後半: タグと Release の不整合、各手順の失敗・流し直し、中断と片付けを確かめた'
+echo 'PASS release 後半: タグと Release の不整合、各手順の失敗・流し直し、中断と片付けを確認した'
