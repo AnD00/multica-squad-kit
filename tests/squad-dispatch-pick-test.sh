@@ -302,6 +302,25 @@ for failure in exit claude_error codex_error both_error invalid_json multiple_js
 done
 echo 'PASS 読めない: 終了 1・片側/両側 error・不正 JSON・古い時刻・不正な形、代わりの決まりと理由'
 
+# 読む欄が 1 つ欠けても、ほかの欄で補わず、その側を読めないとして代わりの決まりに回す。
+# 欄が読めずに null になった側を、使用率 0% や利用可として振り分けると、使えない側へ回してしまう。
+for field in claude.week.used_percent claude.week.resets_at claude.session.used_percent codex.week.used_percent codex.week.resets_at codex.allowed read_at; do
+	fixtures
+	change "del(.${field})"
+	case "$field" in
+	claude.*) reason='Claude: 使用率・リセット時刻・利用可否を読めなかった' ;;
+	codex.*) reason='Codex: 使用率・リセット時刻・利用可否を読めなかった' ;;
+	read_at) reason='使用率を読んだ時刻を読めなかった' ;;
+	esac
+	run_pick 0 claude-implementer implement 大きな
+	assert_line '使用率を読めないため、大きさ「'
+	assert_line "$reason"
+	run_pick 0 codex-fixer fix
+	assert_line '使用率を読めないため、修正の代わりの決まりで決めた'
+	assert_line "$reason"
+done
+echo 'PASS 読めない: 読む欄が 1 つ欠けたら、その側（read_at は全体）を読めないとして代わりの決まりに回す'
+
 fixtures
 change '.read_at = "2026-10-26T23:30:00Z"'
 run_pick 0 claude-implementer implement 小さな

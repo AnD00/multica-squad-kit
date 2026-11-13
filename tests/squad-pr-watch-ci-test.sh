@@ -82,3 +82,58 @@ for fixture in member other-head no-note other-prefix other-suffix; do
 done
 echo 'PASS 取得記録の条件: 作者・SHA・印・前後の文が違えば、今の失敗を知らせる'
 
+# ci-check が読む欄（status_category・state・statusCheckRollup の各欄）は、欄がある場合にその値どおり分岐することを確かめる。
+# 欄が読めずに null になると、どの分岐にも入らず失敗を見逃す。
+set_checks() { # checks の JSON 配列。CheckRun は実物から作った見本に重ねる。
+	jq --slurpfile base "$test_dir/check-prototype.json" --argjson checks "$1" \
+		'.statusCheckRollup = ($checks | map(if .__typename == "CheckRun" then $base[0] + . else . end))' "$test_dir/pr.json" >"$test_dir/updated.json"
+	mv "$test_dir/updated.json" "$test_dir/pr.json"
+}
+
+for category in done cancelled; do
+	reset_fixture
+	jq --arg c "$category" '.status_category = $c' "$test_dir/task.json" >"$test_dir/updated.json"
+	mv "$test_dir/updated.json" "$test_dir/task.json"
+	check_ci $'/note\nCI: タスクが終わっているので見ない'
+	[[ ! -s $test_dir/posted.jsonl ]]
+done
+for state in MERGED CLOSED; do
+	reset_fixture
+	jq --arg s "$state" '.state = $s' "$test_dir/pr.json" >"$test_dir/updated.json"
+	mv "$test_dir/updated.json" "$test_dir/pr.json"
+	check_ci $'/note\nCI abcdef0: PR がマージ済みか閉じているので見ない'
+	[[ ! -s $test_dir/posted.jsonl ]]
+done
+echo 'PASS ci-check: タスクが done・cancelled、PR が MERGED・CLOSED なら、失敗があっても見ない'
+
+for fixture in no-checks success cancelled-only context-pending run-in-progress; do
+	reset_fixture
+	case $fixture in
+	no-checks) set_checks '[]'; expected='チェックなし' ;;
+	success) set_checks '[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"StatusContext","state":"SUCCESS","context":"external"}]'; expected='失敗なし' ;;
+	cancelled-only) set_checks '[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"CANCELLED"}]'; expected='失敗なし' ;;
+	context-pending) set_checks '[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"SUCCESS"},{"__typename":"StatusContext","state":"PENDING","context":"external"}]'; expected='失敗なし（実行中のチェックあり）' ;;
+	run-in-progress) set_checks '[{"__typename":"CheckRun","status":"IN_PROGRESS","conclusion":null}]'; expected='失敗なし（実行中のチェックあり）' ;;
+	esac
+	check_ci "/note"$'\n'"CI abcdef0: $expected"
+	[[ ! -s $test_dir/posted.jsonl ]]
+done
+echo 'PASS ci-check: チェックなし・成功・取り消しだけ・実行中は、失敗として知らせず、実行中の有無を分ける'
+
+# 完了した CheckRun の TIMED_OUT・STARTUP_FAILURE と StatusContext の FAILURE は失敗に数え、実行中の CheckRun は結論があっても数えない。
+reset_fixture
+set_checks '[{"__typename":"CheckRun","status":"COMPLETED","conclusion":"TIMED_OUT","workflowName":"CI","name":"a"},
+	{"__typename":"CheckRun","status":"COMPLETED","conclusion":"STARTUP_FAILURE","workflowName":"","name":"b"},
+	{"__typename":"StatusContext","state":"FAILURE","context":"ctx"},
+	{"__typename":"CheckRun","status":"IN_PROGRESS","conclusion":"FAILURE","workflowName":"CI","name":"running"}]'
+check_ci $'/note\nCI abcdef0: 失敗をリーダーに知らせた'
+assert_jq -s 'length == 1 and (.[0].body | contains("- CI / a\n- b\n- ctx\n")) and (.[0].body | contains("running") | not)' "$test_dir/posted.jsonl"
+echo 'PASS ci-check: TIMED_OUT・STARTUP_FAILURE・StatusContext の FAILURE を失敗として名前つきで知らせ、実行中は数えない'
+
+# 記録のスレッドがなければ、何も投稿せずエラーにする。
+reset_fixture
+jq 'del(.metadata.ci_watch_thread)' "$test_dir/task.json" >"$test_dir/updated.json"
+mv "$test_dir/updated.json" "$test_dir/task.json"
+if (cd "$test_dir" && bash "$script" ci-check test-issue orchestrator monitor) >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
+[[ ! -s $test_dir/output && ! -s $test_dir/posted.jsonl && $(<"$test_dir/error") == *'metadata に ci_watch_thread がありません'* ]]
+echo 'PASS ci-check: 記録のスレッドがなければ、投稿せずエラーにする'

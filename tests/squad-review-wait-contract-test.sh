@@ -71,6 +71,17 @@ done
 cp "$test_dir/agents.base.json" "$test_dir/agents.json"
 cp "$test_dir/rules.base.json" "$test_dir/rules.json"
 
+# archived_at が null でないエージェントは、欄がある場合に無効として扱い、前の見張りを消さない。
+reset_calls
+round_comments
+jq --arg a "$a" 'map(if .id == $a then .archived_at = "2026-01-01T00:00:00Z" else . end)' "$test_dir/agents.base.json" >"$test_dir/agents.json"
+status=0
+bash "$script" watch test-issue trigger-comment "$a" >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 1 && ! -s $test_dir/output && $(deleted_rules) == 0 ]]
+assert_jq -s '[.[] | select(.[0:3] == ["issue", "wakeup", "create"])] | length == 0' "$test_dir/calls.jsonl"
+cp "$test_dir/agents.base.json" "$test_dir/agents.json"
+echo 'PASS watch: archived_at のあるエージェントは無効として、前の見張りを消さず登録もしない'
+
 # 結果のあとに返した役の名前が読めなくても、ID に置き換えて知らせを投稿しない。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
