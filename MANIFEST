@@ -80,7 +80,7 @@ b686eb169b1c9966e494869b23ca154189cb5cc926cc8b08e4da368afe2d2296  ./docs/release
 8602545c2587c3c1c5a7d8e273cf3cf5cf23acb3a7047193192f89b39f704db2  ./docs/run-status.md
 ad9dd6f28649d2ebdebd9200b0f9f443aeb8c3c62b15c120c4bc1ed91a33d61b  ./docs/screens.md
 797b597a542d111fd37296c5f1b04e0124dc1b22bc7bcfd453241f4f6dbfb534  ./docs/setup-completion.md
-72319f0513dc875ac989c4fec67f9f26ac47588b612706b98e948030e1c4caa8  ./docs/success-criteria.md
+36b7a13ad16b3bd8c97824029e0c721fdf5a2d216f53a72341ddf908f9a5ebed  ./docs/success-criteria.md
 923dbd08efea3d8bc5f13f337710cabb64cab814195f2a86dd83adb7a6a11c9d  ./docs/supply-chain.md
 4833dc40b67cf3cb5b3c6ed385c78a104bdddf8565302ee694a004171578f91e  ./docs/terms.md
 23061b8ec0c5beb312ba15cac63653ab55e05eca0d2ac1b49e2806b43ec0be4a  ./docs/unfilled-stop.md
@@ -105,6 +105,7 @@ ceadc480d4d92cc5791f339ca1b466c9c9a446e6c56253ec414c3d44641df6ec  ./lib/ui.sh
 9c54ee69dce5fdd402b8fc470091d19f01361de509084ff53443ffe70de50164  ./lib/webhooks.sh
 a5266ab6bfd01aab4c8744777b707d510d1cd38b1a7761be916ad2ce2f61f9b4  ./lib/workspace.sh
 4e21832c62bb59ec638ff988a0a99d92a06e99e3c1edad4a8d139a15aea961c2  ./manual.md
+e42890993b001d55db0df2034bf665994d8d72ce23396aae53742aae76c3feb1  ./scripts/__pycache__/metrics.cpython-314.pyc
 633f1030aafe88149effa1a7c3d64247fd6100f682ffbaae2c212d44b443a538  ./scripts/build-assets.sh
 5502cd894d01488bcf22a4d332d3f8b87271923e2e05fd72e8a50bb847b774e2  ./scripts/check.sh
 a97c308a2137903013f686ad34a0658d1fb6cfb166bcb31902372b2b64718e73  ./scripts/ci-install.sh

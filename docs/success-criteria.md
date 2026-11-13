@@ -38,7 +38,7 @@
 
 置き先の決め方（`IF runtime-claude` で Claude のモデル、`ELSE` で Codex のモデル）と、両方のランタイムがあるときに Claude に置くことは変えない。変えるのは `common/agents/designer.md` の front matter のモデルの値である。
 
-ただし、今の決まりでは、Claude のモデルの役は、Claude Code がなければ Codex の実装の役と同じモデル（Sol）に移す（[common/agents/FORMAT](../common/agents/FORMAT)、`manual.md` の「片方だけのランタイムで動かす」）。設計の役を Codex だけで Astra にするのは、この決まりの例外になる。FORMAT と `manual.md` に、設計の役は Codex だけのときに実装の役ではなく最上位のモデル（Astra）へ移すことを書く。最上位のモデルを使う理由は、ランタイムによらず同じだからである。FORMAT は拡張との契約の文書だが、拡張の役の front matter の書き方と読み方は変わらないので、拡張の作者がすることはない。
+[common/agents/FORMAT](../common/agents/FORMAT) は変えない。FORMAT の「Claude のモデルの役は、runtime-claude がなければ Codex の実装と同じモデルにする」は、印を消したあとに Claude のモデルが残る役に効く決まりである。設計の役は、Codex だけのときに `ELSE` の Codex のモデル（Astra）が残るので、この決まりに当たらない。候補 4（PR #71）が要件を決める役を同じ置き方にするのと合わせる。変えるのは、`manual.md` の「片方だけのランタイムで動かす」の、「ある方へ移す役のモデルは、そのランタイムの実装の役と同じものにする」という説明である。設計の役は、Codex だけのときに Astra になることを足す。
 
 セットアップは front matter の値をそのまま登録に使う。モデルとランタイムの照合（`lib/project.sh`）は名前の先頭（`claude-` と `gpt-`）だけを見るので、新しいモデルの名前のために変える処理はない。
 
@@ -163,10 +163,57 @@ flowchart TD
 | 値 | 測り方 |
 | --- | --- |
 | 系統ごとの週の使用率 | 使用率の見張りが読む値（`squad-usage-read` の `week.used_percent`） |
-| 設計の役の実行回数、1 回あたりのトークン数、実行時間 | [metrics.md](metrics.md) の手順（`scripts/metrics.py`）で、設計の役の実行を数える |
+| 設計の役の実行回数、1 回あたりのトークン数、実行時間 | [metrics.md](metrics.md) の手順（`scripts/metrics.py collect`）で集めたスナップショットから、下の[設計の役の実行を数える](#設計の役の実行を数える)の手順で、設計の役の実行だけを数える |
 | 使用率で待った時間 | 候補 3 のあとは、再開の時刻のコメントから待った時間を合計する。候補 3 の前は、使用率で人間を呼んだ回数を数える |
 
 前の値は、この変更のマージの直前に測り、このタスクのコメントに添付する。後の値は、マージのあとに新しいモデルで設計したタスク 5 件で測り、同じく添付する。後の値を測るタスクは、マージのときにリーダーが 1 件起こす。測った結果とスナップショットは、[metrics.md の置き場所と公開の範囲](metrics.md#置き場所と公開の範囲)のとおり、リポジトリにコミットしない。
+
+### 設計の役の実行を数える
+
+`scripts/metrics.py count` の実行時間は、タスクごとにすべての役の実行を合わせた値なので、設計の役だけの時間は出せない。そこで、スナップショットの `runs` を設計の役のエージェントで絞り、実行ごとに時間とトークン数を数える。`scripts/metrics.py` は変えず、次のコマンドをリポジトリの根で流す。エージェントの名前は、元のスナップショットでは `<プロジェクトの区別>-designer-<メンバーの区別>`、添付用に別名へ置き換えたコピーでは `example-designer-anonymous` である。
+
+```bash
+python3 - tmp/metrics/snapshot.json <設計の役のエージェントの名前> <before|after> <境の時刻> <<'PY'
+import json, statistics, sys
+sys.path.insert(0, 'scripts')
+from metrics import TOKEN_FIELDS, timestamp
+path, name, side, border = sys.argv[1:5]
+snapshot = json.load(open(path, encoding='utf-8'))
+agents = {row['id'] for row in snapshot['agents'] if row['name'] == name}
+runs = [run for run in snapshot['runs'] if run['agent_id'] in agents and run['started_at']]
+first = {}
+for run in runs:
+    first[run['issue_id']] = min(first.get(run['issue_id'], timestamp(run['started_at'])), timestamp(run['started_at']))
+after = side == 'after'
+issues = sorted((issue for issue, start in first.items() if (start >= timestamp(border)) == after),
+                key=first.get, reverse=not after)[:5]
+runs = [run for run in runs if run['issue_id'] in issues and (after or timestamp(run['started_at']) < timestamp(border))]
+done = [run for run in runs if run['completed_at']]
+seconds = [timestamp(run['completed_at']) - timestamp(run['started_at']) for run in done]
+tokens = [sum(row[field] for row in run['usage'] for field in TOKEN_FIELDS) for run in done if run['usage']]
+print(json.dumps({
+    'issues': len(issues), 'runs': len(done), 'running': len(runs) - len(done),
+    'runs_per_issue': round(len(done) / len(issues), 1) if issues else None,
+    'seconds_per_run': round(statistics.mean(seconds)) if seconds else None,
+    'seconds_median': round(statistics.median(seconds)) if seconds else None,
+    'tokens_per_run': round(statistics.mean(tokens)) if tokens else None,
+    'runs_without_usage': len(done) - len(tokens),
+    'models': sorted({row['model'] for run in done for row in run['usage']})}, ensure_ascii=False))
+PY
+```
+
+数える範囲と扱いは次のとおりにする。
+
+| 項目 | 決まり |
+| --- | --- |
+| 前の値の範囲 | 境の時刻は、マージの直前にスナップショットを集めた時刻にする。設計の役の最初の実行が境より前に始まったタスクのうち、新しいほうから 5 件を数え、境より前に始まった実行だけを含める |
+| 後の値の 5 件の選び方 | 境の時刻は、マージのあとに新しいモデルでセットアップを流し直した時刻にする。設計の役の最初の実行が境より後に始まったタスクのうち、古いほうから 5 件を数える。境をまたいで設計したタスクは、後の値に入れない |
+| モデルの照合 | `models` が、前の値では今のモデル、後の値では新しいモデルだけであることを見る。違うモデルが混じるときは、境の時刻を流し直しの時刻に合わせて測り直す |
+| 件数が足りないとき | `issues` が 5 に満たないときは、後の値はそろうまで待つ。前の値は、あるだけの件数で測り、件数を結果に添える |
+| 終わっていない実行 | 開始の時刻がない実行は数えない。始まって終わっていない実行は、回数・時間・トークン数のどれにも入れず、`running` に出す。`running` が 0 でないときは、終わってから同じ境の時刻で集め直す |
+| 使用量がない実行 | 回数と時間には入れ、トークン数の平均からは外し、`runs_without_usage` に出す。0 でないときは、その数を結果に添える |
+
+1 回あたりの時間は平均と中央値の両方を出す。長い実行が 1 回あると平均が大きく動くので、比べるときは両方を見る。トークン数は、使用量の各行の `input_tokens`、`cache_write_tokens`、`cache_read_tokens`、`output_tokens` の合計で、[metrics.md のトークン数を数える](metrics.md#トークン数を数える)と同じ欄を使う。
 
 ## 文書と指示の変更
 
@@ -174,7 +221,6 @@ flowchart TD
 
 | 変えるもの | 変えること |
 | --- | --- |
-| `common/agents/FORMAT` | Claude のモデルの役を Codex へ移す決まりに、設計の役は Astra へ移す例外を足す |
 | `common/agents/designer.md` | front matter のモデル。「実装のフェーズ」に、成功の条件の表の形と書く場所を足す。「結果の出し方」の 1,000 字に表を数えないことを書く |
 | `common/agents/claude-implementer.md`、`codex-implementer.md` | 「結果の出し方」に、確認の結果を PR に置いてから引き継ぐことと、その形を足す |
 | `common/agents/claude-fixer.md`、`codex-fixer.md` | 同上。確認する条件の範囲は、積まれたフェーズの行にする |
@@ -186,40 +232,57 @@ flowchart TD
 | `common/skills/squad-handoff/references/leader-principal.md` | 呼ぶところに、設計の役がない構成の設計の見直しを足し、冒頭の前置きを合わせる |
 | `common/squad.md` | 「不足している要件や設計は人間に補ってもらう」に、設計は最上位の役が見直すことを足す |
 | `lib/questions.sh` | 外す役の設計の行の「ほかに変わること」を「設計は人間に補ってもらい、最上位の役が見直す」にする |
-| `manual.md` | 外す役の表の設計の行を `lib/questions.sh` と合わせる。「片方だけのランタイムで動かす」の役の表と移し方の文に、設計の役は Codex だけのときに Astra になることを足す |
+| `manual.md` | 外す役の表の設計の行を `lib/questions.sh` と合わせる。「片方だけのランタイムで動かす」の移し方の文に、設計の役は Codex だけのときに Astra になることを足す |
 | `docs/principal-review.md` | 「最上位の役を呼ぶところ」に、設計の役がない構成の見直しを足し、この文書へ案内する |
 | `tests/leader-eval/` | 場面に外す役を指定できるようにし、設計の役を外した場面を 1 つ足す（[テスト](#テスト)） |
 | `CHANGELOG.md` | 次のバージョンの節に知らせを書く（[CHANGELOG.md の知らせ](#changelogmd-の知らせ)） |
 
-`EXTENSIONS.md` は変えない。front matter の形と、拡張の役の扱いは変わらないためである。
+`common/agents/FORMAT` と `EXTENSIONS.md` は変えない。front matter の形と印の読み方、拡張の役の扱いは変わらないためである（[設計の役のモデル](#設計の役のモデル)）。
 
 ## ほかの未マージの候補との重なり
 
-この設計を書いた時点（2026-11-13）で、計画の候補 2〜8 はどれもマージされていない。変えるファイルが重なるかを次の表にまとめる。PR のある候補は PR の差分と設計から、PR のない候補は [workflow.md の後続のタスクの候補](workflow.md#後続のタスクの候補)の「主に変えるもの」から読んだ。
+この設計を書いた時点（2026-11-13）で、計画の候補 2〜8 はどれもマージされていない。候補 2、3、4、6、7、8 には PR があり、候補 2 は実装、ほかは設計の PR である。変えるファイルが重なるかを次の表にまとめる。PR の差分と、設計の PR の変更の表と重なりの節から読んだ。
 
-| 変えるファイル | 候補 2（#67） | 候補 3（#68） | 候補 4 | 候補 6（#70） | 候補 7 | 候補 8 |
+### マージの順
+
+マージの順は、[workflow.md の後続のタスクの候補](workflow.md#後続のタスクの候補)の順（候補 2、3、4、5、6、7、8）にそろえる。この候補の実装が待つのは、先に入る候補 2（PR #67）、3（PR #68）、4（PR #71）だけで、重なるファイルを変えるフェーズに限る。あとに入る候補 6（PR #70）、7（PR #74）、8（PR #72）は待たない。この 3 つは、重なるファイルを変える実装を、この候補のマージのあとに main を取り込んでから始める。候補 4 と 6 の設計も、候補 5 を先に置く同じ順で書いている。
+
+候補 6 の設計は、レビューの往復の上限（解決策 F の後半）を候補 5 で入れる前提で書き、移すと決まったときは要件を合意し直すとしている。この候補の要件では、上限を候補 6 に回すと決めた（Q2）。候補 6 は、この候補のあとに、要件を合意し直して上限を足す。
+
+### 重なるファイル
+
+| 変えるファイル | 候補 2（PR #67） | 候補 3（PR #68） | 候補 4（PR #71） | 候補 6（PR #70） | 候補 7（PR #74） | 候補 8（PR #72） |
 | --- | --- | --- | --- | --- | --- | --- |
-| `common/agents/FORMAT`、`manual.md` の片方だけのランタイムの節 | | | | | | |
+| `manual.md` の片方だけのランタイムの節 | | | 重なる | | | |
 | `designer.md` | | | | | | 見込み |
 | `claude-implementer.md`、`codex-implementer.md` | | | | | | 見込み |
 | `claude-fixer.md`、`codex-fixer.md` | | | | | | 見込み |
 | `code-reviewer.md`、`qa.md` | | | | | | 見込み |
-| `claude-principal.md`、`codex-principal.md` | | | | 重なる | 見込み | |
-| `orchestrator.md` | 重なる | 重なる | 重なる | 重なる | 見込み | |
-| `leader-flow.md` | | 重なる | 重なる | 重なる | | |
-| `leader-principal.md` | | 重なる | | 重なる | 見込み | |
-| `common/squad.md`、`lib/questions.sh`、`manual.md` の外す役 | | | 重なる | | | |
-| `docs/principal-review.md` | | | | 重なる | 見込み | |
-| `tests/leader-eval/` の流す仕組み | | 重なる | | 重なる | | |
-| `tests/agent-templates-test.sh` | 重なる | 重なる | 見込み | 重なる | | |
-| `tests/project-runtimes-test.sh`、`tests/project-runtimes-first-test.sh`、`tests/setup-runtimes-test-lib.sh` | | | | 重なる | | |
+| `claude-principal.md`、`codex-principal.md` | | 重なる | 重なる | 重なる | 重なる | 見込み |
+| `orchestrator.md` | 重なる | 重なる | 重なる | 重なる | 重なる | 見込み |
+| `leader-flow.md` | | 重なる | 重なる | 重なる | | 見込み |
+| `leader-principal.md` | | 重なる | 重なる | 重なる | 重なる | 見込み |
+| `common/squad.md`、`lib/questions.sh`、`manual.md` の外す役 | | | 重なる | | 重なる | 見込み |
+| `docs/principal-review.md` | | | | 重なる | 重なる | |
+| `tests/leader-eval/` の流す仕組み | 重なる | 重なる | | 重なる | | |
+| `tests/agent-templates-test.sh` | 重なる | 重なる | 重なる | 重なる | 重なる | 見込み |
+| `tests/project-runtimes-test.sh`、`tests/project-runtimes-first-test.sh`、`tests/setup-runtimes-test-lib.sh` | | | 重なる | 重なる | | |
 | `CHANGELOG.md` の次のバージョンの節 | 重なる | 重なる | 重なる | 重なる | 重なる | 重なる |
 
-「重なる」は PR か設計で同じファイルを変えると書いてあるもの、「見込み」は計画の「主に変えるもの」から変えると読めるものである。PR #69 は CI の作業で、この表のファイルを変えない。候補 8 は「役の指示」とだけあり、どの役かは候補 8 の設計で決まる。
+「重なる」は PR の差分か設計で同じファイルを変えると書いてあるもの、「見込み」は候補 8 の設計が、1 回目の見直しで削る手順の範囲として役の指示とスキルの全体と、その手順を参照するテストを挙げているものである。どの手順を削るかは見直しのあとで決まる。候補 7 は `designer.md` を変えないと書いている。候補 7 の `manual.md` は「重要なタスクと最上位の役」の節で、`common/squad.md` と同じ行に置いた。PR #69 は CI の作業で、この表のファイルを変えない。
 
-候補 4 と候補 6 は、同じ段落や節を書き換えるので、文の衝突が起きやすい。候補 4 は `orchestrator.md` と `leader-flow.md` の要件を決める役がない段落、この候補はその次の設計の役がない段落を変える。候補 6 は最上位の役の指示と `leader-principal.md` の見直しの種類を変え、この候補は同じ節に設計の役がない構成を足す。モデルのテストは、候補 6 が最上位の役の行を、この候補が設計の役の行を変えるので、行は別でも同じ式に触れる。`CHANGELOG.md` は追記だけなので、マージの順に足せば済む。
+候補 8 は `docs/metrics.md` と `scripts/metrics.py` に手順の見直しの跡を足す設計である。[設計の役の実行を数える](#設計の役の実行を数える)の手順は、`collect` の実行の欄と、`scripts/metrics.py` の `TOKEN_FIELDS` と `timestamp` を使う。候補 8 がこれらを変えるときは、この手順も合わせて直す。
 
-重なるファイルを変える実装は、そのファイルに触れる先の候補がマージされたあとに、main を取り込んでから始める。重ならないファイルの実装は、ほかの候補を待たずに進めてよい。実装のフェーズの分け方は、この重なりに沿ってタスクのコメントで示す。
+文の衝突が起きやすいのは、同じ段落や節を書き換える次の組である。
+
+- 候補 4 は `orchestrator.md` と `leader-flow.md` の要件を決める役がない段落を、この候補はその次の設計の役がない段落を変える。`common/squad.md` と `manual.md` も、隣の行を変える
+- 候補 4 は `manual.md` の片方だけのランタイムの節を、要件を決める役も Astra にするよう変える。この候補は同じ移し方の文に設計の役を足すので、候補 4 の文に合わせて足す
+- 候補 4 は `leader-principal.md` の「最上位の役を呼ぶところ」に要件の見直しを、この候補は設計の役がない構成の見直しを足す。冒頭の「重要なタスクにだけ呼ぶ」の前置きも、両方が例外を足す
+- モデルのテストは、候補 4 が要件を決める役の行を、この候補が設計の役の行を変える。`tests/project-runtimes-first-test.sh` は、要件を決める役と設計の役を同じ式で決めているので、候補 4 の形に合わせて分ける
+
+`CHANGELOG.md` は追記だけなので、マージの順に足せば済む。
+
+重ならないファイルの実装は、ほかの候補を待たずに進めてよい。実装のフェーズの分け方は、この重なりに沿ってタスクのコメントで示す。
 
 ## 互換性と影響を受ける利用者
 
