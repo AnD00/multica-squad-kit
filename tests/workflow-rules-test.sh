@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # docs/supply-chain.md のワークフローの決まりを、YAML のパーサを使わず行で読む。
-# CodeQL・Dependabot の決まりは、それぞれを追加するときに広げる。
+# 固定したアクションの勧告検査の決まりは、追加するときに広げる。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 mkdir -p "$root/tmp"
@@ -39,6 +39,12 @@ def section(lines, key, indent):
 
 def job_names(lines):
     return re.findall(r'^  ([A-Za-z0-9_-]+):$', '\n'.join(section(lines, 'jobs:', 0)), re.M)
+
+
+def action_body(lines, action):
+    headers = [line for line in lines if line.startswith('      - uses: ' + action + '@')]
+    require(len(headers) == 1, f'codeql: {action} の手順がないか複数ある')
+    return section(lines, headers[0].strip(), 6)
 
 
 def check(directory):
@@ -109,16 +115,57 @@ def check(directory):
     require('          SQUAD_KIT_FORBIDDEN_FILE="$PWD/tmp/forbidden.txt" bash tests/check-content.sh' in lines,
             'private-terms: 一覧を使う検査を呼んでいない')
 
+    lines = (directory / 'scan.yml').read_text(encoding='utf-8').splitlines()
+    events = section(lines, 'on:', 0)
+    names = re.findall(r'^  ([a-z_]+):', '\n'.join(events), re.M)
+    require(sorted(names) == ['pull_request', 'push', 'schedule'], 'scan: きっかけが違う')
+    require(section(events, 'push:', 2) == ['    branches: [main]'], 'scan: push が main だけではない')
+    require(section(events, 'schedule:', 2) == ["    - cron: '23 4 * * 1'"], 'scan: 毎週の予定が違う')
+    require(section(lines, 'permissions:', 0) == ['  contents: read'], 'scan: 全体の権限が違う')
+    codeql = section(lines, 'codeql:', 2)
+    require('    runs-on: ubuntu-24.04' in codeql, 'codeql: 実行場所が違う')
+    require('    timeout-minutes: 15' in codeql, 'codeql: 時間の上限が違う')
+    require(section(codeql, 'permissions:', 4) == ['      contents: read', '      security-events: write'],
+            'codeql: 解析を登録する権限が違う')
+    strategy = section(codeql, 'strategy:', 4)
+    require('      fail-fast: false' in strategy, 'codeql: ほかの言語の解析を取り消す')
+    require(section(strategy, 'matrix:', 6) == ['        language: [actions, python]'], 'codeql: 対象の言語が違う')
+    init = action_body(codeql, 'github/codeql-action/init')
+    require('          languages: ${{ matrix.language }}' in init, 'codeql: 言語を初期化に渡していない')
+    require('          build-mode: none' in init, 'codeql: ビルドのモードが違う')
+    analyze = action_body(codeql, 'github/codeql-action/analyze')
+    require('          category: /language:${{ matrix.language }}' in analyze, 'codeql: 解析の分類が言語別ではない')
+
+    dependabot = directory.parent / 'dependabot.yml'
+    require(dependabot.is_file(), 'dependabot: 設定がない')
+    lines = dependabot.read_text(encoding='utf-8').splitlines()
+    require('version: 2' in lines, 'dependabot: 設定の版が違う')
+    updates = section(lines, 'updates:', 0)
+    require([line for line in updates if line.startswith('  - package-ecosystem:')] == ['  - package-ecosystem: github-actions'],
+            'dependabot: 対象が github-actions ではない')
+    require('    directory: /' in updates, 'dependabot: 対象のディレクトリが違う')
+    require(section(updates, 'schedule:', 4) == ['      interval: weekly'], 'dependabot: 更新が毎週ではない')
+    require(section(updates, 'cooldown:', 4) == ['      default-days: 7'], 'dependabot: 更新を 7 日待たない')
+    groups = section(updates, 'groups:', 4)
+    require(section(groups, 'actions:', 6) == ["        patterns: ['*']"], 'dependabot: 更新を 1 つにまとめていない')
+
 
 check(workflows)
 print('PASS workflow-rules: SHA と版・認証・秘密の参照と Environment・きっかけ・公開の検査を確かめた')
 print('PASS workflow-rules: まとめが全ジョブを待ち、成功だけを通し、失敗・取り消し・飛ばしを拒む')
+print('PASS workflow-rules: CodeQL の言語・きっかけ・権限と、Dependabot の週次・待機・まとめを確かめた')
+
+
+def copy_configuration(name):
+    directory = scratch / name / 'workflows'
+    shutil.copytree(workflows, directory)
+    shutil.copyfile(workflows.parent / 'dependabot.yml', directory.parent / 'dependabot.yml')
+    return directory
 
 
 def mutate(name, filename, old, new, expected=None):
-    directory = scratch / name
-    shutil.copytree(workflows, directory)
-    path = directory / filename
+    directory = copy_configuration(name)
+    path = directory.parent / filename if filename == 'dependabot.yml' else directory / filename
     text = path.read_text(encoding='utf-8')
     require(old in text, f'書き換える箇所がない: {name}')
     path.write_text(text.replace(old, new, 1), encoding='utf-8')
@@ -162,8 +209,31 @@ mutate('pr-target', 'check.yml', '  pull_request:', '  pull_request_target:', '�
 mutate('workflow-run', 'release-assets.yml', '  workflow_dispatch:', '  workflow_run:', '特権のきっかけ')
 mutate('non-public', 'check.yml', 'bash tests/check-content.sh --public', 'bash tests/check-content.sh', '公開の検査を呼んでいない')
 
-extra = scratch / 'new-yaml-workflow'
-shutil.copytree(workflows, extra)
+mutate('scan-missing-pr', 'scan.yml', '  pull_request:\n', '', 'scan: きっかけが違う')
+mutate('scan-missing-schedule', 'scan.yml', "  schedule:\n    - cron: '23 4 * * 1'\n", '', 'scan: きっかけが違う')
+mutate('scan-other-branch', 'scan.yml', 'branches: [main]', 'branches: [other]', 'scan: push が main だけではない')
+mutate('scan-daily', 'scan.yml', "cron: '23 4 * * 1'", "cron: '23 4 * * *'", 'scan: 毎週の予定が違う')
+mutate('scan-global-write', 'scan.yml', '  contents: read', '  contents: write', 'scan: 全体の権限が違う')
+mutate('codeql-runner', 'scan.yml', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-latest', 'codeql: 実行場所が違う')
+mutate('codeql-timeout', 'scan.yml', 'timeout-minutes: 15', 'timeout-minutes: 30', 'codeql: 時間の上限が違う')
+mutate('codeql-permissions', 'scan.yml', 'security-events: write', 'security-events: read', 'codeql: 解析を登録する権限が違う')
+mutate('codeql-fail-fast', 'scan.yml', 'fail-fast: false', 'fail-fast: true', 'codeql: ほかの言語の解析を取り消す')
+mutate('codeql-languages', 'scan.yml', 'language: [actions, python]', 'language: [python]', 'codeql: 対象の言語が違う')
+mutate('codeql-init-language', 'scan.yml', 'languages: ${{ matrix.language }}', 'languages: python', 'codeql: 言語を初期化に渡していない')
+mutate('codeql-build', 'scan.yml', 'build-mode: none', 'build-mode: manual', 'codeql: ビルドのモードが違う')
+mutate('codeql-analyze', 'scan.yml', 'uses: github/codeql-action/analyze@', 'uses: github/codeql-action/init@', '手順がないか複数ある')
+mutate('codeql-category', 'scan.yml', 'category: /language:${{ matrix.language }}', 'category: codeql', 'codeql: 解析の分類が言語別ではない')
+mutate('codeql-tag', 'scan.yml', 'github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3',
+       'github/codeql-action/init@v4', 'uses は')
+mutate('scan-credentials', 'scan.yml', '          persist-credentials: false\n', '', '認証設定の数')
+mutate('dependabot-version', 'dependabot.yml', 'version: 2', 'version: 1', 'dependabot: 設定の版が違う')
+mutate('dependabot-ecosystem', 'dependabot.yml', 'package-ecosystem: github-actions', 'package-ecosystem: npm', 'dependabot: 対象が github-actions ではない')
+mutate('dependabot-directory', 'dependabot.yml', 'directory: /', 'directory: /other', 'dependabot: 対象のディレクトリが違う')
+mutate('dependabot-schedule', 'dependabot.yml', 'interval: weekly', 'interval: daily', 'dependabot: 更新が毎週ではない')
+mutate('dependabot-cooldown', 'dependabot.yml', 'default-days: 7', 'default-days: 0', 'dependabot: 更新を 7 日待たない')
+mutate('dependabot-groups', 'dependabot.yml', "patterns: ['*']", "patterns: ['actions/checkout']", 'dependabot: 更新を 1 つにまとめていない')
+
+extra = copy_configuration('new-yaml-workflow')
 (extra / 'extra.yaml').write_text('on:\n  workflow_dispatch:\njobs:\n  probe:\n    steps:\n      - uses: actions/checkout@v7\n', encoding='utf-8')
 try:
     check(extra)
