@@ -115,7 +115,7 @@ fixtures() {
 }
 run_read() {
 	local status=0
-	# source の位置が作業ディレクトリに依存しないことも確かめる。
+	# source の位置が作業ディレクトリに依存しないことも確認する。
 	(cd "$test_dir"; PATH="$test_dir/bin" USAGE_CHECK_STATE="$test_dir/state.json" /bin/bash "$script") \
 		>"$test_dir/out.json" 2>"$test_dir/err" || status=$?
 	if [[ "$status" != "$1" ]]; then

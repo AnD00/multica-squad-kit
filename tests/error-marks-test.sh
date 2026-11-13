@@ -7,17 +7,17 @@ pty_err() { env -u NO_COLOR "$@" python3 "$root/tests/ui-pty.py" err "$test_dir/
 printf '\n' >"$test_dir/pty-input"
 
 # ui_error と ui_warning は、印を色の有無によらず付け、端末のときだけ行全体を種類の色にする。
-probe='source "$1/lib/ui.sh"; ui_init; ui_error 止まる理由; ui_warning 確かめてください'
+probe='source "$1/lib/ui.sh"; ui_init; ui_error 止まる理由; ui_warning 確認してください'
 env -i PATH="$PATH" HOME="$test_dir" TERM=xterm-256color python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- bash -c "$probe" _ "$root"
 grep -qF "$esc[1;38;5;196mエラー: 止まる理由$esc[0m" "$test_dir/err"
-grep -qF "$esc[1;38;5;166m警告: 確かめてください$esc[0m" "$test_dir/err"
+grep -qF "$esc[1;38;5;166m警告: 確認してください$esc[0m" "$test_dir/err"
 env -i PATH="$PATH" HOME="$test_dir" TERM=xterm-256color NO_COLOR=1 python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- bash -c "$probe" _ "$root"
 ! grep -qF "$esc" "$test_dir/err"
 tr -d '\r' <"$test_dir/err" | grep -qxF 'エラー: 止まる理由'
-tr -d '\r' <"$test_dir/err" | grep -qxF '警告: 確かめてください'
+tr -d '\r' <"$test_dir/err" | grep -qxF '警告: 確認してください'
 bash -c "$probe" _ "$root" >"$test_dir/out" 2>"$test_dir/err"
 [[ ! -s $test_dir/out ]]
-[[ $(cat "$test_dir/err") == $'エラー: 止まる理由\n警告: 確かめてください' ]]
+[[ $(cat "$test_dir/err") == $'エラー: 止まる理由\n警告: 確認してください' ]]
 echo 'PASS marks: エラー: と警告: の印は色の有無によらず付き、色は端末の標準エラー出力だけで行全体に付く'
 
 # MANIFEST の確認より前の die は、端末でも色を付けず、印だけを付ける。

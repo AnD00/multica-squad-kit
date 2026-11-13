@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/gh-test.sh を実行する。
-# 本物の gh は呼ばず、マージの許可と拒否、元の引数の受け渡しを確かめる。
+# 本物の gh は呼ばず、マージの許可と拒否、元の引数の受け渡しを確認する。
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)

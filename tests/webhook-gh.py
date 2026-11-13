@@ -48,7 +48,7 @@ elif len(parts) == 4 and option('--method') == 'POST':
                 events=body['events'], content_type=body['config']['content_type'],
                 destination=body['config']['url'].removeprefix(base))
     hooks.append(hook)
-    # 応答も URL を含ませ、gh の --jq で外へ出ないことを確かめる。
+    # 応答も URL を含ませ、gh の --jq で外へ出ないことを確認する。
     result = dict(id=hook['id'], config=dict(url=body['config']['url']))
 elif len(parts) == 4:
     if settings.get('deny_hooks'):

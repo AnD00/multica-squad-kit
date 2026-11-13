@@ -392,7 +392,7 @@ if /bin/bash "$test_dir/project.sh" "$root" project-new >"$test_dir/out" 2>"$tes
 [[ ! -e $TEMPLATE_AGENT_HOME/allowed-repos.d/project-new ]]
 echo 'PASS host: 空の選択や後ろの不正な値で前の許可を壊さず、空の許可ファイルも作らない'
 
-# 本物の gh が PATH の先でも、起動時と Claude の順の両方を確かめる。
+# 本物の gh が PATH の先でも、起動時と Claude の順の両方を確認する。
 export TEST_GUARD_CALLS="$test_dir/guard-calls"
 : >"$TEST_GUARD_CALLS"
 PATH="$test_dir/bin:$TEMPLATE_AGENT_HOME/bin:$PATH" /bin/bash "$test_dir/project.sh" "$root" project-a example/one example/two >"$test_dir/out" 2>"$test_dir/err"

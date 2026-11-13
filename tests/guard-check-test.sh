@@ -133,7 +133,7 @@ TEST_GUARD_RESPONSE=409 run
 [[ $(grep -c '^許可の確認:' "$test_dir/err") == 3 ]]
 echo 'PASS guard-check: 空リポジトリなどの GitHub の409応答も関所通過として確認し、参照を作らない'
 
-# PATH を直さない古い起動ファイルでは、絶対パスの関所だけを確かめて成功にしない。
+# PATH を直さない古い起動ファイルでは、絶対パスの関所だけを確認して成功にしない。
 for file in .zshenv env.sh; do
  head -n 2 "$root/common/shell/$file" >"$test_dir/package/common/shell/$file"
 done

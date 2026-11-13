@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-usage-check-test.sh で実行する。
-# 実際の使用量の取得とタスクの作成は行わず、出力と状態の変化を CLI のモックで確かめる。
+# 実際の使用量の取得とタスクの作成は行わず、出力と状態の変化を CLI のモックで確認する。
 set -euo pipefail
 unset USAGE_CHECK_RUNTIMES
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -213,7 +213,7 @@ for level in warn limited error; do
 	echo "PASS $level: タスクの作成時にプロジェクトと担当を渡し、状態を保存"
 done
 
-# 本体も別の作業ディレクトリから動かし、80% の警告と保存済みのキーを確かめる。
+# 本体も別の作業ディレクトリから動かし、80% の警告と保存済みのキーを確認する。
 echo '{"is_error":false,"result":"Current session: 80% used · resets Oct 27 at 12:29pm (Asia/Tokyo)"}' >"$test_dir/claude.json"
 echo '{"id":2,"result":{"ordinaryUsageAllowed":true,"rateLimitsByLimitId":{"codex":{"primary":{"windowDurationMins":10080,"usedPercent":80,"resetsAt":604800},"secondary":null}}}}' >"$test_dir/codex.jsonl"
 : >"$test_dir/calls.jsonl"

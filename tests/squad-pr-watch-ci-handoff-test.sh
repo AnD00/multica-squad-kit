@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-pr-watch-ci-handoff-test.sh で実行する。
-# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。ci-check と ci-held の投稿順序・引き継ぎ後の失敗・古い head・CLI の失敗を確かめる。
+# CLI を差し替え、実際のタスク・PR・エージェントには書き込まない。ci-check と ci-held の投稿順序・引き継ぎ後の失敗・古い head・CLI の失敗を確認する。
 # 保留・知らせ済みの記録・取得の条件は tests/squad-pr-watch-ci-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)

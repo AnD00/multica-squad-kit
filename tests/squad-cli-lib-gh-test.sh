@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# squad_cli_normalize の契約のうち、gh-check-runs を除く gh と codex の応答を確かめる。見本のない Status と Codex の secondary も確かめる。
+# squad_cli_normalize の契約のうち、gh-check-runs を除く gh と codex の応答を確認する。見本のない Status と Codex の secondary も確認する。
 # 検証の本体は tests/squad-cli-lib-contract.py、multica の応答は tests/squad-cli-lib-test.sh、gh-check-runs は tests/squad-cli-lib-check-runs-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)

@@ -491,7 +491,7 @@ verify wsl
 grep -q '^PASS verify: 起動中のデーモンの環境' "$test_dir/out"
 grep -q '^PASS verify: 記録した接続先が起動中のデーモンと同じ' "$test_dir/out"
 [[ $(cat "$guest_home/.config/multica-squad-vm/server-url") == https://example.test ]]
-echo 'PASS vm guest: 両 VM の閉じ込め・Docker・自動起動を確かめ、セットアップ後はデーモンの環境と記録した接続先も確かめる'
+echo 'PASS vm guest: 両 VM の閉じ込め・Docker・自動起動を確認し、セットアップ後はデーモンの環境と記録した接続先も確認する'
 
 verify_denied() {
  if verify "$1"; then echo 'verify が失敗すべきケースで成功しました' >&2; exit 1; fi

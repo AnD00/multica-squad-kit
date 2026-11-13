@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートで bash tests/squad-dependabot-merge-advance-diff-binary-test.sh。
-# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance のバイナリを含む差分の扱いを確かめる。
+# gh と multica を差し替え、実際の PR・タスクには書き込まない。advance のバイナリを含む差分の扱いを確認する。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
