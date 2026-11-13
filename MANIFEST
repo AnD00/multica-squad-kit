@@ -58,7 +58,7 @@ eb490215ee995135a77146f5d0bde9a1fdd969c234e8ab31b1e28b3ba1fd4880  ./common/skill
 bf4b680b95bf059c99f92b9e4167912e352e8485e7e802d3b806ed2a542a0de2  ./common/skills/squad-handoff/references/leader-review-wait.md
 a9534aadacbd445e24d4e5bd8a6a2141681e47b1698dd24718618fa64ca07734  ./common/skills/squad-handoff/references/leader-run-status.md
 8093bc2d5d0099ee21b373099ae4334be5463fa542c2afce4e0df82dbdd26dc3  ./common/squad.md
-d761d529f50b30c94a7f1ce68179ac00252f526794be176f84c43850c7692069  ./docs/agent-login-check.md
+99ec09507b2400f0f1e06a70d1acbed854b051984c4074b59b7c1e897b472dd9  ./docs/agent-login-check.md
 8c1d7e4fd8ff3954db35176e12f249a422b2fa71e4b179d1281096814ef8b675  ./docs/agent-path.md
 0886af0e51f2bbfb5134455452bfbe9486e6bed5cfa3b05a098f247b43ce2be4  ./docs/asset-names.md
 3ce8df5a172765aff2d94625e033837254f94ba912c45868e037a7dc2fcf4dab  ./docs/attach-images.md
