@@ -14,7 +14,7 @@ set -euo pipefail
 args=$(jq -nc --args '$ARGS.positional' -- "$@")
 printf '%s\n' "$args" >>"$TEST_DB/calls"
 option() { local key=$1; shift; while [[ $# -gt 0 ]]; do if [[ $1 == "$key" ]]; then printf '%s' "$2"; return; fi; shift; done; }
-event="$1 $2"; [[ $event != "agent env" && $event != 'project resource' && $event != 'agent skills' ]] || event="$event $3"
+event="$1 $2"; [[ $event != "agent env" && $event != 'project resource' && $event != 'agent skills' && $event != 'squad member' ]] || event="$event $3"
 [[ ${TEST_FAIL:-} != "$event" ]] || exit 71
 case "$event" in
 'user profile') echo '{"id":"actor"}' ;;
@@ -98,6 +98,27 @@ case "$event" in
  mv "$TEST_DB/new" "$TEST_DB/agents/$4.json"; echo '{}' ;;
 'squad list') if [[ -f $TEST_DB/squad.json ]]; then jq '[.]' "$TEST_DB/squad.json"; else echo '[]'; fi ;;
 'squad get') cat "$TEST_DB/squad.json" ;;
+'squad update')
+ jq --arg leader "$(option --leader "$@")" --arg instructions "$(option --instructions "$@")" '.leader_id=$leader | .instructions=$instructions' "$TEST_DB/squad.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/squad.json"; echo '{}' ;;
+'squad member list') cat "$TEST_DB/roster.json" ;;
+'squad member add')
+ jq --arg id "$(option --member-id "$@")" --arg type "$(option --type "$@")" --arg role "$(option --role "$@")" '.+[{member_id:$id,member_type:$type,role:$role}]' "$TEST_DB/roster.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/roster.json"; echo '{}' ;;
+'autopilot list') jq '{autopilots:.,total:length}' "$TEST_DB/autopilots.json" ;;
+'autopilot get') jq --arg id "$3" --slurpfile triggers "$TEST_DB/triggers-$3.json" '{autopilot:(.[]|select(.id==$id)),triggers:$triggers[0]}' "$TEST_DB/autopilots.json" ;;
+'autopilot create')
+ id=auto-$(jq 'length+1' "$TEST_DB/autopilots.json")
+ jq -n --arg id "$id" --arg title "$(option --title "$@")" --arg description "$(option --description "$@")" --arg mode "$(option --mode "$@")" --arg project "$(option --project "$@")" --arg assignee "$(option --agent "$@")" '{id:$id,title:$title,description:$description,execution_mode:$mode,project_id:$project,assignee_type:"agent",assignee_id:$assignee,status:"active"}' >"$TEST_DB/created"
+ jq --slurpfile created "$TEST_DB/created" '.+$created' "$TEST_DB/autopilots.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/autopilots.json"; echo '[]' >"$TEST_DB/triggers-$id.json"; cat "$TEST_DB/created" ;;
+'autopilot trigger-list') jq '{triggers:.,total:length}' "$TEST_DB/triggers-$3.json" ;;
+'autopilot trigger-add')
+ [[ $(option --kind "$@") == schedule ]]
+ jq --arg id "schedule-$3" --arg cron "$(option --cron "$@")" --arg timezone "$(option --timezone "$@")" '.+[{id:$id,kind:"schedule",cron_expression:$cron,timezone:$timezone,enabled:true}]' "$TEST_DB/triggers-$3.json" >"$TEST_DB/new"
+ mv "$TEST_DB/new" "$TEST_DB/triggers-$3.json"; echo '{}' ;;
+'label list') jq -Rn '[inputs | select(length>0 and (startswith("#")|not)) | split("|") | {id:.[0],name:.[0]}]' "$TEST_PACKAGE/common/labels" ;;
+'runtime list') echo '[{"id":"runtime-claude","provider":"claude","status":"online"},{"id":"runtime-codex","provider":"codex","status":"online"}]' ;;
 'squad create')
  [[ -f $TEST_DB/agents/$(option --leader "$@").json ]]
  jq -n --arg name "$(option --name "$@")" --arg leader "$(option --leader "$@")" '{id:"squad-a",name:$name,creator_id:"actor",leader_id:$leader,instructions:"",members:[]}' >"$TEST_DB/squad.json"
@@ -176,6 +197,13 @@ if [[ ${TEST_STEPS:-no} == yes ]]; then
  ui_phase_start 2; ui_phase_done
  dependabot_webhook_active() { return 1; }
 fi
+if [[ ${TEST_COMPLETE:-no} == yes ]]; then
+ # 初回のランタイム別の登録では、名簿・オートパイロット・導入の確認・完了の表示も本体を通す。
+ source "$root/lib/squad.sh"
+ source "$root/lib/autopilots.sh"
+ source "$root/lib/installation.sh"
+ member_ids='["actor"]'
+fi
 prepare_project
 [[ $excluded_roles == "$TEST_EXCLUDED" ]]
 DRIVER
@@ -192,6 +220,10 @@ reset_db() {
  echo '{"id":"other-agent","name":"other-role-person","owner_id":"other","instructions":"keep"}' >"$TEST_DB/agents/other.json"
  echo '{"id":"handoff-a","name":"squad-handoff"}' >"$TEST_DB/skills/handoff.json"
  : >"$TEST_DB/calls"
+ if [[ ${TEST_COMPLETE:-no} == yes ]]; then
+  echo '[]' >"$TEST_DB/roster.json"
+  echo '[]' >"$TEST_DB/autopilots.json"
+ fi
 }
 run() { /bin/bash "$test_dir/driver" >"$test_dir/out" 2>"$test_dir/err"; }
 deny() { if run; then echo 'unexpected success'; exit 1; fi; [[ -s $test_dir/err ]]; ! grep -q '^✔ ' "$test_dir/out"; }

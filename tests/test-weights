@@ -1,6 +1,7 @@
 # ファイル 秒（macOS の CI での目安）
 # 追記と更新の決まりは CONTRIBUTING.md の「テストを書く決まり」を参照する。
 # 重みの上限は 150 秒。macOS の ==== PASS の実測値を写す。
+# project-runtimes-first-test.sh は仮の重み。最後のテスト変更の push の macOS の実測で更新する。
 # 更新したテストの採取元: e0c9734 https://github.com/AnD00/multica-squad-kit/actions/runs/43234806235
 # 更新したテストの採取元: 8a2381b https://github.com/AnD00/multica-squad-kit/actions/runs/43239563120
 # 更新したテストの採取元: 425558f https://github.com/AnD00/multica-squad-kit/actions/runs/43247237925
@@ -40,16 +41,15 @@ tests/installation-test.sh 88
 tests/squad-pr-watch-register-test.sh 83
 tests/project-create-test.sh 81
 tests/project-linking-test.sh 79
-tests/setup-runtimes-claude-test.sh 79
 tests/squad-review-wait-report-test.sh 64
 tests/squad-dependabot-merge-advance-ci-change-test.sh 73
-tests/setup-runtimes-codex-test.sh 72
 tests/questions-ui-test.sh 68
 tests/squad-usage-check-test.sh 61
 tests/project-environment-test.sh 66
 tests/project-failure-test.sh 62
 tests/squad-pr-link-test.sh 47
 tests/project-runtimes-test.sh 54
+tests/project-runtimes-first-test.sh 30
 tests/project-select-test.sh 46
 tests/squad-review-wait-contract-test.sh 45
 tests/squad-dispatch-pick-test.sh 47
