@@ -14,6 +14,8 @@ required_gh=2.102.0
 # 画面の印と色。lib/ui.sh を読めないので、使う種類だけを同じ値で持つ（tests/install-test.sh が lib/ui.sh と照らす）。
 ui_color_out=no
 ui_color_err=no
+ui_live_out=no
+ui_live_err=no
 ui_spec() {
 	case $1 in
 	success) printf '%s\n' '0 28' ;;
@@ -26,12 +28,14 @@ ui_init() {
 	local colors
 	ui_color_out=no
 	ui_color_err=no
+	ui_live_out=no
+	ui_live_err=no
 	[[ -z ${NO_COLOR+x} ]] || return 0
 	case ${TERM:-} in '' | dumb) return 0 ;; esac
 	colors=$(tput colors 2>/dev/null) || return 0
 	[[ $colors =~ ^[0-9]+$ ]] && ((colors >= 256)) || return 0
-	if [[ -t 1 ]]; then ui_color_out=yes; fi
-	if [[ -t 2 ]]; then ui_color_err=yes; fi
+	if [[ -t 1 ]]; then ui_color_out=yes; ui_live_out=yes; fi
+	if [[ -t 2 ]]; then ui_color_err=yes; ui_live_err=yes; fi
 	return 0
 }
 ui_paint() {
@@ -44,8 +48,10 @@ ui_paint() {
 	err) enabled=$ui_color_err ;;
 	*) return 1 ;;
 	esac
-	if [[ $enabled != yes || $color == - ]]; then
+	if [[ $enabled != yes || ( $color == - && $bold == 0 ) ]]; then
 		printf '%s' "$text"
+	elif [[ $color == - ]]; then
+		printf '\033[1m%s\033[0m' "$text"
 	elif [[ $bold == 1 ]]; then
 		printf '\033[1;38;5;%sm%s\033[0m' "$color" "$text"
 	else

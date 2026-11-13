@@ -16,7 +16,8 @@ done
 cmp "$TEST_DB/triggers-auto-1.json" <(jq 'map(.id="schedule-auto-1")' "$TEST_DB/triggers-auto-4.json")
 cmp "$TEST_DB/triggers-auto-2.json" <(jq 'map(.id="schedule-auto-2")' "$TEST_DB/triggers-auto-5.json")
 jq -e 'all(.[]|select(.assignee_id=="agent-security-reviewer"); (.description|contains("--key repository --value example/")) and (.description|contains("--status backlog")))' "$TEST_DB/autopilots.json" >/dev/null
-grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 5 件' "$test_dir/out"
+grep -qE '^✔ .*  \+5 オートパイロット$' "$test_dir/out"
+! grep -qE '^✔ .*(エージェント|スクワッド)' "$test_dir/out"
 grep -qF 'オートパイロット 5/5 を設定中' "$test_dir/err"
 echo 'PASS completion: 二リポジトリの実作成5件を数え、予定数や更新した数に置き換えない'
 echo 'PASS autopilots: リポジトリごとに二種類を一つずつ作り、指示と実 ID・モード・スケジュールを分け、使用上限は一つに保つ'
@@ -26,7 +27,8 @@ cp "$TEST_DB/autopilots.json" "$test_dir/two-repos"
 : >"$TEST_DB/calls"; run; no_writes
 TEST_REPOSITORIES='["example/project","example/client","example/third"]' run
 [[ $(jq length "$TEST_DB/autopilots.json") == 7 ]]
-grep -qF '今回作った件数: エージェント 0 件、スクワッド 0 件、オートパイロット 2 件' "$test_dir/out"
+grep -qE '^✔ .*  \+2 オートパイロット$' "$test_dir/out"
+! grep -qE '^✔ .*(エージェント|スクワッド)' "$test_dir/out"
 jq -e --slurpfile before "$test_dir/two-repos" '. as $after|all($before[0][]; . as $old|any($after[]; .==$old))' "$TEST_DB/autopilots.json" >/dev/null
 echo 'PASS autopilots: 同じ選択では書かず、追加したリポジトリの分だけ作り、既存の ID と指示を保つ'
 

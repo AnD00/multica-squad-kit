@@ -66,7 +66,7 @@ mkdir "$test_dir/reason-work"
 ! grep -qF "$esc" "$test_dir/out" "$test_dir/reason-work/issue-error"
 echo 'PASS marks: 起票の失敗の理由は色なしで受け取り、「エラー:」を外してタスクと完了の表示に渡す'
 
-# 注意の文は、種類が警告のときだけ行ごとに印と色を付ける。説明の種類では印も色も付けない。
+# 注意の文は、種類が警告のときだけ行ごとに ! の印と色を付ける。説明の種類では印も色も付けない。どちらも字下げ 2。
 cat >"$test_dir/notice-driver" <<'DRIVER'
 set -euo pipefail
 root=$1
@@ -81,7 +81,7 @@ question_notice_show
 DRIVER
 env -i PATH="$PATH" HOME="$test_dir" TERM=xterm-256color python3 "$root/tests/ui-pty.py" err "$test_dir/out" "$test_dir/err" -- /bin/bash "$test_dir/notice-driver" "$root"
 tr -d '\r' <"$test_dir/err" >"$test_dir/notice"
-[[ $(sed -n 1,2p "$test_dir/notice") == $'一行目\n二行目' ]]
-[[ $(sed -n 3p "$test_dir/notice") == "$esc[1;38;5;166m警告: 一行目$esc[0m" ]]
-[[ $(sed -n 4p "$test_dir/notice") == "$esc[1;38;5;166m警告: 二行目$esc[0m" ]]
-echo 'PASS marks: 質問に添える注意は、警告のときだけ行ごとに警告: の印と色を付ける'
+[[ $(sed -n 1,2p "$test_dir/notice") == $'  一行目\n  二行目' ]]
+[[ $(sed -n 3p "$test_dir/notice") == "  $esc[1;38;5;166m!$esc[0m 一行目" ]]
+[[ $(sed -n 4p "$test_dir/notice") == "  $esc[1;38;5;166m!$esc[0m 二行目" ]]
+echo 'PASS marks: 質問に添える注意は、警告のときだけ行ごとに ! の印と色を付ける'

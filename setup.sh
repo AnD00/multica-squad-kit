@@ -94,12 +94,14 @@ source "$root/lib/version.sh"
 setup_cleanup_enabled=yes
 setup_cleanup() {
 	local result=$?
+	ui_steps_cleanup
 	[[ -z ${extension_work:-} ]] || rm -rf -- "$extension_work"
 	return "$result"
 }
 trap setup_cleanup EXIT
 ui_init
-die() { ui_error "$*"; exit 1; }
+# 作る間の一覧が動いているときは、動いていた手順を ✖ にしてから、今と同じエラーの行を出す。
+die() { ui_phase_fail; ui_error "$*"; exit 1; }
 check_tools
 choose_extension
 choose_server
@@ -110,11 +112,18 @@ resolve_link_repositories
 load_extension_inventory
 confirm_answers
 save_answers
-printf '%s\n' 'ホストを準備しています。' >&2
+# 作る間の一覧。手順の番号は docs/screens.md の「作成の進み」の表と同じで、3 から 13 までは prepare_project が進める。
+printf '\n' >&2
+ui_steps_begin err 2 'ホストを準備' '共通のラベルとスキル' 'プロジェクトとリポジトリ' 'エージェントの ID' 'スクワッド' '指示とスキル' 'エージェントを設定' 'エージェントを公開' 'スクワッドのメンバー' 'オートパイロット' 'Webhook' '導入の確認' 'タスクの起票'
+# 子のプロセスの中の通知を受ける置き場。MANIFEST の確認の対象外の tmp/ に置く。
+mkdir -p "$root/tmp" || die '作業用の置き場を作れませんでした。'
+ui_steps_notice_file=$(mktemp "$root/tmp/notices.XXXXXX") || die '作業用の置き場を作れませんでした。'
+ui_phase_start 1
 prepare_host
-printf '%s\n' '共通のラベルとスキルを合わせています。' >&2
+ui_phase_done "$(host_gate_summary)"
+ui_phase_start 2
 prepare_workspace
-printf '%s\n' 'プロジェクトの設定を始めます。' >&2
+ui_phase_done
 prepare_project
 save_extension_inventory
 record_installed_version

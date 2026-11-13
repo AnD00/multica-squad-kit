@@ -3,7 +3,7 @@
 # 準備と補助は tests/release-test-lib.sh、承認・拒否とタグと Release が揃った状態からの続きは tests/release-test.sh、失敗と流し直しは tests/release-failure-test.sh にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
-source "$root/tests/release-test-lib.sh"
+source "$root/tests/release-assertions.sh"
 
 # 検証で止まるケース: 理由を出し、fetch のほかは何も変えず、タグも Release も作らない。gh は書き込まない。
 # 1: gh のバージョンが古い・読めない。必要なバージョンを出す。
@@ -159,7 +159,7 @@ GH_DL_FAIL=101 run_release "$test_dir/answer-y"
 ! grep -qF '検証の 9' "$case_dir/out"
 ! grep -qF '配布物の検証（9）' "$case_dir/err"
 grep -qF '公開しますか' "$case_dir/err"
-grep -qF '配布物を検証します' "$case_dir/out"
+grep -qF '✖ 配布物を検証する' "$case_dir/out"
 log_has 'releases/assets/101'
 log_lacks '^workflow run'
 no_write

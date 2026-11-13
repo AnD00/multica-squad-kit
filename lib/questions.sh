@@ -1,13 +1,3 @@
-# 質問は stdin から読み、既定値でも Enter を待つ。質問中は登録・保存しない。
-ask() {
-	local label=$1 default=$2
-	printf '%s ' "$label" >&2
-	ui_paint err default "[$default]" >&2
-	printf ': ' >&2
-	IFS= read -r answer || die '入力が終わりました。答えは保存していません。'
-	[[ -n $answer ]] || answer=$default
-}
-
 # 質問の順。行ごとに一つの題で、サーバーの URL は未設定のときだけ先頭に足す。
 # 総数はこの行数から数える。答えによって出さない質問も数え、question_skip で聞かないことを示す。
 question_order='ワークスペース
@@ -20,7 +10,13 @@ question_order='ワークスペース
 外す役
 Dependabot の PR の Webhook'
 
-# 順の定義があるときは、題を定義した順と照合する。質問を足したのに順へ足し忘れると止まる。
+# 進みの ●○ の数。サーバーの URL は順の外なので数えない。
+question_dots=0
+while IFS= read -r _; do question_dots=$((question_dots+1)); done <<<"$question_order"
+question_offset=0
+
+# 順の定義があるときは、題が順のとおりかを確認する。質問を足したのに順へ足し忘れると止まる。
+# 書き換えてよいかは質問ごとに決める。色が出る端末で、入力も端末のときだけ、答えた質問を縮める。
 question_begin() {
 	question_number=$((${question_number:-0}+1))
 	question_title=$1; question_description=$2; question_example=$3
@@ -28,55 +24,193 @@ question_begin() {
 		die "質問の順の定義と違います: $question_title"
 	fi
 	question_items='[]'; question_zero=''; question_notice=''; question_notice_kind=description; question_fixed=''
+	question_opened=no; question_rows=0; question_size=''
+	if [[ $ui_live_err == yes && -t 0 ]]; then question_live=yes; else question_live=no; fi
+}
+
+# 開いた質問が端末で占める行を数える。縮めるときに消す行の数になるので、書き換えるときだけ数える。
+# 空の行も 1 行に数え、折り返す行は端末の幅で数える。
+question_count() {
+	local rows
+	[[ $question_live == yes ]] || return 0
+	rows=$(ui_rows "$1")
+	((rows > 0)) || rows=1
+	question_rows=$((question_rows + rows))
+}
+
+question_text() {
+	printf '%s\n' "$1" >&2
+	question_count "$1"
 }
 
 # 質問に添える注意の文は色なしで作り、画面に出すときに種類の色と印を付ける。
-# question_notice_kind は description（印も色もなし）か warning。行ごとに印を付ける。
+# question_notice_kind は description（印も色もなし）か warning（行頭の ! と色）。説明の下に同じ字下げで出す。
 question_notice_show() {
 	local line
 	[[ -n $question_notice ]] || return 0
 	while IFS= read -r line; do
-		if [[ $question_notice_kind == warning ]]; then ui_warning "$line"; else printf '%s\n' "$line" >&2; fi
+		if [[ $question_notice_kind == warning ]]; then
+			printf '  ' >&2
+			ui_mark err warn "$line"
+			question_count "  ! $line"
+		else
+			question_text "  $line"
+		fi
 	done <<<"$question_notice"
 }
 
-# 画面の種類ごとの色と印は manual.md の「表示の色と印」に従い、lib/ui.sh で付ける。
-# 入力を受け付けずに同じ質問へ戻るときは、行頭に印の「エラー:」を付ける。続く行は同じ色にする。
-input_error() {
+# 質問の入力を受け付けなかったときは、入力の行の下に ✖ と理由を出す。続く行は字下げだけにする。
+# 縮めるときにまとめて消すので、理由の行も数える。
+question_reject() {
 	local line
-	ui_error "$1"
+	ui_mark err fail "$1"
+	question_count "✖ $1"
 	shift
-	for line; do ui_line err error "$line"; done
+	for line; do question_text "  $line"; done
 }
 
-# 答えによって出さない質問は、番号を進めて見出しだけを出す。
+# 題を、順の中で最も長い題の幅にそろえる。
+question_pad_title() {
+	local line width=0 size
+	if [[ -z ${question_title_width:-} ]]; then
+		while IFS= read -r line; do
+			size=$(ui_width "$line")
+			((size <= width)) || width=$size
+		done <<<"${question_titles:-$question_order}"
+		question_title_width=$width
+	fi
+	ui_pad "$question_title_width" "$1"
+}
+
+# 答えによって出さない質問は、番号を進めて、題と理由を 1 行にする。
 question_skip() {
 	question_begin "$1" '' ''
-	printf '\n' >&2
-	ui_line err question "質問 ($question_number/$question_total) $question_title: $2"
+	ui_mark err keep "$(question_pad_title "$question_title")" "$2"
 }
 
-question_heading() {
-	printf '\n' >&2
-	ui_line err question "質問 ($question_number/$question_total) $question_title"
-	printf '%s\n例: %s\n' "$question_description" "$question_example" >&2
+# 答えた質問を、✔ と題と答えの 1 行にする。答えが複数のときは、呼ぶ側が 2 つの空白で区切って渡す。
+# 開いた質問を縮めるのは、端末の大きさが開いたときと同じで、行が高さ - 1 に収まるときだけにする。
+# そうでないときは、開いた質問をそのまま残して、入力の行のあとへ 1 行足す。
+question_answer() {
+	if [[ $question_live == yes && $question_opened == yes ]]; then
+		ui_size err
+		if [[ "$ui_lines $ui_columns" == "$question_size" ]] && ((question_rows <= ui_lines - 1)); then
+			ui_rewind err "$question_rows"
+		fi
+	fi
+	{
+		ui_paint err success '✔'
+		printf ' %s  %s' "$(question_pad_title "$question_title")" "$1"
+		if [[ -n ${2-} ]]; then printf '  '; ui_paint err default "$2"; fi
+		printf '\n'
+	} >&2
+	question_opened=no
 }
 
+# 質問を開く。空の行、? と題と進み、灰の説明と例、注意、常に入る役、選択肢の順に出す。
+question_open() {
+	local filled=$((question_number - question_offset)) index plain line number count
+	question_opened=yes; question_rows=0
+	if [[ $question_live == yes ]]; then ui_size err; question_size="$ui_lines $ui_columns"; fi
+	((filled >= 0)) || filled=0
+	printf '\n' >&2
+	question_count ''
+	{
+		ui_paint err question "? $question_title"
+		printf '  '
+		plain="? $question_title  "
+		for ((index = 1; index <= question_dots; index++)); do
+			if ((index <= filled)); then ui_paint err active '●'; else ui_paint err default '○'; fi
+			plain+='●'
+		done
+		printf '\n'
+	} >&2
+	question_count "$plain"
+	if [[ -n $question_description ]]; then
+		{ ui_paint err default "  $question_description"; printf '\n'; } >&2
+		question_count "  $question_description"
+	fi
+	if [[ -n $question_example ]]; then
+		{ ui_paint err default "  $question_example"; printf '\n'; } >&2
+		question_count "  $question_example"
+	fi
+	question_notice_show
+	if [[ -n $question_fixed ]]; then
+		question_text '  常に入る役:'
+		while IFS= read -r line; do question_text "  $line"; done <<<"$question_fixed"
+		question_text '  外せる役:'
+	fi
+	count=$(jq length <<<"$question_items")
+	for ((number = 1; number <= count; number++)); do question_choice "$number" "$(jq -r --argjson i "$number" '.[$i-1]' <<<"$question_items")"; done
+	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
+}
+
+# 選択肢は、字下げ 4、太字の紫の番号、2 つの空白、本文の順。本文の続きの行は、最初の行の本文と同じ位置にそろえる。
 question_choice() {
-	ui_paint err choice "$1:" >&2
-	printf ' %s\n' "$2" >&2
+	local number=$1 text=$2 line first=yes pad
+	pad=$(printf '%*s' $((${#number} + 2)) '')
+	if [[ -t 2 ]]; then ui_size err; text=$(question_choice_wrap "$text" "$((ui_columns - 4 - ${#number} - 2))"); fi
+	while IFS= read -r line; do
+		if [[ $first == yes ]]; then
+			{ printf '    '; ui_paint err choice "$number"; printf '  %s\n' "$line"; } >&2
+			question_count "    $number  $line"
+			first=no
+		else
+			printf '    %s%s\n' "$pad" "$line" >&2
+			question_count "    $pad$line"
+		fi
+	done <<<"$text"
+}
+
+# 端末の選択肢の本文を、番号と字下げを除いた幅で折り返す。
+# 元の行の字下げは続く行にも付け、補足の説明の開始位置を保つ。
+question_choice_wrap() {
+	local LC_ALL=C
+	local text=$1 limit=$2 line indent body chunk offset width budget
+	while IFS= read -r line; do
+		indent=${line%%[! ]*}; body=${line#"$indent"}
+		budget=$((limit - ${#indent}))
+		# 字下げと全角 1 文字が収まらないほど狭い端末では、元の行を残す。
+		if ((budget < 2)); then printf '%s\n' "$line"; continue; fi
+		chunk=$indent; offset=0; width=0
+		while ((offset < ${#body})); do
+			_ui_character "$body" "$offset"
+			if ((width + ui_character_width > budget)); then
+				printf '%s\n' "$chunk"
+				chunk=$indent; width=0
+			fi
+			chunk+=${body:offset:ui_character_bytes}
+			width=$((width + ui_character_width))
+			offset=$((offset + ui_character_bytes))
+		done
+		printf '%s\n' "$chunk"
+	done <<<"$text"
+}
+
+# 入力の行は › と空白で、既定値があれば灰で添える。打たれた答えの分も折り返しの行に数える。
+# 標準入力が端末でないときは、答えが画面に出ないので、入力の行の終わりに改行を足す。
+question_input_show() {
+	local default=$1
+	{
+		ui_paint err active '›'
+		printf ' '
+		if [[ -n $default ]]; then ui_paint err default "$default"; printf ' '; fi
+	} >&2
+}
+
+question_input() {
+	local default=$1
+	question_input_show "$default"
+	IFS= read -r answer || { printf '\n' >&2; die '入力が終わりました。答えは保存していません。'; }
+	[[ -t 0 ]] || printf '\n' >&2
+	question_count "› ${default:+$default }$answer"
+	question_typed=$answer
+	[[ -n $answer ]] || answer=$default
 }
 
 question_prompt() {
-	question_heading
-	if [[ -n $1 ]]; then ui_line err default "既定値: $1（Enter で使います）"
-	else ui_line err default '既定値: なし。例と説明を見て入力してください。'; fi
-	if [[ -n $question_fixed ]]; then printf '常に入る役:\n%s\n外せる役:\n' "$question_fixed" >&2; fi
-	local number
-	for ((number=1; number<=$(jq length <<<"$question_items"); number++)); do question_choice "$number" "$(jq -r --argjson i "$number" '.[$i-1]' <<<"$question_items")"; done
-	[[ -z $question_zero ]] || question_choice 0 "$question_zero"
-	question_notice_show
-	ask '入力' "$1"
+	[[ $question_opened == yes ]] || question_open
+	question_input "$1"
 }
 
 valid_key() { [[ $1 =~ ^[a-z][a-z0-9]{1,11}$ ]]; }
@@ -96,7 +230,7 @@ ask_key() {
 	while :; do
 		question_prompt "$default"
 		if ! valid_key "$answer"; then
-			input_error '英小文字で始まる英小文字と数字の2〜12文字にしてください。大文字・ハイフン・記号は使えません。'
+			question_reject '英小文字で始まる英小文字と数字の2〜12文字にしてください。大文字・ハイフン・記号は使えません。'
 			continue
 		fi
 		if [[ $kind == member ]]; then
@@ -106,7 +240,7 @@ ask_key() {
 				existing=$(mc squad get "$(jq -r '.[0].id' <<<"$matches")" --output json) || die 'スクワッドの所有者を取得できませんでした。'
 				jq -e '(.creator_id|type=="string" and length>0)' >/dev/null <<<"$existing" || die 'スクワッドの所有者の応答が不正です。'
 				if [[ $(jq -r '.creator_id' <<<"$existing") != "$question_actor_id" ]]; then
-					input_error "「${candidate}」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。"
+					question_reject "「${candidate}」はほかの人が作ったスクワッドです。別のメンバーの目印を入力してください。"
 					continue
 				fi
 			fi
@@ -118,7 +252,7 @@ ask_key() {
 valid_server() { [[ $1 =~ ^https://[^/?#[:space:]@]+(:[0-9]+)?(/[^?#[:space:]]*)?$ ]]; }
 choose_server() {
 	local config configured
-	question_number=0; question_titles=$question_order; question_total=$(grep -c "" <<<"$question_titles"); question_server_checked=no
+	question_number=0; question_offset=0; question_title_width=; question_titles=$question_order; question_total=$(grep -c "" <<<"$question_titles"); question_server_checked=no
 	config=$(multica config show) || die 'CLI の設定を読めませんでした。'
 	configured=$(printf '%s\n' "$config" | awk '$1=="server_url:" && $2!="(not" {print $2}')
 	server_url=${MULTICA_SERVER_URL:-$configured}
@@ -128,16 +262,17 @@ choose_server() {
 		printf '設定済みのサーバーを使います: %s\n' "$server_url" >&2
 		return
 	fi
-	question_titles=$(printf 'サーバーの URL\n%s' "$question_order"); question_total=$(grep -c "" <<<"$question_titles")
+	question_titles=$(printf 'サーバーの URL\n%s' "$question_order"); question_total=$(grep -c "" <<<"$question_titles"); question_offset=1
 	question_begin 'サーバーの URL' 'このホストのデーモンが接続する Multica サーバーです。管理者から案内された URL を入力します。' 'https://multica.example.test（例ではなく、案内された実際の URL を入力）'
 	while :; do
 		question_prompt ''
-		if ! valid_server "$answer"; then input_error 'https:// で始まるサーバーの URL を入力してください。'; continue; fi
+		if ! valid_server "$answer"; then question_reject 'https:// で始まるサーバーの URL を入力してください。'; continue; fi
 		server_url=${answer%/}
 		if mc auth status >/dev/null 2>&1; then question_server_checked=yes; break; fi
-		input_error 'サーバーに接続できないか、ログインしていません。URL と接続を確認してください。' \
+		question_reject 'サーバーに接続できないか、ログインしていません。URL と接続を確認してください。' \
 			"$(printf '未ログインなら別のターミナルで multica --server-url %q login を済ませ、同じ質問へ入力してください。' "$server_url")"
 	done
+	question_answer "$server_url"
 }
 check_login() {
 	[[ ${question_server_checked:-no} != yes ]] || return 0
@@ -171,8 +306,8 @@ pick_numbers() {
 			picked_numbers=$(jq -c --argjson i "$index" 'if index($i)==null then .+[$i] else . end' <<<"$picked_numbers")
 		done
 		[[ -z $picked_numbers ]] || break
-		if [[ $allow_zero == yes ]]; then input_error '一覧の番号を半角数字で、空白かカンマで区切ってください。0 は単独で入力します。'
-		else input_error '1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。'; fi
+		if [[ $allow_zero == yes ]]; then question_reject '一覧の番号を半角数字で、空白かカンマで区切ってください。0 は単独で入力します。'
+		else question_reject '1つ以上の番号を、表示された候補から半角数字で選んでください。空のままでは進めません。'; fi
 	done
 }
 
@@ -184,7 +319,7 @@ pick_project() {
 	if [[ $(jq length <<<"$projects") == 0 ]]; then question_notice='まだプロジェクトがありません。新しい名前を入れると作ります。'; question_example='Demo Project のような新しい名前'; fi
 	while :; do
 		question_prompt "$default"
-		if [[ -z ${answer//[[:space:]]/} || $answer == *$'\r'* ]]; then input_error 'プロジェクトの名前が空です。名前か、一覧の番号を入力してください。'; continue; fi
+		if [[ -z ${answer//[[:space:]]/} || $answer == *$'\r'* ]]; then question_reject 'プロジェクトの名前が空です。名前か、一覧の番号を入力してください。'; continue; fi
 		if [[ $answer =~ ^[0-9]+$ ]]; then
 			if [[ ${#answer} -le 6 ]]; then
 				index=$((10#$answer))
@@ -193,11 +328,11 @@ pick_project() {
 					project_name=$(jq -r --argjson i "$index" '.[$i-1].title' <<<"$projects"); break
 				fi
 			fi
-			input_error '一覧にない番号です。新しい名前は数字だけにせず、文字を含めて入力してください。'; continue
+			question_reject '一覧にない番号です。新しい名前は数字だけにせず、文字を含めて入力してください。'; continue
 		fi
 		project_name=$answer
 		matches=$(jq -c --arg name "$project_name" '[.[]|select(.title==$name)]' <<<"$projects")
-		if [[ $(jq length <<<"$matches") -gt 1 ]]; then input_error '同名のプロジェクトが複数あります。一覧の番号で選んでください。'; continue; fi
+		if [[ $(jq length <<<"$matches") -gt 1 ]]; then question_reject '同名のプロジェクトが複数あります。一覧の番号で選んでください。'; continue; fi
 		project_id=$(jq -r '.[0].id // empty' <<<"$matches"); break
 	done
 }
@@ -278,14 +413,15 @@ pick_runtimes() {
 	while :; do
 		pick_numbers "$default" no
 		if [[ $(jq length <<<"$picked_numbers") != 1 ]]; then
-			input_error '使うランタイムは一つの番号だけを選んでください。'; continue
+			question_reject '使うランタイムは一つの番号だけを選んでください。'; continue
 		fi
 		case $(jq -r '.[0]' <<<"$picked_numbers") in
 		1) runtimes='["claude","codex"]' ;; 2) runtimes='["claude"]' ;; 3) runtimes='["codex"]' ;;
 		esac
 		if check_runtime_tools; then break; fi
-		input_error 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。'
+		question_reject 'コマンドが見つかるランタイムを選ぶか、導入して同じ質問に答えてください。'
 	done
+	question_answer "$(jq -r 'map(if .=="claude" then "Claude Code" else "Codex" end)|join("  ")' <<<"$runtimes")"
 }
 
 # Dependabot の役を残したときだけ聞く。週次のスケジュールだけでも動くので、既定は使わない。
@@ -308,9 +444,9 @@ pick_dependabot_webhook() {
 	while :; do
 		pick_numbers "$default" no
 		if [[ $(jq length <<<"$picked_numbers") == 1 ]]; then break; fi
-		input_error '使うかどうかは一つの番号だけを選んでください。'
+		question_reject '使うかどうかは一つの番号だけを選んでください。'
 	done
-	if [[ $(jq -r '.[0]' <<<"$picked_numbers") == 2 ]]; then dependabot_webhook=true; fi
+	if [[ $(jq -r '.[0]' <<<"$picked_numbers") == 2 ]]; then dependabot_webhook=true; question_answer '使う'; else question_answer '使わない'; fi
 }
 
 ask_questions() {
@@ -327,17 +463,19 @@ ask_questions() {
 	while :; do
 		pick_numbers '' no
 		if [[ $(jq length <<<"$picked_numbers") == 1 ]]; then break; fi
-		input_error 'ワークスペースは一つの番号だけを選んでください。'
+		question_reject 'ワークスペースは一つの番号だけを選んでください。'
 	done
 	index=$(jq -r '.[0]' <<<"$picked_numbers")
 	workspace_id=$(jq -r --argjson i "$index" '.[$i-1].id' <<<"$workspaces")
 	workspace_name=$(jq -r --argjson i "$index" '.[$i-1].name' <<<"$workspaces")
+	question_answer "$workspace_name"
 	profile=$(mc user profile get --output json) || die '導入する人の情報を取得できませんでした。'
 	question_actor_id=$(jq -er '.id|select(type=="string" and length>0)' <<<"$profile") || die '導入する人の ID が不正です。'
 	question_email=$(jq -r '.email // empty' <<<"$profile")
 	projects=$(read_list プロジェクト project list)
 	cached=$(latest_answers "$server_url" "$workspace_id" '')
 	pick_project "$projects" "$cached"
+	if [[ -n $project_id ]]; then question_answer "$project_name" '今あるものを使う'; else question_answer "$project_name" '新しく作る'; fi
 	cached=$(latest_answers "$server_url" "$workspace_id" "$project_name")
 	question_begin 'プロジェクトの区別' 'プロジェクトの短い名前です。一式の名前の先頭に付き、同じプロジェクトなら全員が同じ値を使います。人の目印とは別です。' 'demo、shop（英小文字で始まる英小文字と数字の2〜12文字）'
 	while :; do
@@ -347,11 +485,12 @@ ask_questions() {
 			[[ ! -L $answers_file ]] && valid_answers "$answers_file" || die '保存済みの答えが不正です。内容を確認してください。'
 			saved=$(load_answers "$answers_file")
 			if ! jq -e --arg ws "$workspace_id" --arg url "$server_url" --arg name "$project_name" --arg key "$project_key" '.workspace_id==$ws and .server_url==$url and .project_name==$name and .project_key==$key' >/dev/null <<<"$saved"; then
-				input_error 'そのプロジェクトの区別は別の答えに使われています。別の目印を入力してください。'; continue
+				question_reject 'そのプロジェクトの区別は別の答えに使われています。別の目印を入力してください。'; continue
 			fi
 		fi
 		break
 	done
+	question_answer "$project_key"
 	repos=$(read_list リポジトリ repo list)
 	repository_choices "$repos" "$projects" "$project_id"
 	question_begin 'リポジトリ' 'このプロジェクトのエージェントが作業し、書き込める場所です。選んだものだけに push と PR ができ、複数選べます。' '1 3、または 1,3（1つ以上）'
@@ -370,10 +509,12 @@ ask_questions() {
 	if [[ -z $default && $(jq length <<<"$eligible_repos") == 1 ]]; then default=1; fi
 	pick_numbers "$default" no
 	repositories=$(jq -nc --argjson items "$eligible_repos" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $items[$i-1]]')
+	question_answer "$(jq -r 'map(.repository)|join("  ")' <<<"$repositories")"
 	question_squads=$(question_list スクワッド squad list)
 	question_begin 'メンバーの区別' '導入する人の短い目印です。一式の名前の末尾に付き、その人のホストと AI の利用枠で動く一式を見分けます。1人でも必要です。' 'member1（名字の頭と番号など。英小文字で始まる英小文字と数字の2〜12文字）'
 	ask_key "$(key_default "${question_email%%@*}")" "$(jq -r '.member_key // empty' <<<"$saved")" member
 	member_key=$answer
+	question_answer "$member_key"
 	members=$(read_list メンバー workspace member list)
 	jq -e --arg id "$question_actor_id" 'any(.[]; .user_id==$id)' >/dev/null <<<"$members" || die 'ワークスペースの一覧で自分を確認できません。メンバーを確認してください。'
 	question_begin 'スクワッドに入れる人間' '要件の確認・設計の承認・マージの判断で呼ばれる人です。ワークスペースのメンバーから複数選べます。' '1 2、または 1,2（0なら人間を入れない）'
@@ -382,6 +523,7 @@ ask_questions() {
 	default=$(jq -nr --argjson members "$members" --argjson selected "$selected" '[$members|to_entries[]|select(.value.user_id as $id|$selected|index($id))|(.key+1|tostring)]|join(" ")'); default=${default:-0}
 	pick_numbers "$default" yes
 	member_ids=$(jq -nc --argjson members "$members" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $members[$i-1].user_id]|unique')
+	question_answer "$(jq -r --argjson numbers "$picked_numbers" '[$numbers[] as $i | .[$i-1].name]|join("  ")' <<<"$members" | sed 's/^$/なし/')"
 	pick_runtimes "$saved"
 	question_begin '外す役' '要らない役を番号で選びます。リーダーは必須で、実装・修正は少なくとも一系統を残します。' '5 7、または 5,7（0なら何も外さない）'
 	question_items='[]'
@@ -396,8 +538,9 @@ ask_questions() {
 		pick_numbers "$default" yes
 		excluded_roles=$(jq -nc --argjson choices "$role_choices" --argjson numbers "$picked_numbers" '[$numbers[] as $i | $choices[$i-1].roles[]]|unique')
 		if jq -e --argjson runtimes "$runtimes" '. as $excluded | any($runtimes[]; (.+"-implementer") as $role | $excluded|index($role)==null)' >/dev/null <<<"$excluded_roles"; then break; fi
-		input_error '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。'
+		question_reject '実装と修正の系統を両方は外せません。少なくとも一系統を残してください。'
 	done
+	question_answer "$(jq -r --argjson numbers "$picked_numbers" '[$numbers[] as $i | .[$i-1].title]|join("  ")' <<<"$role_choices" | sed 's/^$/何も外さない/')"
 	pick_dependabot_webhook "$saved" "$answers_file"
 	answers=$(jq -n --arg server_url "$server_url" --arg workspace_id "$workspace_id" --arg workspace_name "$workspace_name" --arg project_id "$project_id" --arg project_name "$project_name" --arg project_key "$project_key" --argjson repositories "$repositories" --arg member_key "$member_key" --argjson member_ids "$member_ids" --argjson runtimes "$runtimes" --argjson excluded_roles "$excluded_roles" --argjson dependabot_webhook "$dependabot_webhook" '{schema:1,server_url:$server_url,workspace_id:$workspace_id,workspace_name:$workspace_name,project_id:$project_id,project_name:$project_name,project_key:$project_key,repositories:$repositories,member_key:$member_key,member_ids:$member_ids,runtimes:$runtimes,excluded_roles:$excluded_roles,dependabot_webhook:$dependabot_webhook}')
 	question_people=$members
@@ -405,9 +548,7 @@ ask_questions() {
 
 # 候補がない質問も、説明と理由を入力なしで表示してから止める。
 question_prompt_no_input() {
-	question_heading
-	ui_line err default '既定値: なし'
-	question_notice_show
+	question_open
 }
 
 plan_action() {
@@ -430,9 +571,15 @@ plan_autopilot_action() {
 	else printf '今あるものを保持（別の担当またはプロジェクト）'; fi
 }
 
+# 一覧の行はデータとして集め、読み取りがすべて通ってから画面に出す。
+plan_item() {
+	plan_rows=$(jq -c --arg group "$1" --arg mark "$2" --arg name "$3" --arg value "${4-}" '.+[{group:$group,mark:$mark,name:$name,value:$value}]' <<<"$plan_rows")
+}
+
 confirmation_plan() {
-	local agents skills autopilots squad_name role name action skill_dir repo title humans resources bound='[]'
-	local agent_total=0 agent_new=0 agent_existing=0 auto_plan='[]' count total new existing kind pattern i choice excluded_shown=no
+	local agents skills autopilots squad_name squad_id role name action skill_dir repo title resources bound='[]' roster='[]'
+	local auto_plan='[]' kind choice id value watch changes note
+	local plan_rows='[]'
 	# 表示の予定だけに、選ばなかったランタイムの系統を足す。保存する答えは変えない。
 	local excluded_roles=$excluded_roles
 	excluded_roles=$(jq -c --argjson runtimes "$runtimes" '. + ["claude","codex" | . as $runtime | select($runtimes|index($runtime)==null) | "\($runtime)-implementer","\($runtime)-fixer","\($runtime)-principal"] | unique' <<<"$excluded_roles")
@@ -445,92 +592,126 @@ confirmation_plan() {
 		jq -e 'type=="array" and all(.[]; (.resource_type|type=="string"))' >/dev/null <<<"$resources" || die '既存の紐付けの応答が不正です。'
 		bound=$(jq -c "$repository_filter"'[.[]|select(.resource_type=="github_repo")|.resource_ref.url|repository_name]' <<<"$resources") || die '既存の紐付けの URL が不正です。'
 	fi
-	printf 'サーバー: %s\nワークスペース: %s（既存を使う）\n' "$server_url" "$workspace_name"
-	if [[ -n $project_id ]]; then action='今あるものを使う'; else action='新しく作る'; fi
-	printf 'プロジェクト: %s（%s）\n' "$project_name" "$action"
-	printf '使うランタイム: %s\n' "$(jq -r 'map(if .=="claude" then "Claude Code" else "Codex" end)|join("、")' <<<"$runtimes")"
 	for role in $template_roles; do
-		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || { printf "外れた拡張の役（エージェントは残す）: %s\n" "$role"; continue; }
+		[[ " ${extension_disabled_roles:-} " != *" $role "* ]] || continue
 		jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
 		name=$project_key-$role-$member_key
-		action=$(plan_action "$agents" name "$name" '今あるものを直す') || return 1
-		agent_total=$((agent_total+1))
-		if [[ $action == '新しく作る' ]]; then agent_new=$((agent_new+1)); else agent_existing=$((agent_existing+1)); fi
+		action=$(plan_action "$agents" name "$name" change) || return 1
+		[[ $action != 新しく作る ]] || action=add
+		plan_item エージェント "$action" "$name" || return 1
 	done
-	printf 'エージェント: %s件（新規%s件、既存%s件）\n  名前の規則: %s-<役>-%s\n' "$agent_total" "$agent_new" "$agent_existing" "$project_key" "$member_key"
 	squad_name=$(printf '%s-%s' "$project_key" "$member_key" | LC_ALL=C tr '[:lower:]' '[:upper:]')
 	squad_named "$question_squads" "$squad_name"
-	if [[ $(jq length <<<"$matches") == 1 ]]; then
-		squad_name=$(jq -r '.[0].name' <<<"$matches")
-		action='今あるものを直す'
-	else
-		action='新しく作る'
-	fi
-	printf 'スクワッド: %s（%s）\n' "$squad_name" "$action"
-	printf 'プロジェクトだけのスキル:\n'
+	squad_id=$(jq -r '.[0].id // empty' <<<"$matches")
+	if [[ -n $squad_id ]]; then action=change; squad_name=$(jq -r '.[0].name' <<<"$matches"); else action=add; fi
+	plan_item スクワッド "$action" "$squad_name" || return 1
 	for skill_dir in "$root/skeleton/.agents/skills/"*/; do
 		[[ -d $skill_dir ]] || continue
 		name=$project_key-$(basename "$skill_dir")
-		action=$(plan_action "$skills" name "$name" '今あるものを使う。内容は保持') || return 1
-		printf '  %s（%s）\n' "$name" "$action"
+		action=$(plan_action "$skills" name "$name" keep) || return 1
+		[[ $action != 新しく作る ]] || action=add
+		plan_item スキル "$action" "$name" || return 1
 	done
-	printf 'リポジトリ:\n'
 	while IFS= read -r repo; do
-		if jq -e --arg repo "$repo" 'index($repo)!=null' >/dev/null <<<"$bound"; then action='既存の紐付けを使う'; else action='新しくプロジェクトへ紐付ける'; fi
-		printf '  %s（%s）\n' "$repo" "$action"
+		if jq -e --arg repo "$repo" 'index($repo)!=null' >/dev/null <<<"$bound"; then action=keep; else action=add; fi
+		plan_item リポジトリ "$action" "$repo" || return 1
 		for role in security-reviewer dependabot-merger; do
 			jq -e --arg role "$role" 'index($role)!=null' >/dev/null <<<"$excluded_roles" && continue
 			title=$(autopilot_title "$role" "$repo")
 			action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
-			auto_plan=$(jq -c --arg kind "$role" --arg title "$title" --arg action "$action" '.+[{kind:$kind,title:$title,action:$action}]' <<<"$auto_plan") || return 1
+			auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{title:$title,action:$action}]' <<<"$auto_plan") || return 1
 		done
 	done < <(jq -r '.[].repository' <<<"$repositories")
-	if [[ $(jq length <<<"${link_repositories:-[]}") != 0 ]]; then
-		printf '紐付け専用のリポジトリ（既存の GitHub の issue のコメントと Assignees の同期だけ。コード作業・定期処理は追加しない）:\n'
-		jq -r '.[]|"  "+.' <<<"$link_repositories"
-	fi
+	while IFS= read -r repo; do
+		[[ -n $repo ]] || continue
+		if jq -e --arg repo "$repo" 'index($repo)!=null' >/dev/null <<<"$bound"; then action=keep; else action=add; fi
+		plan_item リポジトリ "$action" "$repo" 紐付けだけ || return 1
+	done < <(jq -r '.[]' <<<"${link_repositories:-[]}")
 	if ! jq -e 'index("usage-monitor")!=null' >/dev/null <<<"$excluded_roles"; then
 		title=$(autopilot_title usage-monitor)
 		action=$(plan_autopilot_action "$autopilots" "$agents" "$title") || return 1
-		auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{kind:"usage-monitor",title:$title,action:$action}]' <<<"$auto_plan") || return 1
+		auto_plan=$(jq -c --arg title "$title" --arg action "$action" '.+[{title:$title,action:$action}]' <<<"$auto_plan") || return 1
 	fi
-	total=$(jq length <<<"$auto_plan")
-	new=$(jq '[.[]|select(.action=="新しく作る")]|length' <<<"$auto_plan")
-	existing=$((total-new))
-	printf 'オートパイロット: %s件（新規%s件、既存%s件）\n' "$total" "$new" "$existing"
-	for kind in security-reviewer dependabot-merger usage-monitor; do
-		count=$(jq --arg kind "$kind" '[.[]|select(.kind==$kind)]|length' <<<"$auto_plan")
-		[[ $count != 0 ]] || continue
-		case $kind in
-		usage-monitor) pattern=$(autopilot_title "$kind") ;;
-		*) pattern=$(autopilot_title "$kind" '<OWNER/REPO>') ;;
+	while IFS= read -r choice; do
+		title=$(jq -r .title <<<"$choice"); action=$(jq -r .action <<<"$choice"); value=''
+		case $action in
+		新しく作る) action=add ;;
+		今あるものを直す) action=change ;;
+		*) action=warn; value=別の担当 ;;
 		esac
-		printf '  %s件、名前の規則: %s\n' "$count" "$pattern"
-	done
-	# 集計しても、別の担当等を保護する注意は隠さない。
-	jq -r '.[]|select(.action|startswith("今あるものを保持"))|"  保持する既存の設定: \(.title)（別の担当またはプロジェクト）"' <<<"$auto_plan"
-	if ! jq -e 'index("dependabot-merger")!=null' >/dev/null <<<"$excluded_roles"; then
-		if [[ ${dependabot_webhook:-false} == true ]]; then printf 'Dependabot の PR の Webhook: 使う（リポジトリごとに登録し、フィルターの設定を起票する）\n'
-		else printf 'Dependabot の PR の Webhook: 使わない（週次のスケジュールだけ。登録と起票をしない）\n'; fi
+		plan_item オートパイロット "$action" "$title" "$value" || return 1
+	done < <(jq -c '.[]' <<<"$auto_plan")
+	if [[ -n $squad_id && $(jq length <<<"$member_ids") != 0 ]]; then
+		roster=$(mc squad member list "$squad_id" --output json) || die 'スクワッドのメンバーを読めませんでした。'
+		jq -e 'type=="array" and all(.[]; (.member_type=="agent" or .member_type=="member") and (.member_id|type=="string" and length>0))' >/dev/null <<<"$roster" || die 'スクワッドのメンバーの応答が不正です。'
 	fi
-	humans=$(jq -r --argjson ids "$member_ids" '[.[]|select(.user_id as $id|$ids|index($id))|.name]|join("、")' <<<"$question_people")
-	printf 'スクワッドに入れる人間: %s（既存の人をスクワッドへ追加・維持）\n' "${humans:-なし}"
-	printf '外す役と、一緒に外れるもの:\n'
-	for ((i=0; i<$(jq length <<<"$role_choices"); i++)); do
-		choice=$(jq -c --argjson i "$i" '.[$i]' <<<"$role_choices")
+	while IFS= read -r id; do
+		name=$(jq -r --arg id "$id" '.[]|select(.user_id==$id)|.name' <<<"$question_people")
+		if jq -e --arg id "$id" 'any(.[]; .member_type=="member" and .member_id==$id)' >/dev/null <<<"$roster"; then action=keep; else action=add; fi
+		plan_item 人間 "$action" "$name" || return 1
+	done < <(jq -r '.[]' <<<"$member_ids")
+	while IFS= read -r choice; do
 		jq -e --argjson excluded "$excluded_roles" 'any(.roles[]; . as $role | $excluded|index($role))' >/dev/null <<<"$choice" || continue
-		printf '  %s\n' "$(role_choice_text "$choice" '    ' "$(role_choice_note "$(jq -r '.key' <<<"$choice")")")"
-		excluded_shown=yes
+		name=$(jq -r .key <<<"$choice")
+		value=''
+		for role in $(jq -r '.roles[]' <<<"$choice"); do value+=${value:+  }$project_key-$role-$member_key; done
+		for kind in $(jq -r '.autopilots[]?' <<<"$choice"); do
+			if [[ $kind == usage-monitor ]]; then value+="  $(autopilot_title "$kind")"
+			else while IFS= read -r repo; do value+="  $(autopilot_title "$kind" "$repo")"; done < <(jq -r '.[].repository' <<<"$repositories"); fi
+		done
+		watch=$(jq -r '.watch // empty' <<<"$choice"); changes=$(jq -r '.changes // empty' <<<"$choice"); note=$(role_choice_note "$name")
+		value+=${watch:+  $watch}${changes:+  $changes}$note
+		plan_item 役 drop "$name" "$value" || return 1
+	done < <(jq -c '.[]' <<<"$role_choices")
+	for role in ${extension_disabled_roles:-}; do plan_item 役 drop "$role" エージェントは残す || return 1; done
+	printf '%s\n' "$plan_rows"
+}
+
+confirmation_show() {
+	local plan=$1 group row mark name value count text separator=''
+	printf '\n' >&2
+	for group in エージェント スクワッド スキル リポジトリ オートパイロット 人間 役; do
+		[[ $(jq --arg group "$group" '[.[]|select(.group==$group)]|length' <<<"$plan") != 0 ]] || continue
+		ui_line err strong "  $group"
+		while IFS= read -r row; do
+			mark=$(jq -r .mark <<<"$row"); name=$(jq -r .name <<<"$row"); value=$(jq -r .value <<<"$row")
+			printf '    ' >&2; ui_mark err "$mark" "$name" "$value"
+		done < <(jq -c --arg group "$group" '.[]|select(.group==$group)' <<<"$plan")
 	done
-	[[ $excluded_shown == yes ]] || printf '  なし\n'
+	printf '\n  ' >&2
+	for mark in add change keep warn drop; do
+		count=$(jq --arg mark "$mark" '[.[]|select(.mark==$mark)]|length' <<<"$plan")
+		((count != 0)) || continue
+		# 印と色の対応は ui_mark に任せ、件数だけは印のすぐ後ろへ詰める。
+		text=$(ui_mark err "$mark" "$count" 2>&1)
+		printf '%s%s' "$separator" "${text/ /}" >&2
+		separator='  '
+	done
+	printf '\n' >&2
 }
 
 confirm_answers() {
-	local plan
+	local plan question_live=no question_rows=0 question_size='' question_typed='' accepted=no retried=no
 	plan=$(confirmation_plan) || die '答えの一覧を作れませんでした。答えは保存していません。'
+	confirmation_show "$plan"
+	{ ui_paint err question '? 保存して作りますか'; printf '  '; ui_paint err default 'yes/no'; printf '\n'; } >&2
+	if [[ $ui_live_err == yes && -t 0 ]]; then question_live=yes; ui_size err; question_size="$ui_lines $ui_columns"; fi
 	while :; do
-		printf '\n答えの一覧（まだ変更していません）:\n%s\n' "$plan" >&2
-		ask 'この答えを保存して続けますか（yes/no）' 'no'
-		case $answer in yes) return 0 ;; no) die '中止しました。答えは保存していません。' ;; *) input_error 'yes で続けるか、no で中止してください。答えはまだ保存していません。' ;; esac
+		question_input no
+		case $answer in yes|no) accepted=yes ;; esac
+		if [[ $accepted == yes ]]; then
+			# 問いと一覧は残す。聞き直した入力と理由だけを、受け付けた入力へ置き換える。
+			if [[ $question_live == yes && $retried == yes ]]; then
+				ui_size err
+				if [[ "$ui_lines $ui_columns" == "$question_size" ]] && ((question_rows <= ui_lines - 1)); then
+					ui_rewind err "$question_rows"
+					question_input_show no; printf '%s\n' "$question_typed" >&2
+				fi
+			fi
+			[[ $answer != yes ]] || return 0
+			die '中止しました。答えは保存していません。'
+		fi
+		retried=yes
+		question_reject 'yes で続けるか、no で中止してください。答えはまだ保存していません。'
 	done
 }

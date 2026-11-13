@@ -63,14 +63,14 @@ jq -e '.issues | length==6 and
  all(.[]; (.metadata.squad_kit_targets|fromjson)==[.metadata.repository // "project"])
 ' "$TEST_DB/db.json" >/dev/null
 for title in 'example/one の Dependabot の Webhook のフィルターを設定する' 'example/two の Dependabot の Webhook のフィルターを設定する' 'example/one に AGENTS.md と作業別のルールを置く' 'example/two に AGENTS.md と作業別のルールを置く' 'プロジェクトの説明と検証スキルを記入する' 'スクワッドの動きを試す'; do
- grep -qF "${title}（新規）" "$test_dir/out"
+ grep -qE "^  \+ TEST-[0-9]+  ${title}\$" "$test_dir/out"
 done
-[[ $(grep -c '^  TEST-' "$test_dir/out") == 6 ]]
-! grep -qF '起票できなかったタスク:' "$test_dir/out"
+[[ $(grep -c '^  [+·] TEST-' "$test_dir/out") == 6 ]]
+! grep -qF '✖' "$test_dir/out"
 cp "$TEST_DB/db.json" "$test_dir/first.json"
 run
 cmp "$test_dir/first.json" "$TEST_DB/db.json"
-[[ $(grep -c '（既存）' "$test_dir/out") == 6 ]]
+[[ $(grep -c '^  · TEST-' "$test_dir/out") == 6 ]]
 echo 'PASS project issues: 選んだリポジトリごとの 2 種とプロジェクトの 2 種を正しい担当・状態・ラベルで作り、新規・既存を表示する'
 
 new_case excluded
@@ -90,14 +90,12 @@ new_case failed
 printf '%s\n' 'example/one の Dependabot の Webhook のフィルターを設定する' >"$TEST_DB/fail-issue"
 deny
 jq -e '.issues|length==5 and any(.[];.metadata.squad_kit_task=="squad-trial")' "$TEST_DB/db.json" >/dev/null
-grep -qF 'プロジェクトの設定が終わりました' "$test_dir/out"
-grep -qF '今回作った件数:' "$test_dir/out"
-grep -qF '起票できなかったタスク:' "$test_dir/out"
-grep -qF 'example/one の Dependabot の Webhook のフィルターを設定する: タスクを作れませんでした。' "$test_dir/out"
-[[ $(grep -c '（新規）' "$test_dir/out") == 5 ]]
+grep -q '^✔ ' "$test_dir/out"
+grep -qF '  ✖ example/one の Dependabot の Webhook のフィルターを設定する  タスクを作れませんでした。' "$test_dir/out"
+[[ $(grep -c '^  + TEST-' "$test_dir/out") == 5 ]]
 rm "$TEST_DB/fail-issue"
 run
 jq -e '.issues|length==6' "$TEST_DB/db.json" >/dev/null
-[[ $(grep -c '（新規）' "$test_dir/out") == 1 && $(grep -c '（既存）' "$test_dir/out") == 5 ]]
-! grep -qF '起票できなかったタスク:' "$test_dir/out"
+[[ $(grep -c '^  + TEST-' "$test_dir/out") == 1 && $(grep -c '^  · TEST-' "$test_dir/out") == 5 ]]
+! grep -qF '✖' "$test_dir/out"
 echo 'PASS project issues: 途中の起票失敗でも残りを起票し、題と理由を表示して失敗を返し、流し直すと未起票分だけ作る'
