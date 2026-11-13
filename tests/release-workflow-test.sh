@@ -146,7 +146,9 @@ PY
     timeout-minutes: 10' '  assets:
     timeout-minutes: 11'
 	mutate_check ref '${{ github.event.pull_request.head.sha || github.sha }}' '${{ github.sha }}'
-	mutate_check credentials '          persist-credentials: false' '          persist-credentials: true'
+	mutate_check credentials '          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false' '          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: true'
 	mutate_check build '--commit HEAD "$RUNNER_TEMP/assets"' 'HEAD "$RUNNER_TEMP/assets"'
 	mutate_check permissions '  contents: read' '  contents: write'
 fi
