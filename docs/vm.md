@@ -2,7 +2,7 @@
 
 セットアップを、ホストではなく軽い VM の中で流せるようにする。Mac は Lima の VM、Windows は WSL の専用のディストリを、原本のスクリプトのコマンド 1 つで作る。中では Linux のセットアップを変えずに流し、エージェントからホストのホームを読めないようにする。
 
-この文書は、VM を作るスクリプトの設計と、その理由を書く。使う人への手順は `README.md` と `manual.md` に、バージョンを出す前の確かめは `CONTRIBUTING.md` に書く（[利用者向けの文書の変更](#利用者向けの文書の変更)）。
+この文書は、VM を作るスクリプトの設計と、その理由を書く。使う人への手順は `README.md` と `manual.md` に、バージョンを出す前の確認は `CONTRIBUTING.md` に書く（[利用者向けの文書の変更](#利用者向けの文書の変更)）。
 
 ## 目的と範囲
 
@@ -13,7 +13,7 @@
 - コンテナ（Dev Container など）での閉じ込め。テストの Docker で閉じ込めが崩れ、イメージの保守も増えるため
 - 別の OS ユーザーでの閉じ込めと、Linux のホストの上の VM
 - VM の中のセットアップを、Linux のホストと変えること。`setup.sh` と `lib/` は変えない
-- VM を作って中でセットアップを流す通しの確かめを、CI で流すこと。バージョンを出す前に人が確かめる
+- VM を作って中でセットアップを流す通しの確認を、CI で流すこと。バージョンを出す前に人が確認する
 
 ## 置くもの
 
@@ -21,20 +21,20 @@
 
 | ファイル | 動く場所 | 役目 |
 | --- | --- | --- |
-| `vm/lima.sh` | Mac（bash 3.2） | Lima の VM を作る、起動する、止める、消す、確かめる |
+| `vm/lima.sh` | Mac（bash 3.2） | Lima の VM を作る、起動する、止める、消す、確認する |
 | `vm/wsl.ps1` | Windows（PowerShell 5.1 以上） | WSL の専用のディストリを、同じように扱う |
 | `vm/guest/provision.sh` | VM の中（root） | 道具、Docker、デーモンの自動の起動を入れる |
 | `vm/guest/start-daemon` | VM の中（使う人） | デーモンを、セットアップと同じ環境で前面で起動する |
 | `vm/guest/record-server` | VM の中（使う人） | 動いているデーモンの接続先を、次の起動のために記録する |
-| `vm/guest/verify.sh` | VM の中（使う人） | 閉じ込め、Docker、自動の起動を確かめる |
+| `vm/guest/verify.sh` | VM の中（使う人） | 閉じ込め、Docker、自動の起動を確認する |
 
 中のファイルは、VM の `/usr/local/lib/multica-squad-vm/` に置く。`.gitattributes` で `vm/` の `*.sh` と `vm/guest/*` を `eol=lf` にする。Windows で clone しても、改行が CRLF になって中で動かなくなるのを防ぐため。
 
-ホストで使う原本は、VM を作るためだけのもので、秘密は含まない。`docs/install.md` の[手動の手順](install.md#手動の手順)のとおりに、Release の配布物を確かめて展開したものを使い、VM を作ったあとは消してよい。Windows のホストでは、PowerShell で同じ手順（`gh release download`、`gh attestation verify`、`tar -xzf`）を流す。VM の中では、`docs/install.md` の[1 行のコマンド](install.md#1-行のコマンド)で、改めて取ってきて流す。ホストの原本を中へ渡さないのは、中の確かめをホストの状態に頼らないため。
+ホストで使う原本は、VM を作るためだけのもので、秘密は含まない。`docs/install.md` の[手動の手順](install.md#手動の手順)のとおりに、Release の配布物を検証して展開したものを使い、VM を作ったあとは消してよい。Windows のホストでは、PowerShell で同じ手順（`gh release download`、`gh attestation verify`、`tar -xzf`）を流す。VM の中では、`docs/install.md` の[1 行のコマンド](install.md#1-行のコマンド)で、改めて取ってきて流す。ホストの原本を中へ渡さないのは、中の確認をホストの状態に頼らないため。
 
 ## コマンドの形
 
-どちらのスクリプトも、作る・起動する・止める・消す・確かめるの 5 つの操作を持つ。名前を省くと `multica-squad` を使う。
+どちらのスクリプトも、作る・起動する・止める・消す・確認するの 5 つの操作を持つ。名前を省くと `multica-squad` を使う。
 
 ```bash
 bash vm/lima.sh create [--name NAME] [--cpus N] [--memory GIB] [--disk GIB]
@@ -72,7 +72,7 @@ powershell -ExecutionPolicy Bypass -File vm\wsl.ps1 delete [-Name NAME] [-Force]
 | `containerd.system`、`containerd.user` | `false` | Docker を使い、Lima の containerd は入れないため |
 | `cpus`、`memory`、`disk` | 引数の値 | [割く資源の目安](#割く資源の目安) |
 
-作ったあと、起動する前に、`limactl list --json` で実際の設定を読み、共有と鍵の転送が切れていることを確かめる。使う人の Lima の既定の設定（`_config/default.yaml` や `override.yaml`）が上書きを打ち消すことがあるため。切れていなければ、起動せずに VM を消して、その設定ファイルを案内して止まる。
+作ったあと、起動する前に、`limactl list --json` で実際の設定を読み、共有と鍵の転送が切れていることを確認する。使う人の Lima の既定の設定（`_config/default.yaml` や `override.yaml`）が上書きを打ち消すことがあるため。切れていなければ、起動せずに VM を消して、その設定ファイルを案内して止まる。
 
 ポートの転送は、Lima の既定のままにする。中の `127.0.0.1` で待つポートが、ホストの `127.0.0.1` に見える。Codex と Multica のログインが、ホストのブラウザから中の待ち受けに戻るのに使うため。中からホストのファイルは読めないので、閉じ込めは崩れない。
 
@@ -113,7 +113,7 @@ WSL は、[公開された 2.6.1 の実装](https://github.com/microsoft/WSL/blo
 
 Windows で `WSLENV` を設定していると、`wsl.exe` は挙がった変数（トークンなど）をゲストの起動したプロセスへ渡す。ドライブの共有と Windows の実行を切っても、これは残り、常駐する `sleep` の環境から使う人が読める。そのため `wsl.ps1` は、どの `wsl.exe` にも `WSLENV` を渡さず（呼び出し元の環境は変えない）、手で入るときも `cmd /c "set WSLENV=&& wsl -d NAME"` を使う。
 
-Docker Desktop を使っている人は、このディストリの WSL の統合を切ったままにする。統合を入れると、Docker Desktop が Windows 側のファイルと実行ファイルを中に持ち込むため。`verify` で、統合で入るファイルがないことも確かめる。
+Docker Desktop を使っている人は、このディストリの WSL の統合を切ったままにする。統合を入れると、Docker Desktop が Windows 側のファイルと実行ファイルを中に持ち込むため。`verify` で、統合で入るファイルがないことも確認する。
 
 ### 使う人と root
 
@@ -129,9 +129,9 @@ Lima では、Lima の既定どおり、使う人に sudo を残す。共有の�
 
 `provision.sh` は、VM の中で root として動き、道具と Docker とデーモンの自動の起動を入れる。何度流しても同じ結果になるように書く。
 
-中での呼び出しは `bash provision.sh lima|wsl USER` にする。確かめは使う人として `bash verify.sh lima|wsl` を流す。テストでは `SQUAD_VM_ROOT` で、設定の書き込み先と `/proc` などの読み取り先の根を一時の置き場へ変える。
+中での呼び出しは `bash provision.sh lima|wsl USER` にする。確認は使う人として `bash verify.sh lima|wsl` を流す。テストでは `SQUAD_VM_ROOT` で、設定の書き込み先と `/proc` などの読み取り先の根を一時の置き場へ変える。
 
-1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる。`gh` は、Ubuntu の標準のバージョンでは証明を確かめられないので、GitHub の公式の apt のリポジトリ（`cli.github.com/packages`）の鍵と `sources` を置いて、そこから入れる（`docs/install.md` の[必要な `gh` のバージョン](install.md#必要な-gh-のバージョン)）
+1. `manual.md` の Ubuntu 24.04 の道具（`bash zsh git jq gh zip unzip python3 tzdata libdigest-sha-perl coreutils findutils procps`）を入れる。`gh` は、Ubuntu の標準のバージョンでは証明を検証できないので、GitHub の公式の apt のリポジトリ（`cli.github.com/packages`）の鍵と `sources` を置いて、そこから入れる（`docs/install.md` の[必要な `gh` のバージョン](install.md#必要な-gh-のバージョン)）
 2. WSL では、使う人を `useradd` で作る。sudo の群には入れない
 3. Docker を rootless で入れる（[Docker](#docker)）
 4. 使う人の linger を入れる（`loginctl enable-linger USER`）
@@ -144,7 +144,7 @@ Lima では、Lima の既定どおり、使う人に sudo を残す。共有の�
 
 ## Docker
 
-Docker は rootless で動かす。docker の群に入れた人は、`docker run --privileged` で中の root になれ、WSL ではドライブをつなぎ直せてしまうため。Lima でも同じ形にし、手順と確かめを 1 つにする。
+Docker は rootless で動かす。docker の群に入れた人は、`docker run --privileged` で中の root になれ、WSL ではドライブをつなぎ直せてしまうため。Lima でも同じ形にし、手順と確認を 1 つにする。
 
 - Docker の公式の apt のリポジトリから、rootless に要るもの（`docker-ce`、`docker-ce-rootless-extras`、`uidmap` など）を入れる
 - root の `docker.service` と `docker.socket` は止めて、無効にする
@@ -190,7 +190,7 @@ WantedBy=multi-user.target
 
 1. セットアップがまだなら（`~/.multica-agent/bin/gh` がない）、何もせずに 0 で終わる。VM を作った直後は、ログインもセットアップもまだのため
 2. `multica daemon status --output json` で、すでに動いていれば 0 で終わる。セットアップが起動したデーモンと二重にしないため
-3. サーバーの URL を、`MULTICA_SERVER_URL`、記録した接続先（[接続先を残す](#接続先を残す)）、`multica config show` の順に、最初にあるものから読む。確かめ方は `lib/host.sh` の `choose_server` と同じにする。どれもないか、読んだ値が正しくなければ、理由をログに出して 0 以外で終わる。正しくない値のときに次の読み先へ進まないのは、別のサーバーへ黙ってつながないため
+3. サーバーの URL を、`MULTICA_SERVER_URL`、記録した接続先（[接続先を残す](#接続先を残す)）、`multica config show` の順に、最初にあるものから読む。確認の方法は `lib/host.sh` の `choose_server` と同じにする。どれもないか、読んだ値が正しくなければ、理由をログに出して 0 以外で終わる。正しくない値のときに次の読み先へ進まないのは、別のサーバーへ黙ってつながないため
 4. PATH を、`$HOME/.multica-agent/bin:` と、`bash -lc` で読んだ使う人のログインの PATH をつないで作る。`~/.local/bin` に入れた道具を見付けるため
 5. `env -i HOME USER SHELL=/bin/zsh PATH CODEX_HOME=$HOME/.multica-agent/codex MULTICA_SERVER_URL` で、`multica daemon start --foreground` を exec する
 
@@ -213,13 +213,13 @@ Multica の `multica daemon autostart` は使わない。引数を受けず、`C
 
 1. セットアップがまだなら（`~/.multica-agent/bin/gh` がない）、何もしない
 2. PATH を `start-daemon` と同じに作り、`multica daemon status --output json` を読む。動いていなければ、何もしない
-3. 動いているデーモンが、`daemon_has_agent_env` と同じ変数を持つことを `ps eww` で確かめる。持たなければ、何もしない。セットアップか `start-daemon` が起動したデーモンだけを記録の元にし、手で別の設定で起動したデーモンの接続先を残さないため
-4. 状態の `.server_url` を、`start-daemon` と同じ規則で確かめ、末尾の `/` を除く。正しくなければ、理由をログに出して 0 以外で終わる
+3. 動いているデーモンの環境変数を `ps eww` で読み、`daemon_has_agent_env` と同じ条件で照合する。条件に合わなければ、何もしない。セットアップか `start-daemon` が起動したデーモンだけを記録の元にし、手で別の設定で起動したデーモンの接続先を残さないため
+4. 状態の `.server_url` を、`start-daemon` と同じ規則で確認し、末尾の `/` を除く。正しくなければ、理由をログに出して 0 以外で終わる
 5. 記録と違えば、同じディレクトリの一時のファイルに書いてから `mv` で置き換える。書きかけの記録を `start-daemon` が読まないようにするため
 
 記録は `~/.config/multica-squad-vm/server-url` に、URL を 1 行で置く。ホストには何も残さず、VM を消すと一緒に消える。セットアップを別の接続先で流し直すと、次の記録で新しい接続先に変わる。記録を消せば、`start-daemon` は CLI の既定に戻る。
 
-セットアップを終えてから最初の記録までの 1 分ほどの間に VM を止めると、記録は残らない。そのときは、次の起動で CLI の既定を使う。この間を閉じるため、`verify` は、デーモンの確かめが通ったあとに `record-server` を 1 回流し、記録が動いているデーモンの接続先と同じことを確かめる。手順書では、セットアップのあとに `verify` を流すよう案内し、この間を待たずに閉じる。
+セットアップを終えてから最初の記録までの 1 分ほどの間に VM を止めると、記録は残らない。そのときは、次の起動で CLI の既定を使う。この間を閉じるため、`verify` は、デーモンの確認が通ったあとに `record-server` を 1 回流し、記録した接続先を動いているデーモンの接続先と照合する。手順書では、セットアップのあとに `verify` を流すよう案内し、この間を待たずに閉じる。
 
 ### WSL のディストリを止めない
 
@@ -233,7 +233,7 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 
 ## 止める・消す
 
-止める・消す前に、中のデーモンの実行中のタスクを確かめる。動いている作業を、知らないうちに止めないため。
+止める・消す前に、中のデーモンの実行中のタスクを確認する。動いている作業を、知らないうちに止めないため。
 
 - 中で `multica daemon status --output json` を読み、`lib/host.sh` と同じく、実行中のタスク数の最大を見る
 - 1 つ以上あるか、数が分からなければ、何もせずに止まる。`--force` を付けたときだけ進める
@@ -241,17 +241,17 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 
 止めるときは、Lima は `limactl stop` を流す。WSL は、`start` で起動した `wsl.exe` を止めてから、`wsl --terminate NAME` を流す。
 
-消すときは、消す VM の名前と、中のログインと作業コピーがなくなることを示して、確かめを求める。`--yes` を付けたときは聞かない。Lima は `limactl delete` を流す。WSL は `wsl --unregister NAME` を流し、置き場所のフォルダを消す。
+消すときは、消す VM の名前と、中のログインと作業コピーがなくなることを示して、確認を求める。`--yes` を付けたときは聞かない。Lima は `limactl delete` を流す。WSL は `wsl --unregister NAME` を流し、置き場所のフォルダを消す。
 
-[Lima の通常の削除](https://github.com/lima-vm/lima/blob/v1.0.0/pkg/instance/delete.go)は停止中だけを受け付けるため、タスク数を確かめてから `limactl stop`、`limactl delete` の順に流す。`--force` を付けたときだけ、動いていても強制で削除する。
+[Lima の通常の削除](https://github.com/lima-vm/lima/blob/v1.0.0/pkg/instance/delete.go)は停止中だけを受け付けるため、タスク数を確認してから `limactl stop`、`limactl delete` の順に流す。`--force` を付けたときだけ、動いていても強制で削除する。
 
 消したあと、ホストに残るのは Lima（または WSL）と、その取り込んだイメージの控えだけになる。Lima のイメージの控えは `limactl prune` で消せることを、手順書に書く。
 
-## 確かめる
+## 確認する
 
-`verify` は、中で `verify.sh` を使う人の権限で流し、閉じ込めと自動の起動を確かめる。`create` の最後と、バージョンを出す前の確かめで使う。1 つでも通らなければ、通らなかった項目を出して 0 以外で終わる。
+`verify` は、中で `verify.sh` を使う人の権限で流し、閉じ込めと自動の起動を確認する。`create` の最後と、バージョンを出す前の確認で使う。1 つでも通らなければ、通らなかった項目を出して 0 以外で終わる。
 
-| 確かめること | Lima | WSL |
+| 確認すること | Lima | WSL |
 | --- | --- | --- |
 | ホストのファイルの共有がない | `virtiofs`、`9p`、`sshfs` の mount がなく、`/Users` がない | `drvfs`、Windows のドライブの `9p`、`/mnt/<ドライブ>` の mount がなく、`/mnt/c` がないか空のディレクトリである |
 | ホストの鍵がない | `SSH_AUTH_SOCK` がない | `SSH_AUTH_SOCK` がない |
@@ -260,7 +260,7 @@ Lima の VM も、Mac を起動し直したあとは `lima.sh start` で起動�
 | Docker | `docker run --rm hello-world` が通り、そのあとも上の項目が成り立つ | 同じ |
 | 自動の起動 | unit と記録の timer が有効で、linger が入っている | 同じ |
 
-セットアップのあとに流すと、デーモンが動いていて、`daemon_has_agent_env` と同じ変数を持つことも確かめる。続けて、接続先を記録し、記録がデーモンの接続先と同じことを確かめる（[接続先を残す](#接続先を残す)）。セットアップの前に流したときは、この項目を飛ばしたことを出す。
+セットアップのあとに流すと、デーモンが動いていることを確認し、その環境変数を `daemon_has_agent_env` と同じ条件で照合する。続けて、接続先を記録し、記録した接続先をデーモンの接続先と照合する（[接続先を残す](#接続先を残す)）。セットアップの前に流したときは、この項目を飛ばしたことを出す。
 
 ## ログインと認証
 
@@ -281,9 +281,9 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 
 スクリプトのテストは、`tests/` に足し、今の CI の `scripts` の両 OS で流す。外の道具は、今のテストと同じくスタブにする。
 
-| テスト | 確かめること |
+| テスト | 確認すること |
 | --- | --- |
-| `tests/vm-lima-test.sh` | スタブの `limactl` に渡す上書き、バージョンの不足と同じ名前での停止、起動前の設定の確かめで消して止まること、止める・消す前のタスク数の扱い、確かめの求め |
+| `tests/vm-lima-test.sh` | スタブの `limactl` に渡す上書き、バージョンの不足と同じ名前での停止、起動前の設定の確認で消して止まること、止める・消す前のタスク数の扱い、確認の求め |
 | `tests/vm-guest-test.sh` | `provision.sh` が書く `wsl.conf` と unit、sudo の群に入れないこと、二度流しても同じこと。`start-daemon` の 5 つの手順と、接続先を環境変数、記録、CLI の設定の順に読むこと。CLI の既定が記録と違うときと、CLI の設定がないときに、記録した接続先で起動すること。`record-server` が、デーモンが動いていないときと、`daemon_has_agent_env` の変数を持たないときに記録を変えないこと。`verify.sh` の各項目の成否。`gh` の apt のリポジトリの鍵と `sources` を、書き込み先の根の下に置くこと |
 | `tests/vm-wsl-test.sh` | スタブの `wsl.exe` を置いた `pwsh` で、`wsl.ps1` の各操作が渡す引数と、バージョン・名前・タスク数での停止 |
 
@@ -294,24 +294,24 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 
 `pwsh` がない手元では、`tests/vm-wsl-test.sh` を飛ばしたことを出して通す。CI では `SQUAD_KIT_REQUIRE_PWSH=1` を設定し、`pwsh` がなければ失敗にする。GitHub の [macOS](https://github.com/actions/runner-images/tree/main/images/macos) と [Ubuntu 24.04](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md) の構成表で、PowerShell が含まれることを確認した。
 
-`scripts/check.sh` に、`vm/*.sh` と `vm/guest/*` の `bash -n` と、`pwsh` があるときの `wsl.ps1` の構文の確かめを足す。
+`scripts/check.sh` に、`vm/*.sh` と `vm/guest/*` の `bash -n` と、`pwsh` があるときの `wsl.ps1` の構文の確認を足す。
 
 ## 利用者向けの文書の変更
 
-使う人への手順は `README.md` と `manual.md` に、バージョンを出す前の確かめは `CONTRIBUTING.md` に書く。この文書の設計の理由は写さない。
+使う人への手順は `README.md` と `manual.md` に、バージョンを出す前の確認は `CONTRIBUTING.md` に書く。この文書の設計の理由は写さない。
 
 `README.md` には、閉じ込めて動かす節を足す。
 
 - VM を作るスクリプトの使い方と、中でセットアップを流す方法（`manual.md` の節へのリンク）
 - 割くメモリとディスクの目安と、止め方・消し方
 - 普段のユーザーで動かすと、エージェントがホームの SSH の鍵や普段の `gh` の認証を読めること
-- 確かめた範囲に、Mac の Lima と WSL の専用のディストリを足す。バージョンを出す前に人が確かめる範囲であることも書く
+- 確認した範囲に、Mac の Lima と WSL の専用のディストリを足す。バージョンを出す前に人が確認する範囲であることも書く
 
 `manual.md` の「閉じ込めて動かす」の章では、ホストの原本を手動の手順で取ること、中では 1 行のコマンドで導入することを書く（`docs/install.md` の[利用者向けの文書の変更](install.md#利用者向けの文書の変更)）。
 
 `manual.md` には、「閉じ込めて動かす」の章を足す。作る、中に入る、道具とログイン、セットアップ、止める・起動する、消すの順に、コマンドを書く。ネットワークを閉じ込めないことと、WSL の root の作業の仕方も書く。セットアップのあとに `verify` を流すことと、接続先を変えるときはセットアップを流し直すことも書く。
 
-`CONTRIBUTING.md` には、「タグと Release を出す」の前に「バージョンを出す前に VM で確認する」の節を足す。Mac と WSL のそれぞれで、次を確かめて、結果をバージョンを上げる PR に書く。
+`CONTRIBUTING.md` には、「タグと Release を出す」の前に「バージョンを出す前に VM で確認する」の節を足す。Mac と WSL のそれぞれで、次を確認して、結果をバージョンを上げる PR に書く。
 
 1. スクリプトで VM を作り、中でセットアップを最後まで流す
 2. 中のエージェントが、許したリポジトリの checkout と PR の作成までできる
@@ -326,7 +326,7 @@ Lima のディスクは、使った分だけホストのディスクを使う。
 | Multica の `multica daemon autostart` で起動する | 引数を受けず、`CODEX_HOME` と関所の PATH を渡せない |
 | 使う人の systemd の unit で起動する | 起動の順が linger とログインに左右される。system の unit に `User=` を付ければ足りる |
 | Docker を root で動かし、docker の群に入れる | 群の人は中の root になれ、WSL ではドライブをつなぎ直せる |
-| `gh` を Ubuntu の標準の apt から入れる | 2.45.0 で、`gh attestation` を持たず、入口の確かめが流せない |
+| `gh` を Ubuntu の標準の apt から入れる | 2.45.0 で、`gh attestation` を持たず、入口の検証が流せない |
 | WSL を Ubuntu のイメージから `wsl --import` で作る | イメージの URL と照合値を原本で保つ手間が増える。公式の `wsl --install` で足りる |
 | Windows のタスク スケジューラや `limactl start-at-login` で自動で起動する | ホストに設定が残り、要件の「残るのは Lima（WSL）と VM のディスクだけ」に反する |
 | 接続先を `verify` のときだけ記録する | `verify` を流さずに VM を止めると、記録が残らない |
