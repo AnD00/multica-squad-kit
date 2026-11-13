@@ -100,11 +100,12 @@
 
 ### 実装した集計と一覧の入力
 
-集計と判定の一覧は、次のコマンドで作る。スナップショットと跡の定義だけを読み、Multica の記録は読み直さない。
+集計と判定の一覧は、次のコマンドで作る。集計には保存したスナップショットと跡の定義を使い、見出し・目印と履歴は見直し元の Git のコミットから読む。Multica の記録は読み直さない。
 
 ```bash
 python3 scripts/metrics.py traces tmp/metrics/snapshot.json \
   --traces tmp/metrics/procedures.json --project-key example --member-key anonymous \
+  --revision <見直し元のコミット> \
   --output tmp/metrics/traces
 ```
 
@@ -113,6 +114,12 @@ python3 scripts/metrics.py traces tmp/metrics/snapshot.json \
 状態の変化の跡は `kind: "transition"` と `from_status`・`to_status`、実行の跡は `kind: "run"` と `role`・`status` で照合する。実行の `role` は `--project-key` と `--member-key` から役の名前を読む規則に従い、一致しない名前は「その他」として指定できる。コメントは本文を再照合せず、保存済みの `trace_matches` を数える。
 
 出力は `traces.json` と `traces.md` で、入力のハッシュと使った値、選んだタスク、手順の ID の順の一覧を残す。跡を決められない行の回数は JSON では `null`、Markdown では「未確認」とし、0 回と区別する。合成した入力は `tests/fixtures/metrics/trace-procedures.json` と `trace-snapshot.json` にある。
+
+`--revision` は見直し元のコミットとして必須で、解決した完全な SHA を出力の入力欄に残す。原本の Git リポジトリは現在の場所を使い、別の場所は `--repository <ディレクトリ>` で指定できる。見出しと目印はそのコミットの内容から読み、作業ツリーや後のコミットは使わない。
+
+検査は、範囲のファイルのすべての見出しに、跡の定義があることを確認する。親の見出しや説明だけの節も、子の定義とは別に覆う。コードブロック内の見出しと先頭の YAML のメタデータは数えず、`#` の見出しと下線型の見出しを読む。同じ名前の節があるときは、`section` に「親 / 子」のように見出しの階層を書く。節が一意に決まらないとき、目印がその節の本文（子の節を含む）にちょうど 1 回現れないとき、覆わない見出しがあるときは出力を更新せずに止まる。
+
+削る候補・守る手順・判定できない行の `introduced_commit` に、目印を最初に足したコミットの `sha` と `subject` を残し、Markdown の「足したコミット」の列にも出す。ほかの判定の行は JSON では `null`、Markdown では「—」にする。履歴は指定したコミットから `git log -S` で読み、浅い履歴や読み取れない履歴では止まる。テストは一時領域に作った合成のリポジトリを使い、公開の履歴やサーバーには依存しない。
 
 ### 判定のスクリプトの置き場所
 

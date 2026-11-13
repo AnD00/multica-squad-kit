@@ -3,7 +3,7 @@
   "project_id": "synthetic-project",
   "collected_at": "2026-02-01T00:00:00Z",
   "cli_version": "synthetic-1",
-  "trace_definitions_sha256": "e317296679c45682ac0786a8ab341c4b11117d87815274987a55e516e8bd54e6",
+  "trace_definitions_sha256": "8bf08e0a0b6c0d2599a0300ce6ca50a02eb596bead637dcf0ca0b6394bef1fef",
   "issues": [
     {
       "id": "task-00",

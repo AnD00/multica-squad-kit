@@ -76,7 +76,7 @@ d9a39f16243c0e79c8bbdfcc7022179bfe87be6432dc913b311dfb52be14e63b  ./docs/leader-
 5b7b8aac065c5cb1e50954147aad383242a7d6e2817859d58a72c780c46b774d  ./docs/pr-conflict-check.md
 d07633e723828594ed4bdf2088184a8bf6ac3483fb5c14c34009399f5edc8945  ./docs/pr-link.md
 c63bec82ed4e24e570eadac28a7a15f2bcdacde771cf5e7e669b3fc9f2b650bf  ./docs/principal-review.md
-a0ef6b21ba155a182947a21d315b792784ecc8ac77a4c4aa791ee996de8a51b2  ./docs/procedure-review.md
+41b81197a633f9dc9a65f0ee1dc4dd76667ca1cc640b055f3700fc17dbb70459  ./docs/procedure-review.md
 b686eb169b1c9966e494869b23ca154189cb5cc926cc8b08e4da368afe2d2296  ./docs/release.md
 10e4f3e03296f93945f6523d37d57be9fd202f2ff762f49418f95e76a3d39704  ./docs/review-wait.md
 8602545c2587c3c1c5a7d8e273cf3cf5cf23acb3a7047193192f89b39f704db2  ./docs/run-status.md
@@ -111,7 +111,7 @@ a5266ab6bfd01aab4c8744777b707d510d1cd38b1a7761be916ad2ce2f61f9b4  ./lib/workspac
 a97c308a2137903013f686ad34a0658d1fb6cfb166bcb31902372b2b64718e73  ./scripts/ci-install.sh
 079acde5d284ee28fdd1eb2a9054b5e765028ea59e68297f009ba5a2887917df  ./scripts/manifest.sh
 0c6f19b207a381e0027b0f3a5739baa119c4b9523c7047ecd7d6f6aeeb098088  ./scripts/metrics-plan.json
-d6bc4f279c940142c45d64a9e994625e4ca3fb204494ed45e05deb157547f11b  ./scripts/metrics.py
+2d82f1ff10b852abd6aa8ea31974db44fd8079d8e6cbe25dabe3d219fa293da5  ./scripts/metrics.py
 4bc17cc4d51f67e800536211e0825a42aeadea15eb155a1c3e0310f6cfd54ebe  ./scripts/release.sh
 003a4c4e7809efaad8082c1eeff9da217f7eaaaedca3690969b60013de4be595  ./setup.sh
 51eb4a7c0fd29e15873a87c8dd06c550af1097bd66324f9bd0dc41f379eb769f  ./skeleton/.agents/rules/code.md
@@ -211,8 +211,8 @@ dbb62029d95e8f85b01008d88dcff6a7d5fce368188e140c4fc7b570fbf8a109  ./tests/fixtur
 f9ce3f4c67b1550210e811f353db239e2f9ca2a4bbf8c5ee1a2306c200526142  ./tests/fixtures/cli/squad-list.json
 a5bd1e16ebe71227d19112b61f795654383c56593bc865bc389d1b2e62fa3e6e  ./tests/fixtures/metrics/plan.json
 c04d7621b21d3ad8dca222219ef9de610463c0b4c0725ab6a53f0dba59ae1d84  ./tests/fixtures/metrics/snapshot.json
-e317296679c45682ac0786a8ab341c4b11117d87815274987a55e516e8bd54e6  ./tests/fixtures/metrics/trace-procedures.json
-257a88ad67d8c3f6e91f4477ec26aebaa8a8f43ba204c58708a8967d91f514e6  ./tests/fixtures/metrics/trace-snapshot.json
+8bf08e0a0b6c0d2599a0300ce6ca50a02eb596bead637dcf0ca0b6394bef1fef  ./tests/fixtures/metrics/trace-procedures.json
+86ce2f75edc7fb9a6b96f0fdcfe12c1b8849ba4dd4c3d6d2d9dcdc415a66f026  ./tests/fixtures/metrics/trace-snapshot.json
 ecd6f37c326cf97ab4c60f934a3168f56fd6923862d4a1de6831dbe7e96d3e23  ./tests/fixtures/metrics/traces.json
 941bedae10cb90cd9865ff3cb98b4c9d5ff26c027104c990fc6b75136ad96224  ./tests/gh-fixture.py
 cb32fbb9435532a6d2c67e2adee5b864b4498eb2cd781a373e4ef3fa624c3a42  ./tests/gh-test.sh
@@ -272,7 +272,7 @@ d1b3a1d4027607320e238396168780d67a30fc4186503b288fe05076d80f1955  ./tests/link-s
 595f77194c92d2348255415b6974973a74515718ad7616d2f12492dd3ad362fb  ./tests/metrics-collect-check.py
 ba0be47c5fd291d15c3bf07604c4cd59bf02519cc45a8f986ce391472c0a31c3  ./tests/metrics-collect-test.sh
 950a7c125987231e4291cffa9d0bc6cfff64b32e63e1dd6f0cc3ab4b813defc0  ./tests/metrics-test.sh
-2666aa8eafa27f21be112b1cafc53f8f52a76f8bca552bf3a891b2f13e650d14  ./tests/metrics-traces-check.py
+39c81240555b3b2eff99fbc1d826ee46c287d3611394a553834ce2ef1ba04cec  ./tests/metrics-traces-check.py
 f8014ad9d68401e6a9ac46ce260a7e721f76aab2f659f97db355b4b191667d07  ./tests/multica-fixture.py
 f4250423d5a0745fef1dd7e807e4b7f84993fe4d58a516e95ab6308b6c0c57f4  ./tests/pr-watch-fixture.py
 0fca3501ced72b0a0e5291bd36332a77cd749f647a6857bf1fecddc67889fefa  ./tests/pr-watch-test-lib.sh

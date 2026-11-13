@@ -141,6 +141,46 @@
         "pattern": "^HANDOFF",
         "author_type": "agent"
       }
+    },
+    {
+      "id": "skill-parent",
+      "file": "common/skills/squad-handoff/SKILL.md",
+      "section": "親",
+      "marker": "親の説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "skill-child",
+      "file": "common/skills/squad-handoff/SKILL.md",
+      "section": "親 / 子",
+      "marker": "子の説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "skill-reference",
+      "file": "common/skills/squad-handoff/references/example.md",
+      "section": "説明",
+      "marker": "参照の説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "squad-description",
+      "file": "common/squad.md",
+      "section": "説明",
+      "marker": "スクワッドの説明。",
+      "trace": null,
+      "not_procedure": true
+    },
+    {
+      "id": "autopilot-description",
+      "file": "common/autopilots.md",
+      "section": "説明",
+      "marker": "オートパイロットの説明。",
+      "trace": null,
+      "not_procedure": true
     }
   ]
 }
