@@ -138,7 +138,7 @@ calls = [
     {"command": "squad-review-wait watch issue-shop-1 comment-3 agent-code-reviewer agent-qa"},
     {"command": "multica issue comment add issue-shop-1 --parent comment-3 --content-file tmp/reply.md",
      "bodies": ["返事を待つ役: [@Code](mention://agent/agent-code-reviewer) [@QA](mention://agent/agent-qa)\n"
-                "確かめるコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"]},
+                "確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"]},
 ]
 def passed(records):
     return all(le.check_record(c["predicate"], records)[0] for c in scene["criteria"])
@@ -146,7 +146,7 @@ assert passed(calls)
 for missing in range(4):
     assert not passed(calls[:missing] + calls[missing + 1:]), missing
 assert not passed(calls[:2] + [calls[3], calls[2]])
-for text in ["返事を待つ役:", "確かめるコミット:", "agent-qa", "agent-code-reviewer", "3f9a2c1"]:
+for text in ["返事を待つ役:", "確認するコミット:", "agent-qa", "agent-code-reviewer", "3f9a2c1"]:
     wrong = copy.deepcopy(calls)
     wrong[-1]["bodies"][0] = wrong[-1]["bodies"][0].replace(text, "missing")
     assert not passed(wrong), text

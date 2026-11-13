@@ -88,7 +88,7 @@ for dir in "$test_dir/"*/; do
 	grep -qF 'in_review' "$file"
 	grep -qF 'ほかの役を呼ばない' "$file"
 	awk '/^## 場面と手順$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file" >"$test_dir/index"
-	for phrase in 'PR を受け取る' '返事を待つ回の開始' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確かめるコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
+	for phrase in 'PR を受け取る' '返事を待つ回の開始' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確認するコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
 		grep -qF "$phrase" "$test_dir/index"
 	done
 	for ref in $(grep -oE 'leader-[a-z-]+\.md' "$test_dir/index" | sort -u); do
@@ -447,7 +447,7 @@ for phrase in 'references/leader-*.md' 'リーダーだけが読み' '場面と�
 done
 echo 'PASS templates: 共通スキルはリーダーの手順の置き場所と読む役だけを示す'
 
-for phrase in 'squad-review-wait watch' 'squad-review-wait proceed' 'squad-review-wait status' '返事を待つ役:' '確かめるコミット:' '返事の待ち: 次に進む'; do
+for phrase in 'squad-review-wait watch' 'squad-review-wait proceed' 'squad-review-wait status' '返事を待つ役:' '確認するコミット:' '返事の待ち: 次に進む'; do
 	grep -qF "$phrase" "$refs/leader-review-wait.md"
 done
 for command in 'squad-review-wait proceed' 'squad-review-wait status'; do
