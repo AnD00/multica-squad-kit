@@ -1,0 +1,73 @@
+{
+  "captured_at": "2026-11-13T07:11:55.362913+00:00",
+  "cli_version": "gh version 2.103.3 (2026-10-26)",
+  "commands": {
+    "vulnerable.json": [
+      "gh",
+      "api",
+      "-X",
+      "GET",
+      "/advisories",
+      "-f",
+      "ecosystem=actions",
+      "-f",
+      "affects=actions/download-artifact@4.1.2",
+      "-f",
+      "per_page=100",
+      "--paginate",
+      "--slurp"
+    ],
+    "fixed.json": [
+      "gh",
+      "api",
+      "-X",
+      "GET",
+      "/advisories",
+      "-f",
+      "ecosystem=actions",
+      "-f",
+      "affects=actions/download-artifact@4.1.3",
+      "-f",
+      "per_page=100",
+      "--paginate",
+      "--slurp"
+    ],
+    "mixed.json": [
+      "gh",
+      "api",
+      "-X",
+      "GET",
+      "/advisories",
+      "-f",
+      "ecosystem=actions",
+      "-f",
+      "affects=actions/download-artifact@4.1.2,actions/download-artifact@4.1.3",
+      "-f",
+      "per_page=100",
+      "--paginate",
+      "--slurp"
+    ],
+    "v4.1.2.sha": [
+      "gh",
+      "api",
+      "repos/actions/download-artifact/commits/v4.1.2",
+      "--jq",
+      ".sha"
+    ],
+    "v4.1.3.sha": [
+      "gh",
+      "api",
+      "repos/actions/download-artifact/commits/v4.1.3",
+      "--jq",
+      ".sha"
+    ],
+    "v7.0.1.sha": [
+      "gh",
+      "api",
+      "repos/actions/checkout/commits/v7.0.1",
+      "--jq",
+      ".sha"
+    ]
+  },
+  "anonymization": "description の自由文と credits.user の値を匿名化。鍵と型、読んで検証する公開の勧告の値は維持。"
+}
