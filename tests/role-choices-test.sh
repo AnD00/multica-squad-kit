@@ -44,8 +44,8 @@ echo 'PASS role-choices: 使わないランタイムの系統だけ、1行目に
 
 # リーダーのエージェント名と、使うランタイムの最上位の役を、外せない役として出す。
 leader=$(printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: shop-orchestrator-owner')
-claude_principal=$(printf 'Claude の最上位のレビュー（claude-principal）: 重要なタスクの設計と PR を見直します。外せません。\n  エージェント: shop-claude-principal-owner')
-codex_principal=$(printf 'Codex の最上位のレビュー（codex-principal）: 重要なタスクの設計と PR を見直します。外せません。\n  エージェント: shop-codex-principal-owner')
+claude_principal=$(printf 'Claude の最上位のレビュー（claude-principal）: すべてのタスクの最終レビューと、重要なタスクの設計の見直しをします。外せません。\n  エージェント: shop-claude-principal-owner')
+codex_principal=$(printf 'Codex の最上位のレビュー（codex-principal）: すべてのタスクの最終レビューと、重要なタスクの設計の見直しをします。外せません。\n  エージェント: shop-codex-principal-owner')
 runtimes='["claude","codex"]'
 test "$(role_fixed_text)" = "$leader"$'\n'"$claude_principal"$'\n'"$codex_principal"
 runtimes='["claude"]'
