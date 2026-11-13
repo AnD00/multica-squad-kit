@@ -12,7 +12,7 @@ e26217d9263a7ee07305e8624b87471bdf97acb3c4695c0046804fd6ffeb837a  ./.agents/rule
 37feb6277999e20168efa6910ff4b72dcf7439b15ec664f04d67a6637f20506b  ./.markdownlint.json
 4e6e603eff2528c21eda05a1674becefe6a1d8ebc8e037c33a7074f6f04d8b0b  ./AGENTS.md
 e045f0367857b8e5e2a7600bedea3efe9342987489a09c425cb25ef69c50e5dc  ./CHANGELOG.md
-ff8f448a4a6257ac722f222c24f82f4bebdb8530f0d8e49a8a30144d5c790ab9  ./CONTRIBUTING.md
+70b0c240f5481a4e95bd7d40882941e52ff01a7d317b882d01dd9f0b7a7bc705  ./CONTRIBUTING.md
 356323ff62c3e0975af6d2f1de505473004878446d809eecb956a07d82ba4b45  ./EXTENSIONS.md
 5fc150ffa7481bf72f085255936a6c42e83589a161771193dbe1c10526b075c7  ./README.md
 1c7390408c06f10ec2f862559255135f4e3130725e7bd39ce4cce18868ccdc29  ./VERSION
@@ -305,8 +305,8 @@ c3473a1e7257c5bf185be2e98d3e02aeec8e97f6d08c216066a9b6ce0d3f865c  ./tests/releas
 7eacc0d4f19945128f3eea6e4a89d44b9e297b7b29d275972830a0843cb2b47e  ./tests/review-wait-test-lib.sh
 22335a35b9856427b72f799ac27e7f4e16905baa5c0b7146ebc07897de7806ee  ./tests/role-choices-test.sh
 34905166b3f90803c5d1c6d315ee2bafddb62d4933d66a94eb46d87d67fabc8f  ./tests/run-hook.sh
-ff124f860a7bbca8950ca3b64787650b5494ead54bc3707a7cfb9f323e3572b6  ./tests/run-one.sh
-997914c38d342a54dab719a6ac89af17f5338006d551d04590952d53d6a8f5a2  ./tests/run.sh
+ceaa71d521dc0ab96bd8bf3df7ec4f8ac7ad6c5b71a978efdceeae00e130efa6  ./tests/run-one.sh
+9171a06d0354cd063ba7ac381f5790d09039bb6b33a2bd38949dc2dc529a5b0f  ./tests/run.sh
 aa48052b223dabd13d51dbe43d6ce1172d420d23c55c76030b194f037b8a2ecd  ./tests/runtime-selection-test.sh
 507155d5f4c4741579206d59d13b4756794db91a775c7426b958f71d8ef6c8c3  ./tests/setup-extension-test.sh
 a4def5e327f858c5cc07f9b65635876716e4d0180ecde457776592bbbce38424  ./tests/setup-fixture.sh
@@ -332,7 +332,7 @@ e7c21e5862a62a0dae1b83998703eaf737a1e943183dead4e71e2344859ed1e8  ./tests/squad-
 b8ba154ca6dd4391b073ef2378b65c9529688f6aa4e74979253a7ffe4731861b  ./tests/squad-dependabot-merge-advance-diff-binary-test.sh
 36c5630cd8bda1eb2453fe3f6c328af87d9a996089236c6e7adc4717fe839a2b  ./tests/squad-dependabot-merge-advance-diff-request-test.sh
 22e12d01731775b165d042ae4ffc200dbc0247d0f12800b97a7fd2a7fac9f082  ./tests/squad-dependabot-merge-advance-diff-test.sh
-1eca359c776fd0e10d0d3984c94efde035652e9665292344b40ab2a2d26d4ea4  ./tests/squad-dependabot-merge-advance-gh-test.sh
+54a4617f5a045ee1df88fb5e60275efdd394f5ddb688f89438b048e4047d24c1  ./tests/squad-dependabot-merge-advance-gh-test.sh
 c26d7e2979a64c86723ff54a5abd158048496fc0af7cda3774265f3d8854bf3e  ./tests/squad-dependabot-merge-advance-mergeability-test.sh
 d4e7890477d1267ac324a1b838b950d2c4cb2972024b545908819d3c56690986  ./tests/squad-dependabot-merge-advance-request-test.sh
 1a1b795dd13fd8eab3e85bcb6920e5872208c38f767a174e47837a4c1cd63061  ./tests/squad-dependabot-merge-advance-retry-limit-test.sh
@@ -357,7 +357,7 @@ c424cc42f85949dd6010b5f48c0c3830f1a679831aae22a828c304c7398468e8  ./tests/squad-
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 51f0ab5afbf1c071e7e963fc1f230ab6e5a6ea779a6f8c90bb722b19546ac01d  ./tests/terminal-screen-test.sh
 68d8eb46f63893960d2c4edcdb841bbf39fd1123d3d348815bfd7a4d27c25a19  ./tests/terms-test.sh
-be7d0a25e7bbab93fc3fa0c3e50f216c953e1bd25f1401df43a2d042e22791c0  ./tests/test-runner-test.sh
+499791dae202f4ba1beaaed4d47506231821cb305413283d20ef02bcd4f42878  ./tests/test-runner-test.sh
 a77a6eb4f0d56638138822ea7cc51de7577048a0d795f0f7d7217c6c49727c23  ./tests/test-weights
 b553963e04a2016611fc503983739328077c2daf794433065e033fe585cff2c8  ./tests/ui-contrast.py
 43c7c5e6929bc863a92ad6fa2304c65bff89c679a110ed2944aeca137d45f6ec  ./tests/ui-pty.py
