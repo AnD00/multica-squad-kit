@@ -1879,3 +1879,45 @@ squad_cli_squad_for_leader() {
 	fi
 	jq '.[0]' <<<"$matches"
 }
+
+# エージェントの名前（<プロジェクトのキー>-<役>-<メンバーのキー>）から、このスクワッドの役を読む。
+# キーに - は入らないので、スクワッドの名前（キーとメンバーのキーを - でつなぎ大文字にしたもの）と
+# 先頭・末尾が合う名前の、間を役とする。アーカイブ済みのエージェントとキーが合わないものは入れない。
+# {leader, roles: {<役>: {id, model, name}}} を出す。見張りと次の依頼の決定が同じ名簿を使う。
+squad_cli_read_roster() {
+	local issue=$1 task squad_id squads squad key member members ids id agent roles='{}' name role
+	task=$(squad_cli_read issue-get "$issue") || return 1
+	squad_id=$(jq -r 'if .assignee_type == "squad" then .assignee_id else "" end' <<<"$task")
+	if [[ -z $squad_id ]]; then
+		echo "タスクの担当がスクワッドではないため、名簿を読めない: $issue" >&2
+		return 1
+	fi
+	squads=$(squad_cli_read squad-list) || return 1
+	squad=$(jq -c --arg id "$squad_id" '[.[] | select(.id == $id and .archived_at == null)] | first // empty' <<<"$squads") || return 1
+	if [[ -z $squad ]]; then
+		echo "タスクの担当のスクワッドが一覧にない、またはアーカイブ済み: $squad_id" >&2
+		return 1
+	fi
+	if ! jq -e '.name | ascii_downcase | split("-") | length == 2' <<<"$squad" >/dev/null; then
+		echo 'スクワッドの名前から、キーとメンバーのキーを読めない' >&2
+		return 1
+	fi
+	key=$(jq -r '.name | ascii_downcase | split("-")[0]' <<<"$squad")
+	member=$(jq -r '.name | ascii_downcase | split("-")[1]' <<<"$squad")
+	members=$(squad_cli_read squad-member-list "$squad_id") || return 1
+	ids=$(jq -r '.[] | select(.member_type == "agent") | .member_id' <<<"$members")
+	while IFS= read -r id; do
+		[[ -n $id ]] || continue
+		agent=$(squad_cli_read agent-get "$id") || return 1
+		role=$(jq -r --arg key "$key" --arg member "$member" '
+			select(.archived_at == null)
+			| (.name | ascii_downcase) as $name
+			| if ($name | startswith($key + "-")) and ($name | endswith("-" + $member))
+				and ($name | length) > ($key | length) + ($member | length) + 2
+			then $name[($key | length) + 1:-(($member | length) + 1)] else empty end' <<<"$agent") || return 1
+		[[ -n $role ]] || continue
+		roles=$(jq -c --arg role "$role" --argjson agent "$agent" \
+			'if has($role) then . else .[$role] = {id: $agent.id, model: $agent.model, name: $agent.name} end' <<<"$roles")
+	done <<<"$ids"
+	jq -cn --argjson squad "$squad" --argjson roles "$roles" '{leader: $squad.leader_id, roles: $roles}'
+}

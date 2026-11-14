@@ -18,6 +18,7 @@ set -- \
 	squad-pr-link \
 	squad-pr-link-lib \
 	squad-pr-watch \
+	squad-review-next \
 	squad-review-wait \
 	squad-usage-check \
 	squad-usage-lib \

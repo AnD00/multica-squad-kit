@@ -95,6 +95,7 @@ tests/squad-pr-watch-unlinked-test.sh 12
 tests/squad-pr-watch-url-test.sh 30
 tests/squad-preflight-test.sh 11
 tests/squad-review-wait-contract-test.sh 27
+tests/squad-review-next-test.sh 60
 tests/squad-review-wait-report-test.sh 30
 tests/squad-review-wait-status-test.sh 12
 tests/squad-usage-check-test.sh 28
