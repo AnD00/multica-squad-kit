@@ -1908,6 +1908,24 @@ squad_cli_squad_for_round() {
 	return 2
 }
 
+# 呼び出したリーダー（MULTICA_AGENT_ID）がリーダーのスクワッドの名簿を読む。回のコメントがない直接の呼び出し（request と pick）が使う。
+# タスクの担当がメンバーでも、オートパイロットのタスクでも、呼び出したリーダーのスクワッドで読める。
+# MULTICA_AGENT_ID がないか、そのエージェントがどのスクワッドのリーダーでもない（候補が 0 件・複数）ときだけ、タスクの担当のスクワッドへ戻る。
+# CLI・欄の検証の失敗は、戻らずに 1 を返す。
+squad_cli_read_roster_for_caller() {
+	local issue=$1 caller=${MULTICA_AGENT_ID:-} squad status
+	if [[ -n $caller ]]; then
+		if squad=$(squad_cli_squad_for_leader "$caller" 2>/dev/null); then
+			squad_cli_read_roster "$issue" "$(jq -r .id <<<"$squad")"
+			return
+		else
+			status=$?
+			((status == 2)) || return "$status"
+		fi
+	fi
+	squad_cli_read_roster "$issue"
+}
+
 # エージェントの名前（<プロジェクトのキー>-<役>-<メンバーのキー>）から、このスクワッドの役を読む。
 # キーに - は入らないので、スクワッドの名前（キーとメンバーのキーを - でつなぎ大文字にしたもの）と
 # 先頭・末尾が合う名前の、間を役とする。アーカイブ済みのエージェントとキーが合わないものは入れない。

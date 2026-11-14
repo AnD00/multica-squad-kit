@@ -218,7 +218,7 @@ pick() {
 		squad=$(squad_cli_squad_for_round "$comments" "$round") || return 1
 		roster=$(squad_cli_read_roster "$issue" "$(jq -r .id <<<"$squad")") || return 1
 	else
-		roster=$(squad_cli_read_roster "$issue") || return 1
+		roster=$(squad_cli_read_roster_for_caller "$issue") || return 1
 	fi
 	leader=$(jq -r '.leader' <<<"$roster")
 	roles=$(jq -c '.roles' <<<"$roster")

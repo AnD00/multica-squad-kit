@@ -9,6 +9,8 @@ mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/usage-wait-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 export USAGE_WAIT_TEST_DIR=$test_dir USAGE_WAIT_TEST_ROOT=$root REVIEW_WAIT_TEST_DIR=$test_dir
+# 呼び出したリーダーは、各ケースが決める。実行している環境の値を使わない。
+unset MULTICA_AGENT_ID
 source "$root/common/monitor/squad-cli-lib"
 squad_cli_contracts >"$test_dir/contracts.json"
 fixture() { python3 "$root/tests/review-wait-fixture.py" base "$@"; }
@@ -175,6 +177,34 @@ run principal Claude
 run principal
 [[ $(dispatch_calls) == 'principal' ]]
 echo 'PASS usage-wait: 両系統の構成では squad-dispatch-pick の選んだ役と振り分けを、工程の印を足して返す。principal の系統の引数もそのまま渡す'
+
+# 回を渡さない直接の呼び出しは、タスクの担当がメンバーでも、呼び出したリーダー（MULTICA_AGENT_ID）のスクワッドの名簿で選ぶ。
+# リーダーを決められないときだけ、タスクの担当のスクワッドへ戻る。担当もスクワッドでなければ失敗する。
+reset
+printf '役: claude-implementer\n振り分け: Claude（理由）。Claude 週 20%%\n' >"$test_dir/dispatch-out"
+cp "$test_dir/issue-member.json" "$test_dir/issue.current.json"
+cp "$test_dir/issue.json" "$test_dir/issue.saved.json"
+cp "$test_dir/issue-member.json" "$test_dir/issue.json"
+status=0
+(cd "$test_dir" && MULTICA_AGENT_ID=orchestrator bash monitor/squad-usage-wait pick test-issue implement 小さな) >"$test_dir/out" 2>"$test_dir/err" || status=$?
+expect_status 0
+expect_out $'役: claude-implementer\n振り分け: Claude（理由）。Claude 週 20%。工程: implement'
+[[ $(dispatch_calls) == 'implement 小さな' ]]
+status=0
+(cd "$test_dir" && MULTICA_AGENT_ID=someone-else bash monitor/squad-usage-wait pick test-issue implement 小さな) >"$test_dir/out" 2>"$test_dir/err" || status=$?
+expect_status 1
+grep -qF 'タスクの担当がスクワッドではない' "$test_dir/err"
+status=0
+(cd "$test_dir" && env -u MULTICA_AGENT_ID bash monitor/squad-usage-wait pick test-issue implement 小さな) >"$test_dir/out" 2>"$test_dir/err" || status=$?
+expect_status 1
+grep -qF 'タスクの担当がスクワッドではない' "$test_dir/err"
+# 担当がスクワッドなら、呼び出したリーダーがいなくても、これまでどおり担当のスクワッドで選ぶ。
+cp "$test_dir/issue.saved.json" "$test_dir/issue.json"
+reset
+printf '役: claude-implementer\n振り分け: Claude（理由）。Claude 週 20%%\n' >"$test_dir/dispatch-out"
+run implement 小さな
+expect_status 0
+echo 'PASS usage-wait: 担当がメンバーのタスクでも、呼び出したリーダーのスクワッドの名簿で選び、リーダーを決められなければ担当のスクワッドへ戻る'
 
 # ---- 両系統の構成で、dispatch-pick が両方上限に近いと返したときだけ待つ。
 echo 2 >"$test_dir/dispatch-status"

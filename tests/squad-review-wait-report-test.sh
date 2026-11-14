@@ -170,6 +170,39 @@ for failure in stderr empty long exit3; do
 done
 echo 'PASS report: 決める実行が失敗したときは、標準エラーの最後の行か終了コードを理由にして知らせる'
 
+# 理由の 300 字切りは、ロケールによらず文字単位で、不正な UTF-8 を作らない。C と UTF-8 のロケールで同じ本文になる。
+# 日本語だけの理由と、ASCII と日本語が混ざった理由、不正なバイトを含む理由で確かめる。
+for shape in japanese mixed invalid; do
+	case $shape in
+	japanese) printf '次の依頼を書けません: %s\n' "$(printf 'あ%.0s' $(seq 1 400))" >"$test_dir/decide-err.src"
+		expect=$(python3 -I -c 'print("あ" * 300 + "…", end="")') ;;
+	mixed) printf '次の依頼を書けません: 理由: %s\n' "$(printf 'あ%.0s' $(seq 1 400))" >"$test_dir/decide-err.src"
+		expect=$(python3 -I -c 'print(("理由: " + "あ" * 400)[:300] + "…", end="")') ;;
+	invalid) { printf '次の依頼を書けません: 理由: '; printf '\377\376'; printf 'あ%.0s' $(seq 1 400); printf '\n'; } >"$test_dir/decide-err.src"
+		expect=$(python3 -I -c 'print(("理由: \ufffd\ufffd" + "あ" * 400)[:300] + "…", end="")') ;;
+	esac
+	for locale in C C.UTF-8 en_US.UTF-8; do
+		reset_calls
+		build_comments $both >"$test_dir/comments.1.json"
+		cp "$test_dir/comments.1.json" "$test_dir/comments.2.json"
+		build_comments $both $own_record >"$test_dir/comments.json"
+		echo 1 >"$test_dir/decide-status"
+		cp "$test_dir/decide-err.src" "$test_dir/decide-err"
+		LC_ALL=$locale bash "$script" report test-issue trigger "$test_dir/result.md"
+		jq -s -j '.[2].body' "$test_dir/posted.jsonl" >"$test_dir/body.$shape.$locale"
+		# 不正な UTF-8 を含まず、理由の行が期待の文字列で始まる。
+		python3 -I -c 'import sys
+body = open(sys.argv[1], "rb").read().decode("utf-8")
+expect = sys.argv[2]
+prefix = "[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n次の依頼を決められません: "
+assert body.startswith(prefix + expect + "\n\n"), "理由の行が期待と違う"' "$test_dir/body.$shape.$locale" "$expect"
+	done
+	# 3 つのロケールで、本文が同じ。
+	cmp "$test_dir/body.$shape.C" "$test_dir/body.$shape.C.UTF-8"
+	cmp "$test_dir/body.$shape.C" "$test_dir/body.$shape.en_US.UTF-8"
+done
+echo 'PASS report: 理由の 300 字切りは、C と UTF-8 のロケールで同じ本文になり、不正な UTF-8 を作らない'
+
 # 決めて書けたときは、スクリプトが書いたので知らせを書かない。
 reset_calls
 build_comments $both >"$test_dir/comments.1.json"

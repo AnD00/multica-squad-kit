@@ -9,6 +9,8 @@ mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/review-next-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
 export REVIEW_NEXT_TEST_DIR=$test_dir REVIEW_NEXT_TEST_ROOT=$root REVIEW_WAIT_TEST_DIR=$test_dir
+# 呼び出したリーダーは、各ケースが決める。実行している環境の値を使わない。
+unset MULTICA_AGENT_ID
 source "$root/common/monitor/squad-cli-lib"
 squad_cli_contracts >"$test_dir/contracts.json"
 fixture() { python3 "$root/tests/review-wait-fixture.py" base "$@"; }
@@ -190,6 +192,24 @@ set_issue_labels label-imp-project
 run
 expect_request code-reviewer '変えたファイル 1 件が対応に当たった（プロジェクト 0 件・既定 1 件）'
 echo 'PASS review-next: 印「重要」があれば有効な観点をすべて頼み、課題のラベルでない「重要」は印にしない'
+
+# ---- 担当がメンバーのタスクでも、呼び出したリーダー（MULTICA_AGENT_ID）のスクワッドの名簿で依頼を書く。
+reset
+jq '. + {assignee_type: "member", assignee_id: "member-test"}' "$test_dir/issue.base.json" >"$test_dir/issue.json"
+status=0
+(cd "$test_dir" && MULTICA_AGENT_ID=orchestrator bash monitor/squad-review-next request test-issue trigger-1 "$sha") >"$test_dir/out" 2>"$test_dir/err" || status=$?
+expect_request code-reviewer '変えたファイル 1 件が対応に当たった（プロジェクト 0 件・既定 1 件）'
+# リーダーを決められなければ、担当のスクワッドへ戻り、担当もスクワッドでなければ、書かずに失敗する。
+for caller in someone-else ''; do
+	reset
+	jq '. + {assignee_type: "member", assignee_id: "member-test"}' "$test_dir/issue.base.json" >"$test_dir/issue.json"
+	status=0
+	(cd "$test_dir" && MULTICA_AGENT_ID=$caller bash monitor/squad-review-next request test-issue trigger-1 "$sha") >"$test_dir/out" 2>"$test_dir/err" || status=$?
+	expect_status 1
+	expect_no_comment
+	grep -q 'スクワッドの名簿を読めない' "$test_dir/err"
+done
+echo 'PASS review-next: 担当がメンバーのタスクでも、呼び出したリーダーのスクワッドの名簿で依頼を書く'
 
 # ---- 既定の対応だけで選ぶ。対応が base のブランチ（release）の内容として 404 になる。
 reset

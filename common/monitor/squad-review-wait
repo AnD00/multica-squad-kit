@@ -287,11 +287,11 @@ squad_for_round() {
 	squad_cli_squad_for_round "$1" "$2"
 }
 
-# 理由を 1 行にして、長ければ切る。
+# 理由を 1 行にして、長ければ 300 字で切る。bash の ${#text} と ${text:0:300} はロケールが C だとバイト単位になり、
+# 文字の途中で切って不正な UTF-8 を作るので、文字（コードポイント）単位で切る jq に任せる。不正な UTF-8 は jq が U+FFFD にする。
 one_line() {
 	local text=${1//$'\n'/ }
-	((${#text} <= 300)) || text="${text:0:300}…"
-	printf '%s' "$text"
+	printf '%s' "$text" | jq -Rrj 'if length <= 300 then . else .[0:300] + "…" end'
 }
 
 # 次の依頼を決めるスクリプトを流す。決められないとき（終了コード 3）と失敗したときは、理由を 2 行目に置いた知らせを書き、

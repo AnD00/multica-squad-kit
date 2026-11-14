@@ -26,6 +26,15 @@ run round-1
 expect_status 0
 expect_call_has pr-watch-calls 'ci test-issue ci-monitor round-1'
 expect_call_has pr-watch-calls 'ci-now test-issue orchestrator round-1 ci-monitor'
+# 見張りの役がいなければ、見張りの役の ID は付けない。
+reset
+set_roster orchestrator code-reviewer qa
+ok_round
+unlinked
+run round-1
+expect_status 0
+expect_call_has pr-watch-calls 'unlinked test-issue round-1 --leader orchestrator'
+expect_call_lacks pr-watch-calls 'unlinked test-issue round-1 ci-monitor'
 # 見張りを入れられなければ止まる。
 reset
 ok_round
@@ -44,7 +53,9 @@ expect_call_has pr-watch-calls 'ci-held test-issue round-1'
 expect_call_has pr-watch-calls 'ci test-issue ci-monitor round-1'
 expect_call_has pr-watch-calls 'ci-wait test-issue orchestrator round-1'
 expect_call_lacks pr-watch-calls ci-now
-expect_call_has pr-watch-calls 'unlinked test-issue round-1 --leader orchestrator'
+# 紐付いていない PR のマージ待ちは、見張りの役の ID を付けて登録する。付けないと、見張りの役を使わずリーダーを 1 時間おきに起こす規則になる。
+expect_call_has pr-watch-calls 'unlinked test-issue round-1 ci-monitor --leader orchestrator'
+expect_call_lacks pr-watch-calls 'unlinked test-issue round-1 --leader'
 [[ $(<"$test_dir/out") == $'次の依頼: マージの依頼'* ]] || fail "CI が成功なのに、マージの依頼を書いていない: $(<"$test_dir/out")"
 # その場の確認が止まる値。
 reset

@@ -695,7 +695,7 @@ request() {
 	task=$(squad_cli_read issue-get "$issue") || fail 'タスクを読めない'
 	pr=$(pr_of "$task") || fail 'PR を決められない（metadata の pr_url と repository を確認する）'
 	url=$(jq -r .url <<<"$pr")
-	roster=$(squad_cli_read_roster "$issue") || fail 'スクワッドの名簿を読めない'
+	roster=$(squad_cli_read_roster_for_caller "$issue") || fail 'スクワッドの名簿を読めない'
 	valid=$(valid_of "$roster")
 	[[ $(jq length <<<"$valid") != 0 ]] || fail 'スクワッドにレビューと E2E の役がない'
 
@@ -920,7 +920,7 @@ merge_checks() {
 	"$watch" conflicts "$issue" --leader "$leader" >/dev/null 2>&1 || stop_leader 'コンフリクトの規則を入れ直せない（squad-pr-watch conflicts が 0 以外で終わった）'
 	if [[ $LINKED == false ]]; then
 		status=0
-		out=$("$watch" unlinked "$issue" "$round" --leader "$leader" 2>/dev/null) || status=$?
+		out=$("$watch" unlinked "$issue" "$round" ${watcher:+"$watcher"} --leader "$leader" 2>/dev/null) || status=$?
 		if ((status != 0)); then
 			WATCH_FAILED=true
 		else
