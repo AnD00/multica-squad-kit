@@ -1,0 +1,20 @@
+[
+  [
+    {
+      "created_at": "2026-11-10T07:08:39Z",
+      "id": "fixture-roster-id-000001",
+      "member_id": "fixture-roster-id-000005",
+      "member_type": "agent",
+      "role": "leader",
+      "squad_id": "fixture-roster-id-000003"
+    },
+    {
+      "created_at": "2026-11-10T07:08:59Z",
+      "id": "fixture-roster-id-000004",
+      "member_id": "fixture-roster-id-000002",
+      "member_type": "member",
+      "role": "member",
+      "squad_id": "fixture-roster-id-000003"
+    }
+  ]
+]

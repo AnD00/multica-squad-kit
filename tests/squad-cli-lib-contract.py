@@ -285,6 +285,36 @@ if part == 'gh':
             failure('gh-statuses', changed, field)
     print('PASS unavailable Status: id・context・state を一つずつ消し、欄名・バージョンと終了1を確認する')
 
+    # gh を stub に替えて、ファイルがない（404）読み取りが終了コードと標準エラーで見分けられることを確認する。
+    gh_bin = work / 'gh-bin'
+    gh_bin.mkdir()
+    (gh_bin / 'gh').write_text('''#!/bin/sh
+if [ -f "$CLI_LIB_TEST_DIR/not-found" ]; then
+  echo '{"message":"Not Found","status":"404"}'
+  echo 'gh: Not Found (HTTP 404)' >&2
+  exit 1
+fi
+cat "$CLI_LIB_TEST_DIR/response.json"
+''')
+    (gh_bin / 'gh').chmod(0o755)
+    gh_env = dict(os.environ, PATH=str(gh_bin) + os.pathsep + os.environ['PATH'], CLI_LIB_TEST_DIR=str(work))
+
+    def gh_read(*args):
+        return subprocess.run(['bash', '-c', 'source "$1"; shift; squad_cli_read "$@"', 'bash', str(library), *args],
+                              capture_output=True, text=True, env=gh_env)
+
+    element = json.loads((fixtures / 'gh-file.json').read_text())[0]
+    (work / 'response.json').write_text(json.dumps(element))
+    result = gh_read('gh-file', 'repos/example/public/contents/.agents/review-paths?ref=main')
+    assert result.returncode == 0, result.stderr
+    assert sorted(json.loads(result.stdout)) == ['content', 'encoding', 'type'], result.stdout
+    (work / 'not-found').touch()
+    result = gh_read('gh-file', 'repos/example/public/contents/.agents/review-paths?ref=main')
+    assert result.returncode == 1 and result.stdout == '' and 'HTTP 404' in result.stderr, (result.returncode, result.stderr)
+    result = gh_read('gh-compare', 'repos/example/public/compare/aaa...bbb?per_page=1')
+    assert result.returncode == 1 and 'HTTP 404' in result.stderr, result.stderr
+    print('PASS gh-file・gh-compare: ファイルのない読み取りは終了 1 と標準エラーの HTTP 404 で見分けられる')
+
     # 実物にない非 null の secondary は、同じ枠の型を持つ primary の値から作る。
     entry = entries['codex-rate-limits']
     codex = json.loads((fixtures / 'codex-rate-limits.json').read_text())[0]

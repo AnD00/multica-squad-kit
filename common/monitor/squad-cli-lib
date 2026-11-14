@@ -534,6 +534,11 @@ squad_cli_contracts() {
           "path": "archived_at",
           "class": "required",
           "nullable": true
+        },
+        {
+          "path": "model",
+          "class": "required",
+          "nullable": false
         }
       ],
       "samples": [
@@ -571,6 +576,11 @@ squad_cli_contracts() {
             "nullable": false
           },
           {
+            "path": "creator_id",
+            "class": "required",
+            "nullable": false
+          },
+          {
             "path": "archived_at",
             "class": "required",
             "nullable": true
@@ -581,6 +591,43 @@ squad_cli_contracts() {
         {
           "name": "element",
           "where": "true"
+        }
+      ]
+    },
+    "squad-member-list": {
+      "command": [
+        "multica",
+        "squad",
+        "member",
+        "list",
+        "{squad}",
+        "--output",
+        "json"
+      ],
+      "shape": "array",
+      "items": {
+        "path": [],
+        "fields": [
+          {
+            "path": "member_type",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "member_id",
+            "class": "required",
+            "nullable": false
+          }
+        ]
+      },
+      "samples": [
+        {
+          "name": "agent",
+          "where": ".member_type == \"agent\""
+        },
+        {
+          "name": "member",
+          "where": ".member_type == \"member\""
         }
       ]
     },
@@ -1160,13 +1207,25 @@ squad_cli_contracts() {
         },
         {
           "name": "patch-absent",
-          "where": "has(\"patch\") | not",
-          "unavailable": "採取した Dependabot の PR はテキスト差分だけで patch を出す。バイナリ・大きな差分での省略は GitHub REST API の仕様による。"
+          "where": "has(\"patch\") | not"
+        },
+        {
+          "name": "previous_filename-present",
+          "where": "has(\"previous_filename\")"
+        },
+        {
+          "name": "previous_filename-absent",
+          "where": "has(\"previous_filename\") | not"
         }
       ],
       "items": {
         "path": [],
         "fields": [
+          {
+            "path": "filename",
+            "class": "required",
+            "nullable": false
+          },
           {
             "path": "status",
             "class": "required",
@@ -1183,6 +1242,11 @@ squad_cli_contracts() {
             "nullable": false
           },
           {
+            "path": "previous_filename",
+            "class": "optional",
+            "nullable": false
+          },
+          {
             "path": "patch",
             "class": "optional",
             "nullable": true
@@ -1192,6 +1256,72 @@ squad_cli_contracts() {
       "pagination": {
         "kind": "array"
       }
+    },
+    "gh-file": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "element",
+          "where": "true"
+        }
+      ],
+      "fields": [
+        {
+          "path": "type",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "encoding",
+          "class": "required",
+          "nullable": false
+        },
+        {
+          "path": "content",
+          "class": "required",
+          "nullable": false
+        }
+      ]
+    },
+    "gh-compare": {
+      "command": [
+        "gh",
+        "api",
+        "{endpoint}"
+      ],
+      "shape": "object",
+      "capture": "external",
+      "samples": [
+        {
+          "name": "ahead",
+          "where": ".status == \"ahead\""
+        },
+        {
+          "name": "identical",
+          "where": ".status == \"identical\""
+        },
+        {
+          "name": "behind",
+          "where": ".status == \"behind\""
+        },
+        {
+          "name": "diverged",
+          "where": ".status == \"diverged\""
+        }
+      ],
+      "fields": [
+        {
+          "path": "status",
+          "class": "required",
+          "nullable": false
+        }
+      ]
     },
     "gh-check-runs": {
       "command": [

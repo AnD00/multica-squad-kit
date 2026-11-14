@@ -35,7 +35,7 @@ def redact(value, aliases, path=()):
         return value
     if path[-1:] == ("login",):
         return value if value in ("dependabot[bot]", "app/dependabot") else "fixture-user"
-    if path[-1:] and path[-1] in ("body", "message", "patch", "name", "email", "description", "title", "filename", "text", "body_text", "body_html", "payload", "signature"):
+    if path[-1:] and path[-1] in ("body", "message", "patch", "name", "email", "description", "title", "filename", "previous_filename", "text", "body_text", "body_html", "payload", "signature"):
         return "fixture" if value else value
     if value.startswith(("https://", "http://")):
         return "https://example.invalid/fixture"
@@ -56,18 +56,25 @@ def main():
         # 外部で採取する約束には Codex も含まれる。この採取は gh の読み取りだけを扱う。
         if entry.get("capture") != "external" or entry["command"][0] != "gh":
             continue
-        command = commands[name]
-        if not read_only(command):
-            raise ValueError("採取は gh の読み取りだけです")
-        raw = ((args.response_dir / f"{name}.raw").read_text() if args.response_dir else
-               subprocess.check_output(command, text=True))
-        result = subprocess.run(["bash", "-c", 'source "$1"; squad_cli_normalize "$2" "$3"',
-                                 "bash", str(root / "common/monitor/squad-cli-lib"), name, version],
-                                input=raw, capture_output=True, text=True,
-                                env=dict(os.environ, SQUAD_CLI_TEST_KEEP_FIELDS="1"))
-        if result.returncode:
-            raise ValueError(f"約束と合いません: {name}: {result.stderr}")
-        selected[name], coverage[name], missing = capture["select_samples"]([json.loads(result.stdout)], entry)
+        # 形ごとに別の公開元が要るときは、読み取りのコマンドを並べて、応答を合わせて選ぶ。
+        sources = commands[name] if commands[name] and isinstance(commands[name][0], list) else [commands[name]]
+        responses = []
+        for index, command in enumerate(sources):
+            if not read_only(command):
+                raise ValueError("採取は gh の読み取りだけです")
+            if args.response_dir:
+                response_file = args.response_dir / (f"{name}.raw" if len(sources) == 1 else f"{name}.{index}.raw")
+                raw = response_file.read_text()
+            else:
+                raw = subprocess.check_output(command, text=True)
+            result = subprocess.run(["bash", "-c", 'source "$1"; squad_cli_normalize "$2" "$3"',
+                                     "bash", str(root / "common/monitor/squad-cli-lib"), name, version],
+                                    input=raw, capture_output=True, text=True,
+                                    env=dict(os.environ, SQUAD_CLI_TEST_KEEP_FIELDS="1"))
+            if result.returncode:
+                raise ValueError(f"約束と合いません: {name}: {result.stderr}")
+            responses.append(json.loads(result.stdout))
+        selected[name], coverage[name], missing = capture["select_samples"](responses, entry)
         if missing:
             raise ValueError(f"見本の形がありません: {name}: {missing}")
         for record in coverage[name]:

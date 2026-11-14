@@ -11,6 +11,18 @@
       "raw_url": "https://example.invalid/fixture",
       "contents_url": "https://example.invalid/fixture",
       "patch": "fixture"
+    },
+    {
+      "sha": "a67dca8b4f65d6bd351f6b1e333ce2cd84d843a5",
+      "filename": "fixture",
+      "status": "renamed",
+      "additions": 0,
+      "deletions": 0,
+      "changes": 0,
+      "blob_url": "https://example.invalid/fixture",
+      "raw_url": "https://example.invalid/fixture",
+      "contents_url": "https://example.invalid/fixture",
+      "previous_filename": "fixture"
     }
   ]
 ]
