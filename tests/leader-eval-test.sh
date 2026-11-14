@@ -10,8 +10,8 @@ eval_dir="$root/tests/leader-eval"
 scenes_dir="$eval_dir/scenes"
 helper=(python3 -I -B "$eval_dir/leader_eval.py")
 
-# 原則の 19 場面、最終レビュー・CI 待ちの 9 場面、PR の紐付けの 8 場面、差し戻しの数え方の 7 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
-expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 keep-1 keep-2 keep-3 keep-4 keep-5 keep-6 keep-7 keep-8 keep-9 keep-10 keep-11 keep-12 keep-13 keep-14 keep-15 keep-16 keep-17 keep-18 keep-19 keep-20 keep-21 keep-22 keep-23 keep-24 keep-25 keep-26 keep-27 keep-28 keep-29 keep-30 keep-31'
+# 原則の 19 場面、最終レビュー・CI 待ちの 9 場面、PR の紐付けの 8 場面、差し戻しの数え方の 7 場面、印のあるタスクの続行の確認の 8 場面。まだ置いていないものだけを pending に書く（今はすべて置いてある）。
+expected_scenes='1-1 1-2 2-1 2-2 3-1 3-2 4-1 4-2 5-1 5-2 6-1 6-2 keep-1 keep-2 keep-3 keep-4 keep-5 keep-6 keep-7 keep-8 keep-9 keep-10 keep-11 keep-12 keep-13 keep-14 keep-15 keep-16 keep-17 keep-18 keep-19 keep-20 keep-21 keep-22 keep-23 keep-24 keep-25 keep-26 keep-27 keep-28 keep-29 keep-30 keep-31 keep-32 keep-33 keep-34 keep-35 keep-36 keep-37 keep-38 keep-39'
 pending_scenes=''
 
 # --- 場面の形 ---
@@ -48,7 +48,7 @@ if grep -Eqi '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}' "$ev
 	echo "values.json に UUID の形の値があります" >&2
 	exit 1
 fi
-echo "PASS leader-eval: 43 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
+echo "PASS leader-eval: 51 場面の形が決まりどおり（pending: $(wc -w <<<"$pending_scenes" | tr -d ' ') 場面）"
 
 # --- 悪い場面を拒む ---
 bad="$test_dir/bad"
@@ -317,6 +317,49 @@ for n, wrongs in cases.items():
 print('PASS leader-eval: 差し戻しの数え方の 7 場面は、期待する記録と外した記録を区別する')
 PY_REWORK_SCENES
 
+# 印のあるタスクの続行の確認の 8 場面は、期待する記録を通し、止め方や出し方を外した記録を落とす。
+python3 -I -B - "$eval_dir" <<'PY_CONTINUE_SCENES'
+import copy, json, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+import leader_eval as le
+root = Path(sys.argv[1]) / 'scenes'
+def load(n):
+    path = root / f'keep-{n}'
+    return le.parse_scene(path / 'scene.md'), json.loads((path / 'cli.json').read_text())['expected_records']
+def passed(scene, calls):
+    return all(le.check_record(c['predicate'], calls)[0] for c in scene['criteria'] if c['kind'] == '記録')
+def body(calls, old, new):
+    wrong = copy.deepcopy(calls)
+    for call in wrong:
+        call['bodies'] = [b.replace(old, new) for b in call.get('bodies', [])]
+    return wrong
+def post(text):
+    return {'command': 'multica issue comment add issue-shop-1 --content-file tmp/reply.md', 'bodies': [text]}
+human = '[@安藤](mention://member/member1)'
+fixer = '[@Fixer](mention://agent/agent-claude-fixer)'
+in_review = {'command': 'multica issue status issue-shop-1 in_review', 'kind': 'read', 'exit': 0}
+pick_fix = {'command': 'squad-dispatch-pick fix', 'kind': 'read', 'exit': 0}
+for n in range(32, 40):
+    scene, records = load(n)
+    assert passed(scene, records), (n, '期待する記録が通らない')
+cases = {
+    32: [body(load(32)[1], '修正の続行の確認: 4 回目の前', ''), body(load(32)[1], '同じ部品の確認:', '同じ部品:'), load(32)[1][:1], load(32)[1] + [pick_fix]],
+    33: [body(load(33)[1], '4 回目の前', '3 回目の前'), load(33)[1][:1], load(33)[1][1:], load(33)[1] + [post(fixer + '\n修正の依頼: 4 回目')]],
+    34: [load(34)[1][1:], body(load(34)[1], '修正の依頼: 4 回目', '修正の依頼: 5 回目'), load(34)[1] + [post(human + '\n修正の続行の確認: 4 回目の前')]],
+    35: [load(35)[1] + [post(human + '\n修正の続行の確認: 5 回目の前'), in_review], load(35)[1][1:], body(load(35)[1], '修正の依頼: 5 回目', '修正の依頼: 4 回目')],
+    36: [body(load(36)[1], '7 回目の前', '6 回目の前'), load(36)[1][:1], load(36)[1][1:], load(36)[1] + [post(fixer + '\n修正の依頼: 7 回目')]],
+    37: [load(37)[1][1:], [r for r in load(37)[1] if 'label add' not in r['command']], [r for r in load(37)[1] if 'squad-review-wait watch' not in r['command']], body(load(37)[1], '共通 4', '共通 2'), load(37)[1] + [post(human + '\n修正の続行の確認: 4 回目の前'), in_review]],
+    38: [load(38)[1][1:], [r for r in load(38)[1] if 'proceed' not in r['command']], load(38)[1] + [post(human + '\n修正の続行の確認: 4 回目の前'), in_review], load(38)[1] + [{'command': 'multica issue label add issue-shop-1 label-important', 'kind': 'read', 'exit': 0}]],
+    39: [load(39)[1][1:], load(39)[1] + [{'command': 'multica issue label add issue-shop-1 label-important', 'kind': 'read', 'exit': 0}], load(39)[1] + [post(human + '\n修正の続行の確認: 4 回目の前'), in_review], load(39)[1] + [post('重要の印: 付けた。')]],
+}
+for n, wrongs in cases.items():
+    scene = load(n)[0]
+    for i, wrong in enumerate(wrongs):
+        assert not passed(scene, wrong), (n, i, '外した記録が通った')
+print('PASS leader-eval: 印のあるタスクの続行の確認の 8 場面は、期待する記録と外した記録を区別する')
+PY_CONTINUE_SCENES
+
 # --- スタブの claude で流す ---
 stub_bin="$test_dir/stub-bin"
 mkdir -p "$stub_bin"
@@ -444,7 +487,7 @@ grep -q 'agent-ci-monitor' "$all_out/instructions/new/instructions.md"
 if grep -q 'agent-ci-monitor' "$all_out/instructions/new/scenes/keep-22/instructions.md"; then
 	echo "keep-22: CI の見張り役が指示に残っています" >&2; exit 1
 fi
-echo "PASS leader-eval: 43 場面すべてをスタブで流し、場面ごとに基準の結果が出て、見張り役のない場面では指示からも外す"
+echo "PASS leader-eval: 51 場面すべてをスタブで流し、場面ごとに基準の結果が出て、見張り役のない場面では指示からも外す"
 
 # 比較する前の指示にも、場面に合わせた役の構成を使う。
 no_monitor_out="$test_dir/no-monitor"

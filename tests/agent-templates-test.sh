@@ -576,4 +576,9 @@ grep -qF '| 修正を振り分けるとき | 共通 4 だけ |' "$refs/leader-pr
 for phrase in '作業先' '同じ誤り' '原因'; do
 	grep -qF -- "$phrase" "$refs/leader-flow.md"
 done
+# 印のあるタスクの続行の確認: 数え方の節に行と解除の条件、確認する順に項目がある。
+for phrase in '修正の続行の確認: <N> 回目の前' '人間の続ける返事'; do
+	grep -qF -- "$phrase" "$refs/leader-principal.md"
+done
+grep -qF '修正の続行の確認:' "$refs/leader-flow.md"
 echo 'PASS templates: 振り分け・最上位の役・流れの参照が、スクリプトの呼び方と記録の行を持つ'
