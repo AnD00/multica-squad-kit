@@ -77,10 +77,10 @@ aeb3a3f8a67f0cb232bda5477deac063518fb6d8b1e7a40409789d77d3b1dda4  ./docs/install
 5b7b8aac065c5cb1e50954147aad383242a7d6e2817859d58a72c780c46b774d  ./docs/pr-conflict-check.md
 031855fd39c6a9eee4606072642947f689c89378548496cb2910ed2e53aed9cd  ./docs/pr-link.md
 36fed01b2c6824d2e6d1d2b7b96a28a8ea6a4587ee44db44e34f0d0c7db48976  ./docs/pr-unlinked.md
-160b72c0f4d59e78aba93617912cf08e093afe252c2c045e08c621507fb7085c  ./docs/principal-review.md
+f6551917bf621e9d09cecf5912576fd9991705dc75d1d1a6676ecdb422b1b4fc  ./docs/principal-review.md
 b686eb169b1c9966e494869b23ca154189cb5cc926cc8b08e4da368afe2d2296  ./docs/release.md
-c72ba6e19ceb4f2fead842b2e7faee6e0c892f248fd890f0ae6714002264d093  ./docs/repeat-diagnosis.md
-2a65c21ef049987ece5d158d422dd9df0e0536df074cd3e5388588a9dbb894a3  ./docs/review-next-step.md
+2696fe6d8d5e6e329b16b577e7021e7645dc17330c49716ed9a31bac90fbbc71  ./docs/repeat-diagnosis.md
+d90b1ebcb1c354f143adfa25eef33973ba863bb4bf79e9ddb51f8e968075527f  ./docs/review-next-step.md
 94242adb840de12825490c3a51e456e73c2d674354af856098cb54d313d20f37  ./docs/review-wait.md
 8602545c2587c3c1c5a7d8e273cf3cf5cf23acb3a7047193192f89b39f704db2  ./docs/run-status.md
 ad9dd6f28649d2ebdebd9200b0f9f443aeb8c3c62b15c120c4bc1ed91a33d61b  ./docs/screens.md
