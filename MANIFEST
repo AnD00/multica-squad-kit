@@ -50,6 +50,7 @@ d5dab5d997e94fa1b6aead450bbef85b429d3d123e3613825b7dfc191bdcb985  ./common/monit
 047ce7aa188ff399d5dc36b35a4b89da164be6a0b106a0120459afa10a21673e  ./common/monitor/squad-usage-check
 67746f87ae656f2e23961f61772297fc617a13dc86f5122a61e25b26a53b133b  ./common/monitor/squad-usage-lib
 a390c8c21494d51e5d715cffa1488558b8cefc8a6e1693e86270f47d3f063cbc  ./common/monitor/squad-usage-read
+d6e1464db5b60bcecda662f3253ff8f7ef11c6e70a583a64bff28eaac33c1a62  ./common/monitor/squad-usage-wait
 8b98e036b062d9075e79ed17716daa9a8e05eab2ebec4a97143fbeca973d69b1  ./common/setup-issues.json
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/.zshenv
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/env.sh
@@ -404,12 +405,13 @@ c424cc42f85949dd6010b5f48c0c3830f1a679831aae22a828c304c7398468e8  ./tests/squad-
 5d73938b35b859bb9aba6054557160e249e533d005c119af70ccb482a4efaf19  ./tests/squad-review-wait-status-test.sh
 686344d24a6ccb5924f574b6199c4f39bd2b1ee8957ef6330752f7eaee679844  ./tests/squad-usage-check-test.sh
 7a0981fb1bae26d19278c7dfaf9ee6ec3bbdfc1eb32ef237798d981d6c588fa5  ./tests/squad-usage-read-test.sh
+85418f61150010f2c2d86a06ba5c279c508353511b8d052edd3f43630707720b  ./tests/squad-usage-wait-test.sh
 99e07b03447d60fa15bec274b9ff2737b8b434ed1f34de93cc7e5b3cfb2d7813  ./tests/stdin-tty-run.py
 f04f8db3d867742f2662e3405c3492fa357193cee7da8ff3b7f7d168a083b93d  ./tests/stop-session.py
 51f0ab5afbf1c071e7e963fc1f230ab6e5a6ea779a6f8c90bb722b19546ac01d  ./tests/terminal-screen-test.sh
 68d8eb46f63893960d2c4edcdb841bbf39fd1123d3d348815bfd7a4d27c25a19  ./tests/terms-test.sh
 499791dae202f4ba1beaaed4d47506231821cb305413283d20ef02bcd4f42878  ./tests/test-runner-test.sh
-8e6459da33d3f9e6e1ff3e3e94f9bdd48b41ab3eb23d49d8d73f791b001494dd  ./tests/test-weights
+3df3a68e4d0141f6f8105e3bcf1a5c4cdb369046fbf2f16182457e672e712d29  ./tests/test-weights
 b553963e04a2016611fc503983739328077c2daf794433065e033fe585cff2c8  ./tests/ui-contrast.py
 43c7c5e6929bc863a92ad6fa2304c65bff89c679a110ed2944aeca137d45f6ec  ./tests/ui-pty.py
 f38f20053d7f9557b93f37a8a551961ad18d5103f8221887df996bb6dd32dd23  ./tests/ui-steps-test.sh

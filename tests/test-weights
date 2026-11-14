@@ -99,6 +99,7 @@ tests/squad-review-wait-report-test.sh 30
 tests/squad-review-wait-status-test.sh 12
 tests/squad-usage-check-test.sh 28
 tests/squad-usage-read-test.sh 26
+tests/squad-usage-wait-test.sh 12
 tests/terminal-screen-test.sh 1
 tests/terms-test.sh 3
 tests/test-runner-test.sh 53
