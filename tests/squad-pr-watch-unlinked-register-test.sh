@@ -103,3 +103,34 @@ status=0
 grep -q 'parent_comment_id' "$test_dir/error"
 assert_jq 'map(.id) == ["old"]' "$test_dir/rules.json"
 echo 'PASS unlinked: 規則の返信先の欄が欠けた一覧では、規則と記録先を変更しない'
+
+# --leader <ID> は、MULTICA_AGENT_ID の代わりにリーダーを決める。役の実行から呼ぶときは、環境の ID が役のものになるため。
+# 引数のどこにあっても受ける。見張り役を渡したときは、見張り役を起こし、リーダーは unlinked-check に渡す。
+for form in 'trigger-comment --leader leader-x' '--leader leader-x trigger-comment'; do
+	reset_fixture
+	# shellcheck disable=SC2086
+	(cd "$test_dir" && env -u MULTICA_AGENT_ID bash "$script" unlinked test-issue $form) >"$test_dir/output"
+	assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] == "leader-x")
+		and (.[0].args | index("--parent") as $i | .[$i+1] == "ci-thread")
+		and (.[0].body | contains("squad-pr-watch unlinked-check test-issue leader-x\n"))' "$test_dir/wakeups.jsonl"
+done
+reset_fixture
+MULTICA_AGENT_ID=role-agent bash -c 'cd "$1" && bash "$2" unlinked test-issue trigger-comment monitor --leader leader-x' _ "$test_dir" "$script" >"$test_dir/output"
+assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] == "monitor")
+	and (.[0].body | contains("squad-pr-watch unlinked-check test-issue leader-x monitor\n"))
+	and (.[0].body | contains("role-agent") | not)' "$test_dir/wakeups.jsonl"
+reset_fixture
+MULTICA_AGENT_ID=role-agent bash -c 'cd "$1" && bash "$2" unlinked test-issue trigger-comment --leader leader-x' _ "$test_dir" "$script" >"$test_dir/output"
+assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] == "leader-x")
+	and (.[0].body | contains("unlinked-check test-issue leader-x\n"))' "$test_dir/wakeups.jsonl"
+echo 'PASS unlinked: --leader でリーダーを決め、環境の ID に頼らない。見張り役があれば見張り役を起こす'
+
+# --leader も MULTICA_AGENT_ID もなければ失敗し、規則を作らない。--leader に値がなければ使い方のエラー。
+reset_fixture
+status=0
+(cd "$test_dir" && env -u MULTICA_AGENT_ID bash "$script" unlinked test-issue trigger-comment monitor) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/wakeups.jsonl && $(<"$test_dir/error") == *'--leader もありません'* ]]
+status=0
+(cd "$test_dir" && bash "$script" unlinked test-issue trigger-comment --leader) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 2 && ! -s $test_dir/wakeups.jsonl && $(<"$test_dir/error") == '使い方:'* ]]
+echo 'PASS unlinked: --leader も環境の ID もなければ失敗し、値のない --leader は使い方のエラー'

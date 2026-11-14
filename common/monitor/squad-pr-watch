@@ -6,8 +6,9 @@
 #   squad-pr-watch link-check <タスク>
 #     metadata の pr_url と紐付いた PR の一覧を比べ、紐付けの状態を 1 行で出す。書き込まない。
 #     読めないときも「未確認」の行を出し、0 で終わる。
-#   squad-pr-watch conflicts <タスク>
+#   squad-pr-watch conflicts <タスク> [--leader <リーダーの ID>]
 #     古いコンフリクトの規則を消し、呼び出した orchestrator 自身を起こす規則を作る。
+#     --leader を渡すと、その ID のリーダーを起こす。役の実行（squad-review-next decide）から呼ぶときに使う。
 #   squad-pr-watch conflicts-check <タスク>
 #     今の head と mergeable を読み、「コンフリクト: <値> head: <SHA>」の 1 行を必ず標準出力に出す。
 #     値は MERGEABLE・CONFLICTING・未確認のどれか。読めないときも「未確認」で、0 で終わる。
@@ -21,8 +22,10 @@
 #     記録のスレッドがなければ、きっかけのコメントを metadata に書いて使う。
 #   squad-pr-watch ci-held <タスク> <きっかけのコメント>
 #     今の head の未処理の失敗を一度だけ出し、引き継ぎで受けた記録をきっかけへの返信に残す。
-#   squad-pr-watch unlinked <タスク> <きっかけのコメント> [<見張り役の ID>]
+#   squad-pr-watch unlinked <タスク> <きっかけのコメント> [<見張り役の ID>] [--leader <リーダーの ID>]
 #     紐付いていない PR のマージ待ちを、1 時間おき・72 時間まで確認する規則を登録する。
+#     リーダーの ID は、省くと MULTICA_AGENT_ID から読む。unlinked-check に渡す ID と、見張り役がないときの起こす宛先になる。
+#     見張り役を渡したときは、今のとおり見張り役を起こす。
 #   squad-pr-watch unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>]
 #     終了・紐付けを先に確認し、CI とコンフリクト、食い違いを重複なく知らせる。
 #   squad-pr-watch ci-wait <タスク> <リーダー> <きっかけのコメント> [<起きた規則>]
@@ -38,7 +41,7 @@ UNLINKED_LIMIT_HOURS=72
 UNLINKED_MAX_FIRES=100
 
 usage() {
-	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント> | unlinked <タスク> <きっかけのコメント> [<見張り役の ID>] | unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>] | ci-wait <タスク> <リーダー> <きっかけのコメント> [<起きた規則>] | ci-wait-clear <タスク>' >&2
+	echo '使い方: squad-pr-watch link-check <タスク> | conflicts <タスク> [--leader <リーダーの ID>] | conflicts-check <タスク> | ci <タスク> <見張り役の ID> <きっかけのコメント> | ci-check <タスク> <リーダーの ID> <見張り役の ID> | ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>] | ci-held <タスク> <きっかけのコメント> | unlinked <タスク> <きっかけのコメント> [<見張り役の ID>] [--leader <リーダーの ID>] | unlinked-check <タスク> <リーダーの ID> [<見張り役の ID>] | ci-wait <タスク> <リーダー> <きっかけのコメント> [<起きた規則>] | ci-wait-clear <タスク>' >&2
 	exit 2
 }
 
@@ -143,7 +146,9 @@ link_check() {
 }
 
 conflicts() {
-	local issue=$1 rules ids id instruction response
+	local issue=$1 leader=${2-} rules ids id instruction response
+	local -a target=()
+	[[ -z $leader ]] || target=(--agent-id "$leader")
 	# CI など、ほかの条件の規則は残す。無効になった古い規則も消してから入れ直す。
 	rules=$(squad_cli_read issue-wakeups "$issue")
 	ids=$(jq -r '.[] | select(.condition.type == "pull_request" and .condition.event == "conflicts") | .id' <<<"$rules")
@@ -163,8 +168,8 @@ PR のコンフリクトの見張りで起きました。
 マージ待ちで、レビューと E2E の返事を待つ回の途中でなければ、リーダーの「実装・修正の振り分け」に従い、有効な修正の役を選んでください。選んだ役にタスクの metadata の pr_url を書いて、main とのコンフリクトの解消を頼み、タスクを in_progress にしてください。
 そうでなければ、何もせずに終えてください。作業中のコンフリクトは、次にマージに回すときに入れ直す見張りが拾います。
 EOF
-	# --agent-id を省くと、呼び出した orchestrator 自身を起こす。既定の mode は once。
-	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr conflicts)
+	# --agent-id を省くと、呼び出した orchestrator 自身を起こす。--leader を渡したときは、その ID を起こす。既定の mode は once。
+	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --until-pr conflicts ${target[@]+"${target[@]}"})
 	jq '{id}' <<<"$response"
 	rm -f "$instruction"
 	trap - EXIT
@@ -535,9 +540,10 @@ unlinked_deduplicate() {
 }
 
 unlinked() {
-	local issue=$1 trigger=$2 monitor=${3-} leader=${MULTICA_AGENT_ID:-} target task thread instruction response expires data
+	local issue=$1 trigger=$2 monitor=${3-} leader=${4-} target task thread instruction response expires data
+	[[ -n $leader ]] || leader=${MULTICA_AGENT_ID:-}
 	if [[ -z $leader ]]; then
-		echo 'MULTICA_AGENT_ID がありません。呼び出したリーダーを決められません。' >&2
+		echo 'MULTICA_AGENT_ID がなく、--leader もありません。呼び出したリーダーを決められません。' >&2
 		return 1
 	fi
 	task=$(squad_cli_read issue-get "$issue")
@@ -763,7 +769,7 @@ ci_wait_finish() {
 }
 
 ci_wait() {
-	local issue=$1 leader=$2 trigger=$3 fired=${4:-} task head since now pass pr_url pr new_head checks failures state comments
+	local issue=$1 leader=$2 trigger=$3 fired=${4:-} task head since now pass pr_url pr new_head checks failures state comments requested
 	local instruction response rule remaining key data
 	local limit=7200 interval=1800
 	task=$(squad_cli_read issue-get "$issue") || return 1
@@ -832,10 +838,18 @@ ci_wait() {
 		if [[ -n $new_head && $new_head != "$head" ]]; then head=$new_head; since=$now; fi
 		[[ -n $since ]] || since=$now
 		comments=$(squad_cli_read issue-comments "$issue") || return 1
-		if [[ -n $head ]] && jq -e --arg head "$head" --arg leader "$leader" '
-			any(.[]; .author_type == "agent" and .author_id == $leader
-				and (.content | split("\n") | index("マージの依頼: " + $head)) != null)' <<<"$comments" >/dev/null; then
-			state=マージを依頼済み
+		# リーダーのコメントと、`decide` が書くマージの依頼の制御記録を探す。制御記録の判定は squad-cli-lib にあり、
+		# `前の回:` の行だけを持つ引用や役の結果、決める実行の役でもリーダーでもない作者のコメントは、依頼済みと読まない。
+		# 依頼を含む候補が読めないときは、依頼済みと読まず、依頼も書かない。待ちの規則と metadata を残したまま、理由を出して終える。
+		if [[ -n $head ]]; then
+			requested=$(squad_cli_control merge_requested "$comments" "$(jq -cn --arg leader "$leader" '[$leader]')" null "$head") || return 1
+			case $requested in
+			yes) state=マージを依頼済み ;;
+			'blocked '*)
+				printf '%s\n' "${requested#blocked }" >&2
+				return 1
+				;;
+			esac
 		fi
 		case $state in
 		成功 | チェックなし | 失敗あり | マージを依頼済み)
@@ -876,6 +890,25 @@ ci_wait() {
 	done
 }
 
+# conflicts と unlinked は、どこにあっても --leader <ID> を受ける。ほかの引数の数え方は変えない。
+command=${1:-}
+leader_arg=''
+if [[ $command == conflicts || $command == unlinked ]]; then
+	shift
+	positional=()
+	while (($#)); do
+		if [[ $1 == --leader ]]; then
+			[[ -n ${2-} ]] || usage
+			leader_arg=$2
+			shift 2
+		else
+			positional+=("$1")
+			shift
+		fi
+	done
+	set -- "$command" ${positional[@]+"${positional[@]}"}
+fi
+
 case ${1:-} in
 link-check)
 	(($# == 2)) || usage
@@ -884,7 +917,7 @@ link-check)
 conflicts)
 	(($# == 2)) || usage
 	require_commands jq python3 multica
-	conflicts "$2"
+	conflicts "$2" "$leader_arg"
 	;;
 conflicts-check)
 	(($# == 2)) || usage
@@ -913,7 +946,7 @@ ci-held)
 unlinked)
 	(($# == 3 || $# == 4)) || usage
 	require_commands jq python3 multica
-	unlinked "$2" "$3" "${4-}"
+	unlinked "$2" "$3" "${4-}" "$leader_arg"
 	;;
 unlinked-check)
 	(($# == 3 || $# == 4)) || usage

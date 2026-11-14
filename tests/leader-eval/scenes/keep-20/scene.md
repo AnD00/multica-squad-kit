@@ -15,5 +15,5 @@
 ## 合格の基準
 
 1. [記録] 判定を流し、未確認の行を添えて人間へ返している。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && posted: 紐付け: 未確認 && posted: mention://member/member1 && called: ^multica issue status issue-shop-1 in_review`
-2. [記録] 紐付いていないものとして先へ進めず、次の役や見張りを呼んでいない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-wait watch && not-called: ^squad-pr-watch ci-now && not-called: ^squad-pr-watch unlinked issue-shop-1`
+2. [記録] 紐付いていないものとして先へ進めず、次の役や見張りを呼んでいない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-(wait watch|next request) && not-called: ^squad-pr-watch ci-now && not-called: ^squad-pr-watch unlinked issue-shop-1`
 3. [採点] 同じ実行で一度だけ流し直し、link-check の呼び出しは合計 2 回である。読めない一覧を空の一覧とは説明していない。

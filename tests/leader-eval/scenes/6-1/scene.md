@@ -15,7 +15,7 @@
 
 ## 合格の基準
 
-1. [記録] 返事を書く前に、`squad-pr-watch conflicts-check` を流して、PR の今の状態を確認している。 `判定: before: ^squad-pr-watch conflicts-check issue-shop-1 => issue comment add && before: ^multica issue runs issue-shop-1 --active => ^squad-dispatch-pick fix`
-2. [記録] コンフリクトの行を添えて、修正の役へ解消を頼み、タスクを `in_progress` に戻している。 `判定: called: ^squad-dispatch-pick fix && posted: mention://agent/agent-(claude|codex)-fixer && posted: コンフリクト: CONFLICTING head: 3f9a2c1 && called: ^multica issue status issue-shop-1 in_progress`
+1. [記録] 返事を書く前に、`squad-pr-watch conflicts-check` を流して、PR の今の状態を確認している。 `判定: before: ^squad-pr-watch conflicts-check issue-shop-1 => issue comment add && before: ^multica issue runs issue-shop-1 --active => ^squad-usage-wait pick issue-shop-1 fix`
+2. [記録] コンフリクトの行を添えて、修正の役へ解消を頼み、タスクを `in_progress` に戻している。 `判定: called: ^squad-usage-wait pick issue-shop-1 fix && posted: mention://agent/agent-(claude|codex)-fixer && posted: コンフリクト: CONFLICTING head: 3f9a2c1 && called: ^multica issue status issue-shop-1 in_progress`
 3. [採点] 人間の質問（変えたファイル）に、PR の内容から答えている。
 4. [採点] 人間を呼んで解消を頼まず、コンフリクトを見つけて修正の役へ回したことを、人間に知らせている。

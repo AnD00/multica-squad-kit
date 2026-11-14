@@ -14,5 +14,5 @@
 ## 合格の基準
 
 1. [記録] 両方の URL を示して人間へ返し、in_review にしている。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && posted: mention://member/member1 && posted: https://github.com/example/shop/pull/7 && posted: https://github.com/example/shop/pull/8 && called: ^multica issue status issue-shop-1 in_review`
-2. [記録] レビューや修正を頼まず、metadata と紐付けも変えていない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-wait watch && not-called: ^multica issue metadata set && not-called: ^squad-pr-link`
+2. [記録] レビューや修正を頼まず、metadata と紐付けも変えていない。 `判定: not-posted: mention://agent/ && not-called: ^squad-review-(wait watch|next request) && not-called: ^multica issue metadata set && not-called: ^squad-pr-link`
 3. [採点] どちらの PR が正かを人間に決めてもらっている。自分で片方に決めていない。

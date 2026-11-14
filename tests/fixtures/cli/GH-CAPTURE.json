@@ -38,10 +38,18 @@
       "--paginate"
     ],
     "gh-pr-files": [
-      "gh",
-      "api",
-      "repos/actions/checkout/pulls/2599/files?per_page=100",
-      "--paginate"
+      [
+        "gh",
+        "api",
+        "repos/actions/checkout/pulls/2599/files?per_page=100",
+        "--paginate"
+      ],
+      [
+        "gh",
+        "api",
+        "repos/actions/checkout/pulls/1885/files?per_page=100",
+        "--paginate"
+      ]
     ],
     "gh-check-runs": [
       "gh",
@@ -77,6 +85,33 @@
       "api",
       "repos/vitejs/vite/rules/branches/main",
       "--paginate"
+    ],
+    "gh-file": [
+      "gh",
+      "api",
+      "repos/actions/checkout/contents/README.md?ref=v4.1.1"
+    ],
+    "gh-compare": [
+      [
+        "gh",
+        "api",
+        "repos/actions/checkout/compare/v4.1.0...v4.1.1?per_page=1"
+      ],
+      [
+        "gh",
+        "api",
+        "repos/actions/checkout/compare/v4.1.1...v4.1.1?per_page=1"
+      ],
+      [
+        "gh",
+        "api",
+        "repos/actions/checkout/compare/v4.1.1...v4.1.0?per_page=1"
+      ],
+      [
+        "gh",
+        "api",
+        "repos/actions/checkout/compare/v4.0.0...v4.1.0?per_page=1"
+      ]
     ]
   },
   "coverage": {
@@ -150,8 +185,39 @@
       },
       {
         "name": "patch-absent",
-        "count": 0,
-        "unavailable": "採取した Dependabot の PR はテキスト差分だけで patch を出す。バイナリ・大きな差分での省略は GitHub REST API の仕様による。"
+        "count": 1
+      },
+      {
+        "name": "previous_filename-present",
+        "count": 1
+      },
+      {
+        "name": "previous_filename-absent",
+        "count": 1
+      }
+    ],
+    "gh-file": [
+      {
+        "name": "element",
+        "count": 1
+      }
+    ],
+    "gh-compare": [
+      {
+        "name": "ahead",
+        "count": 1
+      },
+      {
+        "name": "identical",
+        "count": 1
+      },
+      {
+        "name": "behind",
+        "count": 1
+      },
+      {
+        "name": "diverged",
+        "count": 1
       }
     ],
     "gh-check-runs": [

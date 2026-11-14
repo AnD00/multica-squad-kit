@@ -470,7 +470,7 @@ grep -qF 'codex exec --sandbox read-only --ephemeral' "$test_dir/all/codex-fixer
 ! grep -qF 'Agent ツールで' "$test_dir/all/codex-fixer"
 for role in code-reviewer performance-reviewer security-reviewer ux-reviewer qa; do
 	grep -qF 'スキル squad-handoff の「本文の書き方」に従う' "$test_dir/all/$role"
-	grep -qF '「引き継ぐとき」の形と順序にそろえる' "$test_dir/all/$role"
+	grep -qF '「引き継ぐとき」の形にそろえるのは、そのあとの成果物と確認したことだけにする' "$test_dir/all/$role"
 	grep -qF '3 行以内' "$test_dir/all/$role"
 done
 grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/designer"
@@ -555,10 +555,10 @@ before_merge_item 4 '見張りがあれば、紐付けの有無によらず `ci`
 before_merge_item 5 '紐付いていないなら続けて `unlinked` を流す'
 echo 'PASS templates: マージの前の確認の節が、1 の紐付けの確認・2 の head を正規形で読む文・4 の ci-wait・5 の unlinked を、その項目に持つ'
 
-for phrase in 'squad-dispatch-pick implement' 'squad-dispatch-pick fix' 'squad-usage-read'; do
+for phrase in 'squad-usage-wait pick <タスク> <implement | fix>' '使用率の待ちの起こしで起きたとき' '使用率の待ちの延長: <工程>。決めた人: <名前>' '質問だけでは待ち始めの時刻は新しくならない'; do
 	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
 done
-for phrase in 'squad-dispatch-pick principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
+for phrase in 'squad-usage-wait pick <タスク> principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
 	grep -qF -- "$phrase" "$refs/leader-principal.md"
 done
 for phrase in 'すべてのタスクで、人間へ回す直前に' '見る範囲:' '状態が `completed`' '`failed` と取り消しは数えない' '成功で終えたが変更を積まなかった実行も数える'; do
@@ -577,3 +577,41 @@ for phrase in '作業先' '同じ誤り' '原因'; do
 	grep -qF -- "$phrase" "$refs/leader-flow.md"
 done
 echo 'PASS templates: 振り分け・最上位の役・流れの参照が、スクリプトの呼び方と記録の行を持つ'
+
+# レビューと E2E の返事: 返事を書く役は report で返し、設計への指摘の行を持つ。次の依頼は decide が書き、リーダーは決められないときだけ起きる。
+handoff_skill="$root/common/skills/squad-handoff/SKILL.md"
+for phrase in '設計への指摘: <あり | なし>' '`返事の回:` の行は `report` が結果に足すので、書かない' 'コマンドの時間切れは 600 秒以上にする'; do
+	grep -qF -- "$phrase" "$handoff_skill"
+done
+for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-principal codex-principal; do
+	grep -qF 'squad-review-wait report <タスク> <きっかけのコメント> <ファイル>' "$test_dir/all/$role"
+	grep -qF '`report` で書かないと、そろった知らせも次の依頼も書かれないため' "$test_dir/all/$role"
+done
+for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-principal codex-principal; do
+	grep -qF '`設計への指摘: あり`' "$test_dir/all/$role"
+	grep -qF '`設計への指摘: なし`' "$test_dir/all/$role"
+done
+for phrase in '`squad-review-next decide`' '次の依頼を決められません: <理由>' '設計の見直しの回はリーダーが扱う' '`前の回:` でこの回を指すコメント'; do
+	grep -qF -- "$phrase" "$refs/leader-review-wait.md"
+done
+grep -qF '`--leader <ID>`' "$refs/leader-pr-checks.md"
+grep -qF '手で書くマージの依頼は、字下げ、引用、HTML、入れ子の項目を使わずに書く' "$refs/leader-pr-checks.md"
+grep -qF '`squad-usage-wait pick <タスク> planner` か `squad-usage-wait pick <タスク> designer`' "$refs/leader-flow.md"
+grep -qF '使用率の待ちの起こしで起きました。' "$test_dir/all/orchestrator"
+grep -qF '`squad-review-next request`' "$test_dir/all/orchestrator"
+echo 'PASS templates: 返事の役は report と設計への指摘の行で返し、リーダーは次の依頼を決められないときと使用率の待ちの起こしで起きる'
+
+# 結果の先頭の行: scripts が読むマークの行は、squad-handoff と 7 つのひな形が書き方を持つ。手で頼む最終レビューの前の回の行も、リーダーの手順が持つ。
+grep -qF '結果のファイルは、`確認したコミット:` の行のすぐ次の行を `<マーク> <自分のエージェントの名前>: <結論>` にする' "$handoff_skill"
+grep -qF 'メンションと文章の結論は、この行より前に置かない' "$handoff_skill"
+for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-principal codex-principal; do
+	grep -qF '結論を `<マーク> <自分のエージェントの名前>: <結論>` のマークの行にする。`確認したコミット:` の行、マークの行、`設計への指摘:` の行の順に書く' "$test_dir/all/$role"
+	grep -qF '`返事の回:` の行は `report` が足すので書かない' "$test_dir/all/$role"
+	if grep -qF 'の形と順序にそろえる。`確認したコミット:` の行の形と置き場所は' "$test_dir/all/$role"; then
+		echo "FAIL templates: $role のタスクに返す要約が、引き継ぐときの形に結論をそろえるままである" >&2
+		exit 1
+	fi
+done
+grep -qF '手で最終レビューを頼むときは、依頼に `前の回: <レビューと E2E の回のコメントの ID>` の行も置く' "$refs/leader-principal.md"
+grep -qF '依頼は、字下げ、引用、HTML、入れ子の項目を使わずに書く' "$refs/leader-principal.md"
+echo 'PASS templates: マークの行と手で頼む最終レビューの前の回の行を、書く側の指示が持つ'

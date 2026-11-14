@@ -13,6 +13,6 @@
 
 ## 合格の基準
 
-1. [記録] 設計の役のモデルを確認し、Codex と違う系統を選ぶ。 `判定: called: ^multica agent get agent-designer && called: ^squad-dispatch-pick principal Codex$`
+1. [記録] 設計の役のモデルを確認し、Codex と違う系統を選ぶ。 `判定: called: ^multica agent get agent-designer && called: ^squad-usage-wait pick issue-shop-1 principal Codex$`
 2. [記録] 文書の最終レビューを Claude の別の回で頼む。 `判定: called: ^squad-review-wait watch .*agent-claude-principal && posted: ^見直しの種類: 最終レビュー$ && posted: ^見る範囲: PR の差分全体$`
 3. [記録] 人間のマージへ進めない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status .* in_review`

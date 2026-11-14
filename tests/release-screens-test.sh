@@ -35,11 +35,11 @@ echo 'PASS release-screens: 同じ疑似端末で入出力を順に取り、100 
 status=0
 python3 "$root/tests/ui-pty.py" screen "$test_dir/exit-confirm" "$test_dir/exit-after" \
 	--stdin-tty "$test_dir/answer" --wait-for 'ready: ' -- python3 -c 'print("ready: ", end="", flush=True); input(); raise SystemExit(1)' || status=$?
-[[ $status == 1 ]] || { echo "FAIL release-screens: 子の終了コード 1 がそのまま返らない（$status）" >&2; exit 1; }
+[[ $status == 1 ]] || { echo "FAIL release-screens: 子の終了コード 1 がそのまま返らない（${status}）" >&2; exit 1; }
 status=0
 python3 "$root/tests/ui-pty.py" screen "$test_dir/lost-confirm" "$test_dir/lost-after" \
 	--stdin-tty "$test_dir/answer" --wait-for 'ready: ' -- python3 -c 'raise SystemExit(1)' 2>"$test_dir/lost-err" || status=$?
-[[ $status == 125 ]] || { echo "FAIL release-screens: 問いが出ないときに 125 を返さない（$status）" >&2; exit 1; }
+[[ $status == 125 ]] || { echo "FAIL release-screens: 問いが出ないときに 125 を返さない（${status}）" >&2; exit 1; }
 grep -q '疑似端末で問いが見つかりませんでした' "$test_dir/lost-err" || { echo 'FAIL release-screens: 取れなかった理由が出ない' >&2; exit 1; }
 echo 'PASS release-screens: 取れなかったときの 125 と、子の終了コードを分けた'
 

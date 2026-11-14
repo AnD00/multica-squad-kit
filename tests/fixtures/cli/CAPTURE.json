@@ -113,6 +113,16 @@
       "count": 1
     }
   ],
+  "squad-member-list": [
+    {
+      "name": "agent",
+      "count": 14
+    },
+    {
+      "name": "member",
+      "count": 1
+    }
+  ],
   "label-list": [
     {
       "name": "element",

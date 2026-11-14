@@ -102,20 +102,18 @@ for family in claude codex; do
 	grep -qF 'leader-dispatch.md' "$test_dir/orchestrator"
 	if [[ $family == claude ]]; then family_name=Claude; else family_name=Codex; fi
 	grep -qF "$family_name 系統だけがある" "$test_dir/orchestrator"
-	awk -v heading="### $family_name 系統だけのとき" '$0==heading {inside=1; next} inside && /^##/ {exit} inside {print}' \
-		"$ref" >"$test_dir/dispatch-instructions"
-	grep -qF 'squad-usage-read' "$test_dir/dispatch-instructions"
-	grep -qF '80%' "$test_dir/dispatch-instructions"
-	grep -qF 'それ以外はこの系統の対応する実装・修正の役へ回す' "$test_dir/dispatch-instructions"
-	grep -qF '読めなければこの系統に固定して選んだことと理由を書く' "$test_dir/dispatch-instructions"
-	# 両系統用の選択コマンドも、外した系統の役も残らない。
-	if grep -qF 'squad-dispatch-pick' "$test_dir/dispatch-instructions"; then exit 1; fi
+	# 系統ごとの選び方はスクリプトが持つ。参照は pick の呼び方と、片系統に固定して選ぶ決まりを示し、両系統用のコマンドを展開した指示に残さない。
+	awk '/^## 役の選び方$/ {inside=1; next} inside && /^##/ {exit} inside {print}' "$ref" >"$test_dir/dispatch-instructions"
+	grep -qF 'squad-usage-wait pick <タスク> <implement | fix>' "$test_dir/dispatch-instructions"
+	grep -qF '片系統ならその系統に固定して選ぶ' "$test_dir/dispatch-instructions"
+	grep -qF '`役:` の印を、リーダーの指示の「このスクワッドの役」にある有効な役の一覧に対応させ' "$test_dir/dispatch-instructions"
+	if grep -qF 'squad-dispatch-pick' "$test_dir/orchestrator"; then exit 1; fi
 	fixers=$(awk '/^- `[^`]+-fixer`:/ {print}' "$test_dir/orchestrator")
 	[[ $fixers == "- \`$family-fixer\`: [@Role](mention://agent/agent-$family-fixer)" ]]
 	other=codex
 	[[ $family != codex ]] || other=claude
 	if grep -qF "$other-fixer" "$test_dir/orchestrator"; then exit 1; fi
-	echo "PASS conflicts: $family のみでは通知から単一系統の使用率判定と有効な修正役へたどれる"
+	echo "PASS conflicts: $family のみでは通知から pick による選び方と有効な修正役へたどれる"
 done
 
 # conflicts-check: 今の head と mergeable を読み、値と head の 1 行を必ず出す。
@@ -429,3 +427,20 @@ fixture issue-wakeups | jq '[. + {condition:{type:"pull_request",event:"conflict
 if python3 "$root/tests/pr-watch-fixture.py" emit issue-wakeups "$test_dir/invented.json" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 [[ $(<"$test_dir/error") == *'見本とケースの鍵が違います'* ]]
 echo 'PASS fixture: 実物にない入れ子の欄を追加したケースを拒否する'
+
+# conflicts は、--leader <ID> を渡すとそのリーダーを起こす規則を作る。渡さなければ、これまでどおり --agent-id を付けない。
+reset_fixture
+(cd "$test_dir" && bash "$script" conflicts test-issue) >"$test_dir/output"
+assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") == null) and (.[0].args | index("--until-pr") as $i | .[$i+1] == "conflicts")' "$test_dir/wakeups.jsonl"
+for form in 'test-issue --leader leader-x' '--leader leader-x test-issue'; do
+	reset_fixture
+	# shellcheck disable=SC2086
+	(cd "$test_dir" && bash "$script" conflicts $form) >"$test_dir/output"
+	assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] == "leader-x")
+		and (.[0].args | index("--until-pr") as $i | .[$i+1] == "conflicts")' "$test_dir/wakeups.jsonl"
+done
+reset_fixture
+status=0
+(cd "$test_dir" && bash "$script" conflicts test-issue --leader) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 2 && ! -s $test_dir/wakeups.jsonl && $(<"$test_dir/error") == '使い方:'* ]]
+echo 'PASS conflicts: --leader でそのリーダーを起こす。渡さなければ --agent-id を付けない'

@@ -60,7 +60,7 @@
       "stdout": "CI 3f9a2c1: 失敗は知らせ済み"
     },
     {
-      "match": "squad-dispatch-pick fix",
+      "match": "squad-usage-wait pick issue-shop-1 fix",
       "stdout": "役: claude-fixer\n振り分け: Claude。Claude 週 42%（使ってよい量 60%）・5 時間 23%、Codex 週 6%（使ってよい量 10%）"
     },
     {
