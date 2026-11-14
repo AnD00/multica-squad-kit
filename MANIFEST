@@ -122,7 +122,7 @@ b32839416a050ff7beca6305431c9a2a22d7b3dcfb4d6eac72b628e7c6e0f8e2  ./skeleton/REA
 e4433f9b5b31181546e9b2449c1536f23777e1430455f126800e0d9d6a2d7092  ./skeleton/project.md
 b9033019a1fe0384a555a447fe064ade71c427af27a9caa4b175868fdd2085ad  ./skeleton/verify-repository.md
 ec94c1189f1071bf59f9c20765667893b12a24881b6a68739d14f2ecbe0ff678  ./tests/action-advisories-test.sh
-f664049eba4006ede8e3591ae105a434897cfb85b868a092615f53e33835f4af  ./tests/agent-templates-test.sh
+5e2277a57866716132cc82d8a388a9da5e89b8c0004094202dd78a1ecd33dbc1  ./tests/agent-templates-test.sh
 2c4dce6d55a2bec00a23cf829eb9939041a27c4bb78891f0aeb0d485ad1713c4  ./tests/ansi-to-png.py
 527977df9ef47cba1afcded7ab38a921de4e65916e97bdd4c460b53b5fae4e3d  ./tests/build-assets-test.sh
 f1db731d8bb0b395b68825d7f4c8f3bcb29c194b03faf77f77785cc6c742be38  ./tests/capture-cli-fixtures-test.sh
