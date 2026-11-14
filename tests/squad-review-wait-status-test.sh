@@ -60,8 +60,8 @@ echo 'PASS watch: 不明な役では古い規則を削除せずエラー'
 
 printf 'issue wakeup create' >"$test_dir/fail"
 if (cd "$test_dir" && bash "$script" watch test-issue trigger-comment "$b") >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
-[[ $(<"$test_dir/error") == 'CLI mock failure' ]]
-[[ -z $(find "$test_dir/tmp" -name 'review-wait-watch.*' -print) ]]
+[[ $(<"$test_dir/error") == 'CLI mock failure' ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
+[[ -z $(find "$test_dir/tmp" -name 'review-wait-watch.*' -print) ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 rm "$test_dir/fail"
 echo 'PASS watch: CLI 失敗を返し、指示ファイルを片付ける'
 
@@ -178,7 +178,7 @@ echo 'PASS status: 上限用の起床でも未処理のそろった回は進み�
 round_comments
 printf 'issue runs test-issue' >"$test_dir/fail"
 if bash "$script" status test-issue >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
-[[ $(<"$test_dir/error") == 'CLI mock failure' && ! -s $test_dir/output ]]
+[[ $(<"$test_dir/error") == 'CLI mock failure' && ! -s $test_dir/output ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 rm "$test_dir/fail"
 echo 'PASS status: CLI 失敗では誤った判定を出さずエラー'
 
@@ -194,7 +194,7 @@ REVIEW_WAIT_TEST_NOW=$((now + 869)) check_status $'/note\n返事の待ち: ス�
 REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
 REVIEW_WAIT_DECIDE_MINUTES=1 REVIEW_WAIT_TEST_NOW=$((now + 29)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
 REVIEW_WAIT_DECIDE_MINUTES=1 REVIEW_WAIT_TEST_NOW=$((now + 30)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
-[[ ! -s $test_dir/posted.jsonl && $(list_count) == 5 ]]
+[[ ! -s $test_dir/posted.jsonl && $(list_count) == 5 ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 echo 'PASS status: 決める記録から 15 分たつまでは待ち、15 分で拾い直しに回す（分は REVIEW_WAIT_DECIDE_MINUTES）'
 
 # 決める記録が複数あっても、いちばん新しい記録でなく、いちばん早い記録の時刻で測る。
@@ -241,7 +241,6 @@ echo 'PASS status: 返っていない役がいれば、決める記録があっ�
 # 制御記録でない `前の回:` は、次へ回し済みにしない。引用、役の結果、人間のコメント、種類の行のないコメントは、
 # 決める記録から 15 分たったあとも拾い直しに回す。
 noise=(
-	"nq orchestrator agent 95 $(printf '> 修正の依頼: 直してください\n> 前の回: round')"
 	"nr $a agent 95 $(printf '/note\n返事の回: round\n修正の依頼: 直してください\n前の回: round')"
 	"nh human-1 member 95 $(printf '修正の依頼: 直してください\n前の回: round')"
 	"nb orchestrator agent 95 $(printf '次の依頼です\n前の回: round')"
@@ -258,16 +257,29 @@ for spec in "${noise[@]}"; do
 	build_comments $both decide:a:d1:90 | with_raw "$id" "$who" "$type" "$sec" "$body" >"$test_dir/comments.json"
 	REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
 done
-echo 'PASS status: 引用・結果・人間・種類のない前の回: だけでは、次へ回し済みにしない'
+echo 'PASS status: 結果・人間・種類のない前の回:・囲みだけでは、次へ回し済みにしない'
 
-# 返事を待つ役の行を引用したコメントや、作者がリーダーでも決める実行の役でもない回の形のコメントは、最新の回にしない。
+# 引用は読めない書き方で、この回を指す候補になる。何も書かず、理由を標準エラーに出して終了 1 になる。次へ回し済みとも、拾い直しとも返さない。
 reset_calls
 build_comments $both decide:a:d1:90 \
-	| with_raw q1 orchestrator agent 100 "$(printf '> 返事を待つ役: [@review](mention://agent/%s)' "$a")" \
+	| with_raw nq orchestrator agent 95 "$(printf '> 修正の依頼: 直してください\n> 前の回: round')" >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status_blocked '制御記録を読めない（nq: 引用）'
+echo 'PASS status: この回を指す引用の候補は、何も書かず理由を標準エラーに出して終了 1 になる'
+
+# 作者がリーダーでも決める実行の役でもない回の形のコメントや、人間のコメントは、最新の回にしない。
+reset_calls
+build_comments $both decide:a:d1:90 \
 	| with_raw q2 "$a" agent 101 "$(printf '返事を待つ役: [@review](mention://agent/%s)\n観点: qa（テスト）' "$a")" \
 	| with_raw q3 human-1 member 102 "$(printf '返事を待つ役: [@review](mention://agent/%s)' "$a")" >"$test_dir/comments.json"
 REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
-echo 'PASS status: 引用や作者の違う回の形のコメントを、最新の回として読まない'
+echo 'PASS status: 作者の違う回の形のコメントを、最新の回として読まない'
+
+# 認める最新の回より後に、返事を待つ役の行を引用した（読めない）候補があれば、古い回に戻らず、何も書かずに終了 1 になる。
+reset_calls
+build_comments $both decide:a:d1:90 \
+	| with_raw q1 orchestrator agent 100 "$(printf '> 返事を待つ役: [@review](mention://agent/%s)' "$a")" >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status_blocked '制御記録を読めない（q1: 引用）'
+echo 'PASS status: 最新の回より後の、返事を待つ役の行を引用した候補は、古い回に戻らず終了 1 になる'
 
 # 返事を待つ役でない役の決める記録は、15 分の判定に使わない。記録がないのと同じに、すぐ拾い直しに回す。
 reset_calls

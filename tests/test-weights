@@ -123,3 +123,10 @@ tests/squad-cli-lib-control-test.sh 5
 tests/squad-cli-lib-fence-test.sh 5
 tests/squad-review-next-decide-control-test.sh 70
 tests/squad-review-next-decide-recognize-test.sh 60
+tests/squad-cli-lib-body-table-test.sh 8
+tests/squad-review-next-decide-body-readable-test.sh 45
+tests/squad-review-next-decide-body-unreadable-test.sh 100
+tests/squad-review-next-decide-unreadable-scenario-test.sh 30
+tests/squad-review-wait-body-test.sh 50
+tests/squad-review-wait-report-unreadable-test.sh 5
+tests/squad-pr-watch-ci-wait-body-test.sh 50

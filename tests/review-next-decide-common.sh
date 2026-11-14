@@ -175,13 +175,16 @@ set_metadata() { # 鍵 値
 # コメントの見本と、時刻を進めるカウンタ。
 comment_base=$(fixture issue-comments agent)
 n=0
-add() { # ID 書いた役 本文 [返信先]
+add_json() { # ID 書いた役 本文の JSON 文字列（NUL や単独の CR を含められる） [返信先]
 	n=$((n + 1))
-	jq --argjson base "$comment_base" --arg id "$1" --arg author "$2" --arg content "$3" --arg parent "${4-round-0}" \
+	jq --argjson base "$comment_base" --arg id "$1" --arg author "$2" --argjson content "$3" --arg parent "${4-round-0}" \
 		--arg at "$(printf '2026-11-10T12:%02d:%02dZ' $((n / 60)) $((n % 60)))" \
 		'. + [$base + {id: $id, author_id: $author, author_type: (if $author == "human-1" then "member" else "agent" end), content: $content, created_at: $at, parent_id: $parent}]' \
 		"$test_dir/comments.json" >"$test_dir/comments.new"
 	mv "$test_dir/comments.new" "$test_dir/comments.json"
+}
+add() { # ID 書いた役 本文 [返信先]
+	add_json "$1" "$2" "$(jq -n --arg content "$3" '$content')" "${4-round-0}"
 }
 mention() { printf '[@demo-%s-test](mention://agent/%s)' "$1" "$1"; }
 mentions() { local out='' role; for role; do out+="${out:+ }$(mention "$role")"; done; printf '%s' "$out"; }

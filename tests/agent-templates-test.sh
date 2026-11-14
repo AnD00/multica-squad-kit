@@ -595,6 +595,7 @@ for phrase in '`squad-review-next decide`' '次の依頼を決められません
 	grep -qF -- "$phrase" "$refs/leader-review-wait.md"
 done
 grep -qF '`--leader <ID>`' "$refs/leader-pr-checks.md"
+grep -qF '手で書くマージの依頼は、字下げ、引用、HTML、入れ子の項目を使わずに書く' "$refs/leader-pr-checks.md"
 grep -qF '`squad-usage-wait pick <タスク> planner` か `squad-usage-wait pick <タスク> designer`' "$refs/leader-flow.md"
 grep -qF '使用率の待ちの起こしで起きました。' "$test_dir/all/orchestrator"
 grep -qF '`squad-review-next request`' "$test_dir/all/orchestrator"

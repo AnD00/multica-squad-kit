@@ -29,7 +29,6 @@ control_case() { # 説明 作者 本文
 control_case '前の回: だけ（リーダー）' orchestrator $'次の依頼です\n前の回: round-1'
 control_case '前の回: だけ（決める実行の役）' qa $'次の依頼です\n前の回: round-1'
 control_case '種類の行だけ' orchestrator '修正の依頼: 直してください'
-control_case '引用の中の前の回: と種類の行' orchestrator $'> 修正の依頼: 直してください\n> 前の回: round-1'
 control_case '逆引用符の囲みの中' orchestrator $'```\n修正の依頼: 直してください\n前の回: round-1\n```'
 control_case '4 個の囲みの中の 3 個の囲みの例' orchestrator $'````\n```\n修正の依頼: 直してください\n前の回: round-1\n```\n````'
 control_case '4 個の囲みの中の 3 個の囲みのあとの例' qa $'````md\n```\nx\n```\n修正の依頼: 直してください\n前の回: round-1\n````'
@@ -39,7 +38,17 @@ control_case '役の結果の中（返事の回: あり）' qa $'/note\n返事�
 control_case '人間のコメント' human-1 $'修正の依頼: 直してください\n前の回: round-1'
 control_case '決める実行の役でもリーダーでもないエージェント' claude-fixer $'修正の依頼: 直してください\n前の回: round-1'
 control_case '存在しない回を指す' orchestrator $'修正の依頼: 直してください\n前の回: round-99'
-echo 'PASS review-next-decide: 前の回: だけ・引用・囲み（字下げ 4 個の終了風の行を含む）・結果・人間・ほかの役・存在しない回を指すコメントは、書き済みにしない'
+echo 'PASS review-next-decide: 前の回: だけ・囲み（字下げ 4 個の終了風の行を含む）・結果・人間・ほかの役・存在しない回を指すコメントは、書き済みにしない'
+
+# 引用は読めない書き方で、この回を指す候補になる。書き済みにも次の依頼にもせず、何も書かずに理由つきで終了 3 になる。
+for author in orchestrator qa; do
+	reset
+	ok_round
+	add next "$author" $'> 修正の依頼: 直してください\n> 前の回: round-1'
+	run round-1
+	expect_leader '制御記録を読めない（next: 引用）'
+done
+echo 'PASS review-next-decide: 引用の中の前の回: と種類の行は、読めない候補として何も書かずに終了 3 になる'
 
 # 回より前に書かれたコメントは、制御記録でない。
 reset

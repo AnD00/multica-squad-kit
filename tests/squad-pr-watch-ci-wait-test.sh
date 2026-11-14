@@ -3,52 +3,7 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
-source "$root/tests/pr-watch-test-lib.sh"
-head=abcdef0123456789abcdef0123456789abcdef0123
-cat >"$test_dir/bin/date" <<'EOF'
-#!/bin/bash
-[[ "$*" == +%s ]] || exit 1
-cat "$PR_WATCH_TEST_DIR/now"
-EOF
-chmod +x "$test_dir/bin/date"
-
-wait_fixture() {
-	reset_fixture
-	echo 10000 >"$test_dir/now"
-	touch "$test_dir/persist-created-rule"
-	printf 'trigger-comment' >"$test_dir/allowed-parent"
-	jq --arg head "$head" '.headRefOid=$head | .statusCheckRollup=[.statusCheckRollup[2]]' "$test_dir/pr.json" >"$test_dir/updated.json"
-	mv "$test_dir/updated.json" "$test_dir/pr.json"
-}
-old_wait() {
-	local age=${1:-0}
-	jq --arg head "$head" --argjson since "$((10000-age))" '.metadata += {ci_wait_head:$head,ci_wait_since:$since,ci_wait_rule:"old-wait"}' "$test_dir/task.json" >"$test_dir/updated.json"
-	mv "$test_dir/updated.json" "$test_dir/task.json"
-	fixture issue-wakeups | jq '[. + {id:"old-wait",mode:"once",condition:{type:"pull_request",event:"checks_finished"},instruction:"CI の待ちの規則で起きました。"},
-		. + {id:"monitor-rule",mode:"continuous",condition:{type:"pull_request",event:"checks_finished"}},
-		. + {id:"conflicts-rule",mode:"once",condition:{type:"pull_request",event:"conflicts"}}]' >"$test_dir/rules.json"
-}
-status_pr() {
-	local status=$1
-	jq --arg status "$status" --slurpfile base "$test_dir/check-prototype.json" '
-		.statusCheckRollup = (if $status=="none" then []
-		elif $status=="external" then [{__typename:"StatusContext",state:"PENDING",context:"external"}]
-		elif $status=="FAILURE" then [$base[0] + {status:"COMPLETED",conclusion:$status,workflowName:"CI",name:"test"},
-			$base[0] + {status:"IN_PROGRESS",conclusion:null}]
-		else [$base[0] + {status:"COMPLETED",conclusion:$status}] end)' "$test_dir/pr.json" >"$test_dir/updated.json"
-	mv "$test_dir/updated.json" "$test_dir/pr.json"
-}
-wait_output() { check_output "$1" ci-wait test-issue orchestrator trigger-comment "${@:2}"; }
-assert_cleared() {
-	assert_jq '.metadata | has("ci_wait_head") or has("ci_wait_since") or has("ci_wait_rule") | not' "$test_dir/task.json"
-	assert_jq '[.[] | select(.instruction | startswith("CI の待ちの規則で起きました。"))] | length==0' "$test_dir/rules.json"
-	assert_jq '.metadata.ci_watch_thread=="ci-thread"' "$test_dir/task.json"
-}
-requested() {
-	local author=$1 value=$2
-	jq --slurpfile base "$test_dir/comment-prototype.json" --arg author "$author" --arg value "$value" -n \
-		'[$base[0] + {author_type:"agent",author_id:$author,content:$value}]' >"$test_dir/comments.json"
-}
+source "$root/tests/pr-watch-ci-wait-lib.sh"
 
 # 取り消しは失敗ではないが、成功が確認できるまで同じ head の期限で待つ。
 for age in none 0 7199 7200; do
@@ -59,7 +14,7 @@ for age in none 0 7199 7200; do
 	if [[ $age == 7200 ]]; then
 		wait_output "CI $head: 未確認（待つ上限の 2 時間を超えた）"
 		assert_cleared
-		[[ ! -s $test_dir/wakeups.jsonl ]]
+		[[ ! -s $test_dir/wakeups.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 	else
 		wait_output "CI $head: 未確認"
 		assert_jq --argjson since "$since" '.metadata.ci_wait_since==$since and .metadata.ci_wait_rule!=null' "$test_dir/task.json"
@@ -68,12 +23,12 @@ for age in none 0 7199 7200; do
 			assert_jq -s '.[0].args | index("--expires-in") as $i | .[$i+1]=="1s"' "$test_dir/wakeups.jsonl"
 		fi
 	fi
-	[[ ! -s $test_dir/posted.jsonl ]]
+	[[ ! -s $test_dir/posted.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 	if [[ $age == none ]]; then
 		status_pr SUCCESS
 		wait_output "CI $head: 成功"
 		assert_cleared
-		[[ ! -s $test_dir/posted.jsonl ]]
+		[[ ! -s $test_dir/posted.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 	fi
 done
 echo 'PASS ci-wait: 全チェックの取り消しは未確認で待ち、成功時か元の 2 時間の期限で解除する。失敗の記録は書かない'
@@ -132,7 +87,7 @@ for ended in CLOSED MERGED done cancelled; do
 			assert_jq 'length==2 and all(.[]; .id=="monitor-rule" or .id=="conflicts-rule")' "$test_dir/rules.json"
 		fi
 		assert_jq --arg ended "$ended" 'if $ended=="done" or $ended=="cancelled" then .status==$ended and .status_category==$ended else .status=="in_progress" end' "$test_dir/task.json"
-		[[ ! -s $test_dir/wakeups.jsonl && ! -s $test_dir/posted.jsonl ]]
+		[[ ! -s $test_dir/wakeups.jsonl && ! -s $test_dir/posted.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 		assert_jq -s 'all(.[]; .[0:3]!=["issue","metadata","set"] and .[0:2]!=["issue","status"])' "$test_dir/calls.jsonl"
 	done
 done
@@ -145,7 +100,7 @@ for ended in CLOSED MERGED; do
 	wait_output "CI $head: PR がマージ済みか閉じている"
 	assert_cleared
 	assert_jq -s 'length==1' "$test_dir/wakeups.jsonl"
-	[[ ! -s $test_dir/posted.jsonl ]]
+	[[ ! -s $test_dir/posted.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 done
 echo 'PASS ci-wait: 規則の登録直後に PR が終了した場合も、再読で規則を解除する'
 
@@ -157,7 +112,7 @@ for status in SUCCESS none FAILURE; do
 	wait_output "$expected"
 	assert_cleared
 	assert_jq 'length==2 and all(.[]; .id=="monitor-rule" or .id=="conflicts-rule")' "$test_dir/rules.json"
-	[[ ! -s $test_dir/wakeups.jsonl ]]
+	[[ ! -s $test_dir/wakeups.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 	if [[ $status == FAILURE ]]; then
 		assert_jq -s 'length==1 and .[0].body=="/note\nCI abcdef0: 保留した失敗をリーダーが引き継ぎで受けた\n"' "$test_dir/posted.jsonl"
 		# 同じ失敗をもう一度受けた記録にしない。
@@ -215,7 +170,7 @@ for state in running unknown; do
 	if [[ $state == unknown ]]; then touch "$test_dir/fail-gh"; expected=未確認; else expected=実行中; fi
 	wait_output "CI $head: ${expected}（待つ上限の 2 時間を超えた）"
 	assert_cleared
-	[[ ! -s $test_dir/wakeups.jsonl ]]
+	[[ ! -s $test_dir/wakeups.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 done
 wait_fixture
 old_wait 8000
@@ -271,17 +226,8 @@ assert_cleared
 echo 'PASS ci-wait: 待ちの記録がなくても、リーダーの今の完全な head の行で依頼済みとする'
 
 # `decide` が書くマージの依頼は、制御記録（決める実行の役が書き、認める回を指し、回と決める記録より後）のときだけ依頼済みと読む。
-# 回 final-1 はリーダーが書いた最終レビューの回で、最上位の役 principal を待つ。決める記録 decide-1 は principal が書く。
-requested_chain() {
-	local author=$1 type=$2 at=$3 text=$4
-	jq --slurpfile base "$test_dir/comment-prototype.json" --arg author "$author" --arg type "$type" --arg at "$at" --arg text "$text" -n '
-		def c($id; $who; $kind; $time; $body): $base[0] + {id: $id, author_id: $who, author_type: $kind, created_at: $time, content: $body};
-		[c("final-1"; "orchestrator"; "agent"; "2026-01-01T00:00:00Z";
-			"見直しの種類: 最終レビュー\n確認するコミット: abcdef0\n返事を待つ役: [@p](mention://agent/principal)"),
-		c("decide-1"; "principal"; "agent"; "2026-01-01T00:01:00Z"; "/note\n返事の待ち: 次の依頼を決めます"),
-		c("merge-1"; $author; $type; $at; $text)]' >"$test_dir/comments.json"
-}
-for record in agent-round agent-old-head agent-no-round agent-round-only quote fence fence4 fence4-tilde fence-indent4 result human other-author early unknown-round; do
+# 回 final-1 と決める記録 decide-1 は tests/pr-watch-ci-wait-lib.sh の requested_chain が作る。
+for record in agent-round agent-old-head agent-no-round agent-round-only fence fence4 fence4-tilde fence-indent4 result human other-author early unknown-round; do
 	wait_fixture
 	old_wait
 	text=$(printf 'マージの依頼: %s\n前の回: final-1' "$head")
@@ -291,7 +237,6 @@ for record in agent-round agent-old-head agent-no-round agent-round-only quote f
 	agent-old-head) text=$(printf 'マージの依頼: 1234567\n前の回: final-1') ;;
 	agent-no-round) text="マージの依頼: $head" ;;
 	agent-round-only) text='前の回: final-1' ;;
-	quote) text=$(printf '> マージの依頼: %s\n> 前の回: final-1' "$head") ;;
 	fence) text=$(printf '```\nマージの依頼: %s\n前の回: final-1\n```' "$head") ;;
 	fence4) text=$(printf '````\n```\nマージの依頼: %s\n前の回: final-1\n```\n````' "$head") ;;
 	fence4-tilde) text=$(printf '~~~~\n~~~\nマージの依頼: %s\n前の回: final-1\n~~~\n~~~~' "$head") ;;
@@ -310,7 +255,15 @@ for record in agent-round agent-old-head agent-no-round agent-round-only quote f
 		assert_jq '.metadata.ci_wait_head == "'"$head"'" and (.metadata | has("ci_wait_since") and has("ci_wait_rule"))' "$test_dir/task.json"
 	fi
 done
-echo 'PASS ci-wait: マージの依頼の制御記録だけを依頼済みとし、引用・囲み（字下げ 4 個の終了風の行を含む）・結果・人間・別の作者・回より前・認めない回を指す行は読まない'
+echo 'PASS ci-wait: マージの依頼の制御記録だけを依頼済みとし、囲み（字下げ 4 個の終了風の行を含む）・結果・人間・別の作者・回より前・認めない回を指す行は読まない'
+
+for author in orchestrator principal; do
+	wait_fixture
+	old_wait
+	requested_chain "$author" agent 2026-01-01T00:02:00Z "$(printf '> マージの依頼: %s\n> 前の回: final-1' "$head")"
+	wait_blocked '制御記録を読めない（merge-1: 引用）'
+done
+echo 'PASS ci-wait: マージの依頼を含む読めない候補は、依頼済みと読まず、規則と待ちの記録を残して終了 1 になる'
 
 wait_fixture
 old_wait
@@ -341,8 +294,8 @@ for invalid in foreign control shape no-repository bad-repository; do
 		foreign | no-repository | bad-repository) expected='PR の URL が作業先と違う' ;;
 		*) expected='PR の URL が不正' ;;
 		esac
-		[[ $status == 1 && ! -s $test_dir/output && $(<"$test_dir/error") == "$expected" ]]
-		[[ ! -s $test_dir/gh-calls.jsonl && ! -s $test_dir/wakeups.jsonl && ! -s $test_dir/posted.jsonl ]]
+		[[ $status == 1 && ! -s $test_dir/output && $(<"$test_dir/error") == "$expected" ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
+		[[ ! -s $test_dir/gh-calls.jsonl && ! -s $test_dir/wakeups.jsonl && ! -s $test_dir/posted.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 		assert_cleared
 		if [[ $earlier == old ]]; then
 			assert_jq 'length==2 and all(.[]; .id=="monitor-rule" or .id=="conflicts-rule")' "$test_dir/rules.json"
@@ -357,7 +310,7 @@ mv "$test_dir/updated.json" "$test_dir/task.json"
 printf 'issue wakeup delete' >"$test_dir/fail"
 status=0
 (cd "$test_dir" && bash "$script" ci-wait test-issue orchestrator trigger-comment) >"$test_dir/output" 2>"$test_dir/error" || status=$?
-[[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/gh-calls.jsonl && ! -s $test_dir/wakeups.jsonl ]]
+[[ $status == 1 && ! -s $test_dir/output && ! -s $test_dir/gh-calls.jsonl && ! -s $test_dir/wakeups.jsonl ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 grep -qxF 'PR の URL が作業先と違う' "$test_dir/error"
 rm "$test_dir/fail"
 echo 'PASS ci-wait: 作業先と違うか不正な pr_url では GitHub を読まず、規則を作らず待ちを消して 1 で終え、元の値もチェック名も出さない'
@@ -392,12 +345,12 @@ for operation in 'issue get test-issue' 'issue comment list' 'issue wakeup list'
 	printf '%s' "$operation" >"$test_dir/fail"
 	status=0
 	(cd "$test_dir" && bash "$script" ci-wait test-issue orchestrator trigger-comment) >"$test_dir/output" 2>"$test_dir/error" || status=$?
-	[[ $status == 1 && ! -s $test_dir/output && -s $test_dir/error ]]
+	[[ $status == 1 && ! -s $test_dir/output && -s $test_dir/error ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 done
 for args in 'ci-wait' 'ci-wait test-issue orchestrator' 'ci-wait test-issue orchestrator trigger rule extra' 'ci-wait-clear' 'ci-wait-clear test-issue extra'; do
 	status=0
 	# 使い方の検査だけ、引数を意図的に空白で分ける。
 	bash "$script" $args >"$test_dir/output" 2>"$test_dir/error" || status=$?
-	[[ $status == 2 && ! -s $test_dir/output && -s $test_dir/error ]]
+	[[ $status == 2 && ! -s $test_dir/output && -s $test_dir/error ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 done
 echo 'PASS ci-wait: 読み取り・書き込み・削除の失敗では終了コード 1、使い方の誤りでは 2 を返す'

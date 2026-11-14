@@ -769,7 +769,7 @@ ci_wait_finish() {
 }
 
 ci_wait() {
-	local issue=$1 leader=$2 trigger=$3 fired=${4:-} task head since now pass pr_url pr new_head checks failures state comments
+	local issue=$1 leader=$2 trigger=$3 fired=${4:-} task head since now pass pr_url pr new_head checks failures state comments requested
 	local instruction response rule remaining key data
 	local limit=7200 interval=1800
 	task=$(squad_cli_read issue-get "$issue") || return 1
@@ -840,8 +840,16 @@ ci_wait() {
 		comments=$(squad_cli_read issue-comments "$issue") || return 1
 		# リーダーのコメントと、`decide` が書くマージの依頼の制御記録を探す。制御記録の判定は squad-cli-lib にあり、
 		# `前の回:` の行だけを持つ引用や役の結果、決める実行の役でもリーダーでもない作者のコメントは、依頼済みと読まない。
-		if [[ -n $head ]] && [[ $(squad_cli_control merge_requested "$comments" "$(jq -cn --arg leader "$leader" '[$leader]')" null "$head") == yes ]]; then
-			state=マージを依頼済み
+		# 依頼を含む候補が読めないときは、依頼済みと読まず、依頼も書かない。待ちの規則と metadata を残したまま、理由を出して終える。
+		if [[ -n $head ]]; then
+			requested=$(squad_cli_control merge_requested "$comments" "$(jq -cn --arg leader "$leader" '[$leader]')" null "$head") || return 1
+			case $requested in
+			yes) state=マージを依頼済み ;;
+			'blocked '*)
+				printf '%s\n' "${requested#blocked }" >&2
+				return 1
+				;;
+			esac
 		fi
 		case $state in
 		成功 | チェックなし | 失敗あり | マージを依頼済み)

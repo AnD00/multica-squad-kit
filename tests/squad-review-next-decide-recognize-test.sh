@@ -22,7 +22,7 @@ reset
 ok_round
 add round-9 orchestrator $'> 返事を待つ役: '"$(mentions qa)"$'\n確認するコミット: '"$sha"
 run round-9
-expect_leader '回を認められない（返事を待つ役: の行'
+expect_leader '制御記録を読めない（round-9: 引用）'
 reset
 ok_round
 add round-9 orchestrator $'```\n返事を待つ役: '"$(mentions qa)"$'\n```\n確認するコミット: '"$sha"
@@ -47,7 +47,7 @@ result round-9 qa ✅ "$sha" なし
 result forged qa ✅ "$old" なし
 run round-9
 expect_leader '回を認められない'
-echo 'PASS review-next-decide: 認めない回（作者違い・引用・囲み・結果・人間・途中に認めない回）では、何も書かず理由つきで終了 3 になる'
+echo 'PASS review-next-decide: 認めない回（作者違い・囲み・結果・人間・途中に認めない回）と、読めない回（引用）では、何も書かず理由つきで終了 3 になる'
 
 # 決める実行の役が書いた頼み直しの回は、リーダーの回につながれば認める。
 reset

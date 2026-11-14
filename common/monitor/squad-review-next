@@ -538,6 +538,8 @@ def merge(final_round):
 
 if not principal_ids:
     merge(None)
+if judge.get("blocked_final"):
+    stop(judge["blocked_final"], True)
 same_commit = [
     comment for comment in comments
     if comment.get("id") in finals and (finals[comment.get("id")].get("commit") or "").lower() == commit.lower()
@@ -732,10 +734,19 @@ dfail() {
 	exit 1
 }
 
+# 理由は、コマンド置換の中（id=$(post_request …) など）で呼ばれても失われないよう、最初の標準出力（fd 4）へ出す。
+exec 4>&1
 stop_leader() {
 	local reason=${1//$'\n'/ }
-	printf '次の依頼を決められません: %s\n' "$reason"
+	printf '次の依頼を決められません: %s\n' "$reason" >&4
 	exit 3
+}
+
+# 判定に関わる候補が読めないときは、何も書かずに終了 3 にする（docs/review-next-step.md の「候補と読めないときの扱い」）。
+stop_if_blocked() {
+	local reason
+	reason=$(jq -r '.blocked // empty' "$1") || dfail '制御記録の判定を読めない'
+	[[ -z $reason ]] || stop_leader "$reason"
 }
 
 decide_py() {
@@ -831,7 +842,8 @@ ci_wait_record() {
 	# 読み直したコメントで、共有の判定をやり直す。実行の初めの判定は、そのあとに見えるようになった記録を知らないため。
 	# leader と principals は decide のもの（呼び出しの中で見える）。
 	printf '%s' "$comments" >"$work/comments.json"
-	squad_cli_control analyze "$comments" "$(jq -cn --arg leader "$leader" '[$leader]')" "$principals" >"$work/judge.json" || dfail '制御記録を判定できない'
+	squad_cli_control analyze "$comments" "$(jq -cn --arg leader "$leader" '[$leader]')" "$principals" "$round" >"$work/judge.json" || dfail '制御記録を判定できない'
+	stop_if_blocked "$work/judge.json"
 	# 記録と数えるのは、共有の判定が認めた制御記録（種類が CI の待ちの記録で、この回を指すもの）だけにする。
 	if jq -e --arg round "$round" --arg prefix "$prefix" --slurpfile judge "$work/judge.json" '
 		[$judge[0].controls[] | select(.kind == "ci" and .prev == $round) | .id] as $ids
@@ -993,7 +1005,14 @@ leave_ci_wait() {
 # 依頼を投稿する。本文のファイルを渡し、コメントの ID を出す。
 # 4 つ目の引数が unwatch のときは、先に見張りを入れてあるので、投稿に失敗したら見張りを消してから失敗する。
 post_request() {
-	local issue=$1 round=$2 body=$3 cleanup=${4-} id status=0
+	local issue=$1 round=$2 body=$3 cleanup=${4-} id status=0 read_why
+	# 書く前に、書く本文を制御記録と同じ部品で読む。読めないときは何も書かない。
+	read_why=$(squad_cli_control body '[]' '[]' null "$(<"$body")") || dfail '書く本文を確かめられない'
+	if [[ $read_why != ok ]]; then
+		rm -f -- "$body"
+		[[ $cleanup != unwatch ]] || "$script_dir/squad-review-wait" unwatch "$issue" >/dev/null 2>&1 || true
+		stop_leader "書く本文を読めない（${read_why}）"
+	fi
 	id=$(squad_cli_read issue-comment-add "$issue" "$round" "$body" | jq -r .id) || status=$?
 	rm -f -- "$body"
 	if ! { ((status == 0)) && [[ -n $id && $id != null ]]; }; then
@@ -1085,7 +1104,8 @@ decide() {
 	[[ -n $leader ]] || dfail 'スクワッドのリーダーを決められない'
 	# 制御記録と回の判定は、squad-cli-lib の共有の判定で行う（squad-review-wait・squad-pr-watch と同じ入力に同じ結果を返す）。
 	principals=$(jq -c '[.roles["claude-principal"].id?, .roles["codex-principal"].id?] | map(select(. != null))' <<<"$roster") || dfail '最上位の役を名簿から読めない'
-	squad_cli_control analyze "$(<"$work/comments.json")" "$(jq -cn --arg leader "$leader" '[$leader]')" "$principals" >"$work/judge.json" || dfail '制御記録を判定できない'
+	squad_cli_control analyze "$(<"$work/comments.json")" "$(jq -cn --arg leader "$leader" '[$leader]')" "$principals" "$round" >"$work/judge.json" || dfail '制御記録を判定できない'
+	stop_if_blocked "$work/judge.json"
 	if [[ $(jq -r --arg round "$round" '.rounds[$round].ok // false' "$work/judge.json") != true ]]; then
 		stop_leader "回を認められない（$(jq -r --arg round "$round" '.rounds[$round].reason // "回のコメントでない"' "$work/judge.json")）"
 	fi

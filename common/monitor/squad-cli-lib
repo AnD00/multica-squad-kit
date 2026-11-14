@@ -1919,6 +1919,7 @@ import calendar
 import json
 import re
 import sys
+import unicodedata
 
 mode = sys.argv[1]
 args = sys.argv[2:]
@@ -1934,6 +1935,7 @@ CLAIM = "返事の待ち: この回を次へ回します"
 DECIDE = "返事の待ち: 次の依頼を決めます"
 READY = "返事がそろいました"
 MAX_HOPS = 10
+KINDS = ("コミットが合わず頼み直す役:", "修正の依頼:", "見直しの種類: 最終レビュー", "マージの依頼:", "使用率の待ち:", "マージの前の CI の待ち:")
 WRITTEN = {"retry", "fix", "final", "merge", "human"}
 STAMP = re.compile(r"^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.(\d+))?\s*(Z|[+-]\d\d(?::?\d\d)?)?$")
 
@@ -1997,40 +1999,87 @@ def fence_closes(text, fence):
     return char == fence[0] and run >= fence[1] and tail.strip(" \t") == ""
 
 
+CONTROL_CHAR = re.compile("[\x00-\x08\x0b-\x1f\x7f-\x9f]")
+ITEM_MARK = re.compile(r"(?:[-*+]|[0-9]{1,9}[.)])(?=[ \t]|\Z)")
+
+
+def blank_start(char):
+    """行頭に置くと字下げや入れ物になる文字。空白（str.isspace）と、U+200B・U+FEFF などの書式文字（Cf）。"""
+    return char.isspace() or unicodedata.category(char) == "Cf"
+
+
+def fence_mark(text):
+    """行頭が、囲みの記号（` か ~ の 3 つ以上の並び）か。"""
+    return text[:1] in ("`", "~") and len(text) - len(text.lstrip(text[0])) >= 3
+
+
+def classify(line):
+    """囲みの外の行を、docs/review-next-step.md の「読める本文」の表で分ける。(読めない理由か None, 開いた囲みか None, 置き方を満たす行か)。"""
+    if line == "":
+        return None, None, False
+    if blank_start(line[0]):
+        return "行頭の空白", None, False
+    if fence_mark(line):
+        fence = fence_open(line)
+        if fence is None:
+            return "囲みにならない囲みの記号", None, False
+        return None, fence, False
+    if line[0] == ">":
+        return "引用", None, False
+    if line[0] == "<":
+        return "HTML", None, False
+    found = ITEM_MARK.match(line)
+    if found:
+        content = line[found.end():][1:]
+        if content == "" or content[0].isspace() or content[0] in "<>" or fence_mark(content) or ITEM_MARK.match(content):
+            return "項目の中身", None, False
+        return None, None, False
+    return None, None, True
+
+
 def parse(comment):
-    """行の置き方を満たす行（placed）と、囲みや引用を問わない全部の行（every）を返す。
-    囲みの中の行は、閉じない囲みなら文書の末尾まで、placed に入れない。"""
+    """本文を、docs/review-next-step.md の「読める本文」の順に読む。
+    (置き方を満たす行 placed, 囲みや項目を問わない全部の行 every, 行に分ける前の本文 norm, 読めない理由か None) を返す。
+    読めない本文の placed は空。every は、結果の行（返事の回:）の判定のために、読めなくても全部の行を入れる。"""
+    norm = (comment.get("content") or "").replace("\r\n", "\n").replace("\r", "\n")
+    reason = "制御文字" if CONTROL_CHAR.search(norm) else None
+    lines = norm.split("\n")
+    if lines[0] == "/note":
+        lines = lines[1:]
+    elif lines[0].startswith("/note "):
+        lines[0] = lines[0][6:]
+        if reason is None and fence_mark(lines[0]):
+            reason = "/note の後ろの囲みの記号"
     placed, every, fence = [], [], None
-    for raw in (comment.get("content") or "").split("\n"):
-        text = raw.rstrip("\r")
-        if text.rstrip() == "/note":
-            continue
-        if text.startswith("/note "):
-            text = text[6:]
-        line = text.rstrip()
+    for text in lines:
+        line = text.rstrip(" \t")
         every.append(line)
+        if reason is not None:
+            continue
         if fence is not None:
-            if fence_closes(text, fence):
+            if fence_closes(line, fence):
                 fence = None
             continue
-        fence = fence_open(text)
-        if fence is not None:
-            continue
-        if line and not line[0].isspace() and not line.startswith(">"):
+        reason, fence, keep = classify(line)
+        if keep:
             placed.append(line)
-    return placed, every
+    if reason is None and fence is not None:
+        reason = "閉じない囲み"
+    return ([] if reason else placed), every, norm, reason
 
 
 parsed = {}
 for comment in comments:
-    placed, every = parse(comment)
+    placed, every, norm, reason = parse(comment)
     parsed[comment["id"]] = {
         "agent": comment.get("author_type") == "agent",
         "author": comment.get("author_id"),
         "placed": placed,
         "every": every,
+        "norm": norm,
+        "reason": reason,
         "ns": stamp(comment.get("created_at")),
-        "first_line": (comment.get("content") or "").split("\n")[0],
+        "first_line": norm.split("\n")[0],
     }
 order = sorted(range(len(comments)), key=lambda k: (parsed[comments[k]["id"]]["ns"], k))
 sequence = [comments[k]["id"] for k in order]
@@ -2226,6 +2275,69 @@ def emit(value):
     print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
 
 
+def candidate(j, needles):
+    """判定に関わる候補か。エージェントのコメントで、`返事の回:` を含まず、前処理の 1 のあとの本文が needles のどれかを含む。"""
+    norm = parsed[j]["norm"]
+    return parsed[j]["agent"] and RESULT not in norm and any(word in norm for word in needles)
+
+
+def unreadable(needles, after=None, only=None):
+    """候補のうち、読めないものの最初。after があればそのコメントより後、only があればそのコメントだけ。(ID, 理由) か None。"""
+    for j in sequence if only is None else only:
+        if parsed[j]["reason"] is None or (after is not None and pos[j] <= pos[after]):
+            continue
+        if candidate(j, needles):
+            return j, parsed[j]["reason"]
+    return None
+
+
+def blocked_text(found):
+    return None if found is None else f"制御記録を読めない（{found[0]}: {found[1]}）"
+
+
+def chain_of(i):
+    """decide が前の回: でたどる途中のコメント。i から、前の回: の指す先を MAX_HOPS 回まで。"""
+    chain, seen, cur = [], set(), i
+    while cur in parsed and cur not in seen and len(chain) <= MAX_HOPS:
+        seen.add(cur)
+        chain.append(cur)
+        pid, _ = prev_of(cur)
+        if pid is None:
+            break
+        cur = pid
+    return chain
+
+
+def latest_round():
+    found = [i for i in sequence if parsed[i]["agent"] and recognize(i)[0]]
+    return found[-1] if found else None
+
+
+def blocked_latest():
+    """最新の回（status・proceed・report）の候補。認める回のうち最新のものより後のコメントに限る。"""
+    return blocked_text(unreadable([ROUND], latest_round()))
+
+
+def blocked_round(r):
+    """decide が回 r を判定するときの候補。たどる途中の回、制御記録、決める記録と proceed の記録。"""
+    return (blocked_text(unreadable([ROUND], only=chain_of(r)))
+            or blocked_text(unreadable([PREV + " " + r]))
+            or blocked_text(unreadable([DECIDE, CLAIM], r)))
+
+
+def blocked_final(r):
+    """同じコミットの最終レビューの回の候補。確認するコミット: が r と同じか、取り出せないものだけ。"""
+    want = field(r, "確認するコミット:") if r in parsed else None
+    for j in sequence:
+        info = parsed[j]
+        if info["reason"] is None or not candidate(j, ["見直しの種類: 最終レビュー"]):
+            continue
+        commits = re.findall(r"^確認するコミット: *(\S+)", info["norm"], re.M)
+        if not commits or want is None or want in commits:
+            return blocked_text((j, info["reason"]))
+    return None
+
+
 if mode == "analyze":
     rounds, controls, finals = {}, [], {}
     for i in sequence:
@@ -2241,20 +2353,39 @@ if mode == "analyze":
         if principals is not None and parsed[i]["agent"] and not is_result(i) and (field(i, "見直しの種類:") or "").startswith("最終レビュー"):
             ok, why = final_check(i)
             finals[i] = {"ok": ok, "reason": why, "commit": field(i, "確認するコミット:")}
-    emit({"rounds": rounds, "controls": controls, "finals": finals})
+    target = args[0] if args else None
+    emit({
+        "rounds": rounds, "controls": controls, "finals": finals,
+        "blocked": blocked_round(target) if target in parsed else None,
+        "blocked_final": blocked_final(target) if target in parsed else None,
+    })
 elif mode == "merge_requested":
     want = "マージの依頼: " + args[0]
+    held = blocked_text(unreadable([want]))
     for i in sequence:
         if not parsed[i]["agent"] or is_result(i) or want not in parsed[i]["placed"]:
             continue
         if parsed[i]["author"] in leaders or control(i)["kind"] == "merge":
             print("yes")
             sys.exit(0)
-    print("no")
+    print("blocked " + held if held else "no")
+elif mode == "body":
+    # 書く前の本文の確認。args = [本文]。読めて、種類を示す行と前の回: の行が置き方を満たせば ok、そうでなければ読めない理由を出す。
+    placed, _, _, reason = parse({"content": args[0]})
+    if reason:
+        print(reason)
+    elif not any(line.startswith(KINDS) for line in placed) or not any(line.startswith(PREV) for line in placed):
+        print("種類を示す行か前の回: の行が、行の置き方を満たさない")
+    else:
+        print("ok")
 elif mode == "state":
-    found = [i for i in sequence if parsed[i]["agent"] and recognize(i)[0]]
-    if found:
-        r = found[-1]
+    r = latest_round()
+    held = blocked_latest()
+    if r is not None and held is None:
+        # この回を指す候補（制御記録、決める記録と proceed の記録）。たどる回は decide だけが読むので、ここでは問わない。
+        held = (blocked_text(unreadable([PREV + " " + r]))
+                or blocked_text(unreadable([DECIDE, CLAIM], r)))
+    if r is not None:
         roles = sorted(set(waited(r)))
         after = [j for j in sequence if pos[j] > pos[r]]
         agents = [j for j in after if parsed[j]["agent"]]
@@ -2270,7 +2401,10 @@ elif mode == "state":
             "decide_ts": records[0][0] / 1e9 if records else None,
             "next_ids": sort(j for j in agents if control(j)["kind"] and control(j)["prev"] == r),
             "ready": bool(ready_ids),
+            "blocked": held,
         })
+    elif held:
+        emit({"blocked": held})
 else:
     print("mode が不正", file=sys.stderr)
     sys.exit(1)

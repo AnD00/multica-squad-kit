@@ -129,7 +129,7 @@ echo 'PASS control: 決める記録より前に書いた決める実行の役の
 base
 agent d2 cr "$decide"
 agent x cr $'コミットが合わず頼み直す役: qa\n前の回: r1'
-[[ $(counted) == no ]]
+[[ $(counted) == no ]] || { echo "失敗: 132 行目の確認" >&2; exit 1; }
 echo 'PASS control: 決める記録が最も早い役だけが、決める実行の役になる'
 
 # 返事を待つ役でない役の決める記録は、決める実行の役を決めない。
@@ -137,7 +137,7 @@ reset
 agent r1 L $'確認するコミット: '"$sha"$'\n返事を待つ役: '"$(mention qa)"$'\n観点: qa（テスト）'
 agent d0 cr "$decide"
 agent x cr $'コミットが合わず頼み直す役: qa\n前の回: r1'
-[[ $(counted) == no ]]
+[[ $(counted) == no ]] || { echo "失敗: 140 行目の確認" >&2; exit 1; }
 echo 'PASS control: 返事を待つ役でない役の決める記録は、決める実行の役を決めない'
 
 # ---- 認める回。
@@ -184,11 +184,11 @@ echo 'PASS rounds: 前の回を 10 回までたどり、11 回目は認めない
 base
 agent forged cr $'確認するコミット: '"$sha"$'\n返事を待つ役: '"$(mention qa)"
 agent quoted qa $'/note\n返事の回: r1\n> 返事を待つ役: '"$(mention qa)"
-[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -r .id) == r1 ]]
+[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -r .id) == r1 ]] || { echo "失敗: 187 行目の確認" >&2; exit 1; }
 echo 'PASS state: 最新の回は、認める回のうち最も新しいもの'
 reset
 agent forged cr $'返事を待つ役: '"$(mention qa)"
-[[ -z $(squad_cli_control state "$(<"$file")" '["L"]' null) ]]
+[[ -z $(squad_cli_control state "$(<"$file")" '["L"]' null) ]] || { echo "失敗: 191 行目の確認" >&2; exit 1; }
 echo 'PASS state: 認める回が 1 つもなければ何も出さない'
 
 # 次へ回し済みの数え方。status と proceed が使う next_ids。
@@ -197,15 +197,15 @@ agent quote L $'> 修正の依頼: 直す\n> 前の回: r1'
 agent result qa $'/note\n返事の回: r1\n修正の依頼: 直す\n前の回: r1'
 agent human H $'修正の依頼: 直す\n前の回: r1'
 agent bare L $'前の回: r1'
-[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -c .next_ids) == '[]' ]]
+[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -c .next_ids) == '[]' ]] || { echo "失敗: 200 行目の確認" >&2; exit 1; }
 agent real L $'修正の依頼: 直す\n前の回: r1'
-[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -c .next_ids) == '["real"]' ]]
+[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -c .next_ids) == '["real"]' ]] || { echo "失敗: 202 行目の確認" >&2; exit 1; }
 echo 'PASS state: 引用・結果・人間・種類のない前の回: は次へ回し済みにならず、制御記録だけが数えられる'
 
 # 決める記録は、返事を待つ役が書いたものだけ。返事を待つ役でない役の記録は decide_ids に入らない。
 base
 agent d9 stranger "$decide"
-[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -c .decide_ids) == '["d1"]' ]]
+[[ $(squad_cli_control state "$(<"$file")" '["L"]' null | jq -c .decide_ids) == '["d1"]' ]] || { echo "失敗: 208 行目の確認" >&2; exit 1; }
 echo 'PASS state: 返事を待つ役でない役の決める記録は、決める記録に数えない'
 
 # ---- 最終レビューの回と結果を認める条件。
@@ -238,14 +238,13 @@ echo 'PASS finals: 最上位の役でない役、待つ役が 2 つ、コミッ�
 # ---- マージの依頼の確認。ci-wait が使う。リーダーの書いた前の回: のない依頼は読み、役の結果や引用などは読まない。
 merged() { squad_cli_control merge_requested "$(<"$file")" "${2:-[\"L\"]}" null "$1"; }
 base
-[[ $(merged "$sha") == no ]]
+[[ $(merged "$sha") == no ]] || { echo "失敗: 241 行目の確認" >&2; exit 1; }
 agent m1 L "マージの依頼: $sha"
-[[ $(merged "$sha") == yes && $(merged other) == no ]]
+[[ $(merged "$sha") == yes && $(merged other) == no ]] || { echo "失敗: 243 行目の確認" >&2; exit 1; }
 echo 'PASS merge_requested: リーダーの前の回: のない依頼を、その head について依頼済みと読む'
-for case in quote fence result nonleader unknown-round; do
+for case in fence result nonleader unknown-round; do
 	base
 	case $case in
-	quote) agent m L $'> マージの依頼: '"$sha"$'\n> 前の回: r1' ;;
 	fence) agent m L $'```\nマージの依頼: '"$sha"$'\n```' ;;
 	result) agent m qa $'/note\n返事の回: r1\nマージの依頼: '"$sha"$'\n前の回: r1' ;;
 	nonleader) agent m cr "マージの依頼: $sha"$'\n前の回: r1' ;;
@@ -253,7 +252,11 @@ for case in quote fence result nonleader unknown-round; do
 	esac
 	[[ $(merged "$sha") == no ]] || { echo "マージの依頼と読んだ: $case" >&2; exit 1; }
 done
+# 引用の本文は読めない候補になり、マージの依頼を読めたとも読めなかったとも言わず、止める。
+base
+agent m L $'> マージの依頼: '"$sha"$'\n> 前の回: r1'
+[[ $(merged "$sha") == "blocked "* ]] || { echo "引用のマージの依頼で止めない: $(merged "$sha")" >&2; exit 1; }
 base
 agent m qa "マージの依頼: $sha"$'\n前の回: r1'
-[[ $(merged "$sha") == yes ]]
-echo 'PASS merge_requested: 引用・囲み・結果・ほかの役・存在しない回の依頼は読まず、決める実行の役の制御記録は読む'
+[[ $(merged "$sha") == yes ]] || { echo "決める実行の役のマージの依頼を読まない" >&2; exit 1; }
+echo 'PASS merge_requested: 囲み・結果・ほかの役・存在しない回の依頼は読まず、引用は読めない候補として止め、決める実行の役の制御記録は読む'

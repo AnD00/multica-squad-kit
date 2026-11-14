@@ -170,6 +170,16 @@ check_status() {
 	}
 }
 
+# status が、読めない候補で何も出さず、何も書かず、理由を標準エラーに出して終了 1 になる。
+check_status_blocked() { # 標準エラーに含まれる理由
+	local output code=0
+	output=$(bash "$script" status test-issue 2>"$test_dir/status-err") || code=$?
+	[[ $code == 1 ]] || { printf '終了コード 1 を期待したが %s（出力: %s）\n' "$code" "$output" >&2; exit 1; }
+	[[ -z $output ]] || { printf '何も出してはいけない: %s\n' "$output" >&2; exit 1; }
+	[[ $(<"$test_dir/status-err") == *"$1"* ]] || { printf '標準エラーに「%s」がない: %s\n' "$1" "$(<"$test_dir/status-err")" >&2; exit 1; }
+	[[ ! -s $test_dir/posted.jsonl ]] || { printf 'コメントを書いてはいけない: %s\n' "$(<"$test_dir/posted.jsonl")" >&2; exit 1; }
+}
+
 # ここから report と proceed。回は 2 役（a, b）を待つ。
 
 # 回に、返事（result: /note 付き、plain-result: ふつう）、そろった知らせ（ready）、次へ回す記録（claim）を足したコメントの一覧を出す。
@@ -199,6 +209,13 @@ build_comments() {
 # コメントを 1 件足した一覧を出す。引数は「ID 作者の ID 作者の種類 回からの秒 本文」。標準入力が一覧。
 with_raw() {
 	jq --slurpfile comment "$test_dir/comment-prototype.json" --arg id "$1" --arg who "$2" --arg type "$3" --arg content "$5" \
+		--arg time "$(jq -nr --argjson ts "$((round_ts + $4))" '$ts | todateiso8601')" \
+		'. + [$comment[0] + {id: $id, author_type: $type, author_id: $who, created_at: $time, content: $content}]'
+}
+
+# with_raw の JSON 版。本文は JSON の文字列で渡す（NUL や単独の CR を含められる）。
+with_json() {
+	jq --slurpfile comment "$test_dir/comment-prototype.json" --arg id "$1" --arg who "$2" --arg type "$3" --argjson content "$5" \
 		--arg time "$(jq -nr --argjson ts "$((round_ts + $4))" '$ts | todateiso8601')" \
 		'. + [$comment[0] + {id: $id, author_type: $type, author_id: $who, created_at: $time, content: $content}]'
 }

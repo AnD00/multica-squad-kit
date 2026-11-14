@@ -89,11 +89,18 @@ comments_of() {
 # decide_ids は、回より後の、回の返事を待つ役が書いた決める記録のコメントの ID を、同じ順に並べたもの。decide_ts は、そのうち最も早いものの時刻（なければ null）。
 # next_ids は、回より後の、この回を指す制御記録のコメントの ID を、同じ順に並べたもの。`前の回:` の行があるだけのコメントは入らない。
 # ready は、ready_ids が空でないこと。claim_ids と decide_ids も、行の置き方と結果でない条件を満たすものだけが入る。
+# blocked は、判定に関わる候補（最新の回より後の `返事を待つ役:` を含むエージェントのコメントと、この回を指す `前の回:`・決める記録・次へ回す記録のコメント）が読めないときの理由で、読めるときは null。
+# 認める回が 1 つもなく、候補が読めないときは、{"blocked": "<理由>"} だけを出す。呼ぶ側は、先に blocked を見る。
 latest_round() {
 	local comments leaders
 	comments=$(cat) || return 1
 	leaders=$(squad_cli_read squad-list | jq -c '[.[] | select(.archived_at == null) | .leader_id] | unique') || return 1
 	squad_cli_control state "$comments" "$leaders" null
+}
+
+# latest_round の出力から、読めない候補の理由を出す。なければ何も出さない。
+blocked_of() {
+	jq -r '.blocked // empty' <<<"$1"
 }
 
 # 待つ役のうち、返していない役の UUID を 1 行ずつ出す。
@@ -177,9 +184,14 @@ deciding() {
 }
 
 wait_status() {
-	local issue=$1 timeout=${2:-} comments round missing runs latest id state lines='' failed=false now started name
+	local issue=$1 timeout=${2:-} comments round missing runs latest id state lines='' failed=false now started name blocked
 	comments=$(comments_of "$issue") || return 1
 	round=$(latest_round <<<"$comments") || return 1
+	blocked=$(blocked_of "$round") || return 1
+	if [[ -n $blocked ]]; then
+		printf '%s\n' "$blocked" >&2
+		return 1
+	fi
 	if [[ -z $round ]]; then
 		printf '/note\n返事の待ち: 回がないので何もしない\n'
 		return 0
@@ -286,7 +298,7 @@ one_line() {
 # 次の依頼を決めるスクリプトを流す。決められないとき（終了コード 3）と失敗したときは、理由を 2 行目に置いた知らせを書き、
 # リーダーを起こす。決めて書けたときは、スクリプトが書いたので何もしない。
 run_decide() {
-	local issue=$1 parent=$2 round=$3 comments=$4 err out status=0 reason squad headline
+	local issue=$1 parent=$2 round=$3 comments=$4 err out status=0 reason
 	mkdir -p tmp || return 1
 	err=$(mktemp tmp/squad-review-decide.XXXXXX) || return 1
 	out=$("$script_dir/squad-review-next" decide "$issue" "$(jq -r .id <<<"$round")" 2>"$err") || status=$?
@@ -306,6 +318,12 @@ run_decide() {
 	fi
 	rm -f -- "$err"
 	[[ -n $reason ]] || reason="squad-review-next decide が ${status} で終わった"
+	post_stop_notice "$issue" "$parent" "$round" "$comments" "$reason"
+}
+
+# 決まらない知らせを書き、リーダーを起こす。2 行目に `次の依頼を決められません: <理由>` を置く。
+post_stop_notice() {
+	local issue=$1 parent=$2 round=$3 comments=$4 reason=$5 squad headline
 	reason=$(one_line "$reason")
 	squad=$(squad_for_round "$comments" "$(jq -r .id <<<"$round")") || return 1
 	headline=$(jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$squad") || return 1
@@ -317,13 +335,21 @@ run_decide() {
 # 0: 済んだ、1: 取得・JSON 処理・投稿に失敗した、2: 返していない役がいる、3: 自分の記録が読み直しで見えない。
 # DECIDE_OWN は、すでに書いた自分の決める記録の ID（なければ空）。呼び出しをまたいで保つ。
 settle() {
-	local issue=$1 parent=$2 round_id=$3 comments round missing
+	local issue=$1 parent=$2 round_id=$3 comments round missing blocked
 	# 条件として呼ばれる関数内では set -e が効かないため、失敗を明示的に返す。
 	comments=$(comments_of "$issue") || return 1
 	round=$(latest_round <<<"$comments") || return 1
-	[[ -n $round && $(jq -r .id <<<"$round") == "$round_id" ]] || return 0
+	[[ -n $round && $(jq -r '.id // empty' <<<"$round") == "$round_id" ]] || return 0
 	missing=$(missing_of "$round") || return 1
 	[[ -z $missing ]] || return 2
+	# 最新の回の候補が読めないときは、決める記録を書かず、decide も流さない。知らせに理由を置いて、リーダーを起こす。
+	blocked=$(blocked_of "$round") || return 1
+	if [[ -n $blocked ]]; then
+		if [[ $(jq '(.next_ids | length) + (.claim_ids | length) + (.decide_ids | length) + (.ready_ids | length)' <<<"$round") == 0 ]]; then
+			post_stop_notice "$issue" "$parent" "$round" "$comments" "$blocked" || return 1
+		fi
+		return 0
+	fi
 	if [[ -z $DECIDE_OWN ]]; then
 		# 次の依頼や次へ回す記録、決める記録、知らせがすでにあれば、ほかの実行が扱っている。
 		if [[ $(jq '(.next_ids | length) + (.claim_ids | length) + (.decide_ids | length) + (.ready_ids | length)' <<<"$round") != 0 ]]; then
@@ -332,7 +358,7 @@ settle() {
 		DECIDE_OWN=$(post_note "$issue" "$parent" "$DECIDE_MARK") || return 1
 		comments=$(comments_of "$issue") || return 1
 		round=$(latest_round <<<"$comments") || return 1
-		[[ -n $round && $(jq -r .id <<<"$round") == "$round_id" ]] || return 0
+		[[ -n $round && $(jq -r '.id // empty' <<<"$round") == "$round_id" ]] || return 0
 	fi
 	jq -e --arg own "$DECIDE_OWN" '.decide_ids | index($own) != null' <<<"$round" >/dev/null || return 3
 	# 次へ回し済みの回では流さない。最も早い決める記録でなければ、ほかの実行に任せる。
@@ -344,7 +370,7 @@ settle() {
 }
 
 report() {
-	local issue=$1 parent=$2 file=$3 body round attempt status comments peers_waited=false
+	local issue=$1 parent=$2 file=$3 body round attempt status comments peers_waited=false blocked
 	[[ -r $file ]] || {
 		echo "結果のファイルが読めない: ${file}" >&2
 		exit 1
@@ -352,7 +378,9 @@ report() {
 	# 回のない依頼を /note で返すと、orchestrator に届かず止まる。投稿する前に確認する。
 	comments=$(comments_of "$issue") || return 1
 	round=$(latest_round <<<"$comments") || return 1
-	if [[ -z $round ]]; then
+	if [[ -z $(jq -r '.id // empty' <<<"$round") ]]; then
+		blocked=$(blocked_of "$round") || return 1
+		[[ -z $blocked ]] || printf '%s\n' "$blocked" >&2
 		echo '返事を待つ役の登録がありません。結果は投稿していません。スキル squad-handoff の「引き継ぐとき」に従い、orchestrator をメンションして返してください。' >&2
 		return 1
 	fi
@@ -403,9 +431,14 @@ report() {
 # コメントの並びは Multica が決めるので、ほぼ同時に動く実行どうしでも、進むのは必ず 1 つになる。
 # 実行の種類を問わず、最も早い記録の実行だけが次へ進む。
 proceed() {
-	local issue=$1 trigger=$2 comments round again own first attempt
+	local issue=$1 trigger=$2 comments round again own first attempt blocked
 	comments=$(comments_of "$issue") || return 1
 	round=$(latest_round <<<"$comments") || return 1
+	blocked=$(blocked_of "$round") || return 1
+	if [[ -n $blocked ]]; then
+		printf '%s\n' "$blocked" >&2
+		return 1
+	fi
 	if [[ -z $round ]]; then
 		printf '/note\n返事の待ち: 回がないので何もしない\n'
 		return 0
@@ -433,6 +466,11 @@ proceed() {
 		sleep "$REVIEW_WAIT_RECHECK_SECONDS"
 		comments=$(comments_of "$issue") || return 1
 		again=$(latest_round <<<"$comments") || return 1
+		blocked=$(blocked_of "$again") || return 1
+		if [[ -n $blocked ]]; then
+			printf '%s\n' "$blocked" >&2
+			return 1
+		fi
 		if [[ -z $again || $(jq -r .id <<<"$again") != "$(jq -r .id <<<"$round")" ]]; then
 			printf '/note\n返事の待ち: 新しい回があるので何もしない\n'
 			return 0
