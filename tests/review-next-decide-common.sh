@@ -41,6 +41,7 @@ ci-held) out_of held-out; exit "$(status_of held-status)" ;;
 ci) exit "$(status_of ci-status)" ;;
 ci-now) out_of cinow-out; exit "$(status_of cinow-status)" ;;
 conflicts-check) out_of conf-out; exit "$(status_of conf-status)" ;;
+ci-wait) out_of ciwait-out; exit "$(status_of ciwait-status)" ;;
 ci-wait-clear) exit "$(status_of clear-status)" ;;
 conflicts) out_of conflicts-out; exit "$(status_of conflicts-status)" ;;
 unlinked) out_of unlinked-out; exit "$(status_of unlinked-status)" ;;
@@ -213,9 +214,11 @@ reset() {
 	rm -f "${test_dir:?}"/conflicts-out* "${test_dir:?}"/conflicts-status* "${test_dir:?}"/unlinked-out* "${test_dir:?}"/unlinked-status*
 	rm -f "${test_dir:?}"/link-out* "${test_dir:?}"/link-status* "${test_dir:?}"/held-out* "${test_dir:?}"/held-status* "${test_dir:?}"/ci-status*
 	rm -f "${test_dir:?}"/cinow-out* "${test_dir:?}"/cinow-status* "${test_dir:?}"/conf-out* "${test_dir:?}"/conf-status* "${test_dir:?}"/clear-status*
+	rm -f "${test_dir:?}"/ciwait-out* "${test_dir:?}"/ciwait-status*
 	echo 0 >"$test_dir/watch-status"
 	printf '紐付け: 紐付いている pr: %s\n' "$pr_url" >"$test_dir/link-out"
 	printf 'コンフリクト: MERGEABLE head: %s\n' "$sha" >"$test_dir/conf-out"
+	printf 'CI %s: 成功\n' "$sha" >"$test_dir/ciwait-out"
 	printf '{"headRefOid": "%s"}\n' "$sha" >"$test_dir/head.json"
 	printf '{"id": "rule-1"}\n見張り: 1 時間おき、2026-11-17 まで\n' >"$test_dir/unlinked-out"
 	printf '役: claude-fixer\n振り分け: Claude で足りる。工程: fix\n' >"$test_dir/pick-out"
@@ -234,9 +237,13 @@ set_changed_files() { # ファイル名...
 	rm -f "${test_dir:?}/files-fail"
 	fixture gh-pr-files | jq --args '. as $base | [$ARGS.positional[] | $base + {filename: ., status: "modified"}]' -- "$@" >"$test_dir/files.json"
 }
-# マージの依頼まで進める構成。CI の見張り役がいない名簿にする（CI の待ちは、まだこのスクリプトで書かない）。
+# マージの依頼まで進める構成。CI の見張り役がいない名簿にする（ある構成は set_ci_merge_roster）。
 set_merge_roster() {
 	set_roster orchestrator code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-implementer codex-implementer claude-fixer codex-fixer claude-principal codex-principal designer
+}
+# マージの依頼まで進める構成で、CI の見張り役がいる名簿にする。CI は squad-pr-watch ci-wait で待つ。
+set_ci_merge_roster() {
+	set_roster orchestrator code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-implementer codex-implementer claude-fixer codex-fixer claude-principal codex-principal designer ci-monitor
 }
 run() { # 回の ID
 	status=0

@@ -838,9 +838,12 @@ ci_wait() {
 		if [[ -n $new_head && $new_head != "$head" ]]; then head=$new_head; since=$now; fi
 		[[ -n $since ]] || since=$now
 		comments=$(squad_cli_read issue-comments "$issue") || return 1
+		# リーダーのコメントに加え、`前の回:` の行を持つエージェントのコメントも探す。`decide` が書くマージの依頼の作者は返事を書いた役のため。
 		if [[ -n $head ]] && jq -e --arg head "$head" --arg leader "$leader" '
-			any(.[]; .author_type == "agent" and .author_id == $leader
-				and (.content | split("\n") | index("マージの依頼: " + $head)) != null)' <<<"$comments" >/dev/null; then
+			any(.[]; .author_type == "agent" and (
+				(.content | split("\n")) as $lines
+				| ($lines | index("マージの依頼: " + $head)) != null
+				and (.author_id == $leader or any($lines[]; startswith("前の回: ")))))' <<<"$comments" >/dev/null; then
 			state=マージを依頼済み
 		fi
 		case $state in

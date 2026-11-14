@@ -20,15 +20,20 @@
 #     行き先は、頼み直し・修正・最終レビュー・使用率の待ち・人間の確認のどれか。標準出力に `次の依頼:` の行と `依頼:` の行を出す。
 #     同じ回に書いた依頼があれば、`次の依頼: 書き済み` を出して書かない。
 #     マージの依頼は、PR の紐付け・head の照合・コンフリクト・CI の確認のあと、マージ待ちの規則（conflicts と、紐付いていないときの unlinked）を
-#     登録し、人間を呼ぶコメントを書いてタスクを in_review にする。CI の見張り役がいる構成は、CI の待ちを書けないので、まだリーダーに任せる。
+#     登録し、人間を呼ぶコメントを書いてタスクを in_review にする。
+#     CI の見張り役がいる構成は、`squad-pr-watch ci-wait` で CI を待つ。実行中・未確認なら、マージを頼まず、人間も呼ばず、
+#     状態も変えずに `マージの前の CI の待ち:` の記録（同じ回と同じ head で 1 回だけ）を書いて 0 で終わる。
+#     `<起きた規則>` は、CI の待ちの規則で起きたあとの流し直しで、ci-wait に渡す。
+#     CI を待っているタスク（metadata に ci_wait_head）が頼み直し・修正・最終レビュー・人間の呼び出しへ移るときは、書く前に ci-wait-clear を流す。
 #     リーダーに任せるときは、何も書かずに `次の依頼を決められません: <理由>` を出して 3 で終わる。
-#     `<起きた規則>` は受け取るだけで、まだ使わない。
 #
 # 失敗したときは、依頼を書かずに標準エラーへ要約を出して 1 で終わる。
 set -euo pipefail
 
 # GitHub の PR のファイルの一覧の上限。この件数に達したら、一覧が切れているものとして扱う。
 FILES_LIMIT=3000
+# decide の第 3 引数（CI の待ちの規則で起きたときの、その規則の ID）。
+FIRED=''
 PATHS_FILE='.agents/review-paths'
 ROLES=(code-reviewer ux-reviewer security-reviewer performance-reviewer qa)
 
@@ -802,7 +807,7 @@ pr_checks() {
 	PR_URL=${url%% *}
 
 	if [[ $dest == merge ]]; then
-		merge_checks "$issue" "$round" "$leader" "$roster" "$res"
+		merge_checks "$issue" "$round" "$leader" "$roster" "$res" "$task" "$kind"
 		return 0
 	fi
 	if [[ -n $watcher ]] || [[ $LINKED == false ]]; then
@@ -824,14 +829,59 @@ pr_checks() {
 	esac
 }
 
+# CI の待ちの記録を書く。同じ回と同じ head の記録があれば書かない。どちらも標準出力に結果を出して 0 で終える。
+ci_wait_record() {
+	local issue=$1 round=$2 line=$3 comments prefix body id
+	prefix="マージの前の CI の待ち: ${line%%: *}: "
+	comments=$(squad_cli_read issue-comments "$issue") || dfail 'コメントを読めない'
+	if jq -e --arg round "$round" --arg prefix "$prefix" '
+		any(.[]; ((.content // "") | split("\n")) as $lines
+			| ($lines | index("前の回: " + $round)) != null and any($lines[]; startswith($prefix)))' <<<"$comments" >/dev/null; then
+		echo '次の依頼: CI の待ち（記録は書き済み）'
+		exit 0
+	fi
+	mkdir -p tmp
+	body=$(mktemp tmp/squad-review-ci-wait.XXXXXX) || dfail '本文のファイルを作れない'
+	printf 'マージの前の CI の待ち: %s\n前の回: %s\n' "$line" "$round" >"$body"
+	id=$(post_request "$issue" "$round" "$body")
+	printf '次の依頼: CI の待ち\n依頼: %s\n' "$id"
+	exit 0
+}
+
+# マージの前の CI（見張り役がある構成）。見張りを入れて `squad-pr-watch ci-wait` を流し、行で分ける。
+# 進むなら、行を CI_LINES に決めて返す。待つときと書かないときは、書くか何も書かずに終える。止まる値は、書かずに終了 3 にする。
+ci_wait_step() {
+	local issue=$1 round=$2 leader=$3 watcher=$4 out status=0 line state
+	"$script_dir/squad-pr-watch" ci "$issue" "$watcher" "$round" >/dev/null 2>&1 || stop_leader 'CI の見張りを入れられない（squad-pr-watch ci が 0 以外で終わった）'
+	out=$("$script_dir/squad-pr-watch" ci-wait "$issue" "$leader" "$round" ${FIRED:+"$FIRED"} 2>/dev/null) || status=$?
+	((status == 0)) || dfail "CI の待ちを流せない（squad-pr-watch ci-wait が ${status} で終わった）"
+	line=$(grep -m1 '^CI[ :]' <<<"$out" || true)
+	[[ -n $line ]] || dfail 'CI の待ちの行を読めない（squad-pr-watch ci-wait）'
+	case $line in
+	'CI 待ち: '*)
+		printf '次の依頼: 書かない（%s）\n' "$line"
+		exit 0
+		;;
+	esac
+	state=${line#*: }
+	case $state in
+	成功 | チェックなし | *'（待つ上限の 2 時間を超えた）') CI_LINES=$line ;;
+	実行中 | 未確認) ci_wait_record "$issue" "$round" "$line" ;;
+	失敗あり) stop_leader "$line" ;;
+	マージを依頼済み | 'PR がマージ済みか閉じている')
+		printf '次の依頼: 書かない（%s）\n' "$line"
+		exit 0
+		;;
+	*) dfail "CI の待ちの行を読めない: ${line}" ;;
+	esac
+}
+
 # マージの依頼の確認の 2〜5（docs/review-next-step.md の「マージの依頼」）。止まる値が出たら、書かずに終了 3 にする。
 # 進めたら、MERGE_HEAD（PR の今の head）、CONF_LINE、CI_LINES、WATCH_LINE、WATCH_FAILED を決める。LINKED と PR_URL は、呼ぶ前に決めてある。
 merge_checks() {
-	local issue=$1 round=$2 leader=$3 roster=$4 res=$5 watch="$script_dir/squad-pr-watch" pr out line status=0 same repo number
+	local issue=$1 round=$2 leader=$3 roster=$4 res=$5 task=$6 kind=$7 watch="$script_dir/squad-pr-watch" pr out line status=0 same repo number watcher
 	CI_LINES='' WATCH_LINE='' WATCH_FAILED=false
-	if [[ -n $(jq -r '.roles["ci-monitor"].id // empty' <<<"$roster") ]]; then
-		stop_leader 'CI の見張り役がいる構成のマージの依頼は、CI の待ちを使うため、このスクリプトではまだ書けない。リーダーが今の手順で扱う'
-	fi
+	watcher=$(jq -r '.roles["ci-monitor"].id // empty' <<<"$roster")
 
 	# 2: PR の今の head。紐付けの行の pr: の正規形で読む。最上位の役があれば、最終レビューの確認したコミットと照合する。
 	[[ $PR_URL =~ ^https://github\.com/([^/]+/[^/]+)/pull/([0-9]+)$ ]] || dfail "PR の正規形を読めない: ${PR_URL}"
@@ -852,12 +902,17 @@ merge_checks() {
 	esac
 	[[ -n $CONF_LINE ]] || CONF_LINE="コンフリクト: 未確認 head: ${MERGE_HEAD} 理由: 判定の行が出なかった"
 
-	# 4: CI。紐付いていないときだけ、その場で読む。紐付いているときは読まない。
-	if [[ $LINKED == false ]]; then
+	# 4: CI。保留した失敗は、見張り役があるか紐付いていないときに読む。ただし、CI を待っているタスクと、見張り役がある構成の最終レビューの回は、
+	# ci-wait が CI を読むので読まない。見張り役があれば ci-wait で待ち、なければ、紐付いていないときだけその場で読み、紐付いているときは読まない。
+	if [[ -n $watcher || $LINKED == false ]] && [[ -z $(jq -r '.metadata.ci_wait_head // empty' <<<"$task") ]] && ! [[ -n $watcher && $kind == final ]]; then
 		status=0
 		out=$("$watch" ci-held "$issue" "$round" 2>/dev/null) || status=$?
 		((status == 0)) || stop_leader 'CI の保留した失敗を読めない（squad-pr-watch ci-held が 0 以外で終わった）'
 		[[ -z $out ]] || stop_leader "保留した CI の失敗がある: $(tr '\n' ' ' <<<"$out")"
+	fi
+	if [[ -n $watcher ]]; then
+		ci_wait_step "$issue" "$round" "$leader" "$watcher"
+	elif [[ $LINKED == false ]]; then
 		ci_now "$issue" "$round" "$leader" ''
 	fi
 
@@ -1142,6 +1197,7 @@ request)
 	;;
 decide)
 	(($# == 3 || $# == 4)) || usage
+	FIRED=${4-}
 	decide "$2" "$3"
 	;;
 *) usage ;;

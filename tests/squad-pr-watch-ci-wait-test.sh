@@ -270,6 +270,21 @@ wait_output "CI $head: マージを依頼済み"
 assert_cleared
 echo 'PASS ci-wait: 待ちの記録がなくても、リーダーの今の完全な head の行で依頼済みとする'
 
+# `decide` が書くマージの依頼の作者は返事を書いた役なので、`前の回:` の行を持つエージェントのコメントも依頼済みとする。
+for record in agent-round agent-old-head agent-no-round agent-round-only; do
+	wait_fixture
+	old_wait
+	case $record in
+	agent-round) requested principal "$(printf 'マージの依頼: %s\n前の回: final-1' "$head")" ;;
+	agent-old-head) requested principal "$(printf 'マージの依頼: 1234567\n前の回: final-1')" ;;
+	agent-no-round) requested principal "マージの依頼: $head" ;;
+	agent-round-only) requested principal "前の回: final-1" ;;
+	esac
+	if [[ $record == agent-round ]]; then wait_output "CI $head: マージを依頼済み"; assert_cleared
+	else wait_output "CI $head: 実行中"; fi
+done
+echo 'PASS ci-wait: 前の回の行を持つエージェントのコメントのマージの依頼も、依頼済みとする'
+
 wait_fixture
 old_wait
 check_output '' ci-wait-clear test-issue

@@ -214,14 +214,4 @@ touch "$test_dir/post-fail"
 run final-1
 expect_failure 'コメントの投稿に失敗した'
 expect_no_calls status-calls
-# ci-monitor がある構成は、CI の待ちを書けないので、何も入れずにリーダーに任せる。
-reset
-set_roster orchestrator code-reviewer qa claude-principal ci-monitor
-ok_round
-final_round final-1 "$sha" round-1
-result final-1 claude-principal ✅ "$sha" なし
-run final-1
-expect_leader 'CI の見張り役がいる構成のマージの依頼'
-expect_no_calls head-calls
-expect_call_lacks pr-watch-calls 'conflicts test-issue'
-echo 'PASS review-next-decide: 書けないときはタスクの状態を変えず、CI の見張り役がある構成は何も入れずにリーダーに任せる'
+echo 'PASS review-next-decide: 書けないときはタスクの状態を変えない'

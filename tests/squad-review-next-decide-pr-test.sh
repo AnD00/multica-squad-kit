@@ -78,16 +78,16 @@ printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
 expect_status 0
 expect_call_lacks pr-watch-calls ci-held
-# マージの段で、見張りの役がいるときは、CI の待ち（まだ書けない）のためにリーダーに任せる。保留した失敗は読まず、規則も入れない。
+# マージの段で、見張りの役がいるときも、保留した失敗を読み、あれば止まる。止まるときは、CI の待ちも規則の登録もしない。
 reset
 set_roster orchestrator code-reviewer qa ci-monitor
 ok_round
 printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
-expect_leader 'CI の見張り役がいる構成のマージの依頼'
-expect_call_lacks pr-watch-calls ci-held
+expect_leader '保留した CI の失敗がある'
+expect_call_has pr-watch-calls 'ci-held test-issue round-1'
+expect_call_lacks pr-watch-calls ci-wait
 expect_call_lacks pr-watch-calls 'conflicts test-issue'
-expect_no_calls head-calls
 # マージの段で、見張りの役がなく、紐付いていないなら、保留した失敗を読み、あれば止まる。
 reset
 set_roster orchestrator code-reviewer qa

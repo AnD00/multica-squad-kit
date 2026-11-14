@@ -33,16 +33,19 @@ unlinked
 echo 1 >"$test_dir/ci-status"
 run round-1
 expect_leader 'CI の見張りを入れられない'
-# マージの段で見張りの役がいれば、CI の待ち（まだ書けない）のためにリーダーに任せる。その場の確認も、規則の登録もしない。
+# マージの段で見張りの役がいれば、その場の確認（ci-now）は流さず、見張りを入れて ci-wait で CI を待つ。
 reset
 set_roster orchestrator code-reviewer qa ci-monitor
 ok_round
 unlinked
 run round-1
-expect_leader 'CI の見張り役がいる構成のマージの依頼'
+expect_status 0
+expect_call_has pr-watch-calls 'ci-held test-issue round-1'
+expect_call_has pr-watch-calls 'ci test-issue ci-monitor round-1'
+expect_call_has pr-watch-calls 'ci-wait test-issue orchestrator round-1'
 expect_call_lacks pr-watch-calls ci-now
-expect_call_lacks pr-watch-calls 'conflicts test-issue'
-expect_call_lacks pr-watch-calls unlinked
+expect_call_has pr-watch-calls 'unlinked test-issue round-1 --leader orchestrator'
+[[ $(<"$test_dir/out") == $'次の依頼: マージの依頼'* ]] || fail "CI が成功なのに、マージの依頼を書いていない: $(<"$test_dir/out")"
 # その場の確認が止まる値。
 reset
 ok_round
@@ -97,7 +100,7 @@ ok_round
 printf '紐付け: 紐付いている pr: https://github.com/demo/project/pull/99\n' >"$test_dir/link-out"
 run round-1
 [[ $(posted_body) == *$'\n対象の PR: https://github.com/demo/project/pull/99' ]] || fail "対象の PR が紐付けの URL でない: $(posted_body)"
-echo 'PASS review-next-decide: 紐付いていない PR は、その場の CI とコンフリクトを確かめ、止まる値ならリーダーに任せる'
+echo 'PASS review-next-decide: 紐付いていない PR は、その場の CI（見張りの役がある構成は ci-wait）とコンフリクトを確かめ、止まる値ならリーダーに任せる'
 
 # ---- 書く前の失敗。
 reset
