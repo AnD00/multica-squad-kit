@@ -24,12 +24,12 @@ roles = set('orchestrator planner designer qa code-reviewer ux-reviewer security
 roles |= {selected + suffix for suffix in ('-implementer', '-fixer', '-principal')}
 assert set(agents) == roles
 monitors = {'ci-monitor', 'usage-monitor', 'dependabot-merger'}
-medium = {'planner', 'qa', 'ux-reviewer', 'performance-reviewer'}
+medium = {'qa', 'ux-reviewer', 'performance-reviewer'}
 for role, agent in agents.items():
     model = 'gpt-6.1-sol'
     if selected == 'claude':
-        model = 'claude-opus-5-5' if role in {'planner', 'designer'} else 'claude-sonnet-5-5'
-    if role.endswith('-principal'):
+        model = 'claude-opus-5-5' if role == 'designer' else 'claude-sonnet-5-5'
+    if role == 'planner' or role.endswith('-principal'):
         model = 'claude-fable-5-2' if selected == 'claude' else 'gpt-6-astra'
     assert agent['model'] == model and agent['runtime_id'] == 'runtime-' + selected, role
     assert agent['thinking_level'] == ('low' if role in {'ci-monitor', 'usage-monitor'} else 'medium' if role in medium else 'high'), role

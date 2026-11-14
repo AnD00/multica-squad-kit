@@ -111,13 +111,13 @@ agents = {a['name'].removeprefix('demo-').removesuffix('-owner'): a for a in db[
 assert set(agents) == roles
 monitors = {'ci-monitor', 'usage-monitor', 'dependabot-merger'}
 claude_roles = {'orchestrator', 'planner', 'designer', 'qa', 'claude-implementer', 'claude-fixer', 'claude-principal'}
-medium = {'planner', 'qa', 'ux-reviewer', 'performance-reviewer'}
+medium = {'qa', 'ux-reviewer', 'performance-reviewer'}
 for role, agent in agents.items():
     provider = runtimes[0] if len(runtimes) == 1 else ('claude' if role in claude_roles else 'codex')
     model = 'gpt-6.1-sol'
     if provider == 'claude':
-        model = 'claude-opus-5-5' if role in {'planner', 'designer'} else 'claude-sonnet-5-5'
-    if role.endswith('-principal'):
+        model = 'claude-opus-5-5' if role == 'designer' else 'claude-sonnet-5-5'
+    if role == 'planner' or role.endswith('-principal'):
         model = 'claude-fable-5-2' if provider == 'claude' else 'gpt-6-astra'
     assert agent['model'] == model and agent['runtime_id'] == 'runtime-' + provider, role
     assert agent['thinking_level'] == ('low' if role in {'ci-monitor', 'usage-monitor'} else 'medium' if role in medium else 'high'), role
