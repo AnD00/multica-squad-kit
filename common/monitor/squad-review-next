@@ -644,7 +644,8 @@ request() {
 	status=0
 	line=$(squad_cli_read issue-comment-add "$issue" "$parent" "$body" | jq -r .id) || status=$?
 	rm -f -- "$body"
-	((status == 0)) || fail 'コメントの投稿に失敗した'
+	# 見張りを入れたあとで投稿に失敗したら、起こす先のない見張りを残さない。
+	((status == 0)) || { "$script_dir/squad-review-wait" unwatch "$issue" >/dev/null 2>&1 || true; fail 'コメントの投稿に失敗した'; }
 	printf '観点: %s（%s）\n' "$names" "$reason"
 	printf '依頼: %s\n' "$line"
 }
@@ -752,11 +753,15 @@ leave_ci_wait() {
 }
 
 # 依頼を投稿する。本文のファイルを渡し、コメントの ID を出す。
+# 4 つ目の引数が unwatch のときは、先に見張りを入れてあるので、投稿に失敗したら見張りを消してから失敗する。
 post_request() {
-	local issue=$1 round=$2 body=$3 id status=0
+	local issue=$1 round=$2 body=$3 cleanup=${4-} id status=0
 	id=$(squad_cli_read issue-comment-add "$issue" "$round" "$body" | jq -r .id) || status=$?
 	rm -f -- "$body"
-	((status == 0)) && [[ -n $id && $id != null ]] || dfail 'コメントの投稿に失敗した'
+	if ! { ((status == 0)) && [[ -n $id && $id != null ]]; }; then
+		[[ $cleanup != unwatch ]] || "$script_dir/squad-review-wait" unwatch "$issue" >/dev/null 2>&1 || true
+		dfail 'コメントの投稿に失敗した'
+	fi
 	printf '%s\n' "$id"
 }
 
@@ -884,7 +889,7 @@ decide() {
 			printf '前の回: %s\n' "$round"
 			printf '対象の PR: %s\n' "$PR_URL"
 		} >"$body"
-		id=$(post_request "$issue" "$round" "$body")
+		id=$(post_request "$issue" "$round" "$body" unwatch)
 		printf '次の依頼: 頼み直し\n依頼: %s\n' "$id"
 		;;
 	fix)
@@ -935,7 +940,7 @@ decide() {
 			printf '前の回: %s\n' "$round"
 			printf '対象の PR: %s\n' "$PR_URL"
 		} >"$body"
-		id=$(post_request "$issue" "$round" "$body")
+		id=$(post_request "$issue" "$round" "$body" unwatch)
 		printf '次の依頼: 最終レビュー\n依頼: %s\n' "$id"
 		;;
 	esac

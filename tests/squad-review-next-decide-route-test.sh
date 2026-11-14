@@ -83,6 +83,8 @@ ok_round
 for role in code-reviewer qa; do
 	add "decision-$role" "$role" $'/note\n決める記録: 返事がそろいました\n❌ demo-'"$role"$'-test: 知らせ'
 	add "notice-$role" "$role" $'使用率の待ち: 15 分後に流し直します'
+	# report が書く決める記録そのもの。結果のあとに同じ役が書いても、返事の組に入らない。
+	add "record-$role" "$role" $'/note\n返事の待ち: 次の依頼を決めます'
 done
 run round-1
 expect_status 0

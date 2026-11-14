@@ -181,3 +181,59 @@ if bash "$script" status test-issue >"$test_dir/output" 2>"$test_dir/error"; the
 [[ $(<"$test_dir/error") == 'CLI mock failure' && ! -s $test_dir/output ]]
 rm "$test_dir/fail"
 echo 'PASS status: CLI 失敗では誤った判定を出さずエラー'
+
+# 決める記録のある回の判定。回は 2 役とも返し済み。記録は回の 90 秒後で、今の 30 秒前。
+round_ts=$((now - 120))
+round_time=$(jq -nr --argjson ts "$round_ts" '$ts | todateiso8601')
+both='result:a:r1:5 result:b:r2:6'
+printf '[]' >"$test_dir/runs.json"
+reset_calls
+build_comments $both decide:a:d1:90 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_TEST_NOW=$((now + 869)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+REVIEW_WAIT_DECIDE_MINUTES=1 REVIEW_WAIT_TEST_NOW=$((now + 29)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_DECIDE_MINUTES=1 REVIEW_WAIT_TEST_NOW=$((now + 30)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+[[ ! -s $test_dir/posted.jsonl && $(list_count) == 5 ]]
+echo 'PASS status: 決める記録から 15 分たつまでは待ち、15 分で拾い直しに回す（分は REVIEW_WAIT_DECIDE_MINUTES）'
+
+# 決める記録が複数あっても、いちばん新しい記録でなく、いちばん早い記録の時刻で測る。
+reset_calls
+build_comments $both decide:b:d2:100 decide:a:d1:60 >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 839)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_TEST_NOW=$((now + 840)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 決める記録が複数あれば、いちばん早い記録の時刻で測る'
+
+# 決める記録がなければ、そろっていてもこれまでどおり拾い直しに回す。
+reset_calls
+build_comments $both >"$test_dir/comments.json"
+check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 決める記録がなければ、そろった回は拾い直しに回す'
+
+# `前の回:` で回を指すコメント（次の依頼）か次へ回す記録があれば、決める記録の経過によらず次へ回し済み。
+for later in next:orch:n1:95 claim:orch:c1:95; do
+	reset_calls
+	build_comments $both decide:a:d1:90 "$later" >"$test_dir/comments.json"
+	check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+	REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+done
+reset_calls
+build_comments $both next:orch:n1:95 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+echo 'PASS status: 前の回で回を指すコメントがあれば、次へ回し済み'
+
+# 別の回を指す `前の回:` は、この回の次へ回し済みにしない。
+reset_calls
+build_comments $both decide:a:d1:90 >"$test_dir/comments.json"
+jq --slurpfile comment "$test_dir/comment-prototype.json" --arg time "$(jq -nr --argjson ts "$((round_ts + 95))" '$ts | todateiso8601')" \
+	'. + [$comment[0] + {id: "n9", author_type: "agent", author_id: "orchestrator", created_at: $time, content: "次の依頼です。\n前の回: other-round"}]' \
+	"$test_dir/comments.json" >"$test_dir/comments.tmp"
+mv "$test_dir/comments.tmp" "$test_dir/comments.json"
+check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+echo 'PASS status: 別の回を指す前の回では、この回を次へ回し済みにしない'
+
+# 返っていない役がいるときは、決める記録があっても待ちの判定は変えない（実行の状態で決める）。
+reset_calls
+build_comments result:a:r1:5 decide:a:d1:90 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: 返っていない役は待ちか実行中なので何もしない'
+echo 'PASS status: 返っていない役がいれば、決める記録があっても実行の状態で判定する'

@@ -15,15 +15,21 @@
 #     最新の回を調べ、何もしない・拾い直す・記録する・人間を呼ぶの判定と、返っていない役の実行の状態を出す。
 #     上限用の wakeup は --timeout を付け、コメントからの経過を待たずに未返答の役と状態を記録する。
 #     全員が返していて記録のない回は、知らせの有無を問わず proceed へ進む。
+#     ただし、`前の回:` でこの回を指すコメントがあれば次へ回し済み。決める記録（返事の待ち: 次の依頼を決めます）が
+#     あって `前の回:` のコメントがなければ、記録から 15 分未満は待ち、15 分以上は proceed へ進む。
 #   squad-review-wait proceed <タスク> <きっかけのコメント>
-#     どの実行も、次の工程に進む前に通す。回を次へ回す記録を書き、同じ回の記録のうち、
+#     どの実行も、次の工程に進む前に通す。決める記録は自分の記録と数えない。回を次へ回す記録を書き、同じ回の記録のうち、
 #     いちばん早いものを書いた実行だけに `次に進む` を返し、回の見張りを消す。すでに記録があれば `回ごと済み`、
 #     自分の記録は最大 2 回読み直し、見えなければ ID を添えて失敗する。知らせがなければ、拾い直しの知らせも書く。
 #   squad-review-wait report <タスク> <親のコメント> <結果のファイル>
-#     役が結果を書くときに使う。結果は `/note` で始めて書き、誰も起こさない。
-#     書いたあとにコメントを読み直し、待つ役の全員が返していれば、`返事がそろいました` で orchestrator を起こす。
+#     役が結果を書くときに使う。結果は `/note` で始めて書き、末尾に `返事の回: <回のコメントの ID>` を足す。誰も起こさない。
+#     書いたあとにコメントを読み直し、待つ役の全員が返していれば、決める記録（`返事の待ち: 次の依頼を決めます`）を書く。
+#     読み直しで最も早い記録が自分のものなら、`squad-review-next decide` を流す。
+#     決まらない・失敗したときは、`返事がそろいました` に理由の行（`次の依頼を決められません: <理由>`）を足して、スクワッドのリーダーを起こす。
 #     返していない役がいれば、少し待ってからもう 1 回だけ読み直す。
 #     回がない、知らせるスクワッドが 1 つに決まらないときは、投稿せずエラーにする。呼び出した役は、従来の引き継ぎで返す。
+#     知らせるスクワッドは、回の作者をリーダーとするスクワッド。決める実行が書いた回は、`前の回:` を 10 回までたどり、
+#     リーダーが書いた回のスクワッドを使う。
 #
 # 親のコメントは、その実行のきっかけのコメント（ふつうは回のコメント）。Multica は、コメントで起きた実行に、
 # きっかけのコメントへの返信しか書かせないため。
@@ -36,12 +42,19 @@ REVIEW_WAIT_LIMIT_MINUTES=${REVIEW_WAIT_LIMIT_MINUTES:-60}
 # 見えないことがある。report は 1 回、proceed は最大 2 回、20 秒待って読み直す。
 REVIEW_WAIT_RECHECK_SECONDS=${REVIEW_WAIT_RECHECK_SECONDS:-20}
 
+# 決める記録から、スクリプトが次の依頼を決めている間として待つ分数。decide の最長（6 分ほど）より十分に長くする。
+REVIEW_WAIT_DECIDE_MINUTES=${REVIEW_WAIT_DECIDE_MINUTES:-15}
+
 ROUND_MARK='返事を待つ役:'
 READY_MARK='返事がそろいました'
 CLAIM_MARK='返事の待ち: この回を次へ回します'
+DECIDE_MARK='返事の待ち: 次の依頼を決めます'
+PREV_MARK='前の回:'
+RESULT_MARK='返事の回:'
 WATCH_MARK='レビューと E2E の返事の待ちの見張りで起きました。'
 
-source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+source "$script_dir/squad-cli-lib"
 
 for cmd in jq python3 multica; do
 	if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -65,14 +78,17 @@ comments_of() {
 		map(. + {ts: (.created_at | ts)}) | sort_by(.ts)'
 }
 
-# 最新の回を JSON で出す: {id, author_id, ts, waiting: [UUID...], returned: [UUID...], ready_ids: [ID...], claim_ids: [ID...], ready}。
-# 回がなければ何も出さない。
+# 最新の回を JSON で出す: {id, author_id, ts, waiting: [UUID...], returned: [UUID...], ready_ids: [ID...], claim_ids: [ID...],
+# decide_ids: [ID...], decide_ts, next_ids: [ID...], ready}。回がなければ何も出さない。
 # ready_ids は、回より後の、そろった知らせのコメントの ID を、時刻の早い順（同じ時刻なら ID の順）に並べたもの。
 # claim_ids は、回より後の、次へ回す記録のコメントの ID を、同じ順に並べたもの。
+# decide_ids は、回より後の、決める記録のコメントの ID を、同じ順に並べたもの。decide_ts は、そのうち最も早いものの時刻（なければ null）。
+# next_ids は、回より後の、`前の回:` でこの回を指すコメントの ID を、同じ順に並べたもの。decide が書く依頼や待ちの記録が入る。
 # ready は、ready_ids が空でないこと。
 latest_round() {
-	jq -c --arg round "$ROUND_MARK" --arg ready "$READY_MARK" --arg claim "$CLAIM_MARK" '
+	jq -c --arg round "$ROUND_MARK" --arg ready "$READY_MARK" --arg claim "$CLAIM_MARK" --arg decide "$DECIDE_MARK" --arg prev "$PREV_MARK" '
 		def line_of($mark): (.content | split("\n") | map(select(startswith($mark))) | first // "");
+		def value_of($mark): line_of($mark) | ltrimstr($mark) | gsub("^\\s+|\\s+$"; "");
 		def first_line: (.content | split("\n") | first // "");
 		def waiting_of: line_of($round) | [scan("mention://agent/([A-Za-z0-9-]+)") | .[0]] | unique;
 		. as $all
@@ -80,11 +96,15 @@ latest_round() {
 		| if $r == null then empty else
 			($r | waiting_of) as $waiting
 			| [$all[] | select(.ts > $r.ts)] as $after
+			| ([$after[] | select(.author_type == "agent" and line_of($decide) != "")] | sort_by([.ts, .id])) as $decides
 			| {
 				id: $r.id, author_id: $r.author_id, ts: $r.ts, waiting: $waiting,
 				returned: ([$after[] | select(.author_type == "agent") | .author_id] | unique | map(select(IN($waiting[])))),
 				ready_ids: ([$after[] | select(.author_type == "agent" and (first_line | contains($ready)))] | sort_by([.ts, .id]) | map(.id)),
-				claim_ids: ([$after[] | select(.author_type == "agent" and line_of($claim) != "")] | sort_by([.ts, .id]) | map(.id))
+				claim_ids: ([$after[] | select(.author_type == "agent" and line_of($claim) != "")] | sort_by([.ts, .id]) | map(.id)),
+				decide_ids: ($decides | map(.id)),
+				decide_ts: ($decides | first | .ts // null),
+				next_ids: ([$after[] | select(.author_type == "agent" and value_of($prev) == $r.id)] | sort_by([.ts, .id]) | map(.id))
 			} | . + {ready: (.ready_ids | length > 0)} end'
 }
 
@@ -158,6 +178,16 @@ watch() {
 	trap - EXIT
 }
 
+# 決める記録があり、記録から REVIEW_WAIT_DECIDE_MINUTES 分たっていなければ 0 を返す。
+# 記録がない、または 15 分以上たっていれば 1 を返す。次へ回す記録と `前の回:` のコメントの確認は、呼ぶ側で先にする。
+deciding() {
+	local at now
+	at=$(jq -r '.decide_ts // empty | floor' <<<"$1") || return 1
+	[[ -n $at ]] || return 1
+	now=$(date +%s)
+	((now - at < REVIEW_WAIT_DECIDE_MINUTES * 60))
+}
+
 wait_status() {
 	local issue=$1 timeout=${2:-} round missing runs latest id state lines='' failed=false now started name
 	round=$(comments_of "$issue" | latest_round)
@@ -166,12 +196,17 @@ wait_status() {
 		return 0
 	fi
 	missing=$(missing_of "$round")
-	if [[ $(jq '.claim_ids | length' <<<"$round") != 0 ]]; then
+	# 次の依頼を書き済み（`前の回:` でこの回を指すコメントがある）か、次へ回す記録があれば、何もしない。
+	if [[ $(jq '(.claim_ids | length) + (.next_ids | length)' <<<"$round") != 0 ]]; then
 		printf '/note\n返事の待ち: 次へ回し済みなので何もしない\n'
 		return 0
 	fi
 	if [[ -z $missing ]]; then
-		printf '返事の待ち: 返事がそろっていて、まだ次へ回していない\n'
+		if deciding "$round"; then
+			printf '/note\n返事の待ち: スクリプトが次の依頼を決めている\n'
+		else
+			printf '返事の待ち: 返事がそろっていて、まだ次へ回していない\n'
+		fi
 		return 0
 	fi
 	runs=$(squad_cli_read issue-runs "$issue") || return 1
@@ -214,15 +249,28 @@ wait_status() {
 }
 
 # 回の返事がそろったことを知らせるコメントを書き、そのコメントの ID を出す。headline は知らせの 1 行目。
+# reason があるときは、2 行目に `次の依頼を決められません: <理由>` を置く。
 post_ready() {
-	local issue=$1 parent=$2 round=$3 headline=$4 id roster='' body status=0 name
+	local issue=$1 parent=$2 round=$3 headline=$4 reason=${5-} id roster='' body status=0 name reason_line=''
 	while read -r id; do
 		name=$(agent_name "$id") || return 1
 		roster+="- ${name}"$'\n'
 	done < <(jq -r '.waiting[]' <<<"$round")
 	mkdir -p tmp || return 1
 	body=$(mktemp tmp/squad-review-ready.XXXXXX) || return 1
-	printf '%s\n\n%s\n\n返した役:\n%s' "$headline" "待っていた役の結果が、すべてそろいました。" "$roster" >"$body" || { rm -f -- "$body"; return 1; }
+	[[ -z $reason ]] || reason_line=$'\n'"次の依頼を決められません: ${reason}"
+	printf '%s%s\n\n%s\n\n返した役:\n%s' "$headline" "$reason_line" "待っていた役の結果が、すべてそろいました。" "$roster" >"$body" || { rm -f -- "$body"; return 1; }
+	squad_cli_read issue-comment-add "$issue" "$parent" "$body" | jq -r .id || status=$?
+	rm -f -- "$body" || return 1
+	return "$status"
+}
+
+# 記録のコメント（`/note` と 1 行）を書き、そのコメントの ID を出す。
+post_note() {
+	local issue=$1 parent=$2 line=$3 body status=0
+	mkdir -p tmp || return 1
+	body=$(mktemp tmp/squad-review-note.XXXXXX) || return 1
+	printf '/note\n%s\n' "$line" >"$body" || { rm -f -- "$body"; return 1; }
 	squad_cli_read issue-comment-add "$issue" "$parent" "$body" | jq -r .id || status=$?
 	rm -f -- "$body" || return 1
 	return "$status"
@@ -230,74 +278,158 @@ post_ready() {
 
 # 回を次へ回す記録のコメントを書き、そのコメントの ID を出す。
 post_claim() {
-	local issue=$1 parent=$2 body status=0
-	mkdir -p tmp || return 1
-	body=$(mktemp tmp/squad-review-claim.XXXXXX) || return 1
-	printf '/note\n%s\n' "$CLAIM_MARK" >"$body" || { rm -f -- "$body"; return 1; }
-	squad_cli_read issue-comment-add "$issue" "$parent" "$body" | jq -r .id || status=$?
-	rm -f -- "$body" || return 1
-	return "$status"
+	post_note "$1" "$2" "$CLAIM_MARK"
 }
 
-# コメントを読み直し、全員が返していて知らせがなければ、知らせを書く。
-# 返していない役がいれば 2、取得・JSON 処理・投稿に失敗したら 1 を返す。
-announce_if_ready() {
-	local issue=$1 parent=$2 round missing ready orchestrator headline squad
+# 回を書いたコメントから、知らせるスクワッドを JSON で出す。
+# 回を書いたエージェントがリーダーのスクワッドがあれば、それを使う。なければ、次の依頼のように役が書いた回なので、
+# `前の回:` をたどって（同じタスクのコメントだけ。10 回まで）、リーダーが書いた回のスクワッドを使う。
+# 決められなければ 2 を返す。
+squad_for_round() {
+	local comments=$1 current=$2 squads hop comment author matches count
+	squads=$(squad_cli_read squad-list) || return 1
+	for ((hop = 0; hop <= 10; hop++)); do
+		comment=$(jq -c --arg id "$current" '[.[] | select(.id == $id)] | first // {}' <<<"$comments") || return 1
+		author=$(jq -r '.author_id // empty' <<<"$comment") || return 1
+		[[ -n $author ]] || break
+		matches=$(jq -c --arg leader "$author" '[.[] | select(.leader_id == $leader and .archived_at == null)]' <<<"$squads") || return 1
+		count=$(jq length <<<"$matches") || return 1
+		if ((count == 1)); then
+			jq '.[0]' <<<"$matches"
+			return 0
+		fi
+		if ((count > 1)); then
+			printf '知らせるスクワッドを決められません: %s 件（回を書いたエージェント %s）\n' "$count" "$author" >&2
+			return 2
+		fi
+		current=$(jq -r --arg mark "$PREV_MARK" '(.content // "") | split("\n") | map(select(startswith($mark))) | first // "" | ltrimstr($mark) | gsub("^\\s+|\\s+$"; "")' <<<"$comment") || return 1
+		[[ -n $current ]] || break
+	done
+	printf '知らせるスクワッドを決められません: 回を書いたエージェント %s はどのスクワッドのリーダーでもなく、`前の回:` をたどってもリーダーの回に着きません\n' "${author:-不明}" >&2
+	return 2
+}
+
+# 理由を 1 行にして、長ければ切る。
+one_line() {
+	local text=${1//$'\n'/ }
+	((${#text} <= 300)) || text="${text:0:300}…"
+	printf '%s' "$text"
+}
+
+# 次の依頼を決めるスクリプトを流す。決められないとき（終了コード 3）と失敗したときは、理由を 2 行目に置いた知らせを書き、
+# リーダーを起こす。決めて書けたときは、スクリプトが書いたので何もしない。
+run_decide() {
+	local issue=$1 parent=$2 round=$3 comments=$4 err out status=0 reason squad headline
+	mkdir -p tmp || return 1
+	err=$(mktemp tmp/squad-review-decide.XXXXXX) || return 1
+	out=$("$script_dir/squad-review-next" decide "$issue" "$(jq -r .id <<<"$round")" 2>"$err") || status=$?
+	if ((status == 0)); then
+		rm -f -- "$err"
+		printf '%s\n' "$out"
+		return 0
+	fi
+	if ((status == 3)); then
+		reason=$(grep -m1 '^次の依頼を決められません:' <<<"$out" || true)
+		reason=${reason#次の依頼を決められません:}
+		reason=${reason# }
+	else
+		reason=$(grep -v '^[[:space:]]*$' "$err" | tail -n 1 || true)
+		reason=${reason#次の依頼を書けません:}
+		reason=${reason# }
+	fi
+	rm -f -- "$err"
+	[[ -n $reason ]] || reason="squad-review-next decide が ${status} で終わった"
+	reason=$(one_line "$reason")
+	squad=$(squad_for_round "$comments" "$(jq -r .id <<<"$round")") || return 1
+	headline=$(jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$squad") || return 1
+	post_ready "$issue" "$parent" "$round" "${headline} ${READY_MARK}。" "$reason" >/dev/null || return 1
+}
+
+# 結果を書いたあとの後始末をする。コメントを読み直し、全員が返していれば、決める記録を書いて読み直す。
+# 自分の記録が最も早いときだけ、次の依頼を決めるスクリプトを流す。
+# 0: 済んだ、1: 取得・JSON 処理・投稿に失敗した、2: 返していない役がいる、3: 自分の記録が読み直しで見えない。
+# DECIDE_OWN は、すでに書いた自分の決める記録の ID（なければ空）。呼び出しをまたいで保つ。
+settle() {
+	local issue=$1 parent=$2 round_id=$3 comments round missing
 	# 条件として呼ばれる関数内では set -e が効かないため、失敗を明示的に返す。
-	round=$(comments_of "$issue" | latest_round) || return 1
-	[[ -n $round ]] || return 0
+	comments=$(comments_of "$issue") || return 1
+	round=$(latest_round <<<"$comments") || return 1
+	[[ -n $round && $(jq -r .id <<<"$round") == "$round_id" ]] || return 0
 	missing=$(missing_of "$round") || return 1
 	[[ -z $missing ]] || return 2
-	ready=$(jq -r .ready <<<"$round") || return 1
-	if [[ $ready != true ]]; then
-		orchestrator=$(jq -r .author_id <<<"$round") || return 1
-		squad=$(squad_cli_squad_for_leader "$orchestrator") || return 1
-		headline=$(jq -r '"[@" + .name + "](mention://squad/" + .id + ")"' <<<"$squad") || return 1
-		post_ready "$issue" "$parent" "$round" "${headline} ${READY_MARK}。" >/dev/null || return 1
+	if [[ -z $DECIDE_OWN ]]; then
+		# 次の依頼や次へ回す記録、決める記録、知らせがすでにあれば、ほかの実行が扱っている。
+		if [[ $(jq '(.next_ids | length) + (.claim_ids | length) + (.decide_ids | length) + (.ready_ids | length)' <<<"$round") != 0 ]]; then
+			return 0
+		fi
+		DECIDE_OWN=$(post_note "$issue" "$parent" "$DECIDE_MARK") || return 1
+		comments=$(comments_of "$issue") || return 1
+		round=$(latest_round <<<"$comments") || return 1
+		[[ -n $round && $(jq -r .id <<<"$round") == "$round_id" ]] || return 0
 	fi
+	jq -e --arg own "$DECIDE_OWN" '.decide_ids | index($own) != null' <<<"$round" >/dev/null || return 3
+	# 次へ回し済みの回では流さない。最も早い決める記録でなければ、ほかの実行に任せる。
+	if [[ $(jq '(.next_ids | length) + (.claim_ids | length)' <<<"$round") != 0 ]]; then
+		return 0
+	fi
+	[[ $(jq -r '.decide_ids[0]' <<<"$round") == "$DECIDE_OWN" ]] || return 0
+	run_decide "$issue" "$parent" "$round" "$comments"
 }
 
 report() {
-	local issue=$1 parent=$2 file=$3 body round attempt status
+	local issue=$1 parent=$2 file=$3 body round attempt status comments peers_waited=false
 	[[ -r $file ]] || {
 		echo "結果のファイルが読めない: ${file}" >&2
 		exit 1
 	}
 	# 回のない依頼を /note で返すと、orchestrator に届かず止まる。投稿する前に確認する。
-	round=$(comments_of "$issue" | latest_round)
+	comments=$(comments_of "$issue") || return 1
+	round=$(latest_round <<<"$comments") || return 1
 	if [[ -z $round ]]; then
 		echo '返事を待つ役の登録がありません。結果は投稿していません。スキル squad-handoff の「引き継ぐとき」に従い、orchestrator をメンションして返してください。' >&2
 		return 1
 	fi
 	# 知らせる先が決まらないまま結果だけを /note で残さない。
-	squad_cli_squad_for_leader "$(jq -r .author_id <<<"$round")" >/dev/null || return 1
-	# 先頭が /note でなければ足す。ファイルで渡して改行を保つ。
+	squad_for_round "$comments" "$(jq -r .id <<<"$round")" >/dev/null || return 1
+	# 先頭が /note でなければ足す。ファイルで渡して改行を保つ。役が書いた `返事の回:` の行は除き、スクリプトが回の ID を足す。
 	mkdir -p tmp
 	body=$(mktemp tmp/squad-review-report.XXXXXX)
 	trap "$(printf 'rm -f -- %q' "$body")" EXIT
 	if [[ $(head -n 1 "$file") == /note* ]]; then
-		cat "$file" >"$body"
+		grep -v "^${RESULT_MARK}" "$file" >"$body" || true
 	else
-		printf '/note\n%s\n' "$(<"$file")" >"$body"
+		printf '/note\n' >"$body"
+		{ grep -v "^${RESULT_MARK}" "$file" || true; } >>"$body"
 	fi
+	[[ -z $(tail -c 1 "$body") ]] || printf '\n' >>"$body"
+	printf '%s %s\n' "$RESULT_MARK" "$(jq -r .id <<<"$round")" >>"$body"
 	squad_cli_read issue-comment-add "$issue" "$parent" "$body" >/dev/null
 	rm -f -- "$body"
 	trap - EXIT
 
 	# 結果を書いてからコメントを読み直す。2 役がほぼ同時に終えても、あとに読んだ方には両方の結果が見えるため。
 	# まだ返していない役がいれば、相手の結果が読めるようになるのを少し待って、もう 1 回だけ読み直す。
-	for attempt in 1 2; do
-		if announce_if_ready "$issue" "$parent"; then
+	# 決める記録を書いたあと、それが読み直しで見えなければ、待って読み直す（合わせて 3 回まで読む）。
+	DECIDE_OWN=''
+	for attempt in 1 2 3; do
+		if settle "$issue" "$parent" "$(jq -r .id <<<"$round")"; then
 			return 0
 		else
 			status=$?
 		fi
-		[[ $status == 2 ]] || return "$status"
-		if [[ $attempt == 1 ]]; then
-			sleep "$REVIEW_WAIT_RECHECK_SECONDS"
-		fi
+		case $status in
+		2)
+			[[ $peers_waited == false ]] || return 0
+			peers_waited=true
+			;;
+		3) ;;
+		*) return "$status" ;;
+		esac
+		((attempt == 3)) || sleep "$REVIEW_WAIT_RECHECK_SECONDS"
 	done
-	return 0
+	[[ $status != 2 ]] || return 0
+	printf '決める記録が読み直しで見えません: コメント %s\n' "$DECIDE_OWN" >&2
+	return 1
 }
 
 # 次の工程に進んでよいかを決める。進めるのは、同じ回の次へ回す記録のうち、いちばん早いものを書いた実行だけにする。
@@ -314,8 +446,13 @@ proceed() {
 		printf '/note\n返事の待ち: 返っていない役がいるので何もしない\n'
 		return 0
 	fi
-	if [[ $(jq -r '.claim_ids | length' <<<"$round") != 0 ]]; then
+	if [[ $(jq '(.claim_ids | length) + (.next_ids | length)' <<<"$round") != 0 ]]; then
 		printf '/note\n返事の待ち: 回ごと済み\n'
+		return 0
+	fi
+	# 知らせがなくても、決める記録から 15 分たっていなければ、スクリプトが次の依頼を決めている。割り込まない。
+	if [[ $(jq -r .ready <<<"$round") != true ]] && deciding "$round"; then
+		printf '/note\n返事の待ち: スクリプトが次の依頼を決めている\n'
 		return 0
 	fi
 	# 知らせがなければ、拾い直しの知らせを書く。メンションは付けない（自分のコメントでは自分は起きないため）。

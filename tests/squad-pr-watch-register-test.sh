@@ -429,3 +429,20 @@ fixture issue-wakeups | jq '[. + {condition:{type:"pull_request",event:"conflict
 if python3 "$root/tests/pr-watch-fixture.py" emit issue-wakeups "$test_dir/invented.json" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 [[ $(<"$test_dir/error") == *'見本とケースの鍵が違います'* ]]
 echo 'PASS fixture: 実物にない入れ子の欄を追加したケースを拒否する'
+
+# conflicts は、--leader <ID> を渡すとそのリーダーを起こす規則を作る。渡さなければ、これまでどおり --agent-id を付けない。
+reset_fixture
+(cd "$test_dir" && bash "$script" conflicts test-issue) >"$test_dir/output"
+assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") == null) and (.[0].args | index("--until-pr") as $i | .[$i+1] == "conflicts")' "$test_dir/wakeups.jsonl"
+for form in 'test-issue --leader leader-x' '--leader leader-x test-issue'; do
+	reset_fixture
+	# shellcheck disable=SC2086
+	(cd "$test_dir" && bash "$script" conflicts $form) >"$test_dir/output"
+	assert_jq -s 'length == 1 and (.[0].args | index("--agent-id") as $i | .[$i+1] == "leader-x")
+		and (.[0].args | index("--until-pr") as $i | .[$i+1] == "conflicts")' "$test_dir/wakeups.jsonl"
+done
+reset_fixture
+status=0
+(cd "$test_dir" && bash "$script" conflicts test-issue --leader) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+[[ $status == 2 && ! -s $test_dir/wakeups.jsonl && $(<"$test_dir/error") == '使い方:'* ]]
+echo 'PASS conflicts: --leader でそのリーダーを起こす。渡さなければ --agent-id を付けない'

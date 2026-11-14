@@ -353,6 +353,8 @@ run
 expect_status 1
 grep -q 'コメントの投稿に失敗した' "$test_dir/err"
 [[ ! -s $test_dir/out ]]
+# 見張りを入れたあとに投稿に失敗したら、見張りを消す。
+[[ $(<"$test_dir/watch-calls") == "watch test-issue trigger-1 "*$'\nunwatch test-issue' ]] || fail "投稿の失敗で見張りを消していない: $(<"$test_dir/watch-calls")"
 reset
 set_roster orchestrator claude-implementer
 run

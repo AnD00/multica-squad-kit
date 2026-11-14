@@ -77,14 +77,18 @@ assert_jq -s '[.[] | select(.[0:3] == ["issue", "wakeup", "create"])] | length =
 cp "$test_dir/agents.base.json" "$test_dir/agents.json"
 echo 'PASS watch: archived_at のあるエージェントは無効として、前の見張りを消さず登録もしない'
 
-# 結果のあとに返した役の名前が読めなくても、ID に置き換えて知らせを投稿しない。
+# 決められなくて知らせを書くとき、返した役の名前が読めなくても、ID に置き換えて知らせを投稿しない。
+# 結果と決める記録は投稿済みなので、2 件のままにする。
 reset_calls
-build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
+build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.1.json"
+cp "$test_dir/comments.1.json" "$test_dir/comments.2.json"
+build_comments result:a:r1:5 result:b:r2:6 decide:a:posted-2:90 >"$test_dir/comments.json"
+echo 3 >"$test_dir/decide-status"
 jq --arg a "$a" 'map(if .id == $a then del(.name) else . end)' "$test_dir/agents.json" >"$test_dir/defect.json"
 cp "$test_dir/defect.json" "$test_dir/agents.json"
 touch "$test_dir/allow-missing-fields"
 if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
-[[ ! -s $test_dir/output && $(posted_ready_count) == 0 && $(jq -s length "$test_dir/posted.jsonl") == 1 ]]
+[[ ! -s $test_dir/output && $(posted_ready_count) == 0 && $(posted_decide_count) == 1 && $(jq -s length "$test_dir/posted.jsonl") == 2 ]]
 [[ $(<"$test_dir/error") == *'agent-get の name'* ]]
 echo 'PASS contract: 返した役の名前の欠落を隠さず、結果を再投稿しない'
 
@@ -100,10 +104,13 @@ cp "$test_dir/agents.base.json" "$test_dir/agents.json"
 reset_calls
 jq '. + [.[0] + {id:"archived-squad",archived_at:"2026-01-01T00:00:00Z"}, .[0] + {id:"other-squad",leader_id:"other-leader"}]' \
 	"$test_dir/squads.base.json" >"$test_dir/squads.json"
-build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.json"
+build_comments result:a:r1:5 result:b:r2:6 >"$test_dir/comments.1.json"
+cp "$test_dir/comments.1.json" "$test_dir/comments.2.json"
+build_comments result:a:r1:5 result:b:r2:6 decide:a:posted-2:90 >"$test_dir/comments.json"
+echo 3 >"$test_dir/decide-status"
 MULTICA_AGENT_ID="$a" MULTICA_TASK_ID=member-run bash "$script" report test-issue trigger "$test_dir/result.md"
-assert_jq -s 'length == 2 and (.[1].body | startswith("[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n"))
- and (.[1].body | contains("mention://agent/") | not)' "$test_dir/posted.jsonl"
+assert_jq -s 'length == 3 and (.[2].body | startswith("[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n"))
+ and (.[2].body | contains("mention://agent/") | not)' "$test_dir/posted.jsonl"
 echo 'PASS report: 回を書いたリーダーの有効なスクワッドだけをメンションし、エージェントのメンションを含まない'
 
 # スクワッドを決められなければ、結果を /note で投稿する前に止める。
@@ -123,7 +130,7 @@ for selection in none archived other-leader duplicate missing-name cli; do
 	if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 	[[ ! -s $test_dir/output && ! -s $test_dir/posted.jsonl && -z $(slept) ]]
 	case $selection in
-	none|archived|other-leader) [[ $(<"$test_dir/error") == *'0 件'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
+	none|archived|other-leader) [[ $(<"$test_dir/error") == *'どのスクワッドのリーダーでもなく'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
 	duplicate) [[ $(<"$test_dir/error") == *'2 件'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
 	missing-name) [[ $(<"$test_dir/error") == *'squad-list の name'* ]] ;;
 	cli) [[ $(<"$test_dir/error") == 'CLI mock failure' ]] ;;

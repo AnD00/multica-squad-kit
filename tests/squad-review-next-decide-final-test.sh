@@ -20,6 +20,15 @@ run round-1
 expect_posted 最終レビュー "$(final_request_body 'PR の差分全体' codex-principal)"
 expect_calls pick-calls "$(final_pick_call Claude)"
 expect_calls watch-calls 'watch test-issue round-1 --agent-id orchestrator codex-principal'
+# 見張りを入れたあとに投稿に失敗したら、見張りを消してから 1 で終わる。
+reset
+ok_round
+set_runs claude-implementer:completed
+set_principal_pick codex-principal
+touch "$test_dir/post-fail"
+run round-1
+expect_failure 'コメントの投稿に失敗した'
+expect_calls watch-calls $'watch test-issue round-1 --agent-id orchestrator codex-principal\nunwatch test-issue'
 # 同数なら系統を指定しない。
 reset
 ok_round
@@ -160,6 +169,15 @@ run final-1
 expect_posted 頼み直し "$(final_retry_body "$old..$sha" 'Claude で足りる。工程: principal' claude-principal)" final-1
 expect_calls watch-calls 'watch test-issue final-1 --agent-id orchestrator claude-principal'
 expect_no_calls pick-calls
+# 頼み直しの投稿に失敗したら、見張りを消してから 1 で終わる。
+reset
+ok_round
+final_round final-1 "$sha" round-1 "$old..$sha"
+result final-1 claude-principal ✅ "$old" なし
+touch "$test_dir/post-fail"
+run final-1
+expect_failure 'コメントの投稿に失敗した'
+expect_calls watch-calls $'watch test-issue final-1 --agent-id orchestrator claude-principal\nunwatch test-issue'
 # 最上位の役以外の合わないものが混じれば、最終レビューの形では頼み直せないのでリーダーに任せる。
 reset
 base_round
