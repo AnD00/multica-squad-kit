@@ -37,6 +37,16 @@ while IFS= read -r path; do [[ ! -e $path ]]; done < <(jq -r .path "$test_dir/in
 echo 'PASS watch: 古い規則だけを削除、役ごとの once と上限 1 個、返信先と指示ファイルの片付け'
 
 reset_calls
+(cd "$test_dir" && bash "$script" watch test-issue trigger-comment --agent-id leader-id "$a" "$b") >"$test_dir/output"
+jq -s '.' "$test_dir/calls.jsonl" >"$test_dir/watch-calls.json"
+assert_jq '
+	def value($flag): . as $args | index($flag) as $i | if $i == null then null else $args[$i+1] end;
+	[.[] | select(.[0:3] == ["issue", "wakeup", "create"])] as $creates
+	| ($creates | length) == 3 and all($creates[]; value("--agent-id") == "leader-id" and value("--parent") == "trigger-comment")
+' "$test_dir/watch-calls.json"
+echo 'PASS watch: --agent-id を、役ごとの規則と上限の規則のすべてに渡す'
+
+reset_calls
 bash "$script" unwatch test-issue
 assert_jq -s '[.[] | select(.[0:3] == ["issue", "wakeup", "delete"]) | .[4]] == ["old-active", "old-disabled"]' "$test_dir/calls.jsonl"
 echo 'PASS unwatch: CI とコンフリクトの規則を保存'

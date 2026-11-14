@@ -6,8 +6,9 @@
 # 「回」は、`返事を待つ役:` の行を持つ、タスクの最新のコメント。待つ役は、その行のメンションの UUID。
 # 「返した」は、その役のエージェントが回より後に書いたコメントがあること。
 #
-#   squad-review-wait watch <タスク> <きっかけのコメント> <役の ID>...
+#   squad-review-wait watch <タスク> <きっかけのコメント> [--agent-id <起こす宛先の ID>] <役の ID>...
 #     回のコメントを書く前に、役ごとの失敗・取り消しと、待つ上限の wakeup を入れる。
+#     宛先を省くと、呼び出した実行（リーダー）を起こす。役の実行から呼ぶときは、リーダーの ID を渡す。
 #   squad-review-wait unwatch <タスク>
 #     そのタスクの返事の待ちの wakeup を消す。CI とコンフリクトの規則は残す。
 #   squad-review-wait status <タスク> [--timeout]
@@ -50,7 +51,7 @@ for cmd in jq python3 multica; do
 done
 
 usage() {
-	echo '使い方: squad-review-wait watch <タスク> <きっかけのコメント> <役の ID>... | unwatch <タスク> | status <タスク> [--timeout] | proceed <タスク> <きっかけのコメント> | report <タスク> <親のコメント> <結果のファイル>' >&2
+	echo '使い方: squad-review-wait watch <タスク> <きっかけのコメント> [--agent-id <起こす宛先の ID>] <役の ID>... | unwatch <タスク> | status <タスク> [--timeout] | proceed <タスク> <きっかけのコメント> | report <タスク> <親のコメント> <結果のファイル>' >&2
 	exit 2
 }
 
@@ -115,7 +116,14 @@ unwatch() {
 
 watch() {
 	local issue=$1 parent=$2 id ids='' instruction response
+	local -a target=()
 	shift 2
+	if [[ ${1:-} == --agent-id ]]; then
+		[[ -n ${2:-} ]] || return 2
+		target=(--agent-id "$2")
+		shift 2
+	fi
+	(($# > 0)) || return 2
 	# ID の誤りでは前の見張りを失わないよう、消す前に全員を確認する。
 	for id in "$@"; do
 		check_agent "$id" || return 1
@@ -130,11 +138,11 @@ watch() {
 		printf '%s\n' "$WATCH_MARK"
 		printf '`squad-review-wait status %s` を実行し、あなたの指示の「返事の待ちの見張りで起きたとき」に従ってください。\n' "$issue"
 	} >"$instruction"
-	# --agent-id を省き、呼び出した orchestrator 自身を起こす。mode は once、期限の扱いは end。
+	# --agent-id を省くと、呼び出した orchestrator 自身を起こす。mode は once、期限の扱いは end。
 	while IFS= read -r id; do
 		[[ -n $id ]] || continue
 		response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --event task.failed,task.cancelled --filter-agent-id "$id" \
-			--expires-in "${REVIEW_WAIT_LIMIT_MINUTES}m" --parent "$parent") || return 1
+			--expires-in "${REVIEW_WAIT_LIMIT_MINUTES}m" --parent "$parent" ${target[@]+"${target[@]}"}) || return 1
 		jq '{id}' <<<"$response"
 	done <<<"$ids"
 	# 上限で役の数だけ起きないよう、時刻の規則は 1 つだけにする。
@@ -144,7 +152,7 @@ watch() {
 		printf '`squad-review-wait status %s --timeout` を実行し、あなたの指示の「返事の待ちの見張りで起きたとき」に従ってください。\n' "$issue"
 	} >"$instruction"
 	response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --kind at --after "${REVIEW_WAIT_LIMIT_MINUTES}m" \
-		--parent "$parent") || return 1
+		--parent "$parent" ${target[@]+"${target[@]}"}) || return 1
 	jq '{id}' <<<"$response"
 	rm -f "$instruction"
 	trap - EXIT
@@ -341,7 +349,7 @@ proceed() {
 case ${1:-} in
 watch)
 	(($# >= 4)) || usage
-	watch "${@:2}"
+	watch "${@:2}" || { status=$?; ((status != 2)) || usage; exit "$status"; }
 	;;
 unwatch)
 	(($# == 2)) || usage
