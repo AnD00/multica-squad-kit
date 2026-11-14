@@ -42,7 +42,7 @@ wrote_once
 for body in $'> 前の回: round-1' $'  前の回: round-1' $'<div>\n前の回: round-1'; do
 	reset
 	ok_round
-	add res-extra qa $'/note\n返事の回: round-1\n確認したコミット: '"$sha"$'\n設計への指摘: なし\n\n✅ demo-qa-test: 結果\n'"$body"
+	add res-extra qa $'/note\n返事の回: round-1\n確認したコミット: '"$sha"$'\n✅ demo-qa-test: 結果\n設計への指摘: なし\n\n'"$body"
 	run round-1
 	wrote_once
 done

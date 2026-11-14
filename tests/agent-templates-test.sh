@@ -470,7 +470,7 @@ grep -qF 'codex exec --sandbox read-only --ephemeral' "$test_dir/all/codex-fixer
 ! grep -qF 'Agent ツールで' "$test_dir/all/codex-fixer"
 for role in code-reviewer performance-reviewer security-reviewer ux-reviewer qa; do
 	grep -qF 'スキル squad-handoff の「本文の書き方」に従う' "$test_dir/all/$role"
-	grep -qF '「引き継ぐとき」の形と順序にそろえる' "$test_dir/all/$role"
+	grep -qF '「引き継ぐとき」の形にそろえるのは、そのあとの成果物と確認したことだけにする' "$test_dir/all/$role"
 	grep -qF '3 行以内' "$test_dir/all/$role"
 done
 grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/designer"
@@ -600,3 +600,18 @@ grep -qF '`squad-usage-wait pick <タスク> planner` か `squad-usage-wait pick
 grep -qF '使用率の待ちの起こしで起きました。' "$test_dir/all/orchestrator"
 grep -qF '`squad-review-next request`' "$test_dir/all/orchestrator"
 echo 'PASS templates: 返事の役は report と設計への指摘の行で返し、リーダーは次の依頼を決められないときと使用率の待ちの起こしで起きる'
+
+# 結果の先頭の行: scripts が読むマークの行は、squad-handoff と 7 つのひな形が書き方を持つ。手で頼む最終レビューの前の回の行も、リーダーの手順が持つ。
+grep -qF '結果のファイルは、`確認したコミット:` の行のすぐ次の行を `<マーク> <自分のエージェントの名前>: <結論>` にする' "$handoff_skill"
+grep -qF 'メンションと文章の結論は、この行より前に置かない' "$handoff_skill"
+for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-principal codex-principal; do
+	grep -qF '結論を `<マーク> <自分のエージェントの名前>: <結論>` のマークの行にする。`確認したコミット:` の行、マークの行、`設計への指摘:` の行の順に書く' "$test_dir/all/$role"
+	grep -qF '`返事の回:` の行は `report` が足すので書かない' "$test_dir/all/$role"
+	if grep -qF 'の形と順序にそろえる。`確認したコミット:` の行の形と置き場所は' "$test_dir/all/$role"; then
+		echo "FAIL templates: $role のタスクに返す要約が、引き継ぐときの形に結論をそろえるままである" >&2
+		exit 1
+	fi
+done
+grep -qF '手で最終レビューを頼むときは、依頼に `前の回: <レビューと E2E の回のコメントの ID>` の行も置く' "$refs/leader-principal.md"
+grep -qF '依頼は、字下げ、引用、HTML、入れ子の項目を使わずに書く' "$refs/leader-principal.md"
+echo 'PASS templates: マークの行と手で頼む最終レビューの前の回の行を、書く側の指示が持つ'

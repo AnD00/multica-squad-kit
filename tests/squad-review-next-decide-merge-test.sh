@@ -132,7 +132,7 @@ expect_call_lacks pr-watch-calls 'conflicts test-issue'
 # 確認したコミットが短い SHA でも、head の先頭と合えば一致とする。
 reset
 final_ok
-add res-short claude-principal $'/note\n返事の回: final-1\n確認したコミット: '"${sha:0:7}"$'\n設計への指摘: なし\n\n✅ demo-claude-principal-test: 結果' final-1
+add res-short claude-principal $'/note\n返事の回: final-1\n確認したコミット: '"${sha:0:7}"$'\n✅ demo-claude-principal-test: 結果\n設計への指摘: なし' final-1
 run final-1
 expect_status 0
 reset

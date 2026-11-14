@@ -38,7 +38,7 @@ expect_leader '返事の結果がない: qa'
 expect_no_calls pr-watch-calls
 reset
 base_round
-add res-early qa $'返事の回: round-1\n確認したコミット: 0123456\n設計への指摘: なし\n\n✅ demo-qa-test: 結果' ""
+add res-early qa $'返事の回: round-1\n確認したコミット: 0123456\n✅ demo-qa-test: 結果\n設計への指摘: なし' ""
 run round-1
 expect_leader '返事の結果がない: code-reviewer'
 echo 'PASS review-next-decide: 回の種類が決められない、または返事がそろわないときは、PR を見ずにリーダーに任せる'
@@ -58,6 +58,19 @@ unreadable $'返事の回: round-1\n確認したコミット: 0123456\n設計へ
 unreadable $'返事の回: round-1\n確認したコミット: 0123456\n設計への指摘: なし\n結果です'
 unreadable $'返事の回: round-1\n確認したコミット: 0123456\n設計への指摘: なし\n✅ 結果'
 echo 'PASS review-next-decide: 最新の返事が読めなければ、前の読める返事に戻らずリーダーに任せる'
+
+# ---- 結果の先頭の行。役の指示（squad-handoff の「レビューと E2E の返事を返す」）どおりの順は読め、文章やメンションが先頭の結果は読めない。
+# 指示どおりの順: /note、返事の回、確認したコミット、マークの行、設計への指摘。全員がこの形で返ると、次の依頼まで決まる。
+reset
+ok_round
+run round-1
+expect_status 0
+expect_posted 最終レビュー "$(final_request_body 'PR の差分全体')"
+# 読む行の 1 つ目がマークの行でなく文章のとき、結果は読めない。同じ結果でも、マークの行を先頭にすると読める（上の ok_round）。
+unreadable $'/note\n返事の回: round-1\n確認したコミット: 0123456\n全員そろいました。✅ demo-qa-test: 結果\n設計への指摘: なし'
+unreadable $'/note\n返事の回: round-1\n確認したコミット: 0123456\n'"$(mention orchestrator) ✅ demo-qa-test: 結果"$'\n設計への指摘: なし'
+unreadable $'/note\n返事の回: round-1\n指摘はありませんでした。\n確認したコミット: 0123456\n✅ demo-qa-test: 結果\n設計への指摘: なし'
+echo 'PASS review-next-decide: 指示どおりの順の結果は読めて次の依頼が決まり、文章やメンションが先頭の結果は読めずリーダーに任せる'
 
 # ---- 設計の見直しの回は、返事が ✅・コードの指摘・設計への指摘のどれでも、何も書かずにリーダーに任せる。
 for kind in '設計の見直し' '設計と PR の見直し'; do
