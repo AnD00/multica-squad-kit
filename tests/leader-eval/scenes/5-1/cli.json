@@ -63,6 +63,10 @@
     {
       "match": "multica issue runs issue-shop-1",
       "stdout": "[\n  {\n    \"id\": \"run-fix-1\",\n    \"agent_id\": \"agent-claude-fixer\",\n    \"status\": \"completed\",\n    \"started_at\": \"2026-01-10T09:21:00Z\",\n    \"completed_at\": \"2026-01-10T10:12:00Z\"\n  }\n]"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }

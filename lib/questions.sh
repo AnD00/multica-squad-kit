@@ -395,7 +395,7 @@ role_fixed_text() {
 	printf 'リーダー（orchestrator）: 振り分けと進行を担当します。必須のため外せません。\n  エージェント: %s-orchestrator-%s' "$project_key" "$member_key"
 	for runtime in claude codex; do
 		jq -e --arg runtime "$runtime" 'index($runtime)!=null' >/dev/null <<<"${runtimes:-[\"claude\",\"codex\"]}" || continue
-		printf '\n%s の最上位のレビュー（%s-principal）: 重要なタスクの設計と PR を見直します。外せません。\n  エージェント: %s-%s-principal-%s' "$(if [[ $runtime == claude ]]; then printf Claude; else printf Codex; fi)" "$runtime" "$project_key" "$runtime" "$member_key"
+		printf '\n%s の最上位のレビュー（%s-principal）: すべてのタスクの最終レビューと、重要なタスクの設計の見直しをします。外せません。\n  エージェント: %s-%s-principal-%s' "$(if [[ $runtime == claude ]]; then printf Claude; else printf Codex; fi)" "$runtime" "$project_key" "$runtime" "$member_key"
 	done
 }
 

@@ -123,3 +123,55 @@ for operation in runs held; do
 	if [[ $operation == held ]]; then check_held $'CI / test\nexternal'; fi
 done
 echo 'PASS CLI 失敗: エラーを返し、受けた記録を書けなかった保留は再取得できる'
+
+# 各実行で読んだ URL を検証し、不正な値ではチェック名も取得記録も出さない。
+for invalid in absent null empty foreign control shape no-repository bad-repository; do
+	reset_fixture
+	case $invalid in
+	absent) filter='del(.metadata.pr_url)' ;;
+	null) filter='.metadata.pr_url=null' ;;
+	empty) filter='.metadata.pr_url=""' ;;
+	foreign) filter='.metadata.pr_url="https://github.com/other/private/pull/67"' ;;
+	control) filter='.metadata.pr_url="https://github.com/example/repo/pull/67\nINJECTED"' ;;
+	shape) filter='.metadata.pr_url="https://example.invalid/example/repo/pull/67"' ;;
+	no-repository) filter='del(.metadata.repository)' ;;
+	bad-repository) filter='.metadata.repository="example/.."' ;;
+	esac
+	jq "$filter" "$test_dir/task.json" >"$test_dir/updated.json"
+	mv "$test_dir/updated.json" "$test_dir/task.json"
+	status=0
+	(cd "$test_dir" && bash "$script" ci-held test-issue handoff-comment) >"$test_dir/output" 2>"$test_dir/error" || status=$?
+	[[ $status != 0 && ! -s $test_dir/output && ! -s $test_dir/posted.jsonl && ! -s $test_dir/gh-calls.jsonl ]]
+	case $invalid in
+	absent | null | empty) expected='metadata に pr_url がない' ;;
+	foreign | no-repository | bad-repository) expected='PR の URL が作業先と違う' ;;
+	*) expected='PR の URL が不正' ;;
+	esac
+	[[ $(<"$test_dir/error") == "$expected" ]]
+done
+echo 'PASS ci-held: 欠落・不一致・不正は固定の理由で失敗し、GitHub・チェック名・取得記録を出さない'
+
+# 検証前の早期終了は、URL が不正でも成功のままにする。
+for early in done cancelled absent null empty; do
+	reset_fixture
+	case $early in
+	done | cancelled) filter=".status_category=\"$early\"" ;;
+	absent) filter='del(.metadata.ci_watch_thread)' ;;
+	null) filter='.metadata.ci_watch_thread=null' ;;
+	empty) filter='.metadata.ci_watch_thread=""' ;;
+	esac
+	jq "$filter | .metadata.pr_url=\"invalid\"" "$test_dir/task.json" >"$test_dir/updated.json"
+	mv "$test_dir/updated.json" "$test_dir/task.json"
+	check_held ''
+	[[ ! -s $test_dir/gh-calls.jsonl && ! -s $test_dir/posted.jsonl ]]
+done
+echo 'PASS ci-held: 終了済みと記録先なしでは検証前に何も出さず成功する'
+
+reset_fixture
+jq '.metadata.pr_url="http://GITHUB.COM/Example/Repo/pull/00067/files?view=split#ignored"' "$test_dir/task.json" >"$test_dir/updated.json"
+mv "$test_dir/updated.json" "$test_dir/task.json"
+printf '%s' 'https://github.com/Example/Repo/pull/67' >"$test_dir/expected-pr-url"
+check_held $'CI / test\nexternal'
+assert_jq -s 'length == 1 and .[0][2] == "https://github.com/Example/Repo/pull/67"' "$test_dir/gh-calls.jsonl"
+assert_jq -s 'length == 1 and (.[0].body | startswith("/note\nCI abcdef0:"))' "$test_dir/posted.jsonl"
+echo 'PASS ci-held: 正規形でだけ読み、従来どおりチェック名と取得記録を返す'

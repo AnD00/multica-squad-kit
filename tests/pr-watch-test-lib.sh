@@ -34,21 +34,63 @@ case "${1-} ${2-} ${3-}" in
 'version  ') echo 'multica fixture-version' ;;
 'squad list --output') emit squad-list "$dir/squads.json" ;;
 'issue get test-issue') emit issue-get "$dir/task.json" ;;
+'issue pull-requests test-issue') cat "$dir/pulls.json" ;;
 'agent list --output') cat "$dir/agents.json" ;;
 "agent get $3")
  jq --arg id "$3" '.[] | select(.id == $id)' "$dir/agents.json" >"$dir/agent-response.json"
  emit agent-get "$dir/agent-response.json" ;;
 'issue runs test-issue') emit issue-runs "$dir/runs.json" ;;
 'issue wakeup list') emit issue-wakeups "$dir/rules.json" ;;
-'issue wakeup delete') echo '{}' ;;
+'issue metadata set' | 'issue metadata delete')
+	operation=$3
+	shift 4
+	key= value= type=string
+	while (($#)); do
+		case $1 in --key) key=$2 ;; --value) value=$2 ;; --type) type=$2 ;; esac
+		shift 2
+	done
+	if [[ $operation == delete ]]; then
+		jq --arg key "$key" 'del(.metadata[$key])' "$dir/task.json" >"$dir/metadata-updated.json"
+	elif [[ $type == number ]]; then
+		jq --arg key "$key" --argjson value "$value" '.metadata[$key] = $value' "$dir/task.json" >"$dir/metadata-updated.json"
+	else
+		jq --arg key "$key" --arg value "$value" '.metadata[$key] = $value' "$dir/task.json" >"$dir/metadata-updated.json"
+	fi
+	mv "$dir/metadata-updated.json" "$dir/task.json"
+	echo '{}'
+	;;
+'issue wakeup delete')
+	jq --arg id "$5" '[.[] | select(.id != $id)]' "$dir/rules.json" >"$dir/rules-updated.json"
+	mv "$dir/rules-updated.json" "$dir/rules.json"
+	echo '{}'
+	;;
 'issue wakeup create')
 	args=$(jq -cn --args '$ARGS.positional' -- "$@")
 	file=$(jq -er 'index("--instruction-file") as $i | .[$i+1]' <<<"$args")
 	jq -Rs --argjson args "$args" '{args:$args, body:.}' <"$file" >>"$dir/wakeups.jsonl"
+	if [[ $(head -n 1 "$file") == '紐付いていない PR のマージ待ちの見張りで起きました。' ]]; then
+		# 登録後に残す規則の返信先を読むため、作成を一覧にも反映する。
+		python3 "$PR_WATCH_TEST_ROOT/tests/pr-watch-fixture.py" base issue-wakeups >"$dir/rule-prototype.json"
+		jq -n --slurpfile base "$dir/rule-prototype.json" --slurpfile created "$dir/wakeup-prototype.json" \
+			--rawfile instruction "$file" --argjson args "$args" '$base[0] + {
+			id:$created[0].id, created_at:$created[0].created_at, instruction:$instruction,
+			parent_comment_id:($args | index("--parent") as $i | .[$i+1])
+		}' >"$dir/created-rule.json"
+		jq --slurpfile created "$dir/created-rule.json" '. + [$created[0]]' "$dir/rules.json" >"$dir/updated.json"
+		mv "$dir/updated.json" "$dir/rules.json"
+	fi
 	if [[ -f $dir/wakeup-response.json ]]; then
 		emit issue-wakeup-create "$dir/wakeup-response.json"
 	else
 		emit issue-wakeup-create "$dir/wakeup-prototype.json"
+	fi
+	# ci-wait の登録後の再読と解除も、実際の状態遷移として検査する。
+	if [[ -f $dir/persist-created-rule ]]; then
+		python3 "$PR_WATCH_TEST_ROOT/tests/pr-watch-fixture.py" base issue-wakeups >"$dir/rule-prototype.json"
+		jq --slurpfile base "$dir/rule-prototype.json" --slurpfile response "$dir/wakeup-prototype.json" --rawfile body "$file" \
+			'. + [$base[0] + {id:$response[0].id,agent_id:"orchestrator",mode:"once",enabled:true,
+			condition:{type:"pull_request",event:"checks_finished"},instruction:$body}]' "$dir/rules.json" >"$dir/rules-updated.json"
+		mv "$dir/rules-updated.json" "$dir/rules.json"
 	fi
 	;;
 'issue comment list')
@@ -93,15 +135,32 @@ cat >"$test_dir/bin/gh" <<'EOF'
 set -euo pipefail
 stub="$PR_WATCH_TEST_ROOT/tests/cli-stub.py"
 if [[ ${1-} == --version ]]; then
-	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh - record -- "$@"
+	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
 	echo 'gh fixture-version'; exit 0
 fi
-if [[ "${1-} ${2-} ${3-}" != 'pr view test-pr' || -f $PR_WATCH_TEST_DIR/fail-gh ]]; then
-	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh - record -- "$@"
-	[[ "${1-} ${2-} ${3-}" == 'pr view test-pr' ]] || exit 1
+if [[ -f $PR_WATCH_TEST_DIR/expected-pr-url ]]; then expected=$(<"$PR_WATCH_TEST_DIR/expected-pr-url"); else expected=$(jq -r '.metadata.pr_url' "$PR_WATCH_TEST_DIR/task.json"); fi
+if [[ "${1-} ${2-} ${3-}" != "pr view $expected" || -f $PR_WATCH_TEST_DIR/fail-gh ]]; then
+	python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
+	[[ "${1-} ${2-} ${3-}" == "pr view $expected" ]] || exit 1
 	echo 'gh mock failure' >&2; exit 1
 fi
-python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh - emit gh-pr-checks "$PR_WATCH_TEST_DIR/pr.json" -- "$@"
+if [[ -f $PR_WATCH_TEST_DIR/pr-after-first.json ]]; then
+	cp "$PR_WATCH_TEST_DIR/pr.json" "$PR_WATCH_TEST_DIR/pr-first.json"
+	mv "$PR_WATCH_TEST_DIR/pr-after-first.json" "$PR_WATCH_TEST_DIR/pr.json"
+	response="$PR_WATCH_TEST_DIR/pr-first.json"
+else
+	response="$PR_WATCH_TEST_DIR/pr.json"
+fi
+if [[ ${5-} == state,headRefOid,mergeable ]]; then
+	if [[ -f $PR_WATCH_TEST_DIR/fail-conflicts && -f $PR_WATCH_TEST_DIR/mergeable-read ]]; then
+		python3 "$stub" none "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl record -- "$@"
+		echo 'gh mock failure' >&2; exit 1
+	fi
+	touch "$PR_WATCH_TEST_DIR/mergeable-read"
+	python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl emit gh-pr-mergeable "$PR_WATCH_TEST_DIR/mergeable.json" -- "$@"
+else
+	python3 "$stub" pr-watch "$PR_WATCH_TEST_DIR" gh gh-calls.jsonl emit gh-pr-checks "$response" -- "$@"
+fi
 EOF
 chmod +x "$test_dir/bin/multica" "$test_dir/bin/gh"
 
@@ -115,6 +174,7 @@ fixture issue-wakeup-create >"$test_dir/wakeup-prototype.json"
 
 reset_fixture() {
 	: >"$test_dir/calls.jsonl"
+	: >"$test_dir/gh-calls.jsonl"
 	: >"$test_dir/posted.jsonl"
 	: >"$test_dir/wakeups.jsonl"
 	printf '[]' >"$test_dir/rules.json"
@@ -122,9 +182,11 @@ reset_fixture() {
 	printf '[]' >"$test_dir/runs.json"
 	printf 'ci-thread' >"$test_dir/allowed-parent"
 	cp "$test_dir/agents.base.json" "$test_dir/agents.json"
-	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh"
+	rm -f "$test_dir/allow-missing-fields" "$test_dir/wakeup-response.json" "$test_dir/fail" "$test_dir/fail-gh" "$test_dir/pr-after-first.json" "$test_dir/persist-created-rule" "$test_dir/fail-conflicts" "$test_dir/mergeable-read" "$test_dir/expected-pr-url"
+	jq '.[0]' "$root/tests/fixtures/cli/issue-pull-requests.json" >"$test_dir/pulls.json"
+	fixture gh-pr-mergeable | jq '.state = "OPEN" | .headRefOid = "abcdef0123456789" | .mergeable = "MERGEABLE"' >"$test_dir/mergeable.json"
 	fixture squad-list | jq '[. + {id:"test-squad",name:"Demo",leader_id:"orchestrator",archived_at:null}]' >"$test_dir/squads.json"
-	fixture issue-get | jq '. + {id:"test-issue",status:"in_progress",status_category:"in_progress",assignee_type:"squad",assignee_id:"test-squad",metadata:{pr_url:"test-pr",ci_watch_thread:"ci-thread"}}' >"$test_dir/task.json"
+	jq '[.[] | select(.metadata | has("repository") and has("pr_url"))] | first' "$root/tests/fixtures/cli/issue-get.json" | jq '. + {id:"test-issue",status:"in_progress",status_category:"in_progress",assignee_type:"squad",assignee_id:"test-squad",metadata:(.metadata + {repository:"example/repo",pr_url:"https://github.com/example/repo/pull/67",ci_watch_thread:"ci-thread"})}' >"$test_dir/task.json"
 	fixture gh-pr-checks | jq '. as $pr | .statusCheckRollup[0] as $check |
 		$pr + {state:"OPEN",headRefOid:"abcdef0123456789",statusCheckRollup:[
 		 $check + {status:"COMPLETED",conclusion:"FAILURE",workflowName:"CI",name:"test"},

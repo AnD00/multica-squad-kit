@@ -58,6 +58,21 @@ squad_cli_contracts() {
           "nullable": true
         },
         {
+          "path": "metadata.ci_wait_head",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "metadata.ci_wait_since",
+          "class": "optional",
+          "nullable": true
+        },
+        {
+          "path": "metadata.ci_wait_rule",
+          "class": "optional",
+          "nullable": true
+        },
+        {
           "path": "metadata.ci_watch_thread",
           "class": "optional",
           "nullable": true
@@ -83,6 +98,21 @@ squad_cli_contracts() {
           "where": ".assignee_type == null"
         },
         {
+          "name": "metadata.ci_wait_head-present",
+          "where": ".metadata | has(\"ci_wait_head\")",
+          "unavailable": "CI 待ちが作るアプリケーションの metadata。導入前の採取にはないため、契約で宣言した欄を待ちのテストで設定する。"
+        },
+        {
+          "name": "metadata.ci_wait_since-present",
+          "where": ".metadata | has(\"ci_wait_since\")",
+          "unavailable": "CI 待ちが作るアプリケーションの metadata。導入前の採取にはないため、契約で宣言した欄を待ちのテストで設定する。"
+        },
+        {
+          "name": "metadata.ci_wait_rule-present",
+          "where": ".metadata | has(\"ci_wait_rule\")",
+          "unavailable": "CI 待ちが作るアプリケーションの metadata。導入前の採取にはないため、契約で宣言した欄を待ちのテストで設定する。"
+        },
+        {
           "name": "ci_watch_thread-present",
           "where": ".metadata | has(\"ci_watch_thread\")"
         },
@@ -105,6 +135,31 @@ squad_cli_contracts() {
         {
           "name": "repository-absent",
           "where": ".metadata | has(\"repository\") | not"
+        }
+      ]
+    },
+    "issue-pull-requests": {
+      "command": ["multica", "issue", "pull-requests", "{issue}", "--output", "json"],
+      "shape": "object",
+      "fields": [
+        {"path": "pull_requests", "class": "required", "nullable": false}
+      ],
+      "items": {
+        "path": ["pull_requests"],
+        "fields": [
+          {"path": "html_url", "class": "required", "nullable": false}
+        ]
+      },
+      "samples": [
+        {
+          "name": "empty",
+          "scope": "response",
+          "where": ".pull_requests | length == 0"
+        },
+        {
+          "name": "element",
+          "where": "has(\"html_url\")",
+          "unavailable": "2026-11-13 時点で、このワークスペースに紐付いた PR を持つタスクがなく、要素の見本を取れなかった。紐付いたタスクができたら取り直す。"
         }
       ]
     },
@@ -261,6 +316,16 @@ squad_cli_contracts() {
             "path": "id",
             "class": "required",
             "nullable": false
+          },
+          {
+            "path": "created_at",
+            "class": "required",
+            "nullable": false
+          },
+          {
+            "path": "parent_comment_id",
+            "class": "required",
+            "nullable": true
           },
           {
             "path": "agent_id",

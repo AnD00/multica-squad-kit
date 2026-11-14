@@ -88,7 +88,7 @@ for dir in "$test_dir/"*/; do
 	grep -qF 'in_review' "$file"
 	grep -qF 'ほかの役を呼ばない' "$file"
 	awk '/^## 場面と手順$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$file" >"$test_dir/index"
-	for phrase in 'PR を受け取る' '返事を待つ回の開始' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確認するコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
+	for phrase in 'PR を受け取る' '返事を待つ回の前後' 'マージへ回す' 'squad-review-wait watch' '返事を待つ役:' '確認するコミット:' 'その実行の中で読み' 'セットアップの流し直し'; do
 		grep -qF "$phrase" "$test_dir/index"
 	done
 	for ref in $(grep -oE 'leader-[a-z-]+\.md' "$test_dir/index" | sort -u); do
@@ -169,6 +169,11 @@ for dir in "$test_dir/"*/; do
 		if [[ $role == ci-monitor ]]; then
 			grep -qF -- '--content-file' "$test_dir/preflight"
 			grep -qF 'タスクの状態は、開始時の確認で止まるときだけ' "$file"
+			grep -qF '規則の指示の 1 行目が「紐付いていない PR のマージ待ちの見張りで起きました。」なら' "$file"
+			grep -qF 'squad-pr-watch unlinked-check <タスク> agent-orchestrator agent-ci-monitor' "$file"
+			grep -qF 'それ以外は `squad-pr-watch ci-check <タスク> agent-orchestrator agent-ci-monitor`' "$file"
+			grep -qF '標準出力をそのまま最後の返答にする' "$file"
+			grep -qF '作業先との不一致・不正な URL の判定' "$file"
 		else
 			grep -qF 'タスクのない実行は、オートパイロットの指示' "$test_dir/preflight"
 		fi
@@ -235,12 +240,51 @@ grep -qF '未確認' <<<"$state_section"
 grep -qF '「なし」' <<<"$state_section"
 echo 'PASS templates: 参照は状態の確認と規則の入れ直しを分け、squad-handoff は PR の状態の書き方を決める'
 
-# PR の紐付けを確認する時機と、空のときの停止も、同じ確認を参照へ向ける。
+# 紐付けを区切りで判定し、空の一覧と読めない一覧を分ける。展開後のリーダーもこの手順へ向ける。
 link_section=$(awk '/^## PR の紐付けの確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
-for phrase in 'multica issue pull-requests <タスク> --output json' 'PR を受け取ったとき' '人間のマージへ回す前' '返事を待つ回を始める前' '`pull_requests` が空なら' 'タスクの画面で PR の URL を紐付けてもらうよう頼んで止まる'; do
+for phrase in 'squad-pr-watch link-check <タスク>' 'PR を受け取ったとき' '人間のマージへ回す前' '返事を待つ回を始める前' '返事がそろったとき' 'ほかの理由で人間を呼ぶコメントを書くとき' '食い違いの知らせで起きたとき' '紐付いていないことだけでは' 'どちらが正か決めてもらう' '一覧の有無によらず' 'PR を作った役に `pr_url` を補ってもらう' '同じ実行で 1 回だけ流し直す' 'まだ未確認なら、先へ進めず' '作業先と違う' '不正な `pr_url`' '元の値は写さず' 'metadata の `pr_url` か `repository` の修正を頼む' '`pr_url` から作業先を書き写さない' 'この返事でも進めない' 'タスクを `in_review` にする' '終了コード 2' '127' 'セットアップを流し直して'; do
 	grep -qF "$phrase" <<<"$link_section"
 done
-echo 'PASS templates: 参照は PR の紐付けを 3 つの時点で確認し、空なら人間に頼んで止まる'
+! grep -qF 'multica issue pull-requests' <<<"$link_section"
+for dir in "$test_dir/"*/; do
+	[[ -f $dir/orchestrator ]] || continue
+	grep -qF '`link-check` で食い違い・作業先と違う・不正・未確認なら止まる' "$dir/orchestrator"
+	grep -qF '返事を待つ回の前後' "$dir/orchestrator"
+	! grep -qF '空なら止まる' "$dir/orchestrator"
+done
+echo 'PASS templates: 全構成のリーダーは区切りで紐付けを判定し、空では進み、食い違い・未確認で止まる'
+
+now_section=$(awk '/^## 紐付いていない PR のその場の確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '見張り役の有無によらず' 'squad-pr-watch ci-now <タスク> <リーダーの ID> <きっかけのコメント> [<見張り役の ID>]' 'あるときだけ渡す' 'squad-pr-watch conflicts-check <タスク>' '失敗は知らせ済み' '`紐付け:` で始まる' '以降の確認や依頼へ進めない' '全部がそろうまで直しを頼まない' '同じワークフローの失敗と 2 回続いたコンフリクト'; do
+	grep -qF "$phrase" <<<"$now_section"
+done
+ci_section=$(awk '/^## CI$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '見張り役がなくても' 'squad-pr-watch ci-held <タスク>' '見張り役がない場合も省かない'; do
+	grep -qF "$phrase" <<<"$ci_section"
+done
+for phrase in 'squad-pr-watch unlinked <タスク> <きっかけのコメント> [<見張り役の ID>]' '紐付いているときは `unlinked` を流さない' '見張りなしでマージを頼み' 'セットアップを流し直して'; do
+	grep -qF "$phrase" <<<"$rearm_section"
+done
+echo 'PASS templates: 見張り役なしのCI確認と保留の取得、紐付いていないマージ待ちだけの定期確認を指示する'
+
+mismatch_section=$(awk '/^## 食い違いの知らせで起きたとき$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '`link-check` を流し直す' 'どちらが正かを決めるまでマージしないでほしい' '`in_review` のまま' '人間を呼ばず' '`unlinked` を登録し直す'; do
+	grep -qF "$phrase" <<<"$mismatch_section"
+done
+human_section=$(awk '/^## 人間を呼ぶコメントに添える行$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '紐付けの依頼だけのために人間を呼ばない' 'マージのあとにタスクを `done` にしてほしい' 'タスクの画面の PR の欄で `<正規形>` を紐付けてください' '`見張り:` の行' '`紐付けの失敗:` の段落' '空行の前までそのまま添える' '更新前の引き継ぎの先頭' 'metadata の `pr_url` を読み直して写さない' '元の値はタスクの画面で見てもらう'; do
+	grep -qF "$phrase" <<<"$human_section"
+done
+echo 'PASS templates: 食い違いは再確認し、人間を呼ぶ別のコメントへ紐付けの依頼と警告をまとめる'
+for phrase in 'PR の URL を確認できませんでした。' 'metadata の `pr_url` か `repository` を直すまでマージしないでほしい' '元の値は写さず'; do
+	grep -qF "$phrase" <<<"$mismatch_section"
+done
+periodic_section=$(awk '/^## マージ待ちの定期確認で起きたとき$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+for phrase in '見張り役がなく' 'squad-pr-watch unlinked-check <タスク> <リーダーの ID>' 'CI <SHA>: 失敗あり' '0 以外で終わったときも、取得できた行を先に' '通信エラーの報告だけで終えない'; do
+	grep -qF "$phrase" <<<"$periodic_section"
+done
+echo 'PASS templates: 不一致・不正は metadata の修正を人間へ頼み、部分失敗でも取得済みの行を扱う'
+
 
 for role in code-reviewer security-reviewer performance-reviewer ux-reviewer; do
 	grep -qx 'model: claude-sonnet-5-5' "$test_dir/claude-only/$role"
@@ -290,6 +334,24 @@ done
 [[ ! -f $test_dir/runtime-claude-only/codex-principal && ! -f $test_dir/runtime-codex-only/claude-principal ]]
 [[ -f $test_dir/runtime-claude-only/claude-principal && -f $test_dir/runtime-codex-only/codex-principal && -f $test_dir/all/claude-principal && -f $test_dir/all/codex-principal ]]
 echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと high を持ち、使わない系統には置かない'
+
+# 最終レビューは印から切り離し、見る範囲と証拠の扱いを全構成で残す。
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
+	grep -qF '全タスクで最終レビュー' "$test_dir/$scenario/orchestrator"
+	for role in claude-principal codex-principal; do
+		file="$test_dir/$scenario/$role"
+		[[ -f $file ]] || continue
+		grep -qF '最終レビューは、文書だけのものも含むすべてのタスク' "$file"
+		grep -qF '見る範囲:' "$file"
+		grep -qF '行がなければ初回として全体を見る' "$file"
+		grep -qF '祖先でないときも全体を見る' "$file"
+		grep -qF 'それだけで ❌ にしない' "$file"
+		if grep -qF 'ラベル `重要` があるタスクだけで呼ばれます' "$file"; then exit 1; fi
+	done
+done
+grep -qxF '重要|#dc2626|リスクが高いタスク。最上位の役に設計を見直してもらい、レビューの観点をすべて回す' "$root/common/labels"
+grep -qF '最終レビューを経て人間へ回す' "$test_dir/no-reviews/orchestrator"
+echo 'PASS templates: 印なし・文書だけ・レビュー役なしでも最終レビューを案内し、範囲と証拠、ラベルの意味を保つ'
 
 # 重要の基準は指示に、手順は参照に、系統の事実は役の節に残す。
 refs="$root/common/skills/squad-handoff/references"
@@ -363,10 +425,13 @@ grep -qF '呼ぶ前に metadata の `pr_url` を書かない' "$test_dir/pr-link
 grep -qF '終了コードが 0 なら、metadata の `pr_url` はスクリプトが書いたので、`branch` だけを置く' "$test_dir/pr-link-procedure"
 grep -qF '0 以外なら、止まらずに `branch` と `pr_url` を自分で置く' "$test_dir/pr-link-procedure"
 grep -qF 'コマンドが見つからないとき（終了コード 127）も同じに扱う' "$test_dir/pr-link-procedure"
-grep -qF '失敗したときは、引き継ぎのコメントの先頭、結論の行のすぐ次の行に「PR をタスクに紐付けられなかったので、タスクの画面で紐付けてほしい」と書く' "$test_dir/pr-link-procedure"
-grep -qF '人間への依頼として扱い' "$test_dir/pr-link-procedure"
-grep -qF '標準エラーの警告の文も、そのまま写す' "$test_dir/pr-link-procedure"
-grep -qF '404 で待ち切れたときの連携の案内を、人間に届けるため' "$test_dir/pr-link-procedure"
+grep -qF '引き継ぎの先頭にも依頼を書かない' "$test_dir/pr-link-procedure"
+grep -qF '成果物の PR の URL のすぐ下に' "$test_dir/pr-link-procedure"
+grep -qF '紐付けの失敗: <標準エラーの警告の 1 行目>' "$test_dir/pr-link-procedure"
+grep -qF '<標準エラーの警告の 2 行目（あるときだけ）>' "$test_dir/pr-link-procedure"
+grep -qF '空行の前までとし、警告の文をそのまま写す' "$test_dir/pr-link-procedure"
+grep -qF '404 で待ち切れたときの連携の案内' "$test_dir/pr-link-procedure"
+! grep -qF '先頭、結論の行のすぐ次の行に' "$test_dir/pr-link-procedure"
 grep -qF '`pr_url` があると、紐付けずに飛ばすため' "$test_dir/pr-link-procedure"
 ! grep -qF '紐付け済みとして飛ばす' "$test_dir/pr-link-procedure"
 grep -qF 'スクリプトを呼ぶのは PR を作った直後の 1 回だけにする' "$test_dir/pr-link-procedure"
@@ -459,6 +524,13 @@ for phrase in 'runs <タスク> --active' '--siblings' 'run-messages' '--help' '
 	grep -qF -- "$phrase" "$refs/leader-run-status.md"
 done
 echo 'PASS templates: 進捗と停止の参照が、実行の状態の確認・止める条件・止めたあとの手順を持つ'
+stop_section=$(awk '/^## 実行を止める$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$refs/leader-run-status.md")
+for phrase in '読む直前に、`squad-pr-watch link-check <タスク>`' '`紐付け: 作業先と違う`' '`表示しない` か `不明`' 'PR を読まない' 'その行の `pr:` の正規形' 'gh pr view <正規形> --json headRefOid,headRefName' 'metadata の `pr_url` を読み直して渡さない' '`branch` があれば作業先のブランチ' '理由を添える'; do
+	grep -qF -- "$phrase" <<<"$stop_section"
+done
+! grep -qF 'gh pr view <PR の URL>' <<<"$stop_section"
+echo 'PASS templates: 停止の提案で読む PR は直前の判定の正規形にし、拒否された値では作業先のブランチか未確認へ戻る'
+
 
 for phrase in '45 分' '実行の遅れ:' '同じ実行につき 1 回だけ' '知らせても、実行は止めない'; do
 	grep -qF -- "$phrase" "$refs/leader-run-status.md"
@@ -468,10 +540,10 @@ for phrase in 'squad-pr-watch conflicts-check' '起きたときの確認' '返�
 done
 echo 'PASS templates: 起きたときの確認は、実行の長さとコンフリクトを見て、動いている PR に修正の役を重ねない'
 
-for phrase in 'multica issue pull-requests <タスク>' '紐付けていません:' 'ワークスペースの設定のコードの画面' '警告の文を、そのまま添える' '`squad-pr-link` は、PR を作った直後の 1 回だけ'; do
+for phrase in 'squad-pr-watch link-check <タスク>' '紐付けていません:' 'ワークスペースの設定のコードの画面' 'そのまま添える' '`squad-pr-link` は、PR を作った直後の 1 回だけ'; do
 	grep -qF -- "$phrase" "$refs/leader-pr-checks.md"
 done
-echo 'PASS templates: PR の紐付けの参照は、一覧で確認し、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
+echo 'PASS templates: PR の紐付けの参照は、判定コマンドを使い、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
 
 for phrase in 'squad-dispatch-pick implement' 'squad-dispatch-pick fix' 'squad-usage-read'; do
 	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
@@ -479,6 +551,18 @@ done
 for phrase in 'squad-dispatch-pick principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
 	grep -qF -- "$phrase" "$refs/leader-principal.md"
 done
+for phrase in 'すべてのタスクで、人間へ回す直前に' '見る範囲:' '状態が `completed`' '`failed` と取り消しは数えない' '成功で終えたが変更を積まなかった実行も数える'; do
+	grep -qF "$phrase" "$refs/leader-principal.md"
+done
+grep -qF '最終レビューの結果は数えない' "$refs/leader-principal.md"
+for phrase in 'ci-wait <タスク>' 'ci-wait-clear <タスク>' 'CI が読めなくても待つ' 'マージの依頼: <head の完全な SHA>' '依頼も状態変更もせず' '読んだ `pr_url` を GitHub の前に検証し' '待ちの規則と metadata を消し'; do
+	grep -qF "$phrase" "$refs/leader-pr-checks.md"
+done
+# 共通 4 の付く条件と時機・4 回目の停止は維持し、リスクの説明を足す。
+grep -qxF '4. 共通 4: 手戻りが続いている。実装を始めたあとに設計を変えた、または同じ PR の修正の依頼が 3 回を超えた' "$test_dir/all/orchestrator"
+grep -qF '手戻りが設計と要件の食い違いを表すリスク' "$test_dir/all/orchestrator"
+grep -qF 'N が 4 になる依頼の前に、基準の共通 4 で印を付けて止める' "$refs/leader-principal.md"
+grep -qF '| 修正を振り分けるとき | 共通 4 だけ |' "$refs/leader-principal.md"
 for phrase in '作業先' '同じ誤り' '原因'; do
 	grep -qF -- "$phrase" "$refs/leader-flow.md"
 done

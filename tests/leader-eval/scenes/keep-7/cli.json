@@ -66,6 +66,10 @@
     },
     {
       "match": "squad-pr-watch ci-held issue-shop-1"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }

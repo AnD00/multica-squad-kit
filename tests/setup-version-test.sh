@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 source "$(dirname "$0")/setup-fixture.sh"
+version_test_root=$root
+export TEST_SETUP_VERSION_CACHE="$test_dir/confirmation-cache" TEST_SETUP_VERSION_STUB="$test_dir/bin/multica"
+mkdir -p "$TEST_SETUP_VERSION_CACHE"
+printf '\n' >>"$test_dir/package/lib/questions.sh"
+cat "$root/tests/setup-version-cache.sh" >>"$test_dir/package/lib/questions.sh"
 manifest
 base_input yes
 gh_args='api repos/AnD00/multica-squad-kit/releases/latest --jq .tag_name'
@@ -166,3 +171,4 @@ if bad:
     sys.exit("変数の直後に日本語の文字が続いています（${変数} で区切る）: " + ", ".join(bad))
 PY
 echo 'PASS version-notice: 変数の直後に日本語の文字が続く形が、配るスクリプトに残っていない'
+/bin/bash "$version_test_root/tests/setup-version-cache-check.sh" "$test_dir" "$version_test_root"

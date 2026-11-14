@@ -67,7 +67,9 @@ PR のあるタスクで起きたときは、きっかけを問わず、返事�
 
 確認の項目で分からないものは「未確認」と書く。「なし」とは書かない。「なし」と読んだ人間が、失う作業がないと判断して承認するおそれがあるため。提案では、呼ぶ人間をメンションし、タスクの状態は変えない。提案の間も実行は動いており、エージェントの番が続いているため。
 
-最後に push されたコミットは、metadata の `pr_url` があれば `gh pr view <PR の URL> --json headRefOid,headRefName` の `headRefOid`、`branch` だけがあれば `gh api repos/<repository>/branches/<branch> --jq .commit.sha` で読む。どちらもない、または読めないときは「未確認」と書き、理由を添える。SHA は 7 文字以上で書く。
+最後に push されたコミットを PR から読む直前に、`squad-pr-watch link-check <タスク>` を流す。`紐付け: 作業先と違う` の行、`pr:` が `表示しない` か `不明` の行、判定の行を読めないときは、PR を読まない。それ以外は、その行の `pr:` の正規形を `gh pr view <正規形> --json headRefOid,headRefName` に渡し、`headRefOid` を読む。metadata の `pr_url` を読み直して渡さない。
+
+PR を読まないか読めないときは、`branch` があれば作業先のブランチを `gh api repos/<repository>/branches/<branch> --jq .commit.sha` で読む。`branch` がないか読めないときは「未確認」と書き、理由を添える。SHA は 7 文字以上で書く。
 
 後の編集・コミットは、止める実行の記録を `run-messages` で読み、最後に成功した `git push` より後に、ファイルの編集（`Edit`・`Write`・`apply_patch` などのツールの呼び出し）か `git commit` があるかで確認する。記録に `git push` がなければ、その実行のすべての編集とコミットが対象になる。あれば「あり」と書き、最初と最後の記録の `seq` と時刻を添える。記録を末尾まで読み、編集もコミットもなければ「なし」と書く。記録を読めなかった、一部しか読めなかった、push の成否が分からないときは「未確認」と書く。記録からの読み取りなので見落としはありうる。そのため、項目 4 の失うおそれは、項目 3 の結果によらず必ず書く。
 

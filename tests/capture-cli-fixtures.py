@@ -86,7 +86,8 @@ def select_samples(responses, entry):
         found = None
         count = 0
         for response in responses:
-            for item in target_items(response, entry):
+            items = [response] if sample.get("scope") == "response" else target_items(response, entry)
+            for item in items:
                 if matches(item, sample["where"]):
                     count += 1
                     if found is None:
