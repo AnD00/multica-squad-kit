@@ -33,11 +33,13 @@ control_case '引用の中の前の回: と種類の行' orchestrator $'> 修正
 control_case '逆引用符の囲みの中' orchestrator $'```\n修正の依頼: 直してください\n前の回: round-1\n```'
 control_case '4 個の囲みの中の 3 個の囲みの例' orchestrator $'````\n```\n修正の依頼: 直してください\n前の回: round-1\n```\n````'
 control_case '4 個の囲みの中の 3 個の囲みのあとの例' qa $'````md\n```\nx\n```\n修正の依頼: 直してください\n前の回: round-1\n````'
+control_case '囲みの中の字下げ 4 個の終了風の行の例（リーダー）' orchestrator $'```\n    ```\n修正の依頼: 直してください\n前の回: round-1\n```'
+control_case '囲みの中の字下げ 4 個の終了風の行の例（決める実行の役）' qa $'````md\n    ````\n修正の依頼: 直してください\n前の回: round-1\n````'
 control_case '役の結果の中（返事の回: あり）' qa $'/note\n返事の回: round-1\n確認したコミット: '"$sha"$'\n設計への指摘: なし\n\n✅ demo-qa-test: 結果\n修正の依頼: 直してください\n前の回: round-1'
 control_case '人間のコメント' human-1 $'修正の依頼: 直してください\n前の回: round-1'
 control_case '決める実行の役でもリーダーでもないエージェント' claude-fixer $'修正の依頼: 直してください\n前の回: round-1'
 control_case '存在しない回を指す' orchestrator $'修正の依頼: 直してください\n前の回: round-99'
-echo 'PASS review-next-decide: 前の回: だけ・引用・囲み・結果・人間・ほかの役・存在しない回を指すコメントは、書き済みにしない'
+echo 'PASS review-next-decide: 前の回: だけ・引用・囲み（字下げ 4 個の終了風の行を含む）・結果・人間・ほかの役・存在しない回を指すコメントは、書き済みにしない'
 
 # 回より前に書かれたコメントは、制御記録でない。
 reset

@@ -120,5 +120,6 @@ tests/webhooks-test.sh 65
 tests/workflow-rules-test.sh 3
 tests/workspace-test.sh 9
 tests/squad-cli-lib-control-test.sh 5
+tests/squad-cli-lib-fence-test.sh 5
 tests/squad-review-next-decide-control-test.sh 70
 tests/squad-review-next-decide-recognize-test.sh 60

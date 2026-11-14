@@ -281,7 +281,7 @@ requested_chain() {
 		c("decide-1"; "principal"; "agent"; "2026-01-01T00:01:00Z"; "/note\n返事の待ち: 次の依頼を決めます"),
 		c("merge-1"; $author; $type; $at; $text)]' >"$test_dir/comments.json"
 }
-for record in agent-round agent-old-head agent-no-round agent-round-only quote fence fence4 fence4-tilde result human other-author early unknown-round; do
+for record in agent-round agent-old-head agent-no-round agent-round-only quote fence fence4 fence4-tilde fence-indent4 result human other-author early unknown-round; do
 	wait_fixture
 	old_wait
 	text=$(printf 'マージの依頼: %s\n前の回: final-1' "$head")
@@ -295,6 +295,7 @@ for record in agent-round agent-old-head agent-no-round agent-round-only quote f
 	fence) text=$(printf '```\nマージの依頼: %s\n前の回: final-1\n```' "$head") ;;
 	fence4) text=$(printf '````\n```\nマージの依頼: %s\n前の回: final-1\n```\n````' "$head") ;;
 	fence4-tilde) text=$(printf '~~~~\n~~~\nマージの依頼: %s\n前の回: final-1\n~~~\n~~~~' "$head") ;;
+	fence-indent4) text=$(printf '```\n    ```\nマージの依頼: %s\n前の回: final-1\n```' "$head") ;;
 	result) text=$(printf 'マージの依頼: %s\n前の回: final-1\n返事の回: final-1' "$head") ;;
 	human) type=member ;;
 	other-author) author=fixer ;;
@@ -309,7 +310,7 @@ for record in agent-round agent-old-head agent-no-round agent-round-only quote f
 		assert_jq '.metadata.ci_wait_head == "'"$head"'" and (.metadata | has("ci_wait_since") and has("ci_wait_rule"))' "$test_dir/task.json"
 	fi
 done
-echo 'PASS ci-wait: マージの依頼の制御記録だけを依頼済みとし、引用・囲み・結果・人間・別の作者・回より前・認めない回を指す行は読まない'
+echo 'PASS ci-wait: マージの依頼の制御記録だけを依頼済みとし、引用・囲み（字下げ 4 個の終了風の行を含む）・結果・人間・別の作者・回より前・認めない回を指す行は読まない'
 
 wait_fixture
 old_wait

@@ -1955,25 +1955,66 @@ def stamp(text):
     return value
 
 
+def indent_of(text):
+    """行頭の空白の桁数。タブは次の 4 の倍数の桁まで進める（CommonMark と同じ）。"""
+    column = 0
+    for char in text:
+        if char == " ":
+            column += 1
+        elif char == "\t":
+            column += 4 - column % 4
+        else:
+            break
+    return column
+
+
+def fence_run(text):
+    """字下げを除いた行頭の、囲みの文字（` か ~）の並び。(文字, 長さ, 残り) を返す。囲みの文字で始まらなければ長さは 0。"""
+    rest = text.lstrip(" \t")
+    char = rest[:1]
+    if char not in ("`", "~"):
+        return "", 0, rest
+    run = len(rest) - len(rest.lstrip(char))
+    return char, run, rest[run:]
+
+
+def fence_open(text):
+    """囲みのコード（CommonMark の 4.5）の開始なら (文字, 長さ)、そうでなければ None。
+    字下げは 0〜3 個、長さは 3 個以上。バッククォートの囲みは、同じ行の後ろにバッククォートを含められない。"""
+    if indent_of(text) >= 4:
+        return None
+    char, run, info = fence_run(text)
+    if run < 3 or (char == "`" and "`" in info):
+        return None
+    return char, run
+
+
+def fence_closes(text, fence):
+    """開いている囲み (文字, 長さ) を閉じる行か。同じ文字で開始以上の長さ、字下げは 0〜3 個、後ろは空白とタブだけ。"""
+    if indent_of(text) >= 4:
+        return False
+    char, run, tail = fence_run(text)
+    return char == fence[0] and run >= fence[1] and tail.strip(" \t") == ""
+
+
 def parse(comment):
-    """行の置き方を満たす行（placed）と、囲みや引用を問わない全部の行（every）を返す。"""
+    """行の置き方を満たす行（placed）と、囲みや引用を問わない全部の行（every）を返す。
+    囲みの中の行は、閉じない囲みなら文書の末尾まで、placed に入れない。"""
     placed, every, fence = [], [], None
     for raw in (comment.get("content") or "").split("\n"):
-        line = raw.rstrip()
-        if line == "/note":
+        text = raw.rstrip("\r")
+        if text.rstrip() == "/note":
             continue
-        if line.startswith("/note "):
-            line = line[6:].rstrip()
+        if text.startswith("/note "):
+            text = text[6:]
+        line = text.rstrip()
         every.append(line)
-        bare = line.strip()
         if fence is not None:
-            # 囲みを閉じるのは、開始と同じ種類で、開始以上の長さの行だけ。短い囲みや別の種類は、囲みの中の行として読み飛ばす。
-            if len(bare) >= fence[1] and set(bare) == {fence[0]}:
+            if fence_closes(text, fence):
                 fence = None
             continue
-        run = len(bare) - len(bare.lstrip(bare[:1])) if bare[:1] in ("`", "~") else 0
-        if run >= 3:
-            fence = (bare[0], run)
+        fence = fence_open(text)
+        if fence is not None:
             continue
         if line and not line[0].isspace() and not line.startswith(">"):
             placed.append(line)

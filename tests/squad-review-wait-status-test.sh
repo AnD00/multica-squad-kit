@@ -248,6 +248,8 @@ noise=(
 	"nf orchestrator agent 95 $(printf '```\n修正の依頼: 直してください\n前の回: round\n```')"
 	"nf4 orchestrator agent 95 $(printf '````\n```\n修正の依頼: 直してください\n前の回: round\n```\n````')"
 	"nc4 orchestrator agent 95 $(printf '````\n```\n返事の待ち: この回を次へ回します\n```\n````')"
+	"ni4 orchestrator agent 95 $(printf '```\n    ```\n修正の依頼: 直してください\n前の回: round\n```')"
+	"nd4 orchestrator agent 95 $(printf '````\n    ````\n返事の待ち: この回を次へ回します\n````')"
 )
 for spec in "${noise[@]}"; do
 	read -r id who type sec content <<<"${spec%%$'\n'*}"
