@@ -151,6 +151,10 @@
       "match": "git merge-base --is-ancestor",
       "stdout": "",
       "exit": 0
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ],
   "expected_records": [

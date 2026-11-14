@@ -163,7 +163,7 @@ PR の紐付けの手順は、紐付けが漏れる原因を調べた変更（[p
 | --- | --- | --- | --- |
 | 関所の確認（`squad-preflight` を先に流し、通らなければ止まる） | 指示の「受け取ったら確認すること」の最初の項目 | keep-1 | 最初の項目の語句。今の確認のまま |
 | 人間の返事の待ち（要件・設計・マージなどで `in_review` にして、ほかの役を呼ばない） | 指示の原則 1 と「人間を待つところ」 | keep-2 | 節の語句 |
-| PR の紐付けの確認（3 つの時機に `multica issue pull-requests` を流し、空なら止まる） | `leader-pr-checks.md`。時機は指示の「場面と手順」 | keep-3 | 参照のファイルの語句。今の確認を移す |
+| PR の紐付けの確認（区切りで `squad-pr-watch link-check` を流し、食い違うときと一覧を読めないときだけ止まる。`pr_url` がなければ役に補ってもらう。[pr-unlinked.md](pr-unlinked.md) で、空なら止まる手順から改めた） | `leader-pr-checks.md`。時機は指示の「場面と手順」 | keep-3 | 参照のファイルの語句 |
 | リスクを表すラベルと設計の見直しの依頼 | 基準は指示、時機と依頼は `leader-principal.md` | keep-4、keep-5 | 参照のファイルの語句 |
 | すべてのタスクの最終レビュー、見る範囲と head の照合 | `leader-principal.md` | keep-8〜keep-11 | 指示と参照の語句 |
 | CI の待ち、終了時の解除とマージ依頼の重複防止 | `leader-pr-checks.md` | keep-12〜keep-16 | 指示と参照の語句 |

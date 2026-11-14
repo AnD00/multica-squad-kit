@@ -366,6 +366,9 @@ def run_one(args):
     run_dir.mkdir(parents=True, exist_ok=True)
     scene = parse_scene(Path(args["scenes"]) / args["scene"] / "scene.md")
     instr_dir = Path(args["instructions"]) / args["which"]
+    settings = json.loads((Path(args["scenes"]) / args["scene"] / "cli.json").read_text())
+    if settings.get("ci_monitor", True) is False:
+        instr_dir = instr_dir / "scenes" / args["scene"]
     meta = json.loads((instr_dir / "meta.json").read_text(encoding="utf-8"))
     work, bin_dir = build_workdir(instr_dir, run_dir, args["runtime"])
     calls_path = run_dir / "calls.jsonl"

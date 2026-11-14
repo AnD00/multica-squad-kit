@@ -158,6 +158,10 @@
     {
       "match": "squad-dispatch-pick fix",
       "stdout": "役: codex-fixer\n振り分け: Codex（Claude は週の使用率が 80% 以上）"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ],
   "expected_records": [

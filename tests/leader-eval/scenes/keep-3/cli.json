@@ -39,6 +39,10 @@
     {
       "match": "multica repo list",
       "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: pr_url なし pr: 不明"
     }
   ]
 }

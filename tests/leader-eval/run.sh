@@ -66,9 +66,13 @@ fi
 for id in "${scene_list[@]}"; do
 	[[ -f $here/scenes/$id/scene.md && -f $here/scenes/$id/cli.json ]] || { echo "場面がありません: $id" >&2; exit 1; }
 	"${helper[@]}" scene "$here/scenes/$id/scene.md" >/dev/null
+	jq -e 'if has("ci_monitor") then (.ci_monitor | type == "boolean") else true end' "$here/scenes/$id/cli.json" >/dev/null || {
+		echo "ci_monitor は真偽値で指定してください: $id" >&2; exit 1;
+	}
 done
 
-# 見本のプロジェクトは、すべての役が有効で、両方のランタイムを使う。
+# 既定ではすべての役が有効。CLI 見本の ci_monitor が false の場面だけ、CI の見張り役を外す。
+# どちらも両方のランタイムを使う。
 # モデルと思考の深さだけは、評価するランタイムだけで展開した front matter から読む。
 enabled=" $template_roles "
 runtimes='["claude","codex"]'
@@ -76,7 +80,11 @@ export runtimes
 
 # 指示を描き、作業ディレクトリに置く一式を作る。
 prepare() { # $1=old|new
-	local which=$1 dest="$out/instructions/$1" source_file
+	local which=$1 dest="$out/instructions/$1" source_file scene=${2:-} enabled="$enabled"
+	if [[ -n $scene ]]; then
+		dest="$dest/scenes/$scene"
+		enabled=${enabled/ ci-monitor / }
+	fi
 	mkdir -p "$dest/skills"
 	if [[ $which == old ]]; then
 		git -C "$root" rev-parse --verify --quiet "$baseline^{commit}" >/dev/null || { echo "baseline が見つかりません: $baseline" >&2; exit 1; }
@@ -105,7 +113,12 @@ prepare() { # $1=old|new
 
 versions=(old new)
 [[ -z $only ]] || versions=("$only")
-for which in "${versions[@]}"; do prepare "$which"; done
+for which in "${versions[@]}"; do
+	prepare "$which"
+	for id in "${scene_list[@]}"; do
+		if jq -e '.ci_monitor == false' "$here/scenes/$id/cli.json" >/dev/null; then prepare "$which" "$id"; fi
+	done
+done
 {
 	echo "baseline: $baseline ($(git -C "$root" rev-parse --short "$baseline^{commit}" 2>/dev/null || echo なし))"
 	echo "new: working tree ($(git -C "$root" rev-parse --short HEAD))"

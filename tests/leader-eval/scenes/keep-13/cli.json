@@ -148,6 +148,10 @@
     {
       "match": "squad-pr-watch ci-wait issue-shop-1",
       "stdout": "CI 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567: 未確認"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ],
   "expected_records": [

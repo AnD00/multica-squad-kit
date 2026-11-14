@@ -59,6 +59,10 @@
     {
       "match": "squad-review-wait status issue-shop-1",
       "stdout": "返事の待ち: 登録なし"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }

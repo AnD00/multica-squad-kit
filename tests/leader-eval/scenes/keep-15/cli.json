@@ -159,6 +159,10 @@
     {
       "match": "squad-pr-watch ci-wait issue-shop-1 agent-orchestrator comment-final old-ci-rule",
       "stdout": "CI 待ち: 終わった規則で起きた"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ],
   "expected_records": [

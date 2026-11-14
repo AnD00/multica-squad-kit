@@ -146,6 +146,10 @@
         ],
         "body": "カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。"
       }
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ],
   "expected_records": [
