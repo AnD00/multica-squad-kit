@@ -545,10 +545,10 @@ for phrase in 'squad-pr-watch link-check <タスク>' '紐付けていません:
 done
 echo 'PASS templates: PR の紐付けの参照は、判定コマンドを使い、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
 
-for phrase in 'squad-dispatch-pick implement' 'squad-dispatch-pick fix' 'squad-usage-read'; do
+for phrase in 'squad-usage-wait pick <タスク> <implement | fix>' '使用率の待ちの起こしで起きたとき' '使用率の待ちの延長: <工程>。決めた人: <名前>' '質問だけでは待ち始めの時刻は新しくならない'; do
 	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
 done
-for phrase in 'squad-dispatch-pick principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
+for phrase in 'squad-usage-wait pick <タスク> principal' '見直しの種類:' '重要の印:' '修正の依頼: <N> 回目' '設計の変更: 実装を始めたあと'; do
 	grep -qF -- "$phrase" "$refs/leader-principal.md"
 done
 for phrase in 'すべてのタスクで、人間へ回す直前に' '見る範囲:' '状態が `completed`' '`failed` と取り消しは数えない' '成功で終えたが変更を積まなかった実行も数える'; do
@@ -567,3 +567,25 @@ for phrase in '作業先' '同じ誤り' '原因'; do
 	grep -qF -- "$phrase" "$refs/leader-flow.md"
 done
 echo 'PASS templates: 振り分け・最上位の役・流れの参照が、スクリプトの呼び方と記録の行を持つ'
+
+# レビューと E2E の返事: 返事を書く役は report で返し、設計への指摘の行を持つ。次の依頼は decide が書き、リーダーは決められないときだけ起きる。
+handoff_skill="$root/common/skills/squad-handoff/SKILL.md"
+for phrase in '設計への指摘: <あり | なし>' '`返事の回:` の行は `report` が結果に足すので、書かない' 'コマンドの時間切れは 600 秒以上にする'; do
+	grep -qF -- "$phrase" "$handoff_skill"
+done
+for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-principal codex-principal; do
+	grep -qF 'squad-review-wait report <タスク> <きっかけのコメント> <ファイル>' "$test_dir/all/$role"
+	grep -qF '`report` で書かないと、そろった知らせも次の依頼も書かれないため' "$test_dir/all/$role"
+done
+for role in code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-principal codex-principal; do
+	grep -qF '`設計への指摘: あり`' "$test_dir/all/$role"
+	grep -qF '`設計への指摘: なし`' "$test_dir/all/$role"
+done
+for phrase in '`squad-review-next decide`' '次の依頼を決められません: <理由>' '設計の見直しの回はリーダーが扱う' '`前の回:` でこの回を指すコメント'; do
+	grep -qF -- "$phrase" "$refs/leader-review-wait.md"
+done
+grep -qF '`--leader <ID>`' "$refs/leader-pr-checks.md"
+grep -qF '`squad-usage-wait pick <タスク> planner` か `squad-usage-wait pick <タスク> designer`' "$refs/leader-flow.md"
+grep -qF '使用率の待ちの起こしで起きました。' "$test_dir/all/orchestrator"
+grep -qF '`squad-review-next request`' "$test_dir/all/orchestrator"
+echo 'PASS templates: 返事の役は report と設計への指摘の行で返し、リーダーは次の依頼を決められないときと使用率の待ちの起こしで起きる'

@@ -15,7 +15,7 @@
 
 ## 合格の基準
 
-1. [記録] 使用率から最上位の役を選んでいる。 `判定: called: ^squad-dispatch-pick principal`
+1. [記録] 使用率から最上位の役を選んでいる。 `判定: called: ^squad-usage-wait pick issue-shop-1 principal`
 2. [記録] 見直しの依頼のコメントを書く前に、返事の待ちの見張りを入れている。 `判定: before: ^squad-review-wait watch issue-shop-1 \S+ agent-claude-principal => issue comment add`
 3. [記録] 依頼に、見直しの種類、返事を待つ役、確認するコミットの行がある。 `判定: posted: ^見直しの種類: 設計の見直し && posted: ^返事を待つ役: .*mention://agent/agent-claude-principal && posted: ^確認するコミット: [0-9a-f]{40}`
 4. [記録] 最上位の役の返事の前に、人間を呼ばず、タスクを `in_review` にしていない。 `判定: not-posted: mention://member/member1 && not-called: ^multica issue status issue-shop-1 in_review`

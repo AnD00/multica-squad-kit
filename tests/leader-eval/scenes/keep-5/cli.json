@@ -41,7 +41,7 @@
       "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
     },
     {
-      "match": "squad-dispatch-pick principal",
+      "match": "squad-usage-wait pick issue-shop-1 principal",
       "stdout": "役: claude-principal\n振り分け: Claude。Claude 週 42%（使ってよい量 60%）・5 時間 23%、Codex 週 6%（使ってよい量 10%）"
     },
     {

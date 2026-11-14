@@ -14,4 +14,4 @@
 ## 合格の基準
 
 1. [記録] 判定とその場の CI・コンフリクトの確認を流している。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && called: ^squad-pr-watch ci-now issue-shop-1 agent-orchestrator comment-3 agent-ci-monitor && called: ^squad-pr-watch conflicts-check issue-shop-1`
-2. [記録] 人間を呼ばず、返事の待ちを登録してレビューと QA へ回している。 `判定: not-posted: mention://member/member1 && called: ^squad-review-wait watch issue-shop-1 comment-3 && posted: mention://agent/agent-qa && posted: mention://agent/agent-(code|ux|security|performance)-reviewer && not-called: ^squad-pr-link`
+2. [記録] 人間を呼ばず、`squad-review-next request` にレビューと QA の依頼を書かせている。 `判定: not-posted: mention://member/member1 && called: ^squad-review-next request issue-shop-1 comment-3 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$ && not-called: ^squad-review-wait watch && not-called: ^squad-pr-link`

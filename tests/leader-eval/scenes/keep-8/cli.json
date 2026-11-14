@@ -118,11 +118,11 @@
       "stdout": "返事の待ち: 次に進む"
     },
     {
-      "match": "squad-dispatch-pick principal Claude",
+      "match": "squad-usage-wait pick issue-shop-1 principal Claude",
       "stdout": "役: codex-principal\n振り分け: Codex。Claude 週 20%、Codex 週 30%"
     },
     {
-      "match": "squad-dispatch-pick principal Codex",
+      "match": "squad-usage-wait pick issue-shop-1 principal Codex",
       "stdout": "役: claude-principal\n振り分け: Claude。Claude 週 20%、Codex 週 30%"
     },
     {
@@ -158,7 +158,7 @@
       "command": "multica issue runs issue-shop-1 --output json"
     },
     {
-      "command": "squad-dispatch-pick principal Claude",
+      "command": "squad-usage-wait pick issue-shop-1 principal Claude",
       "kind": "read",
       "exit": 0
     },

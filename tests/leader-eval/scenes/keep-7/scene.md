@@ -3,7 +3,7 @@
 
 ## 元の出来事
 
-実装がすべてそろったとき、CI の見張りを登録し、レビューと E2E の返事を待つ回を作ってから依頼した。各役が同じコミットを確認し、返事がそろってから進める必要がある。
+実装がすべてそろったとき、CI の見張りを登録し、依頼は `squad-review-next request` に書かせる。観点を選び、返事を待つ回を作って、返事を待つ役とコミットの行のある依頼を書くのはスクリプトで、リーダーは役を選ばず、依頼の文も自分で書かない。
 
 ## 入力
 
@@ -16,5 +16,5 @@ PR はタスクに紐付いています。画面に触れる変更なので、�
 ## 合格の基準
 
 1. [記録] PR の紐付けを確認し、CI の見張りを登録している。 `判定: called: ^squad-pr-watch link-check issue-shop-1 && called: ^squad-pr-watch ci issue-shop-1 agent-ci-monitor comment-3`
-2. [記録] 依頼のコメントを書く前に、レビューと QA の返事を待つ回を作っている。 `判定: before: ^squad-review-wait watch issue-shop-1 comment-3 => ^multica issue comment add && called: ^squad-review-wait watch issue-shop-1 comment-3 .*agent-qa && called: ^squad-review-wait watch issue-shop-1 comment-3 .*agent-(code|ux|security|performance)-reviewer`
-3. [記録] 依頼に返事を待つ役と、PR の head の完全な SHA の行がある。 `判定: posted: ^返事を待つ役:.*mention://agent/agent-qa && posted: ^返事を待つ役:.*mention://agent/agent-(code|ux|security|performance)-reviewer && posted: ^確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$`
+2. [記録] 依頼を、PR の head の完全な SHA を渡した `squad-review-next request` で書かせている。 `判定: called: ^squad-review-next request issue-shop-1 comment-3 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567$`
+3. [記録] 返事の待ちの見張りも依頼のコメントも、自分では作っていない。 `判定: not-called: ^squad-review-wait watch && not-posted: ^返事を待つ役: && not-posted: ^確認するコミット:`

@@ -234,7 +234,7 @@ def stub(name, argv):
 # ---- 1 回の実行 ----
 
 SHIMS = ["multica", "gh", "squad-preflight", "squad-pr-link", "squad-pr-watch", "squad-review-wait",
-         "squad-dispatch-pick", "squad-usage-read"]
+         "squad-dispatch-pick", "squad-usage-read", "squad-review-next", "squad-usage-wait"]
 # 使える道具は、スタブのコマンドの Bash と、作業ディレクトリの中の読み書きに、次の 2 つを足したものにする。
 # - エージェントは `cmd; echo "exit=$?"` や `cmd | head` のようにコマンドをつなぐ。dontAsk では、つないだ
 #   部分が許可に無いと全体が拒否されるので、読むだけの標準のコマンドも許可する（書き込みや通信はできない）
