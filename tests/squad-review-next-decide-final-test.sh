@@ -110,6 +110,23 @@ result prev-final claude-principal ✅ fedcba9 なし
 ok_round
 run round-1
 [[ $(posted_body) == *"見る範囲: fedcba9..$sha"* ]] || fail "最新の結果を使っていない: $(posted_body)"
+# 前の最終レビューの最新の結果が読めないとき（結論の印がない）は、古い読める結果へ戻らず、全体にする。
+reset
+final_round prev-final "$old" older-round
+result prev-final claude-principal ✅ 1111111 なし
+add res-unreadable claude-principal $'/note\n返事の回: prev-final\n確認したコミット: fedcba9\n設計への指摘: なし\n\n結論の印がない'
+ok_round
+run round-1
+expect_posted 最終レビュー "$(final_request_body 'PR の差分全体')"
+expect_no_calls compare-calls
+# 別の回への返事は、前の最終レビューの結果にしない。
+reset
+final_round prev-final "$old" older-round
+result older-round claude-principal ✅ fedcba9 なし
+ok_round
+run round-1
+expect_posted 最終レビュー "$(final_request_body 'PR の差分全体')"
+expect_no_calls compare-calls
 # 前の最終レビューがなければ全体にする。
 reset
 ok_round
@@ -118,20 +135,61 @@ expect_posted 最終レビュー "$(final_request_body 'PR の差分全体')"
 expect_no_calls compare-calls
 echo 'PASS review-next-decide: 最終レビューの範囲は、前の最終レビューのコミットが祖先のときだけ差分にする'
 
-# 最上位の役が名簿になければ、最終レビューを書かずにマージの段へ進む（このスクリプトでは未実装）。
+# 最上位の役が名簿になければ、最終レビューを書かずにマージの段へ進む。head の照合は、最上位の役がないので流さない。
 reset
-set_roster orchestrator code-reviewer qa ci-monitor
+set_roster orchestrator code-reviewer qa
 ok_round
 run round-1
-expect_leader 'マージの依頼'
+expect_merge_posted "$(merge_body round-1 "$sha" "コンフリクト: MERGEABLE head: $sha" '✅ demo-code-reviewer-test: 結果' '✅ demo-qa-test: 結果')"
 expect_no_calls pick-calls
-# 同じコミットの最終レビューがすでにあるなら、もう一度は頼まない。
+# 同じコミットの最終レビューがすでにあり、その結果が ✅ なら、もう一度は頼まない。
 reset
+set_merge_roster
+ok_round
 final_round final-1 "$sha" older
-ok_round
+result final-1 claude-principal ✅ "$sha" なし
 run round-1
-expect_leader 'マージの依頼'
+expect_merge_posted "$(merge_body round-1 "$sha" "コンフリクト: MERGEABLE head: $sha" '✅ demo-code-reviewer-test: 結果' '✅ demo-qa-test: 結果' '✅ demo-claude-principal-test: 結果')"
 expect_no_calls pick-calls
+# 依頼があるだけでは済みにしない。結果が ❌・設計への指摘あり・返事なし・読めない・別のコミットのときは、マージに進まない。
+not_done() { # 理由に含まれる文字列
+	run round-1
+	expect_leader "$1"
+	expect_no_calls pick-calls
+}
+reset
+ok_round
+final_round final-1 "$sha" older
+result final-1 claude-principal ❌ "$sha" なし
+not_done '❌ の結果がある'
+reset
+ok_round
+final_round final-1 "$sha" older
+result final-1 claude-principal ✅ "$sha" あり
+not_done '設計への指摘: あり'
+reset
+ok_round
+final_round final-1 "$sha" older
+not_done '返事の結果がない'
+reset
+ok_round
+final_round final-1 "$sha" older
+add res-unreadable claude-principal $'/note\n返事の回: final-1\n確認したコミット: '"$sha"$'\n設計への指摘: なし\n\n結論の印がない'
+not_done '返事の結果が読めない'
+reset
+ok_round
+final_round final-1 "$sha" older
+result final-1 claude-principal ✅ "$old" なし
+not_done '確認したコミットが合わない'
+# ❌ の最終レビューのあとに、同じコミットで ✅ の通常の回が続いても、最終レビューの結果を読む。
+reset
+ok_round
+final_round final-1 "$sha" older
+result final-1 claude-principal ❌ "$sha" なし
+review_round round-2 "$sha" code-reviewer qa
+all_ok round-2 "$sha" code-reviewer qa
+run round-2
+expect_leader '❌ の結果がある'
 # 違うコミットの最終レビューは、同じコミットのものと見なさない。
 reset
 final_round final-0 "$old" older
@@ -143,11 +201,12 @@ echo 'PASS review-next-decide: 最終レビューが要らないとき、また�
 
 # 最終レビューの回の返事。
 reset
+set_merge_roster
 ok_round
 final_round final-1 "$sha" round-1
 result final-1 claude-principal ✅ "$sha" なし
 run final-1
-expect_leader 'マージの依頼'
+expect_merge_posted "$(merge_body final-1 "$sha" "コンフリクト: MERGEABLE head: $sha" '✅ demo-claude-principal-test: 結果' '✅ demo-code-reviewer-test: 結果' '✅ demo-qa-test: 結果')" final-1
 # 最上位の役が ❌ なら修正の依頼にする。
 reset
 ok_round
@@ -195,3 +254,29 @@ result final-1 claude-principal ✅ "$old" なし
 run final-1
 expect_leader '見る範囲: か 振り分け: の行がない'
 echo 'PASS review-next-decide: 最終レビューの回の返事は、マージの段・修正・最終レビューの形の頼み直しに分ける'
+
+# スクワッドは、回を書いた役から決める。タスクの担当がメンバーでも、別のスクワッドでも、回を書いたリーダーのスクワッドの名簿を読む。
+reset
+ok_round
+jq '.assignee_type = "member" | .assignee_id = "human-1"' "$test_dir/issue.json" >"$test_dir/issue.new" && mv "$test_dir/issue.new" "$test_dir/issue.json"
+run round-1
+expect_status 0
+[[ $(<"$test_dir/out") == $'次の依頼: 最終レビュー'* ]] || fail "担当がメンバーのとき、回のスクワッドから決めていない: $(<"$test_dir/out")"
+reset
+ok_round
+jq '. + [.[0] + {id: "squad-other", name: "DEMO-OTHER", leader_id: "other-leader", creator_id: "human-2"}]' "$test_dir/squads.json" >"$test_dir/squads.new" && mv "$test_dir/squads.new" "$test_dir/squads.json"
+jq '.assignee_id = "squad-other"' "$test_dir/issue.json" >"$test_dir/issue.new" && mv "$test_dir/issue.new" "$test_dir/issue.json"
+run round-1
+expect_status 0
+[[ $(<"$test_dir/out") == $'次の依頼: 最終レビュー'* ]] || fail "担当が別のスクワッドのとき、回のスクワッドから決めていない: $(<"$test_dir/out")"
+grep -q 'squad-test' "$test_dir/calls.jsonl" || fail "回のスクワッドの名簿を読んでいない: $(<"$test_dir/calls.jsonl")"
+! grep -q 'squad-other' "$test_dir/calls.jsonl" || fail "担当の別のスクワッドの名簿を読んでいる: $(<"$test_dir/calls.jsonl")"
+jq 'map(select(.id == "squad-test"))' "$test_dir/squads.json" >"$test_dir/squads.new" && mv "$test_dir/squads.new" "$test_dir/squads.json"
+# 回を書いた役がどのスクワッドのリーダーでもなければ、担当にせず失敗する。
+reset
+ok_round
+jq 'map(.leader_id = "someone-else")' "$test_dir/squads.json" >"$test_dir/squads.new" && mv "$test_dir/squads.new" "$test_dir/squads.json"
+run round-1
+expect_failure 'スクワッドを決められない'
+jq 'map(.leader_id = "orchestrator")' "$test_dir/squads.json" >"$test_dir/squads.new" && mv "$test_dir/squads.new" "$test_dir/squads.json"
+echo 'PASS review-next-decide: スクワッドは、回を書いた役から決める'

@@ -33,16 +33,16 @@ unlinked
 echo 1 >"$test_dir/ci-status"
 run round-1
 expect_leader 'CI の見張りを入れられない'
-# マージの段で見張りの役がいれば、その場の確認は流さない。見張りは入れる。
+# マージの段で見張りの役がいれば、CI の待ち（まだ書けない）のためにリーダーに任せる。その場の確認も、規則の登録もしない。
 reset
 set_roster orchestrator code-reviewer qa ci-monitor
 ok_round
 unlinked
 run round-1
-expect_leader 'マージの依頼'
-expect_call_has pr-watch-calls 'ci test-issue ci-monitor round-1'
+expect_leader 'CI の見張り役がいる構成のマージの依頼'
 expect_call_lacks pr-watch-calls ci-now
-expect_call_has pr-watch-calls 'conflicts-check test-issue'
+expect_call_lacks pr-watch-calls 'conflicts test-issue'
+expect_call_lacks pr-watch-calls unlinked
 # その場の確認が止まる値。
 reset
 ok_round

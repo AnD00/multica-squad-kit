@@ -281,32 +281,10 @@ post_claim() {
 	post_note "$1" "$2" "$CLAIM_MARK"
 }
 
-# 回を書いたコメントから、知らせるスクワッドを JSON で出す。
-# 回を書いたエージェントがリーダーのスクワッドがあれば、それを使う。なければ、次の依頼のように役が書いた回なので、
-# `前の回:` をたどって（同じタスクのコメントだけ。10 回まで）、リーダーが書いた回のスクワッドを使う。
+# 回を書いたコメントから、知らせるスクワッドを JSON で出す。決め方は squad-cli-lib の squad_cli_squad_for_round にある。
 # 決められなければ 2 を返す。
 squad_for_round() {
-	local comments=$1 current=$2 squads hop comment author matches count
-	squads=$(squad_cli_read squad-list) || return 1
-	for ((hop = 0; hop <= 10; hop++)); do
-		comment=$(jq -c --arg id "$current" '[.[] | select(.id == $id)] | first // {}' <<<"$comments") || return 1
-		author=$(jq -r '.author_id // empty' <<<"$comment") || return 1
-		[[ -n $author ]] || break
-		matches=$(jq -c --arg leader "$author" '[.[] | select(.leader_id == $leader and .archived_at == null)]' <<<"$squads") || return 1
-		count=$(jq length <<<"$matches") || return 1
-		if ((count == 1)); then
-			jq '.[0]' <<<"$matches"
-			return 0
-		fi
-		if ((count > 1)); then
-			printf '知らせるスクワッドを決められません: %s 件（回を書いたエージェント %s）\n' "$count" "$author" >&2
-			return 2
-		fi
-		current=$(jq -r --arg mark "$PREV_MARK" '(.content // "") | split("\n") | map(select(startswith($mark))) | first // "" | ltrimstr($mark) | gsub("^\\s+|\\s+$"; "")' <<<"$comment") || return 1
-		[[ -n $current ]] || break
-	done
-	printf '知らせるスクワッドを決められません: 回を書いたエージェント %s はどのスクワッドのリーダーでもなく、`前の回:` をたどってもリーダーの回に着きません\n' "${author:-不明}" >&2
-	return 2
+	squad_cli_squad_for_round "$1" "$2"
 }
 
 # 理由を 1 行にして、長ければ切る。

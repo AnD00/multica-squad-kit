@@ -1880,17 +1880,49 @@ squad_cli_squad_for_leader() {
 	jq '.[0]' <<<"$matches"
 }
 
+# 回を書いたコメントから、知らせるスクワッドを JSON で出す。
+# 回を書いたエージェントがリーダーのスクワッドがあれば、それを使う。なければ、次の依頼のように役が書いた回なので、
+# `前の回:` をたどって（同じタスクのコメントだけ。10 回まで）、リーダーが書いた回のスクワッドを使う。
+# 決められなければ 2、CLI・欄の検証の失敗なら 1 を返す。review-wait・次の依頼の決定・使用率の待ちが同じ決め方を使う。
+squad_cli_squad_for_round() {
+	local comments=$1 current=$2 squads hop comment author matches count mark='前の回:'
+	squads=$(squad_cli_read squad-list) || return 1
+	for ((hop = 0; hop <= 10; hop++)); do
+		comment=$(jq -c --arg id "$current" '[.[] | select(.id == $id)] | first // {}' <<<"$comments") || return 1
+		author=$(jq -r '.author_id // empty' <<<"$comment") || return 1
+		[[ -n $author ]] || break
+		matches=$(jq -c --arg leader "$author" '[.[] | select(.leader_id == $leader and .archived_at == null)]' <<<"$squads") || return 1
+		count=$(jq length <<<"$matches") || return 1
+		if ((count == 1)); then
+			jq '.[0]' <<<"$matches"
+			return 0
+		fi
+		if ((count > 1)); then
+			printf '知らせるスクワッドを決められません: %s 件（回を書いたエージェント %s）\n' "$count" "$author" >&2
+			return 2
+		fi
+		current=$(jq -r --arg mark "$mark" '(.content // "") | split("\n") | map(select(startswith($mark))) | first // "" | ltrimstr($mark) | gsub("^\\s+|\\s+$"; "")' <<<"$comment") || return 1
+		[[ -n $current ]] || break
+	done
+	printf '知らせるスクワッドを決められません: 回を書いたエージェント %s はどのスクワッドのリーダーでもなく、`前の回:` をたどってもリーダーの回に着きません\n' "${author:-不明}" >&2
+	return 2
+}
+
 # エージェントの名前（<プロジェクトのキー>-<役>-<メンバーのキー>）から、このスクワッドの役を読む。
 # キーに - は入らないので、スクワッドの名前（キーとメンバーのキーを - でつなぎ大文字にしたもの）と
 # 先頭・末尾が合う名前の、間を役とする。アーカイブ済みのエージェントとキーが合わないものは入れない。
 # {leader, roles: {<役>: {id, model, name}}} を出す。見張りと次の依頼の決定が同じ名簿を使う。
+# 2 つ目の引数にスクワッドの ID があれば、そのスクワッドの名簿を読む（回から決めたスクワッド）。
+# なければ、タスクの担当のスクワッドを使う。
 squad_cli_read_roster() {
-	local issue=$1 task squad_id squads squad key member members ids id agent roles='{}' name role
-	task=$(squad_cli_read issue-get "$issue") || return 1
-	squad_id=$(jq -r 'if .assignee_type == "squad" then .assignee_id else "" end' <<<"$task")
+	local issue=$1 squad_id=${2-} task squads squad key member members ids id agent roles='{}' name role
 	if [[ -z $squad_id ]]; then
-		echo "タスクの担当がスクワッドではないため、名簿を読めない: $issue" >&2
-		return 1
+		task=$(squad_cli_read issue-get "$issue") || return 1
+		squad_id=$(jq -r 'if .assignee_type == "squad" then .assignee_id else "" end' <<<"$task")
+		if [[ -z $squad_id ]]; then
+			echo "タスクの担当がスクワッドではないため、名簿を読めない: $issue" >&2
+			return 1
+		fi
 	fi
 	squads=$(squad_cli_read squad-list) || return 1
 	squad=$(jq -c --arg id "$squad_id" '[.[] | select(.id == $id and .archived_at == null)] | first // empty' <<<"$squads") || return 1

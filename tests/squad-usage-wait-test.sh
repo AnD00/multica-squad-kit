@@ -364,12 +364,24 @@ run implement 小さな
 [[ $(wakeup_count) == 1 ]]
 echo 'PASS usage-wait: 同じ工程の有効な起こしがあれば置き直さず、その時刻を使う。ほかの工程や無効な起こしは数えない'
 
-# decide から呼ぶときは、回のコメントを指示に書く。
+# decide から呼ぶときは、回のコメントを指示に書く。スクワッドは、タスクの担当でなく、回を書いた役から決める。
 reset
 set_roster claude-implementer
 usage 90 $((now + 7200)) 10 $((now + 100000)) 10 $((now + 100000)) true
+add_comment agent orchestrator round-7 $((now - 600)) '観点: qa（テスト）'
+cp "$test_dir/issue-member.json" "$test_dir/issue.current.json"
+status=0
 (cd "$test_dir" && bash monitor/squad-usage-wait pick test-issue implement 小さな --round round-7) >"$test_dir/out" 2>"$test_dir/err" || status=$?
 assert_jq '.instruction | split("\n") | any(. == "回: round-7") and any(contains("squad-review-next decide test-issue round-7"))' "$test_dir/wakeups.jsonl"
+# 回を書いた役がどのスクワッドのリーダーでもなければ、担当にせず、起こしを置かずに失敗する。
+reset
+set_roster claude-implementer
+usage 90 $((now + 7200)) 10 $((now + 100000)) 10 $((now + 100000)) true
+add_comment agent someone-else round-7 $((now - 600)) '観点: qa（テスト）'
+status=0
+(cd "$test_dir" && bash monitor/squad-usage-wait pick test-issue implement 小さな --round round-7) >"$test_dir/out" 2>"$test_dir/err" || status=$?
+[[ $status == 1 ]] || fail "回のスクワッドを決められないのに失敗しない: $status"
+[[ $(wakeup_count) == 0 ]] || fail "起こしを置いてはいけない"
 echo 'PASS usage-wait: --round で呼ぶと、起こしの指示に回のコメントと decide の流し直しを書く'
 
 # ---- 24 時間の数え方。planner の片系統で、リセットまでの時間を変えて確認する。

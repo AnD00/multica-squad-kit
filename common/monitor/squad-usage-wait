@@ -204,7 +204,7 @@ print_choice() {
 
 pick() {
 	local issue=$1 process=$2 extra=${3:-} round=${4:-}
-	local suffix='' roster leader roles claude_role codex_role model lineage role dispatch_args=() out status=0
+	local suffix='' comments squad roster leader roles claude_role codex_role model lineage role dispatch_args=() out status=0
 	local evaluated side_ok side_near resume text other reason line
 	trap cleanup EXIT
 	trap 'exit 1' HUP INT TERM
@@ -212,7 +212,14 @@ pick() {
 	script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 	mkdir -p "$PWD/tmp"
 	work_dir=$(mktemp -d "$PWD/tmp/usage-wait.XXXXXX")
-	roster=$(squad_cli_read_roster "$issue") || return 1
+	if [[ -n $round ]]; then
+		# decide から呼ばれたときは、回から決めたスクワッドの名簿を使う。decide と同じ名簿にするため。
+		comments=$(squad_cli_read issue-comments "$issue") || return 1
+		squad=$(squad_cli_squad_for_round "$comments" "$round") || return 1
+		roster=$(squad_cli_read_roster "$issue" "$(jq -r .id <<<"$squad")") || return 1
+	else
+		roster=$(squad_cli_read_roster "$issue") || return 1
+	fi
 	leader=$(jq -r '.leader' <<<"$roster")
 	roles=$(jq -c '.roles' <<<"$roster")
 	now=$(date '+%s')

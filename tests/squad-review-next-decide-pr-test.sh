@@ -78,30 +78,23 @@ printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
 expect_status 0
 expect_call_lacks pr-watch-calls ci-held
-# マージの段で、CI の待ちの規則がタスクにあるなら確かめない。
+# マージの段で、見張りの役がいるときは、CI の待ち（まだ書けない）のためにリーダーに任せる。保留した失敗は読まず、規則も入れない。
 reset
 set_roster orchestrator code-reviewer qa ci-monitor
-set_metadata ci_wait_head "$sha"
 ok_round
 printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
-expect_leader 'マージの依頼'
+expect_leader 'CI の見張り役がいる構成のマージの依頼'
 expect_call_lacks pr-watch-calls ci-held
-# マージの段で、見張りの役がいて、最終レビューの回なら確かめない。
+expect_call_lacks pr-watch-calls 'conflicts test-issue'
+expect_no_calls head-calls
+# マージの段で、見張りの役がなく、紐付いていないなら、保留した失敗を読み、あれば止まる。
 reset
-set_roster orchestrator code-reviewer qa ci-monitor claude-principal
+set_roster orchestrator code-reviewer qa
 ok_round
-final_round final-1 "$sha" round-1
-result final-1 claude-principal ✅ "$sha" なし
-printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
-run final-1
-expect_leader 'マージの依頼'
-expect_call_lacks pr-watch-calls ci-held
-# マージの段でも、最終レビューの回でなければ確かめる。
-reset
-set_roster orchestrator code-reviewer qa ci-monitor
-ok_round
+printf '紐付け: 紐付いていない pr: %s\n' "$pr_url" >"$test_dir/link-out"
 printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
 expect_leader '保留した CI の失敗がある'
+expect_call_lacks pr-watch-calls 'conflicts test-issue'
 echo 'PASS review-next-decide: 保留した CI の失敗は、確かめる条件のときだけ読み、あればリーダーに任せる'

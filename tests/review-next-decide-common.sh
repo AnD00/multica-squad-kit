@@ -42,6 +42,8 @@ ci) exit "$(status_of ci-status)" ;;
 ci-now) out_of cinow-out; exit "$(status_of cinow-status)" ;;
 conflicts-check) out_of conf-out; exit "$(status_of conf-status)" ;;
 ci-wait-clear) exit "$(status_of clear-status)" ;;
+conflicts) out_of conflicts-out; exit "$(status_of conflicts-status)" ;;
+unlinked) out_of unlinked-out; exit "$(status_of unlinked-status)" ;;
 *) echo "想定外のサブコマンド: $cmd" >&2; exit 1 ;;
 esac
 EOF
@@ -109,8 +111,21 @@ if [[ ${1-} == api ]]; then
 		echo "${2#repos/demo/project/compare/}" >>"$dir/compare-calls"
 		[[ ! -f $dir/compare-fail ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
 		stub emit gh-compare "$dir/compare.json" ;;
+	'repos/demo/project/pulls/7/files?per_page=100')
+		[[ ${3-} == --paginate ]]
+		[[ ! -f $dir/files-fail ]] || { echo 'gh: Bad Gateway (HTTP 502)' >&2; exit 1; }
+		stub emit gh-pr-files "$dir/files.json" ;;
+	'repos/demo/project/contents/.agents/review-paths?ref='*)
+		echo 'gh: Not Found (HTTP 404)' >&2; exit 1 ;;
 	*) echo "Unexpected mock call: $*" >&2; exit 1 ;;
 	esac
+elif [[ ${1-} == pr && ${2-} == view && ${3-} == 7 && ${4-} == --repo && ${5-} == demo/project && ${*: -1} == *baseRefName* ]]; then
+	jq '.baseRefName = "release"' <(python3 "$REVIEW_NEXT_TEST_ROOT/tests/review-wait-fixture.py" base gh-dependabot-pr) >"$dir/pr.json"
+	stub emit gh-dependabot-pr "$dir/pr.json"
+elif [[ ${1-} == pr && ${2-} == view && ${3-} == 7 && ${4-} == --repo && ${5-} == demo/project && ${*: -1} == headRefOid ]]; then
+	echo "$*" >>"$dir/head-calls"
+	[[ ! -f $dir/head-fail ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+	stub emit gh-pr-head "$dir/head.json"
 else
 	echo "Unexpected mock call (書き込みは禁止): $*" >&2
 	exit 1
@@ -192,12 +207,17 @@ reset() {
 	: >"$test_dir/pick-calls"
 	: >"$test_dir/status-calls"
 	: >"$test_dir/compare-calls"
-	rm -f "${test_dir:?}/post-fail" "${test_dir:?}/comments-fail" "${test_dir:?}/runs-fail" "${test_dir:?}/compare-fail"
+	: >"$test_dir/head-calls"
+	rm -f "${test_dir:?}/post-fail" "${test_dir:?}/comments-fail" "${test_dir:?}/runs-fail" "${test_dir:?}/compare-fail" "${test_dir:?}/head-fail"
+	: >"$test_dir/files-fail"
+	rm -f "${test_dir:?}"/conflicts-out* "${test_dir:?}"/conflicts-status* "${test_dir:?}"/unlinked-out* "${test_dir:?}"/unlinked-status*
 	rm -f "${test_dir:?}"/link-out* "${test_dir:?}"/link-status* "${test_dir:?}"/held-out* "${test_dir:?}"/held-status* "${test_dir:?}"/ci-status*
 	rm -f "${test_dir:?}"/cinow-out* "${test_dir:?}"/cinow-status* "${test_dir:?}"/conf-out* "${test_dir:?}"/conf-status* "${test_dir:?}"/clear-status*
 	echo 0 >"$test_dir/watch-status"
 	printf '紐付け: 紐付いている pr: %s\n' "$pr_url" >"$test_dir/link-out"
 	printf 'コンフリクト: MERGEABLE head: %s\n' "$sha" >"$test_dir/conf-out"
+	printf '{"headRefOid": "%s"}\n' "$sha" >"$test_dir/head.json"
+	printf '{"id": "rule-1"}\n見張り: 1 時間おき、2026-11-17 まで\n' >"$test_dir/unlinked-out"
 	printf '役: claude-fixer\n振り分け: Claude で足りる。工程: fix\n' >"$test_dir/pick-out"
 	echo 0 >"$test_dir/pick-status"
 	cp "$test_dir/agents.base.json" "$test_dir/agents.json"
@@ -208,6 +228,15 @@ reset() {
 	set_roster orchestrator "${agent_roles[@]}"
 	set_issue_labels label-dev
 	n=0
+}
+# 変えたファイルを決める。決めなければ、読めない扱いになり、観点はすべて選ばれる。
+set_changed_files() { # ファイル名...
+	rm -f "${test_dir:?}/files-fail"
+	fixture gh-pr-files | jq --args '. as $base | [$ARGS.positional[] | $base + {filename: ., status: "modified"}]' -- "$@" >"$test_dir/files.json"
+}
+# マージの依頼まで進める構成。CI の見張り役がいない名簿にする（CI の待ちは、まだこのスクリプトで書かない）。
+set_merge_roster() {
+	set_roster orchestrator code-reviewer ux-reviewer security-reviewer performance-reviewer qa claude-implementer codex-implementer claude-fixer codex-fixer claude-principal codex-principal designer
 }
 run() { # 回の ID
 	status=0
@@ -268,5 +297,23 @@ ok_round() { # 回 round-1 に、全員が ✅ で返る。最上位の役の選
 }
 final_request_body() { # 範囲 [役]
 	printf '見直しの種類: 最終レビュー\n確認するコミット: %s\n見る範囲: %s\n返事を待つ役: %s\n%s\n前の回: round-1\n対象の PR: %s' "$sha" "$1" "$(mention "${2-claude-principal}")" "$principal_line" "$pr_url"
+}
+# マージの依頼の本文の見本。行 3 以降（確認の行）は、引数で渡す。
+merge_body() { # 前の回 head 行...
+	local round=$1 head=$2
+	shift 2
+	printf '[@Owner](mention://member/human-1) レビューと確認が済みました。PR のマージを判断してください。\nマージの依頼: %s\n前の回: %s\n' "$head" "$round"
+	printf '%s\n' "$@"
+}
+# マージの依頼を書き、タスクを in_review にした。
+expect_merge_posted() { # 本文 [返信先]
+	expect_status 0
+	[[ $(jq -s length "$test_dir/posted.jsonl") == 1 ]] || fail "コメントが 1 件でない: $(<"$test_dir/posted.jsonl")"
+	local actual
+	actual=$(posted_body)
+	[[ $actual == "$1" ]] || { printf '期待したコメント:\n%s\n実際のコメント:\n%s\n標準エラー:\n%s\n' "$1" "$actual" "$(<"$test_dir/err")" >&2; exit 1; }
+	jq -e --arg parent "${2-round-1}" '.args | index("--parent") as $i | .[$i + 1] == $parent' "$test_dir/posted.jsonl" >/dev/null || fail "返信先が違う: $(<"$test_dir/posted.jsonl")"
+	[[ $(<"$test_dir/out") == $'次の依頼: マージの依頼\n依頼: posted-comment' ]] || fail "標準出力が違う: $(<"$test_dir/out")"
+	expect_calls status-calls 'issue status test-issue in_review'
 }
 set_principal_pick() { printf '役: %s\n%s\n' "$1" "$principal_line" >"$test_dir/pick-out"; }
