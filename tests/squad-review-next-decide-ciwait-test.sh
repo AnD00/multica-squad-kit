@@ -73,6 +73,24 @@ run final-1
 expect_status 0
 [[ $(<"$test_dir/out") == '次の依頼: CI の待ち（記録は書き済み）' ]] || fail "標準出力が違う: $(<"$test_dir/out")"
 expect_nothing_written
+# 実行の初めに読んだコメントになく、読み直したコメントに見える同じ回・同じ head の記録も、書き済みと数える。
+reset
+ci_final_ok
+ciwait "CI ${sha}: 実行中"
+jq --arg body "$(printf 'マージの前の CI の待ち: CI %s: 実行中\n前の回: final-1' "$sha")" \
+	'. + [(map(select(.id == "final-1")) | first) + {id: "ci-wait-late", author_id: "orchestrator", author_type: "agent", content: $body, created_at: "2026-11-10T13:00:00Z"}]' \
+	"$test_dir/comments.json" >"$test_dir/comments.later.json"
+run final-1
+expect_status 0
+[[ $(<"$test_dir/out") == '次の依頼: CI の待ち（記録は書き済み）' ]] || fail "読み直しで見えた記録を数えていない: $(<"$test_dir/out")"
+expect_nothing_written
+# 4 個の囲みの中の 3 個の囲みの例文は、記録と数えない。
+reset
+ci_final_ok
+add ci-wait-1 orchestrator "$(printf '````\n```\nマージの前の CI の待ち: CI %s: 実行中\n前の回: final-1\n```\n````' "$sha")" final-1
+ciwait "CI ${sha}: 実行中"
+run final-1
+expect_posted 'CI の待ち' "$(printf 'マージの前の CI の待ち: CI %s: 実行中\n前の回: final-1\n' "$sha")" final-1
 # 回が違う記録、head が違う記録があれば、書く。
 reset
 ci_final_ok

@@ -1965,14 +1965,15 @@ def parse(comment):
         if line.startswith("/note "):
             line = line[6:].rstrip()
         every.append(line)
-        head = line.lstrip()[:3]
+        bare = line.strip()
         if fence is not None:
-            bare = line.strip()
-            if len(bare) >= 3 and set(bare) == {fence}:
+            # 囲みを閉じるのは、開始と同じ種類で、開始以上の長さの行だけ。短い囲みや別の種類は、囲みの中の行として読み飛ばす。
+            if len(bare) >= fence[1] and set(bare) == {fence[0]}:
                 fence = None
             continue
-        if head in ("```", "~~~"):
-            fence = head[0]
+        run = len(bare) - len(bare.lstrip(bare[:1])) if bare[:1] in ("`", "~") else 0
+        if run >= 3:
+            fence = (bare[0], run)
             continue
         if line and not line[0].isspace() and not line.startswith(">"):
             placed.append(line)

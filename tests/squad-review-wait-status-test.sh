@@ -246,6 +246,8 @@ noise=(
 	"nh human-1 member 95 $(printf '修正の依頼: 直してください\n前の回: round')"
 	"nb orchestrator agent 95 $(printf '次の依頼です\n前の回: round')"
 	"nf orchestrator agent 95 $(printf '```\n修正の依頼: 直してください\n前の回: round\n```')"
+	"nf4 orchestrator agent 95 $(printf '````\n```\n修正の依頼: 直してください\n前の回: round\n```\n````')"
+	"nc4 orchestrator agent 95 $(printf '````\n```\n返事の待ち: この回を次へ回します\n```\n````')"
 )
 for spec in "${noise[@]}"; do
 	read -r id who type sec content <<<"${spec%%$'\n'*}"

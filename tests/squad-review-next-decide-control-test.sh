@@ -31,6 +31,8 @@ control_case '前の回: だけ（決める実行の役）' qa $'次の依頼で
 control_case '種類の行だけ' orchestrator '修正の依頼: 直してください'
 control_case '引用の中の前の回: と種類の行' orchestrator $'> 修正の依頼: 直してください\n> 前の回: round-1'
 control_case '逆引用符の囲みの中' orchestrator $'```\n修正の依頼: 直してください\n前の回: round-1\n```'
+control_case '4 個の囲みの中の 3 個の囲みの例' orchestrator $'````\n```\n修正の依頼: 直してください\n前の回: round-1\n```\n````'
+control_case '4 個の囲みの中の 3 個の囲みのあとの例' qa $'````md\n```\nx\n```\n修正の依頼: 直してください\n前の回: round-1\n````'
 control_case '役の結果の中（返事の回: あり）' qa $'/note\n返事の回: round-1\n確認したコミット: '"$sha"$'\n設計への指摘: なし\n\n✅ demo-qa-test: 結果\n修正の依頼: 直してください\n前の回: round-1'
 control_case '人間のコメント' human-1 $'修正の依頼: 直してください\n前の回: round-1'
 control_case '決める実行の役でもリーダーでもないエージェント' claude-fixer $'修正の依頼: 直してください\n前の回: round-1'

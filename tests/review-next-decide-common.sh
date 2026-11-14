@@ -78,7 +78,13 @@ case "${1-} ${2-} ${3-}" in
 'squad member list') stub emit squad-member-list "$dir/members.json" ;;
 'issue comment list')
 	[[ ! -f $dir/comments-fail ]] || { echo 'CLI mock comment list failure' >&2; exit 1; }
-	stub emit issue-comments "$dir/comments.json" ;;
+	# comments.later.json があれば、2 回目の読み取りからはそれを返す（読み取りの間にコメントが見えるようになる場合）。
+	echo x >>"$dir/comment-reads"
+	if [[ -f $dir/comments.later.json && $(wc -l <"$dir/comment-reads") -ge 2 ]]; then
+		stub emit issue-comments "$dir/comments.later.json"
+	else
+		stub emit issue-comments "$dir/comments.json"
+	fi ;;
 'issue runs test-issue')
 	[[ ! -f $dir/runs-fail ]] || { echo 'CLI mock runs failure' >&2; exit 1; }
 	stub emit issue-runs "$dir/runs.json" ;;
@@ -211,6 +217,7 @@ reset() {
 	: >"$test_dir/status-calls"
 	: >"$test_dir/compare-calls"
 	: >"$test_dir/head-calls"
+	rm -f "${test_dir:?}/comments.later.json" "${test_dir:?}/comment-reads"
 	rm -f "${test_dir:?}/post-fail" "${test_dir:?}/comments-fail" "${test_dir:?}/runs-fail" "${test_dir:?}/compare-fail" "${test_dir:?}/head-fail"
 	: >"$test_dir/files-fail"
 	rm -f "${test_dir:?}"/conflicts-out* "${test_dir:?}"/conflicts-status* "${test_dir:?}"/unlinked-out* "${test_dir:?}"/unlinked-status*

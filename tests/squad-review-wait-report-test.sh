@@ -333,6 +333,15 @@ output=$(bash "$script" proceed test-issue k1)
 [[ $output == $'/note\n返事の待ち: 回ごと済み' && ! -s $test_dir/posted.jsonl && -z $(slept) && $(deleted_rules) == 0 ]]
 echo 'PASS proceed: 記録が残った回では、書かずに回ごと済み'
 
+# proceed: 4 個の囲みの中の 3 個の囲みの例にある次へ回す記録は、記録と数えない。書いて進む。
+reset_calls
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"
+build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 claim:orch:posted-1:9 \
+	| with_raw example orch agent 8 "$(printf '````\n```\n/note\n返事の待ち: この回を次へ回します\n```\n````')" >"$test_dir/comments.json"
+output=$(bash "$script" proceed test-issue k1)
+[[ $output == '返事の待ち: 次に進む' && $(posted_claim_count) == 1 && $(slept) == 20 && $(deleted_rules) == 2 ]]
+echo 'PASS proceed: 4 個の囲みの中の例にある次へ回す記録は数えず、記録を書いて次に進む'
+
 # proceed: 2 つの実行がほぼ同時に記録を書いたら、進むのは早い記録の実行だけ。
 reset_calls
 build_comments result:a:r1:5 result:b:r2:6 ready:orch:k1:7 >"$test_dir/comments.1.json"

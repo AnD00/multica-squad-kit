@@ -828,6 +828,10 @@ ci_wait_record() {
 	local issue=$1 round=$2 line=$3 comments prefix body id
 	prefix="マージの前の CI の待ち: ${line%%: *}: "
 	comments=$(squad_cli_read issue-comments "$issue") || dfail 'コメントを読めない'
+	# 読み直したコメントで、共有の判定をやり直す。実行の初めの判定は、そのあとに見えるようになった記録を知らないため。
+	# leader と principals は decide のもの（呼び出しの中で見える）。
+	printf '%s' "$comments" >"$work/comments.json"
+	squad_cli_control analyze "$comments" "$(jq -cn --arg leader "$leader" '[$leader]')" "$principals" >"$work/judge.json" || dfail '制御記録を判定できない'
 	# 記録と数えるのは、共有の判定が認めた制御記録（種類が CI の待ちの記録で、この回を指すもの）だけにする。
 	if jq -e --arg round "$round" --arg prefix "$prefix" --slurpfile judge "$work/judge.json" '
 		[$judge[0].controls[] | select(.kind == "ci" and .prev == $round) | .id] as $ids

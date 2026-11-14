@@ -44,18 +44,22 @@ check() { # 説明 jq の式。analyze の出力に当てる
 counted() { analyze | jq -r '[.controls[] | select(.id == "x") | "\(.kind):\(.written)"] | first // "no"'; }
 
 # ---- 制御記録の種類。決める実行の役（qa）もリーダー（L）も、種類ごとに書き済みか次へ回し済みだけかが分かれる。
-declare -A kinds=(
-	[retry]=$'コミットが合わず頼み直す役: qa\n前の回: r1|retry:true'
-	[fix]=$'修正の依頼: 直す\n前の回: r1|fix:true'
-	[final]=$'見直しの種類: 最終レビュー\n前の回: r1|final:true'
-	[merge]=$'マージの依頼: '"$sha"$'\n前の回: r1|merge:true'
-	[human]=$'使用率の待ち: 24 時間を超えるので人間に聞く\n前の回: r1|human:true'
-	[usage]=$'使用率の待ち: 待つ\n前の回: r1|usage:false'
-	[ci]=$'マージの前の CI の待ち: 待つ\n前の回: r1|ci:false'
-)
-for name in "${!kinds[@]}"; do
-	body=${kinds[$name]%|*}
-	want=${kinds[$name]##*|}
+# macOS の標準の bash 3.2 には連想配列がないので、種類ごとの本文と期待は case で引く。
+kind_case() { # 種類 → 「本文|期待」
+	case $1 in
+	retry) printf '%s' $'コミットが合わず頼み直す役: qa\n前の回: r1|retry:true' ;;
+	fix) printf '%s' $'修正の依頼: 直す\n前の回: r1|fix:true' ;;
+	final) printf '%s' $'見直しの種類: 最終レビュー\n前の回: r1|final:true' ;;
+	merge) printf '%s' $'マージの依頼: '"$sha"$'\n前の回: r1|merge:true' ;;
+	human) printf '%s' $'使用率の待ち: 24 時間を超えるので人間に聞く\n前の回: r1|human:true' ;;
+	usage) printf '%s' $'使用率の待ち: 待つ\n前の回: r1|usage:false' ;;
+	ci) printf '%s' $'マージの前の CI の待ち: 待つ\n前の回: r1|ci:false' ;;
+	esac
+}
+for name in retry fix final merge human usage ci; do
+	entry=$(kind_case "$name")
+	body=${entry%|*}
+	want=${entry##*|}
 	for author in L qa; do
 		base
 		agent x "$author" "$body"
@@ -76,6 +80,13 @@ reject '前の回: の引用' L agent $'> 修正の依頼: 直す\n> 前の回: 
 reject '種類の行だけ引用' L agent $'> 修正の依頼: 直す\n前の回: r1'
 reject '逆引用符の囲み' L agent $'```\n修正の依頼: 直す\n前の回: r1\n```'
 reject '~~~ の囲み' L agent $'~~~\n修正の依頼: 直す\n前の回: r1\n~~~'
+reject '4 個の囲みの中の 3 個の囲みの例' L agent $'````\n```\n修正の依頼: 直す\n前の回: r1\n```\n````'
+reject '4 個の囲みの中の 3 個の囲みの後ろの例' L agent $'````md\n```\nx\n```\n修正の依頼: 直す\n前の回: r1\n````'
+reject '5 個の囲みの中の 4 個の囲みの例' L agent $'`````\n````\n修正の依頼: 直す\n前の回: r1\n````\n`````'
+reject '4 個の ~ の囲みの中の 3 個の囲みの例' L agent $'~~~~\n~~~\n修正の依頼: 直す\n前の回: r1\n~~~\n~~~~'
+reject '逆引用符の囲みの中の ~~~' L agent $'```\n~~~\n修正の依頼: 直す\n前の回: r1\n~~~\n```'
+reject '閉じていない囲み' L agent $'````\n```\n修正の依頼: 直す\n前の回: r1\n```'
+reject '情報文字列つきの 4 個の囲み' L agent $'````text\n```\n修正の依頼: 直す\n前の回: r1\n```\n````'
 reject '行頭の空白' L agent $' 修正の依頼: 直す\n 前の回: r1'
 reject '前の回: の ID の後ろに文字' L agent $'修正の依頼: 直す\n前の回: r1 と同じ'
 reject '役の結果（返事の回: あり）' qa agent $'/note\n返事の回: r1\n修正の依頼: 直す\n前の回: r1'
@@ -87,6 +98,18 @@ reject '知らないエージェント' stranger agent $'修正の依頼: 直す
 reject '存在しない回' L agent $'修正の依頼: 直す\n前の回: nothing'
 reject '前の回: が読めない' L agent $'修正の依頼: 直す\n前の回:'
 echo 'PASS control: 前の回: だけ・引用・囲み・行頭の空白・結果・人間・ほかの役・存在しない回は、制御記録と読まない'
+
+# 囲みを正しく閉じたあとの行は、制御記録の行として読む。閉じるのは、開始と同じ種類で、開始以上の長さの行だけ。
+accept() { # 説明 本文 期待
+	base
+	add x L agent "$2"
+	[[ $(counted) == "$3" ]] || { echo "囲みのあとの行を読めない: $1 → $(counted)" >&2; exit 1; }
+}
+accept '4 個の囲みを 4 個で閉じたあと' $'````\n```\n例\n```\n````\n修正の依頼: 直す\n前の回: r1' fix:true
+accept '4 個の囲みを 5 個で閉じたあと' $'````\n例\n`````\n修正の依頼: 直す\n前の回: r1' fix:true
+accept '3 個の囲みを閉じたあと' $'```\n例\n```\n修正の依頼: 直す\n前の回: r1' fix:true
+accept '~ の囲みを閉じたあと' $'~~~~\n例\n~~~~\n修正の依頼: 直す\n前の回: r1' fix:true
+echo 'PASS control: 囲みは開始と同じ種類・同じ長さ以上の行で閉じ、閉じたあとの制御記録は読む'
 
 # 回より前に書かれたもの、決める記録より前に書かれたもの。
 reset
