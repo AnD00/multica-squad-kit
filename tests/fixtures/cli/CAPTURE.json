@@ -113,6 +113,16 @@
       "count": 1
     }
   ],
+  "squad-member-list": [
+    {
+      "name": "agent",
+      "count": 14
+    },
+    {
+      "name": "member",
+      "count": 1
+    }
+  ],
   "label-list": [
     {
       "name": "element",
@@ -152,6 +162,17 @@
       "name": "StatusContext",
       "count": 0,
       "unavailable": "このリポジトリの CI は commit status を使わない。欄は設計文書の GitHub GraphQL スキーマに基づく。"
+    }
+  ],
+  "issue-pull-requests": [
+    {
+      "name": "empty",
+      "count": 1
+    },
+    {
+      "name": "element",
+      "count": 0,
+      "unavailable": "2026-11-13 時点で、このワークスペースに紐付いた PR を持つタスクがなく、要素の見本を取れなかった。紐付いたタスクができたら取り直す。"
     }
   ]
 }

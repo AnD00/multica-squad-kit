@@ -5,11 +5,15 @@
 set -euo pipefail
 
 dispatch_pick_main() (
-	local kind=${1:-} size=${2:-大きな}
+	local kind=${1:-} size=${2:-大きな} preferred=
 	if [[ "$kind" != implement && "$kind" != fix && "$kind" != principal ]] || (($# > 2)) \
-		|| { [[ "$kind" != implement ]] && (($# != 1)); }; then
-		echo '使い方: squad-dispatch-pick implement [小さな|大きな]、squad-dispatch-pick fix、または squad-dispatch-pick principal' >&2
+		|| { [[ "$kind" == fix ]] && (($# != 1)); } \
+		|| { [[ "$kind" == principal ]] && (($# == 2)) && [[ "$2" != Claude && "$2" != Codex ]]; }; then
+		echo '使い方: squad-dispatch-pick implement [小さな|大きな]、squad-dispatch-pick fix、または squad-dispatch-pick principal [Claude|Codex]' >&2
 		return 1
+	fi
+	if [[ "$kind" == principal ]] && (($# == 2)); then
+		if [[ "$2" == Claude ]]; then preferred=Codex; else preferred=Claude; fi
 	fi
 	command -v jq >/dev/null 2>&1 || { echo 'jq が見つからない' >&2; return 1; }
 	[[ "$size" == 小さな ]] || size=大きな
@@ -61,7 +65,7 @@ dispatch_pick_main() (
 	fi
 	now=$(date '+%s')
 	result=$(jq -cn --argjson usage "$usage" --argjson now "$now" --argjson status "$status" \
-		--arg kind "$kind" --arg size "$size" --arg reason "$reason" '
+		--arg kind "$kind" --arg size "$size" --arg preferred "$preferred" --arg reason "$reason" '
 		# squad-usage-read の RFC3339（Z と時差付き）の両方を、同じ秒数にする。
 		def timestamp:
 			(try (capture("^(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<zone>Z|[+-][0-9]{2}:[0-9]{2})$")
@@ -102,6 +106,7 @@ dispatch_pick_main() (
 		| (if $c.excluded != null and $c.excluded != "" and $x.excluded != null and $x.excluded != "" then "なし"
 			elif $c.excluded != null and $c.excluded != "" then "Codex"
 			elif $x.excluded != null and $x.excluded != "" then "Claude"
+			elif $preferred != "" then $preferred
 			elif $fallback then (if $kind == "principal" then (if $c.error == null and $x.error != null then "Claude" else "Codex" end)
 				elif $kind == "fix" or $size == "小さな" then "Codex" else "Claude" end)
 			elif $c.margin >= $x.margin then "Claude" else "Codex" end) as $chosen
@@ -109,7 +114,9 @@ dispatch_pick_main() (
 			["使用率を読めないため、" + (if $kind == "fix" then "修正の代わりの決まり" elif $kind == "principal" then "最上位の役の代わりの決まり" else "大きさ「" + $size + "」" end) + "で決めた。"
 				+ (if $global != "" then $global else
 					([$c.error, $x.error] | map(select(. != null)) | if length == 0 then ["使用率の読み取りに失敗した"] else . end | join("、")) end)]
-			else [] end) + $excluded) as $reasons
+			else [] end) + ($excluded | map(
+				if $preferred != "" and $chosen != "なし" and $chosen != $preferred then
+					. + " のため、実装と同じ系統へ回した" else . end))) as $reasons
 		| {chosen: $chosen, role: (if $chosen == "なし" then "なし" else ($chosen | ascii_downcase) + "-" + (if $kind == "fix" then "fixer" elif $kind == "principal" then "principal" else "implementer" end) end),
 			line: ("振り分け: " + $chosen + (if $reasons | length > 0 then "（" + ($reasons | join("。")) + "）" else "" end)
 				+ "。" + ([($c | summary("Claude")), ($x | summary("Codex"))] | join("、")))}')

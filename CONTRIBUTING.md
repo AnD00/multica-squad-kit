@@ -53,6 +53,7 @@ SQUAD_KIT_FORBIDDEN_FILE=/path/outside/terms.txt bash tests/check-content.sh  # 
 
 `bash tests/run.sh` は、`tests/*-test.sh` を並べて流す。  
 すべて通れば 0、1 本でも失敗すれば 1 で終わる。  
+終了コードが 0 でも、テスト自身のログに bash の展開のエラー（`<ファイル>: line <数>: <名前>: unbound variable`）の行があれば失敗になる。  
 手元では、[変更の進め方](#変更の進め方)に従って関連テストを選んで流す。  
 全件は CI が流す。
 
@@ -126,6 +127,7 @@ SQUAD_KIT_TEST_TIMEOUT=600 bash tests/run.sh tests/release-test.sh   # 上限を
   - Git の名前とメールが要るときは、`git -c user.name=… -c user.email=…` で渡す
 - 原本の `tmp/` 以外のファイルを書き換えない。
   - 決まった名前のファイルを共有の場所に作らず、プロセスを名前で止めない
+- `set -u` のテストでは、空になりうる配列を `${args[@]+"${args[@]}"}` の形で展開する。macOS の bash 3.2 は、空の配列の `"${args[@]}"` で止まるため
 - テストのファイルを足したら、`tests/test-weights` に重み（macOS の CI での秒数の目安）を書く。
   - テスト 1 本の macOS の CI での上限は 150 秒にする。重みが 150 秒を超えると `tests/test-runner-test.sh` がファイルの名前と理由を出して失敗する。重みのないファイルがあっても失敗する
   - 分けたファイルを足したときと、CI の秒数が目安から 2 倍以上ずれたときは、macOS の `tests/run.sh` の `==== PASS` の行の秒数を写して直す。手で小さくして上限に収めず、超えたテストを速くするか分ける

@@ -765,7 +765,7 @@ for cut in cut-brace cut-main cut-open; do
 	for args in "" "$version" "$version --extension /ext" "--verify $version $assets"; do
 		# shellcheck disable=SC2086 # 引数は空白で分ける
 		TTY_ANSWERS="$case_dir/answers" INSTALL_SCRIPT="$case_dir/$cut.sh" run_stdin tty $args
-		[[ $rc != 0 && ! -s $case_dir/out && ! -s $case_dir/gh.log ]] || { echo "FAIL: $cut 引数「$args」: 切れた入口が何かを流しました（rc=$rc）" >&2; exit 1; }
+		[[ $rc != 0 && ! -s $case_dir/out && ! -s $case_dir/gh.log ]] || { echo "FAIL: $cut 引数「${args}」: 切れた入口が何かを流しました（rc=${rc}）" >&2; exit 1; }
 		not_run 0
 	done
 done

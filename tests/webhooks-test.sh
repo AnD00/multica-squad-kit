@@ -42,10 +42,18 @@ export PATH="$test_dir/bin:$PATH" TEST_PACKAGE="$test_dir/package"
 new_case() {
  TEST_DB="$test_dir/$1"; export TEST_DB
  mkdir -p "$TEST_DB"
- python3 "$root/tests/project-issues-fixture.py" "$test_dir/package" "$TEST_DB/db.json"
- jq '.autopilots=[{id:"one",title:"Dependabot の PR の週次の確認 demo example/one",project_id:"project-a",assignee_id:"dep",assignee_type:"agent"},{id:"two",title:"Dependabot の PR の週次の確認 demo example/two",project_id:"project-a",assignee_id:"dep",assignee_type:"agent"}] |
-  .triggers={one:[{id:"schedule-one",kind:"schedule",cron_expression:"0 10 * * 2",timezone:"Asia/Tokyo"}],two:[{id:"schedule-two",kind:"schedule",cron_expression:"0 10 * * 2",timezone:"Asia/Tokyo"}]}' "$TEST_DB/db.json" >"$TEST_DB/new"
- mv "$TEST_DB/new" "$TEST_DB/db.json"
+ if [[ ! -f $test_dir/base.json ]]; then
+  python3 "$root/tests/project-issues-fixture.py" "$test_dir/package" "$test_dir/base.json"
+  jq '.autopilots=[{id:"one",title:"Dependabot の PR の週次の確認 demo example/one",project_id:"project-a",assignee_id:"dep",assignee_type:"agent"},{id:"two",title:"Dependabot の PR の週次の確認 demo example/two",project_id:"project-a",assignee_id:"dep",assignee_type:"agent"}] |
+   .triggers={one:[{id:"schedule-one",kind:"schedule",cron_expression:"0 10 * * 2",timezone:"Asia/Tokyo"}],two:[{id:"schedule-two",kind:"schedule",cron_expression:"0 10 * * 2",timezone:"Asia/Tokyo"}]}' "$test_dir/base.json" >"$test_dir/base-new"
+  mv "$test_dir/base-new" "$test_dir/base.json"
+ fi
+ cp "$test_dir/base.json" "$TEST_DB/db.json"
+ : >"$test_dir/out"; : >"$test_dir/err"
+}
+registered_case() {
+ TEST_DB="$test_dir/$1"; export TEST_DB
+ cp -R "$test_dir/registered" "$TEST_DB"
  : >"$test_dir/out"; : >"$test_dir/err"
 }
 edit() { jq "$1" "$TEST_DB/db.json" >"$TEST_DB/new"; mv "$TEST_DB/new" "$TEST_DB/db.json"; }
@@ -66,6 +74,7 @@ run
 jq -e '(.github_hooks|length)==2 and (.issues|length)==0 and all(.triggers[]; length==2 and .[0].kind=="schedule" and .[0].cron_expression=="0 10 * * 2" and .[1].kind=="webhook")' "$TEST_DB/db.json" >/dev/null
 [[ $(grep -c '^  example/[a-z]*  ✔ トリガー  ✔ 登録  ✔ 配信 200$' "$test_dir/out") == 2 ]]
 no_leak
+cp -R "$TEST_DB" "$test_dir/registered"
 cp "$TEST_DB/db.json" "$test_dir/first.json"
 : >"$TEST_DB/calls.jsonl"; : >"$TEST_DB/gh-calls.jsonl"
 run
@@ -81,8 +90,7 @@ no_leak
 echo 'PASS webhooks: 既存の Webhook は ping 以外も含めて最新の配信を表示する'
 
 for mismatch in inactive events extra-events form missing-active missing-events missing-content-type; do
- new_case "existing-$mismatch"
- run
+ registered_case "existing-$mismatch"
  case $mismatch in
  inactive) edit '.github_hooks[0].active=false' ;;
  events) edit '.github_hooks[0].events=["push"]' ;;
@@ -108,8 +116,7 @@ done
 echo 'PASS webhooks: 既存の有効・pull_request のみ・JSON を検証し、不一致は変更せず理由と起票を残す。過去の HTTP 200 を成功扱いにしない'
 
 for state in false null; do
- new_case "disabled-trigger-$state"
- run
+ registered_case "disabled-trigger-$state"
  edit ".triggers.one[1].enabled=$state"
  cp "$TEST_DB/db.json" "$test_dir/triggers-before.json"
  : >"$TEST_DB/calls.jsonl"; : >"$TEST_DB/gh-calls.jsonl"

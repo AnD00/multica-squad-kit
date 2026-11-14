@@ -53,7 +53,7 @@
       "stdout": "{\n  \"name\": \"feat/cart-badge\",\n  \"commit\": {\n    \"sha\": \"9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f\"\n  }\n}"
     },
     {
-      "match": "squad-dispatch-pick implement",
+      "match": "squad-usage-wait pick issue-shop-1 implement",
       "stdout": "役: claude-implementer\n振り分け: Claude。Claude 週 42%（使ってよい量 60%）・5 時間 23%、Codex 週 6%（使ってよい量 10%）"
     },
     {

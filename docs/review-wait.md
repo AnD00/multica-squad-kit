@@ -6,6 +6,8 @@
 
 この文書は、その仕組みと理由を書く。返事を待つ回の始め方（`watch` と `返事を待つ役:` の行）、役が結果を返す手順（`report`）、待つ上限と失敗の見張りは、今のとおりにする。現在のリーダーの手順は、squad-handoff の参照ファイル [leader-review-wait.md](../common/skills/squad-handoff/references/leader-review-wait.md) にある。指示の構成と移した理由は、[leader-principles.md の手順の移し先](leader-principles.md#手順の移し先)を参照する。
 
+返事がそろったあと、決まりで決まる次の依頼をスクリプトが書く仕組みは、[review-next-step.md](review-next-step.md) にある。この文書の知らせと `proceed` は、スクリプトで決まらないときに使う。
+
 ## 目的と範囲
 
 返事がそろったあと、リーダーが「次に進む」まで進めずに止まることが続いた。止まるたびに人間が手で再開している。この変更で、返事がそろってから次へ進むまでを、人間の手を借りずに通す。

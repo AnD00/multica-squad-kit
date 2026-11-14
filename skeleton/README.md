@@ -12,6 +12,7 @@
 | [.agents/rules/code.md](.agents/rules/code.md) | 同じ相対パス。コードの作業で使うルールのひな形 |
 | [.agents/rules/tests.md](.agents/rules/tests.md) | 同じ相対パス。テストの作業で使うルールのひな形 |
 | [.agents/rules/docs.md](.agents/rules/docs.md) | 同じ相対パス。ドキュメントの作業で使うルールのひな形 |
+| [.agents/review-paths](.agents/review-paths) | 作業先のリポジトリのルートからの `.agents/review-paths`。任意で、印 `重要` のないタスクのレビューの観点の対応を上書き・追加する。置かなければ原本の既定で選ぶ |
 | [.agents/skills/verify/SKILL.md](.agents/skills/verify/SKILL.md) | プロジェクトに一つ登録する検証スキルのひな形。リポジトリごとの節を持つ |
 | [verify-repository.md](verify-repository.md) | 上のスキルへ、選んだリポジトリごとに差し込む記入欄 |
 | [project.md](project.md) | Multica のプロジェクトの説明の初期値。以後の説明の正本はプロジェクトで決めた場所に置く |

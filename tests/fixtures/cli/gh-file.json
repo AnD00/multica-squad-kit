@@ -1,0 +1,20 @@
+[
+  {
+    "name": "fixture",
+    "path": "README.md",
+    "sha": "bfecf464db4e9c2b301bb830dbd8494fe07ffb0d",
+    "size": 8972,
+    "url": "https://example.invalid/fixture",
+    "html_url": "https://example.invalid/fixture",
+    "git_url": "https://example.invalid/fixture",
+    "download_url": "https://example.invalid/fixture",
+    "type": "file",
+    "content": "fixture",
+    "encoding": "base64",
+    "_links": {
+      "self": "https://example.invalid/fixture",
+      "git": "https://example.invalid/fixture",
+      "html": "https://example.invalid/fixture"
+    }
+  }
+]

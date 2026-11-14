@@ -124,6 +124,24 @@ _, coverage, missing = capture['select_samples']([], entries['gh-pr-checks'])
 assert missing == ['CheckRun']
 assert coverage[1]['count'] == 0 and coverage[1]['unavailable']
 print('PASS select: 見本なしの形を、採取漏れと分ける')
+
+# 空の一覧は応答全体から選び、要素の見本なしと分ける。採取も約束のコマンドを使う。
+response = json.loads((fixtures / 'issue-pull-requests.json').read_text())
+selected, coverage, missing = capture['select_samples'](response, entries['issue-pull-requests'])
+assert selected == response and not missing
+assert coverage[0] == {'name': 'empty', 'count': 1}
+assert coverage[1]['count'] == 0 and coverage[1]['unavailable']
+commands = []
+def pr_command(command):
+    commands.append(command)
+    if command[:3] == ['multica', 'issue', 'get']:
+        return {'id': 'fixture-issue', 'identifier': 'FIX-1'}
+    assert command == ['multica', 'issue', 'pull-requests', 'fixture-issue', '--output', 'json']
+    return response[0]
+with patch.dict(capture['capture'].__globals__, {'command_json': pr_command}):
+    result = capture['capture'](['fixture-issue'], {'issue-pull-requests': entries['issue-pull-requests']}, None)
+assert result == {'issue-pull-requests': response} and len(commands) == 2
+print('PASS capture PR: 空の一覧を保存し、要素の見本なしを知らせ、約束から読み取りを組み立てる')
 # GitHub の採取は読み取りのコマンドだけ。自由文・人の login・URL を残さない。
 gh = runpy.run_path('tests/capture-gh-fixtures.py')
 assert gh['read_only'](['gh','api','repos/example/public/pulls','--paginate'])
@@ -151,9 +169,15 @@ with tempfile.TemporaryDirectory(dir='tmp', prefix='gh-capture-main.') as direct
     assert gh_names == set(sources) and 'codex-rate-limits' in entries
     assert entries['codex-rate-limits'].get('capture') == 'external'
     (work / 'sources.json').write_text(json.dumps(sources))
-    for name in sources:
+    for name, source in sources.items():
         saved = json.loads((fixtures / f'{name}.json').read_text())
-        (work / 'responses' / f'{name}.raw').write_text(json.dumps(saved[0] if saved else []))
+        # 読み取りのコマンドを並べた約束は、並びの順に <名前>.<番号>.raw を読む。
+        commands = source if source and isinstance(source[0], list) else [source]
+        for index in range(len(commands)):
+            suffix = '' if len(commands) == 1 else f'.{index}'
+            response = saved[min(index, len(saved) - 1)] if saved else []
+            (work / 'responses' / f'{name}{suffix}.raw').write_text(json.dumps(response))
+    assert {'gh-pr-files', 'gh-compare'} <= {name for name, source in sources.items() if source and isinstance(source[0], list)}
     result = subprocess.run(['python3', 'tests/capture-gh-fixtures.py', '--sources', str(work / 'sources.json'),
                              '--response-dir', str(work / 'responses'), '--output-dir', str(work / 'output')],
                             capture_output=True, text=True, env=dict(os.environ, PATH=f"{work / 'bin'}:{os.environ['PATH']}"))

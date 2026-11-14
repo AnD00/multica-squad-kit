@@ -33,7 +33,7 @@ for defect in pulls-number rule-context pr-author commit-message check-app statu
  esac
  gh_fixture "$reading" | jq "$filter" >"$test_dir/gh-defect.$reading.json"
  status=0
- bash "$script" example/template project-a "$action" "${args[@]}" >"$test_dir/output" 2>"$test_dir/error" || status=$?
+ bash "$script" example/template project-a "$action" ${args[@]+"${args[@]}"} >"$test_dir/output" 2>"$test_dir/error" || status=$?
  [[ $status != 0 && ! -s $test_dir/output ]]
  grep -F "$reading の " "$test_dir/error" >/dev/null
  grep -F "$field" "$test_dir/error" >/dev/null

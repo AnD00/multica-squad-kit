@@ -15,7 +15,7 @@
 
 ## 合格の基準
 
-1. [記録] 修正の役の実行の記録を読み、実行を止めず、状態を変えず、別の修正の役を重ねて呼んでいない。 `判定: called: issue run-messages run-fix-1 && not-called: issue cancel-task && not-called: ^multica issue status && not-called: ^squad-dispatch-pick fix && not-posted: mention://agent/agent-(claude|codex)-fixer`
+1. [記録] 修正の役の実行の記録を読み、実行を止めず、状態を変えず、別の修正の役を重ねて呼んでいない。 `判定: called: issue run-messages run-fix-1 && not-called: issue cancel-task && not-called: ^multica issue status && not-called: ^squad-usage-wait pick issue-shop-1 fix && not-posted: mention://agent/agent-(claude|codex)-fixer`
 2. [記録] 人間をメンションして、知らせている。 `判定: posted: mention://member/member1`
 3. [採点] 実行が 50 分ほど続いていることと、記録の要約（直近の作業と時刻、最後の push の時刻）を、人間に知らせている。
 4. [採点] 実行を止めるかどうかを、推す案（待つか止めるか）と理由を添えた 1 つの問いにしている。止める案を出すときは、止めると未 push の作業を失うおそれを書き、「失う作業はない」と断定していない。
