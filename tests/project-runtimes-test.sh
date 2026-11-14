@@ -28,8 +28,10 @@ for selected in claude codex; do
  ! jq -es --arg prefix "agent-demo-$absent-" 'any(.[]; .[0]=="agent" and (.[2] // ""|startswith($prefix)))' "$TEST_DB/calls" >/dev/null
  for role in orchestrator planner designer qa code-reviewer security-reviewer ux-reviewer performance-reviewer ci-monitor usage-monitor dependabot-merger; do
   role_model=$expected
-  if [[ $selected == claude && ( $role == planner || $role == designer ) ]]; then role_model=claude-opus-5-5; fi
+  if [[ $selected == claude && $role == designer ]]; then role_model=claude-opus-5-5; fi
+  if [[ $role == planner ]]; then role_model=$(if [[ $selected == claude ]]; then echo claude-fable-5-2; else echo gpt-6-astra; fi); fi
   jq -e --arg role "$role" --arg model "$role_model" --arg runtime "runtime-$selected" '.id==("agent-demo-"+$role+"-owner") and .model==$model and .runtime_id==$runtime' "$TEST_DB/agents/agent-demo-$role-owner.json" >/dev/null
+  if [[ $role == planner ]]; then jq -e '.thinking_level=="high"' "$TEST_DB/agents/agent-demo-planner-owner.json" >/dev/null; fi
   jq -e --arg selected "$selected" --arg env "$TEMPLATE_AGENT_HOME/template/shell/project-a/env.sh" 'if $selected=="claude" then .CLAUDE_ENV_FILE==$env else .CLAUDE_ENV_FILE==null end' "$TEST_DB/env/agent-demo-$role-owner.json" >/dev/null
   role_args='[]'
   if [[ $role == orchestrator ]]; then role_args='["--keep","value"]'; fi

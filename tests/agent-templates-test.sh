@@ -189,7 +189,10 @@ for runtime in claude codex; do
 		model=$(template_field "$file" model)
 		if [[ $role == *-principal ]]; then
 			[[ $model == "$(template_field "$test_dir/all/$role" model)" ]]
-		elif [[ $runtime == claude && ( $role == planner || $role == designer ) ]]; then
+		elif [[ $role == planner ]]; then
+			if [[ $runtime == claude ]]; then [[ $model == claude-fable-5-2 ]]; else [[ $model == gpt-6-astra ]]; fi
+			[[ $(template_field "$file" thinking_level) == high ]]
+		elif [[ $runtime == claude && $role == designer ]]; then
 			[[ $model == claude-opus-5-5 ]]
 		else [[ $model == "$expected" ]]; fi
 		for field in thinking_level max_concurrent_tasks skills; do
@@ -198,6 +201,30 @@ for runtime in claude codex; do
 	done
 done
 echo 'PASS templates: 片方だけのランタイムでは設計表のモデルへ移し、思考の深さ・同時実行数・スキルを保つ'
+
+# 要件を決める役は、Claude を使う構成では Fable 5.2、Codex だけでは Astra で、どの構成でも high にする。
+for scenario in all no-designer claude-only codex-only no-reviews runtime-claude-only; do
+	[[ $(template_field "$test_dir/$scenario/planner" model) == claude-fable-5-2 ]]
+	[[ $(template_field "$test_dir/$scenario/planner" thinking_level) == high ]]
+done
+[[ $(template_field "$test_dir/runtime-codex-only/planner" model) == gpt-6-astra ]]
+[[ $(template_field "$test_dir/runtime-codex-only/planner" thinking_level) == high ]]
+[[ $(template_field "$test_dir/all/designer" model) == claude-opus-5-5 ]]
+echo 'PASS templates: 要件を決める役は Claude を使う構成で Fable 5.2、Codex だけで Astra の high にし、設計の役のモデルは変えない'
+
+# 要件を決める役は、質問を 1 回にまとめ、「推奨で」を合意とし、往復の目安を持つ。
+for scenario in all no-designer claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
+	file="$test_dir/$scenario/planner"
+	grep -qF '置いた仮定と質問を 1 回のコメントにまとめる' "$file"
+	grep -qF '推す答え' "$file"
+	grep -qF '「推奨で」の返事は、すべての仮定と推す答えへの合意とみなす' "$file"
+	grep -qF '違う点だけを答えた返事は、残りの仮定と推す答えへの合意とみなす' "$file"
+	grep -qF '人間に確認し直さずにリーダーへ返す' "$file"
+	grep -qF '質問の往復は 2 回までを目安にする。3 回目が要るときは、決めることを 1 つに絞り、絞った理由を添える' "$file"
+	grep -qF '人間に確認し直さずに、リーダーへ' "$file"
+	if grep -qF '質問は 1 つずつ' "$file"; then exit 1; fi
+done
+echo 'PASS templates: 要件を決める役は質問を 1 回にまとめ、「推奨で」を合意とし、往復 2 回の目安と 3 回目の絞り方を持つ'
 
 printf '<!-- IF runtime-claude -->\nclaude\n<!-- ELSE -->\ncodex\n<!-- ENDIF -->\n<!-- IF planner runtime-codex -->\neither\n<!-- ENDIF -->\n' >"$test_dir/runtime-conditions"
 runtimes='["codex"]' template_filter '' "$test_dir/runtime-conditions" >"$test_dir/runtime-result"
