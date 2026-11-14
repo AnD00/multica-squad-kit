@@ -298,7 +298,7 @@ pick() {
 				wait_or_exceed "$issue" "$process" "$leader" "$round" "$resume" "$text" || status=$?
 				return "$status" ;;
 			*)
-				echo "squad-dispatch-pick が失敗した（終了 $status）" >&2
+				echo "squad-dispatch-pick が失敗した（終了 ${status}）" >&2
 				return 1 ;;
 			esac
 		fi
@@ -328,7 +328,7 @@ pick() {
 	side_near=$(jq -r --arg k "$key" '.[$k].near // false' <<<"$evaluated")
 	if [[ $side_ok != true ]]; then
 		reason=$(jq -r --arg k "$key" '.[$k].error' <<<"$evaluated")
-		print_choice "$process" "$role" "$lineage（使用率を読めないため、片系統の構成のその系統に固定した。$reason）"
+		print_choice "$process" "$role" "${lineage}（使用率を読めないため、片系統の構成のその系統に固定した。${reason}）"
 		return 0
 	fi
 	if [[ $side_near == true ]]; then
@@ -338,7 +338,7 @@ pick() {
 		wait_or_exceed "$issue" "$process" "$leader" "$round" "$resume" "$text" || status=$?
 		return "$status"
 	fi
-	print_choice "$process" "$role" "$lineage（片系統の構成）。$(jq -r --arg k "$key" '.[$k].summary' <<<"$evaluated")"
+	print_choice "$process" "$role" "${lineage}（片系統の構成）。$(jq -r --arg k "$key" '.[$k].summary' <<<"$evaluated")"
 }
 
 main() {

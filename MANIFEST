@@ -50,7 +50,7 @@ fe685be0410629696078a8dfb9344b77db0a9e6248785234c222b632da5ac5c7  ./common/monit
 047ce7aa188ff399d5dc36b35a4b89da164be6a0b106a0120459afa10a21673e  ./common/monitor/squad-usage-check
 67746f87ae656f2e23961f61772297fc617a13dc86f5122a61e25b26a53b133b  ./common/monitor/squad-usage-lib
 a390c8c21494d51e5d715cffa1488558b8cefc8a6e1693e86270f47d3f063cbc  ./common/monitor/squad-usage-read
-d6e1464db5b60bcecda662f3253ff8f7ef11c6e70a583a64bff28eaac33c1a62  ./common/monitor/squad-usage-wait
+3d879e54ec65f188e977018363cefe5a3dc676fbeb82958096ad9558496f48c2  ./common/monitor/squad-usage-wait
 8b98e036b062d9075e79ed17716daa9a8e05eab2ebec4a97143fbeca973d69b1  ./common/setup-issues.json
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/.zshenv
 ab9cb0b32064de85d62d8e5f89791645ac6a89fb2f91236e01de30f09841c23c  ./common/shell/env.sh
