@@ -26,9 +26,8 @@ PR を作った直後の紐付けは、Multica の GitHub 連携が 120 秒以�
 | --- | --- |
 | `common/monitor/squad-pr-watch` | サブコマンド `link-check`、`ci-now`、`unlinked`、`unlinked-check` を足す。GitHub を読むサブコマンドは、`pr_url` を検証して正規形で使う（[pr_url の検証](#pr_url-の検証)）。使い方の文と冒頭のコメントにも足す（[コマンドの I/F](#コマンドの-if)） |
 | `common/monitor/squad-cli-lib` | 読み取り `issue-pull-requests` を約束に足す（[CLI の出力の約束に足す読み取り](#cli-の出力の約束に足す読み取り)） |
-| `tests/fixtures/cli/issue-pull-requests.json`、`tests/capture-cli-fixtures.sh` | 足した読み取りの見本を置き、採取の対象に足す |
-| `common/skills/squad-handoff/references/leader-pr-checks.md` | 節「PR の紐付けの確認」を書き直し、紐付いていない PR の確認、作業先と違うか不正な `pr_url` で止まること、人間を呼ぶコメントに添える行を足す。節「マージの前の確認」に、紐付いていないときの扱いを足す（[リーダーの手順](#リーダーの手順)） |
-| `common/skills/squad-handoff/references/leader-principal.md` | 最終レビューの head の照合で、`link-check` の正規形で PR を読む（[pr_url を読む経路](#pr_url-を読む経路)） |
+| `tests/fixtures/cli/issue-pull-requests.json`、`tests/capture-cli-fixtures.py` | 足した読み取りの見本を置き、採取の対象に足す。入口の `tests/capture-cli-fixtures.sh` は `.py` を呼ぶだけなので変えない |
+| `common/skills/squad-handoff/references/leader-pr-checks.md` | 節「PR の紐付けの確認」を書き直し、紐付いていない PR の確認、作業先と違うか不正な `pr_url` で止まること、人間を呼ぶコメントに添える行を足す。節「マージの前の確認」に、紐付いていないときの扱いと、2 の最終レビューの head の照合で 1 の `link-check` の正規形で PR を読む文を足す（[リーダーの手順](#リーダーの手順)、[pr_url を読む経路](#pr_url-を読む経路)） |
 | `common/skills/squad-handoff/references/leader-run-status.md` | 節「実行を止める」で最後に push されたコミットを読むとき、`link-check` の正規形を使う（[pr_url を読む経路](#pr_url-を読む経路)） |
 | `common/agents/orchestrator.md` | 「場面と手順」の表と箇条の、紐付けが空なら止まるという文を改める |
 | `common/agents/ci-monitor.md` | 間隔を空けた確認で起きたときに `unlinked-check` を流す手順を足す（[見張り役の指示](#見張り役の指示)） |
@@ -486,7 +485,16 @@ PR を作る役は、紐付けに失敗しても、人間への依頼を引き�
 
 `tests/agent-templates-test.sh` では、展開したリーダーの指示と `leader-pr-checks.md` に次があることを確認する。`link-check` を流す区切り、食い違い・作業先と違う・不正・未確認で止まること、紐付いていないときの `ci-now`・`ci-held`・`unlinked`、食い違いの知らせで起きたときの手順、人間を呼ぶコメントに添える 2 つの行である。`squad-handoff` には `紐付けの失敗:` の段落があり、紐付けの失敗を先頭に書く文がないことを確認する。見張り役の指示には `unlinked-check` があることを確認する。`leader-run-status.md` の「実行を止める」には、`link-check` の正規形で PR を読み、作業先と違う・不正では読まない文があることを確認する。受け入れ条件 9 から 11 に当たる。
 
-同じテストで、`leader-pr-checks.md` の「マージの前の確認」に次があることも確認する。1 で `link-check` を流すこと、見張り役があれば紐付けの有無によらず `ci-wait` を流して `ci-now` を重ねないこと、紐付いていないときに 5 で `unlinked` を流すことである。`leader-principal.md` の head の照合には、`link-check` の正規形で PR を読む文があることを確認する。受け入れ条件 1、4、9 に当たる。
+同じテストで、`leader-pr-checks.md` の「マージの前の確認」の節に、次の 4 つがあることも確認する。ファイルの全体でなく節を切り出し、番号の項目の行ごとに文言を探す。別の節や別の項目へ移ったときも落とすためである。受け入れ条件 1、4、9 に当たる。
+
+| 項目 | 確認すること | 探す文言 |
+| --- | --- | --- |
+| 1 | `link-check` を流す「PR の紐付けの確認」を行うこと | `PR の紐付けの確認` |
+| 2 | PR の head を 1 の `pr:` の正規形で読むこと | ``PR の head は、1 の `pr:` の正規形で読む`` |
+| 4 | 見張りがあれば紐付けの有無によらず `ci-wait` を流し、`ci-now` を重ねないこと | ``見張りがあれば、紐付けの有無によらず `ci` と `ci-wait` を流し、`ci-now` は流さない`` |
+| 5 | 紐付いていないときに `unlinked` を流すこと | ``紐付いていないなら続けて `unlinked` を流す`` |
+
+項目 1 の行は `link-check` を名前で書かず、節「PR の紐付けの確認」へ案内する。その節に `squad-pr-watch link-check <タスク>` があることは、上の確認が受け持つ。head の照合の文は、この節の 2 にだけ置き、`leader-principal.md` には写さない。同じ文を 2 か所に置くと、片方だけ変えて食い違いやすいためである。`leader-principal.md` の最終レビューの節は、「マージの前の確認」の順に head を確認すると案内するので、照合はいつもこの 2 を通る。
 
 リーダーの評価の場面は、紐付けで止まることを期待する場面を改め、新しい手順のコマンドの見本を足し、次の場面を足す。入力か合格の基準を改めるのは次の 3 つである。
 
