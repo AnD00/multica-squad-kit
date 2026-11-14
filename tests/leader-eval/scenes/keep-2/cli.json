@@ -23,6 +23,10 @@
     {
       "match": "multica issue label list issue-shop-1",
       "stdout": "[]"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }

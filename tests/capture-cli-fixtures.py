@@ -86,7 +86,8 @@ def select_samples(responses, entry):
         found = None
         count = 0
         for response in responses:
-            for item in target_items(response, entry):
+            items = [response] if sample.get("scope") == "response" else target_items(response, entry)
+            for item in items:
                 if matches(item, sample["where"]):
                     count += 1
                     if found is None:
@@ -143,6 +144,7 @@ def capture(issue_ids, entries, write_samples, read_samples=None):
     issues = [command_json(["multica", "issue", "get", issue, "--output", "json"])
               for issue in issue_ids]
     agents = set()
+    squads = set()
     for name, entry in entries.items():
         if entry.get("capture") == "external":
             if read_samples is not None:
@@ -159,6 +161,8 @@ def capture(issue_ids, entries, write_samples, read_samples=None):
         tokens = entry["command"]
         if "{agent}" in tokens:
             contexts = [{"agent": agent} for agent in sorted(agents)]
+        elif "{squad}" in tokens:
+            contexts = [{"squad": squad} for squad in sorted(squads)]
         elif "{pr}" in tokens:
             urls = {issue["metadata"]["pr_url"] for issue in issues
                     if issue["metadata"].get("pr_url")}
@@ -176,6 +180,8 @@ def capture(issue_ids, entries, write_samples, read_samples=None):
             responses[name].append(response)
             if name == "issue-runs":
                 agents.update(run["agent_id"] for run in response if run.get("agent_id"))
+            elif name == "squad-list":
+                squads.update(squad["id"] for squad in response)
     return responses
 
 

@@ -56,6 +56,12 @@ def validate(work, name, value):
                     if "statusCheckRollup" in item:
                         candidate["statusCheckRollup"] = [check for check in checks
                                                          if check.get("__typename") != "StatusContext"]
+                if name == "issue-get":
+                    # ci_wait_* は CLI の固定欄でなく、この機能が保存する値。
+                    # 導入前の見本にはないので、宣言済みのアプリケーションの鍵だけを分ける。
+                    candidate = dict(candidate)
+                    candidate["metadata"] = {key: value for key, value in item.get("metadata", {}).items()
+                                             if key not in ("ci_wait_head", "ci_wait_since", "ci_wait_rule")}
                 assert keys_exist(original, candidate), "見本にない鍵があります"
                 if schema["shape"] == "array":
                     helper["assert_case_keys"](original, candidate, schema["items"]["fields"], allow_missing)

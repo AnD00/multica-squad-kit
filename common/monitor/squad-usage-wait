@@ -1,0 +1,351 @@
+#!/usr/bin/env bash
+# multica-squad-kit-managed
+# 使用率が上限に近いときの、工程の役の選び方と待ち方を決める（macOS・Linux 用）。
+# モデルを下げたり工程を飛ばしたりせず、空いている系統の役へ回すか、空きが戻る時刻まで待つ。
+#
+#   squad-usage-wait pick <タスク> <工程> [小さな|大きな|Claude|Codex] [--round <回のコメント>]
+#     工程は planner・designer・implement・fix・principal のどれか。
+#     3 つ目の引数は、implement では大きさ（小さな|大きな）、principal では実装の系統（Claude|Codex）で、
+#     squad-dispatch-pick へそのまま渡す。--round は decide から呼んだときの回のコメントで、起こしの指示に書く。
+#
+# 終了コード
+#   0: 役を選んだ。`役:` と `振り分け:` の行を出す
+#   3: 待つ。同じ工程の起こしがなければ置き、`使用率の待ち:` の行を出す。
+#      再開の時刻がすでに過ぎている（使用率がまだ上限に近い）ときは、60 分後に再確認する
+#   4: 待ち始めから通算 24 時間を超える。起こしは置かず、`使用率の待ち:` の行を出す
+#   1: 使い方や読み取りの誤り
+#
+# 両系統の構成かは、スクワッドの名簿にその工程の Claude と Codex の役が両方あるかで決める。
+# 使用率の読み取りは 90 秒で打ち切るので、呼ぶ側のコマンドの時間切れは 120 秒以上にする。
+set -euo pipefail
+
+WAIT_MARK='使用率の待ちの起こしで起きました。'
+FAIL_SAFE_SECONDS=3600
+LIMIT_SECONDS=86400
+
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/squad-cli-lib"
+
+usage() {
+	echo '使い方: squad-usage-wait pick <タスク> <工程> [小さな|大きな|Claude|Codex] [--round <回のコメント>]' >&2
+	echo '工程: planner、designer、implement、fix、principal' >&2
+	exit 1
+}
+
+reader_pid=
+work_dir=
+pick_comments=
+
+stop_reader() {
+	kill -"$1" -- "-$reader_pid" 2>/dev/null || kill -"$1" -- "$reader_pid" 2>/dev/null || true
+}
+
+cleanup() {
+	if [[ -n $reader_pid ]]; then
+		stop_reader TERM
+		stop_reader KILL
+		wait "$reader_pid" 2>/dev/null || true
+	fi
+	[[ -z $work_dir ]] || rm -rf -- "$work_dir"
+}
+
+# 使用率を JSON で usage に、読めなかった理由を usage_reason に入れる。読めなくても 0 を返す。
+# squad-dispatch-pick と同じく、読み取りを独立したプロセスグループで始め、時間切れでその子まで止める。
+read_usage() {
+	local ticks status=0
+	usage='{}'
+	usage_reason=
+	python3 -c 'import os, sys; os.setpgrp(); os.execvp(sys.argv[1], sys.argv[1:])' \
+		bash "$script_dir/squad-usage-read" >"$work_dir/usage.json" 2>/dev/null &
+	reader_pid=$!
+	for ((ticks = 0; ticks < 900; ticks++)); do
+		kill -0 "$reader_pid" 2>/dev/null || break
+		sleep 0.1
+	done
+	if kill -0 "$reader_pid" 2>/dev/null; then
+		usage_reason='使用率の読み取りが 90 秒で終わらなかった'
+		stop_reader TERM
+		stop_reader KILL
+	fi
+	wait "$reader_pid" 2>/dev/null || status=$?
+	kill -KILL -- "-$reader_pid" 2>/dev/null || true
+	reader_pid=
+	if [[ -n $usage_reason ]]; then
+		return 0
+	elif ! jq -se 'length == 1 and (.[0] | type) == "object"' "$work_dir/usage.json" >/dev/null 2>&1; then
+		usage_reason='使用率の出力を JSON として読めなかった'
+	else
+		usage=$(cat "$work_dir/usage.json")
+	fi
+	return 0
+}
+
+# 系統ごとに {ok, near, resume, text, summary, error} を出す。resume は上限に近い枠が戻る時刻（秒）。
+# 上限に近いかは squad-dispatch-pick と同じ。Claude は週か 5 時間が 80% 以上、Codex は週が 80% 以上か利用不可。
+# 複数の枠が近ければ遅い方のリセット、Codex が利用不可で週が 80% 未満なら 60 分後と週のリセットの早い方にする。
+evaluate_usage() {
+	jq -cn --argjson usage "$usage" --argjson now "$now" --arg reason "$usage_reason" --argjson fallback "$FAIL_SAFE_SECONDS" '
+		def timestamp:
+			(try (capture("^(?<date>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2})(?<zone>Z|[+-][0-9]{2}:[0-9]{2})$")
+				| (.date + "Z" | fromdateiso8601) as $utc
+				| if .zone == "Z" then $utc else
+					((.zone[1:3] | tonumber) * 3600 + (.zone[4:6] | tonumber) * 60) as $offset
+					| $utc - ($offset * (if .zone[0:1] == "-" then -1 else 1 end))
+				end) catch null) // null;
+		def percent: type == "number" and . >= 0;
+		def pct: (round | tostring) + "%";
+		def claude:
+			. as $c
+			| if ($c.error | type) == "string" then {ok: false, error: ("Claude: " + $c.error)}
+			elif ($c.week.used_percent | percent) and (($c.week.resets_at | timestamp) != null) and ($c.session.used_percent | percent) then
+				([if $c.week.used_percent >= 80 then {label: ("週 " + ($c.week.used_percent | pct)), reset: ($c.week.resets_at | timestamp)} else empty end,
+					if $c.session.used_percent >= 80 then {label: ("5 時間 " + ($c.session.used_percent | pct)), reset: (($c.session.resets_at | timestamp) // ($now + $fallback))} else empty end]) as $near
+				| {ok: true, near: ($near | length > 0),
+					resume: (if ($near | length) > 0 then ($near | map(.reset) | max) else null end),
+					text: ("Claude " + ($near | map(.label) | join("・"))),
+					summary: ("Claude 週 " + ($c.week.used_percent | pct) + "・5 時間 " + ($c.session.used_percent | pct))}
+			else {ok: false, error: "Claude: 使用率・リセット時刻を読めなかった"} end;
+		def codex:
+			. as $x
+			| if ($x.error | type) == "string" then {ok: false, error: ("Codex: " + $x.error)}
+			elif ($x.week.used_percent | percent) and (($x.week.resets_at | timestamp) != null) and ($x.allowed | type) == "boolean" then
+				($x.week.resets_at | timestamp) as $reset
+				| ($x.week.used_percent >= 80) as $week
+				| ($x.allowed == false) as $off
+				| {ok: true, near: ($week or $off),
+					resume: (if $week then $reset elif $off then ([$now + $fallback, $reset] | min) else null end),
+					text: (if $week then "Codex 週 " + ($x.week.used_percent | pct) + (if $off then "・利用不可" else "" end)
+						else "Codex は利用不可（週 " + ($x.week.used_percent | pct) + "）" end),
+					summary: ("Codex 週 " + ($x.week.used_percent | pct))}
+			else {ok: false, error: "Codex: 使用率・リセット時刻・利用可否を読めなかった"} end;
+		($usage.read_at | timestamp) as $read
+		| (if $reason != "" then $reason
+			elif $read == null then "使用率を読んだ時刻を読めなかった"
+			elif $now - $read > 1800 then "使用率が 30 分より古い" else "" end) as $global
+		| if $global != "" then {claude: {ok: false, error: $global}, codex: {ok: false, error: $global}}
+		else {claude: ($usage.claude | claude), codex: ($usage.codex | codex)} end'
+}
+
+# 最初に待ち始めた時刻（秒）を、タスクのコメントから読んで出す。続きがなければ何も出さない。
+# 同じ工程の `使用率の待ち:` の行が続くあいだ引き継ぎ、次の 2 つのどちらかで数え直す。
+#   1. 工程の再開: その工程の `振り分け:` の行（末尾が `工程: <工程>`）のあるコメント
+#   2. 人間の明示の延長: その工程の 24 時間を超えたコメントより後の、リーダーが書いた
+#      `使用率の待ちの延長: <工程>。決めた人: <名前>` の行
+# 質問などほかのコメントでは続きを切らない。行は、エージェントが書いたものだけを数える。
+wait_start() {
+	local comments=$1 process=$2 leader=$3
+	jq -r --arg process "$process" --arg leader "$leader" '
+		def ts: sub("\\.[0-9]+"; "") | sub("[+-]00:00$"; "Z") | fromdateiso8601;
+		def lines: (.content // "") | split("\n");
+		reduce (map(. + {ts: (.created_at | ts)}) | sort_by([.ts, .id])[]) as $c ({start: null, exceeded: false};
+			if $c.author_type != "agent" then .
+			else
+				($c | lines) as $lines
+				| (if ($lines | any(startswith("振り分け: ") and endswith("。工程: " + $process))) then .start = null | .exceeded = false else . end)
+				| (if .exceeded and $c.author_id == $leader
+					and ($lines | any(startswith("使用率の待ちの延長: " + $process + "。決めた人: ")))
+					then .start = null | .exceeded = false else . end)
+				| (if ($lines | any(startswith("使用率の待ち: " + $process + " の待ちが通算 24 時間を超える"))) then .exceeded = true else . end)
+				| ([$lines[] | select(startswith("使用率の待ち: " + $process + " を "))
+					| capture("待ち始め: (?<t>[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z)。") | .t] | last) as $t
+				| (if $t != null then .start = $t else . end)
+			end)
+		| .start | if . == null then empty else fromdateiso8601 end' <<<"$comments"
+}
+
+rfc3339() {
+	jq -rn --argjson epoch "$1" '$epoch | todateiso8601'
+}
+
+# 待つ。resume は再開の時刻（秒）、text は上限に近い枠と使用率の説明。
+# 0 以外の終了コードを呼び出し元の終了コードにする。
+wait_or_exceed() {
+	local issue=$1 process=$2 leader=$3 round=$4 resume=$5 text=$6
+	local comments start rules existing instruction response resume_text start_text
+	# decide から呼ばれたときは、pick が読んだコメントを使う（同じ呼び出しの中で読み直さない）。
+	comments=${pick_comments:-}
+	[[ -n $comments ]] || comments=$(squad_cli_read issue-comments "$issue") || return 1
+	start=$(wait_start "$comments" "$process" "$leader") || return 1
+	if [[ -z $start ]] || ((start > now)); then start=$now; fi
+	start_text=$(rfc3339 "$start")
+	# 再開の時刻が現在以前（リセットを過ぎたのに、使用率がまだ上限に近い）なら、過去の時刻に起こしを置かず、将来の再確認の時刻にする。
+	if ((resume <= now)); then resume=$((now + FAIL_SAFE_SECONDS)); fi
+	# 24 時間の判定は、待ち始めから再開の時刻まで。再確認の時刻に補正したあとなので、現在までの経過も含む。
+	if ((resume - start > LIMIT_SECONDS)); then
+		printf '使用率の待ち: %s の待ちが通算 24 時間を超える。待ち始め: %s\n' "$process" "$start_text"
+		return 4
+	fi
+	resume_text=$(rfc3339 "$resume")
+	rules=$(squad_cli_read issue-wakeups "$issue") || return 1
+	# 同じ工程の有効な起こしの再開の時刻の行。起こしがなければ空、あっても行がなければ `-`。
+	existing=$(jq -r --arg mark "$WAIT_MARK" --arg process "$process" '
+		[.[] | select(.enabled == true and (.instruction | startswith($mark + "\n"))
+			and (.instruction | split("\n") | any(. == "工程: " + $process)))]
+		| if length == 0 then "" else (first.instruction | split("\n") | map(select(startswith("再開の時刻: "))) | first // "-") end' <<<"$rules") || return 1
+	if [[ -n $existing ]]; then
+		# 同じ工程の起こしがすでにある。置き直さず、置いてある時刻を使う。
+		if [[ $existing == '再開の時刻: '* ]]; then resume_text=${existing#再開の時刻: }; fi
+	else
+		instruction="$work_dir/instruction.txt"
+		{
+			printf '%s\n' "$WAIT_MARK"
+			printf '工程: %s\n' "$process"
+			[[ -z $round ]] || printf '回: %s\n' "$round"
+			printf '再開の時刻: %s\n' "$resume_text"
+			printf '止めた工程をもう一度頼んでください。工程の依頼の前に squad-usage-wait pick を流し、空きが戻っていればその工程から続け、まだ上限に近ければもう一度待ってください。\n'
+			if [[ -n $round ]]; then
+				printf 'decide から待った回なので、squad-review-next decide %s %s を流し直してください。\n' "$issue" "$round"
+			fi
+		} >"$instruction"
+		response=$(squad_cli_read issue-wakeup-create "$issue" "$instruction" --kind at --at "$resume_text" --agent-id "$leader") || return 1
+		jq -e '.id | type == "string"' <<<"$response" >/dev/null || { echo '起こしの ID を読めなかった' >&2; return 1; }
+	fi
+	printf '使用率の待ち: %s を %s まで待つ。待ち始め: %s。%s\n' "$process" "$resume_text" "$start_text" "$text"
+	return 3
+}
+
+# 役と振り分けの行を出す。行の末尾の工程の印は、あとで工程の再開を読むために使う。
+print_choice() {
+	local process=$1 role=$2 line=$3
+	printf '役: %s\n振り分け: %s。工程: %s\n' "$role" "$line" "$process"
+}
+
+pick() {
+	local issue=$1 process=$2 extra=${3:-} round=${4:-}
+	local suffix='' comments squad roster leader roles claude_role codex_role model lineage role dispatch_args=() out status=0
+	local evaluated side_ok side_near resume text other reason line
+	trap cleanup EXIT
+	trap 'exit 1' HUP INT TERM
+	command -v python3 >/dev/null 2>&1 || { echo 'python3 が見つからない' >&2; return 1; }
+	script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+	mkdir -p "$PWD/tmp"
+	work_dir=$(mktemp -d "$PWD/tmp/usage-wait.XXXXXX")
+	if [[ -n $round ]]; then
+		# decide から呼ばれたときは、回から決めたスクワッドの名簿を使う。decide と同じ名簿にするため。
+		comments=$(squad_cli_read issue-comments "$issue") || return 1
+		pick_comments=$comments
+		squad=$(squad_cli_squad_for_round "$comments" "$round") || return 1
+		roster=$(squad_cli_read_roster "$issue" "$(jq -r .id <<<"$squad")") || return 1
+	else
+		roster=$(squad_cli_read_roster_for_caller "$issue") || return 1
+	fi
+	leader=$(jq -r '.leader' <<<"$roster")
+	roles=$(jq -c '.roles' <<<"$roster")
+	now=$(date '+%s')
+	case $process in
+	implement) suffix=implementer ;;
+	fix) suffix=fixer ;;
+	principal) suffix=principal ;;
+	esac
+	if [[ -n $suffix ]]; then
+		claude_role=claude-$suffix
+		codex_role=codex-$suffix
+		has_claude=$(jq --arg r "$claude_role" 'has($r)' <<<"$roles")
+		has_codex=$(jq --arg r "$codex_role" 'has($r)' <<<"$roles")
+		if [[ $has_claude == true && $has_codex == true ]]; then
+			case $process in
+			implement) dispatch_args=(implement ${extra:+"$extra"}) ;;
+			fix) dispatch_args=(fix) ;;
+			principal) dispatch_args=(principal ${extra:+"$extra"}) ;;
+			esac
+			out=$("$script_dir/squad-dispatch-pick" "${dispatch_args[@]}") || status=$?
+			case $status in
+			0)
+				role=$(sed -n 's/^役: //p' <<<"$out" | head -n 1)
+				line=$(sed -n 's/^振り分け: //p' <<<"$out" | head -n 1)
+				[[ -n $role && -n $line ]] || { echo 'squad-dispatch-pick の出力を読めなかった' >&2; return 1; }
+				print_choice "$process" "$role" "$line"
+				return 0 ;;
+			2)
+				# 両方の系統が上限に近い。リセット時刻は dispatch-pick が出さないので、使用率を読み直す。
+				read_usage
+				evaluated=$(evaluate_usage) || return 1
+				if [[ $(jq -r '.claude.ok and .codex.ok' <<<"$evaluated") == true \
+					&& $(jq -r '.claude.near and .codex.near' <<<"$evaluated") == true ]]; then
+					resume=$(jq -r '[.claude.resume, .codex.resume] | min' <<<"$evaluated")
+					text=$(jq -r '"上限に近い枠: " + .claude.text + "、" + .codex.text' <<<"$evaluated")
+				else
+					resume=$((now + FAIL_SAFE_SECONDS))
+					text='両系統が上限に近いと読んだが、読み直した使用率が揃わなかったため、60 分後に読み直す'
+				fi
+				status=0
+				wait_or_exceed "$issue" "$process" "$leader" "$round" "$resume" "$text" || status=$?
+				return "$status" ;;
+			*)
+				echo "squad-dispatch-pick が失敗した（終了 ${status}）" >&2
+				return 1 ;;
+			esac
+		fi
+		if [[ $has_claude == true ]]; then
+			role=$claude_role
+			lineage=Claude
+		elif [[ $has_codex == true ]]; then
+			role=$codex_role
+			lineage=Codex
+		else
+			echo "名簿に工程の役がない: $process" >&2
+			return 1
+		fi
+	else
+		role=$process
+		if ! model=$(jq -er --arg r "$role" '.[$r].model' <<<"$roles"); then
+			echo "名簿に工程の役がない: $process" >&2
+			return 1
+		fi
+		if [[ $model == claude-* ]]; then lineage=Claude; else lineage=Codex; fi
+	fi
+	# 片系統の構成。その系統の使用率だけを見る。
+	read_usage
+	evaluated=$(evaluate_usage) || return 1
+	key=$(printf '%s' "$lineage" | tr 'A-Z' 'a-z')
+	side_ok=$(jq -r --arg k "$key" '.[$k].ok' <<<"$evaluated")
+	side_near=$(jq -r --arg k "$key" '.[$k].near // false' <<<"$evaluated")
+	if [[ $side_ok != true ]]; then
+		reason=$(jq -r --arg k "$key" '.[$k].error' <<<"$evaluated")
+		print_choice "$process" "$role" "${lineage}（使用率を読めないため、片系統の構成のその系統に固定した。${reason}）"
+		return 0
+	fi
+	if [[ $side_near == true ]]; then
+		resume=$(jq -r --arg k "$key" '.[$k].resume' <<<"$evaluated")
+		text=$(jq -r --arg k "$key" '"上限に近い枠: " + .[$k].text' <<<"$evaluated")
+		status=0
+		wait_or_exceed "$issue" "$process" "$leader" "$round" "$resume" "$text" || status=$?
+		return "$status"
+	fi
+	print_choice "$process" "$role" "${lineage}（片系統の構成）。$(jq -r --arg k "$key" '.[$k].summary' <<<"$evaluated")"
+}
+
+main() {
+	local issue process extra='' round='' args=()
+	[[ ${1:-} == pick ]] || usage
+	shift
+	while (($# > 0)); do
+		case $1 in
+		--round)
+			(($# >= 2)) || usage
+			round=$2
+			shift 2 ;;
+		--*) usage ;;
+		*)
+			args+=("$1")
+			shift ;;
+		esac
+	done
+	((${#args[@]} >= 2 && ${#args[@]} <= 3)) || usage
+	issue=${args[0]}
+	process=${args[1]}
+	extra=${args[2]:-}
+	case $process in
+	implement) [[ -z $extra || $extra == 小さな || $extra == 大きな ]] || usage ;;
+	principal) [[ -z $extra || $extra == Claude || $extra == Codex ]] || usage ;;
+	fix | planner | designer) [[ -z $extra ]] || usage ;;
+	*) usage ;;
+	esac
+	for cmd in jq python3 multica; do
+		command -v "$cmd" >/dev/null 2>&1 || { echo "${cmd} が見つからない。" >&2; return 1; }
+	done
+	pick "$issue" "$process" "$extra" "$round"
+}
+
+if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
+	main "$@"
+fi

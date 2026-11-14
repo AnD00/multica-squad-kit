@@ -37,6 +37,16 @@ while IFS= read -r path; do [[ ! -e $path ]]; done < <(jq -r .path "$test_dir/in
 echo 'PASS watch: 古い規則だけを削除、役ごとの once と上限 1 個、返信先と指示ファイルの片付け'
 
 reset_calls
+(cd "$test_dir" && bash "$script" watch test-issue trigger-comment --agent-id leader-id "$a" "$b") >"$test_dir/output"
+jq -s '.' "$test_dir/calls.jsonl" >"$test_dir/watch-calls.json"
+assert_jq '
+	def value($flag): . as $args | index($flag) as $i | if $i == null then null else $args[$i+1] end;
+	[.[] | select(.[0:3] == ["issue", "wakeup", "create"])] as $creates
+	| ($creates | length) == 3 and all($creates[]; value("--agent-id") == "leader-id" and value("--parent") == "trigger-comment")
+' "$test_dir/watch-calls.json"
+echo 'PASS watch: --agent-id を、役ごとの規則と上限の規則のすべてに渡す'
+
+reset_calls
 bash "$script" unwatch test-issue
 assert_jq -s '[.[] | select(.[0:3] == ["issue", "wakeup", "delete"]) | .[4]] == ["old-active", "old-disabled"]' "$test_dir/calls.jsonl"
 echo 'PASS unwatch: CI とコンフリクトの規則を保存'
@@ -50,8 +60,8 @@ echo 'PASS watch: 不明な役では古い規則を削除せずエラー'
 
 printf 'issue wakeup create' >"$test_dir/fail"
 if (cd "$test_dir" && bash "$script" watch test-issue trigger-comment "$b") >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
-[[ $(<"$test_dir/error") == 'CLI mock failure' ]]
-[[ -z $(find "$test_dir/tmp" -name 'review-wait-watch.*' -print) ]]
+[[ $(<"$test_dir/error") == 'CLI mock failure' ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
+[[ -z $(find "$test_dir/tmp" -name 'review-wait-watch.*' -print) ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 rm "$test_dir/fail"
 echo 'PASS watch: CLI 失敗を返し、指示ファイルを片付ける'
 
@@ -102,20 +112,20 @@ after=$(jq -nr --argjson ts "$((round_ts + 2))" '$ts | todateiso8601')
 	run_fixture "$b" running "$((round_ts + 1))"
 } | jq -s '.' >"$test_dir/runs.json"
 jq --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg time "$after" '. + [
-	$comment[0] + {author_type: "agent", author_id: $a, created_at: $time, content: "/note\nreview result"}
+	$comment[0] + {id: "added-1", author_type: "agent", author_id: $a, created_at: $time, content: "/note\nreview result"}
 ]' "$test_dir/comments.json" >"$test_dir/partial.json"
 cp "$test_dir/partial.json" "$test_dir/comments.json"
 check_status $'/note\n返事の待ち: 回から 61 分たっても返っていない役がいます\n- demo-qa-test: running'
 echo 'PASS status: 返した役の失敗を除き、未返答の役だけを記録'
 
 jq --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg b "$b" --arg time "$after" '. + [
-	$comment[0] + {author_type: "agent", author_id: $a, created_at: $time, content: "/note\nreview result"},
-	$comment[0] + {author_type: "agent", author_id: $b, created_at: $time, content: "/note\nqa result"}
+	$comment[0] + {id: "added-2", author_type: "agent", author_id: $a, created_at: $time, content: "/note\nreview result"},
+	$comment[0] + {id: "added-3", author_type: "agent", author_id: $b, created_at: $time, content: "/note\nqa result"}
 ]' "$test_dir/comments.json" >"$test_dir/returned.json"
 cp "$test_dir/returned.json" "$test_dir/comments.json"
 check_status $'返事の待ち: 返事がそろっていて、まだ次へ回していない'
 check_status $'返事の待ち: 返事がそろっていて、まだ次へ回していない' --timeout
-jq --slurpfile comment "$test_dir/comment-prototype.json" --arg time "$after" '. + [$comment[0] + {author_type: "agent", author_id: "orchestrator", created_at: $time, content: "返事がそろいました。"}]' \
+jq --slurpfile comment "$test_dir/comment-prototype.json" --arg time "$after" '. + [$comment[0] + {id: "added-4", author_type: "agent", author_id: "orchestrator", created_at: $time, content: "返事がそろいました。"}]' \
 	"$test_dir/comments.json" >"$test_dir/ready.json"
 cp "$test_dir/ready.json" "$test_dir/comments.json"
 check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
@@ -155,9 +165,9 @@ check_status $'返事の待ち: 人間を呼ぶ\n- demo-code-reviewer-test: 実�
 echo 'PASS status: 上限用の起床でも失敗・取り消しは人間へ'
 
 jq --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg b "$b" --arg time "$(jq -nr --argjson ts "$((round_ts + 2))" '$ts | todateiso8601')" '. + [
- $comment[0] + {author_type:"agent", author_id:$a, created_at:$time, content:"result"},
- $comment[0] + {author_type:"agent", author_id:$b, created_at:$time, content:"result"},
- $comment[0] + {author_type:"agent", author_id:"orchestrator", created_at:$time, content:"返事がそろいました。"}]' \
+ $comment[0] + {id: "added-5", author_type:"agent", author_id:$a, created_at:$time, content:"result"},
+ $comment[0] + {id: "added-6", author_type:"agent", author_id:$b, created_at:$time, content:"result"},
+ $comment[0] + {id: "added-7", author_type:"agent", author_id:"orchestrator", created_at:$time, content:"返事がそろいました。"}]' \
 	"$test_dir/comments.json" >"$test_dir/ready.json"
 cp "$test_dir/ready.json" "$test_dir/comments.json"
 check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない' --timeout
@@ -168,6 +178,111 @@ echo 'PASS status: 上限用の起床でも未処理のそろった回は進み�
 round_comments
 printf 'issue runs test-issue' >"$test_dir/fail"
 if bash "$script" status test-issue >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
-[[ $(<"$test_dir/error") == 'CLI mock failure' && ! -s $test_dir/output ]]
+[[ $(<"$test_dir/error") == 'CLI mock failure' && ! -s $test_dir/output ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
 rm "$test_dir/fail"
 echo 'PASS status: CLI 失敗では誤った判定を出さずエラー'
+
+# 決める記録のある回の判定。回は 2 役とも返し済み。記録は回の 90 秒後で、今の 30 秒前。
+round_ts=$((now - 120))
+round_time=$(jq -nr --argjson ts "$round_ts" '$ts | todateiso8601')
+both='result:a:r1:5 result:b:r2:6'
+printf '[]' >"$test_dir/runs.json"
+reset_calls
+build_comments $both decide:a:d1:90 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_TEST_NOW=$((now + 869)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+REVIEW_WAIT_DECIDE_MINUTES=1 REVIEW_WAIT_TEST_NOW=$((now + 29)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_DECIDE_MINUTES=1 REVIEW_WAIT_TEST_NOW=$((now + 30)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+[[ ! -s $test_dir/posted.jsonl && $(list_count) == 5 ]] || { echo "失敗: ${0##*/} の $LINENO 行目の確認" >&2; exit 1; }
+echo 'PASS status: 決める記録から 15 分たつまでは待ち、15 分で拾い直しに回す（分は REVIEW_WAIT_DECIDE_MINUTES）'
+
+# 決める記録が複数あっても、いちばん新しい記録でなく、いちばん早い記録の時刻で測る。
+reset_calls
+build_comments $both decide:b:d2:100 decide:a:d1:60 >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 839)) check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+REVIEW_WAIT_TEST_NOW=$((now + 840)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 決める記録が複数あれば、いちばん早い記録の時刻で測る'
+
+# 決める記録がなければ、そろっていてもこれまでどおり拾い直しに回す。
+reset_calls
+build_comments $both >"$test_dir/comments.json"
+check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 決める記録がなければ、そろった回は拾い直しに回す'
+
+# `前の回:` で回を指すコメント（次の依頼）か次へ回す記録があれば、決める記録の経過によらず次へ回し済み。
+for later in next:orch:n1:95 claim:orch:c1:95; do
+	reset_calls
+	build_comments $both decide:a:d1:90 "$later" >"$test_dir/comments.json"
+	check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+	REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+done
+reset_calls
+build_comments $both next:orch:n1:95 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: 次へ回し済みなので何もしない'
+echo 'PASS status: 前の回で回を指すコメントがあれば、次へ回し済み'
+
+# 別の回を指す `前の回:` は、この回の次へ回し済みにしない。
+reset_calls
+build_comments $both decide:a:d1:90 >"$test_dir/comments.json"
+jq --slurpfile comment "$test_dir/comment-prototype.json" --arg time "$(jq -nr --argjson ts "$((round_ts + 95))" '$ts | todateiso8601')" \
+	'. + [$comment[0] + {id: "n9", author_type: "agent", author_id: "orchestrator", created_at: $time, content: "次の依頼です。\n前の回: other-round"}]' \
+	"$test_dir/comments.json" >"$test_dir/comments.tmp"
+mv "$test_dir/comments.tmp" "$test_dir/comments.json"
+check_status $'/note\n返事の待ち: スクリプトが次の依頼を決めている'
+echo 'PASS status: 別の回を指す前の回では、この回を次へ回し済みにしない'
+
+# 返っていない役がいるときは、決める記録があっても待ちの判定は変えない（実行の状態で決める）。
+reset_calls
+build_comments result:a:r1:5 decide:a:d1:90 >"$test_dir/comments.json"
+check_status $'/note\n返事の待ち: 返っていない役は待ちか実行中なので何もしない'
+echo 'PASS status: 返っていない役がいれば、決める記録があっても実行の状態で判定する'
+
+# 制御記録でない `前の回:` は、次へ回し済みにしない。引用、役の結果、人間のコメント、種類の行のないコメントは、
+# 決める記録から 15 分たったあとも拾い直しに回す。
+noise=(
+	"nr $a agent 95 $(printf '/note\n返事の回: round\n修正の依頼: 直してください\n前の回: round')"
+	"nh human-1 member 95 $(printf '修正の依頼: 直してください\n前の回: round')"
+	"nb orchestrator agent 95 $(printf '次の依頼です\n前の回: round')"
+	"nf orchestrator agent 95 $(printf '```\n修正の依頼: 直してください\n前の回: round\n```')"
+	"nf4 orchestrator agent 95 $(printf '````\n```\n修正の依頼: 直してください\n前の回: round\n```\n````')"
+	"nc4 orchestrator agent 95 $(printf '````\n```\n返事の待ち: この回を次へ回します\n```\n````')"
+	"ni4 orchestrator agent 95 $(printf '```\n    ```\n修正の依頼: 直してください\n前の回: round\n```')"
+	"nd4 orchestrator agent 95 $(printf '````\n    ````\n返事の待ち: この回を次へ回します\n````')"
+)
+for spec in "${noise[@]}"; do
+	read -r id who type sec content <<<"${spec%%$'\n'*}"
+	body=${spec#"$id $who $type $sec "}
+	reset_calls
+	build_comments $both decide:a:d1:90 | with_raw "$id" "$who" "$type" "$sec" "$body" >"$test_dir/comments.json"
+	REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+done
+echo 'PASS status: 結果・人間・種類のない前の回:・囲みだけでは、次へ回し済みにしない'
+
+# 引用は読めない書き方で、この回を指す候補になる。何も書かず、理由を標準エラーに出して終了 1 になる。次へ回し済みとも、拾い直しとも返さない。
+reset_calls
+build_comments $both decide:a:d1:90 \
+	| with_raw nq orchestrator agent 95 "$(printf '> 修正の依頼: 直してください\n> 前の回: round')" >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status_blocked '制御記録を読めない（nq: 引用）'
+echo 'PASS status: この回を指す引用の候補は、何も書かず理由を標準エラーに出して終了 1 になる'
+
+# 作者がリーダーでも決める実行の役でもない回の形のコメントや、人間のコメントは、最新の回にしない。
+reset_calls
+build_comments $both decide:a:d1:90 \
+	| with_raw q2 "$a" agent 101 "$(printf '返事を待つ役: [@review](mention://agent/%s)\n観点: qa（テスト）' "$a")" \
+	| with_raw q3 human-1 member 102 "$(printf '返事を待つ役: [@review](mention://agent/%s)' "$a")" >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 作者の違う回の形のコメントを、最新の回として読まない'
+
+# 認める最新の回より後に、返事を待つ役の行を引用した（読めない）候補があれば、古い回に戻らず、何も書かずに終了 1 になる。
+reset_calls
+build_comments $both decide:a:d1:90 \
+	| with_raw q1 orchestrator agent 100 "$(printf '> 返事を待つ役: [@review](mention://agent/%s)' "$a")" >"$test_dir/comments.json"
+REVIEW_WAIT_TEST_NOW=$((now + 870)) check_status_blocked '制御記録を読めない（q1: 引用）'
+echo 'PASS status: 最新の回より後の、返事を待つ役の行を引用した候補は、古い回に戻らず終了 1 になる'
+
+# 返事を待つ役でない役の決める記録は、15 分の判定に使わない。記録がないのと同じに、すぐ拾い直しに回す。
+reset_calls
+build_comments $both decide:orch:d1:100 >"$test_dir/comments.json"
+check_status '返事の待ち: 返事がそろっていて、まだ次へ回していない'
+echo 'PASS status: 返事を待つ役でない役の決める記録を、15 分の判定に使わない'

@@ -18,10 +18,12 @@ set -- \
 	squad-pr-link \
 	squad-pr-link-lib \
 	squad-pr-watch \
+	squad-review-next \
 	squad-review-wait \
 	squad-usage-check \
 	squad-usage-lib \
-	squad-usage-read
+	squad-usage-read \
+	squad-usage-wait
 status=0
 for cmd in gh "$@"; do
 	actual=$(command -v "$cmd") || actual='見つからない'

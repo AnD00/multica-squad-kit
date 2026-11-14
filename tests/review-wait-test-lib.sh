@@ -1,10 +1,25 @@
 #!/usr/bin/env bash
 # squad-review-wait-*-test.sh が読み込む共通の準備。単独では実行しない。
 
-script="$root/common/monitor/squad-review-wait"
 mkdir -p tmp
 test_dir=$(mktemp -d "$PWD/tmp/review-wait-test.XXXXXX")
 trap 'rm -rf -- "$test_dir"' EXIT
+# 見張りは、同じ場所にある squad-review-next を呼ぶので、写しと見本を置いた場所から流す。
+mkdir -p "$test_dir/monitor"
+cp "$root/common/monitor/squad-review-wait" "$root/common/monitor/squad-cli-lib" "$test_dir/monitor/"
+script="$test_dir/monitor/squad-review-wait"
+# 次の依頼を決めるスクリプトの代わり。受けた引数と、そのときまでに投稿した数を記録し、決めた出力と終了コードを返す。
+cat >"$test_dir/monitor/squad-review-next" <<'EOF2'
+#!/usr/bin/env bash
+dir=$REVIEW_WAIT_TEST_DIR
+printf '%s\n' "$*" >>"$dir/decide-calls"
+jq -s length "$dir/posted.jsonl" >>"$dir/decide-posted-at"
+[[ ! -f $dir/decide-err ]] || cat "$dir/decide-err" >&2
+[[ ! -f $dir/decide-out ]] || cat "$dir/decide-out"
+if [[ -f $dir/decide-status ]]; then exit "$(<"$dir/decide-status")"; fi
+exit 0
+EOF2
+chmod +x "$test_dir/monitor/squad-review-next"
 export REVIEW_WAIT_TEST_DIR="$test_dir"
 export REVIEW_WAIT_TEST_ROOT="$root"
 source "$root/common/monitor/squad-cli-lib"
@@ -120,6 +135,7 @@ reset_calls() {
 	echo 0 >"$test_dir/list-count"
 	rm -f "$test_dir"/comments.[0-9]*.json
 	rm -f "$test_dir/fail-list-at" "$test_dir/fail-add-at"
+	rm -f "$test_dir/decide-calls" "$test_dir/decide-posted-at" "$test_dir/decide-err" "$test_dir/decide-out" "$test_dir/decide-status"
 	rm -f "$test_dir/allow-missing-fields" "$test_dir/issue-comment-add-response.json" "$test_dir/issue-wakeup-create-response.json"
 }
 
@@ -134,7 +150,7 @@ round_time=$(jq -nr --argjson ts "$round_ts" '$ts | todateiso8601 | sub("Z$"; ".
 round_comments() {
 	fixture issue-comments agent | jq --arg a "$a" --arg b "$b" --arg time "$round_time" '. as $base | [$base + {
 		id: "round", author_type: "agent", author_id: "orchestrator", created_at: $time,
-		content: ("返事を待つ役: [@review](mention://agent/" + $a + ") [@qa](mention://agent/" + $b + ")")
+		content: ("返事を待つ役: [@review](mention://agent/" + $a + ") [@qa](mention://agent/" + $b + ")\n観点: qa（テスト）")
 	}]' >"$test_dir/comments.json"
 }
 
@@ -154,10 +170,20 @@ check_status() {
 	}
 }
 
+# status が、読めない候補で何も出さず、何も書かず、理由を標準エラーに出して終了 1 になる。
+check_status_blocked() { # 標準エラーに含まれる理由
+	local output code=0
+	output=$(bash "$script" status test-issue 2>"$test_dir/status-err") || code=$?
+	[[ $code == 1 ]] || { printf '終了コード 1 を期待したが %s（出力: %s）\n' "$code" "$output" >&2; exit 1; }
+	[[ -z $output ]] || { printf '何も出してはいけない: %s\n' "$output" >&2; exit 1; }
+	[[ $(<"$test_dir/status-err") == *"$1"* ]] || { printf '標準エラーに「%s」がない: %s\n' "$1" "$(<"$test_dir/status-err")" >&2; exit 1; }
+	[[ ! -s $test_dir/posted.jsonl ]] || { printf 'コメントを書いてはいけない: %s\n' "$(<"$test_dir/posted.jsonl")" >&2; exit 1; }
+}
+
 # ここから report と proceed。回は 2 役（a, b）を待つ。
 
 # 回に、返事（result: /note 付き、plain-result: ふつう）、そろった知らせ（ready）、次へ回す記録（claim）を足したコメントの一覧を出す。
-# 引数は「種類:役:ID:回からの秒」。役は a、b、orch。
+# 引数は「種類:役:ID:回からの秒」。役は a、b、orch。種類に decide（決める記録）と next（次の依頼の制御記録。修正の依頼）もある。
 build_comments() {
 	local spec kind who id sec content out
 	round_comments
@@ -170,6 +196,8 @@ build_comments() {
 		plain-result) content='result' ;;
 		ready) content='返事がそろいました。' ;;
 		claim) content=$'/note\n返事の待ち: この回を次へ回します' ;;
+		decide) content=$'/note\n返事の待ち: 次の依頼を決めます' ;;
+		next) content=$'修正の依頼: 直してください\n前の回: round' ;;
 		esac
 		out=$(jq --slurpfile comment "$test_dir/comment-prototype.json" --arg who "$who" --arg id "$id" --arg content "$content" \
 			--arg time "$(jq -nr --argjson ts "$((round_ts + sec))" '$ts | todateiso8601')" \
@@ -178,12 +206,30 @@ build_comments() {
 	printf '%s\n' "$out"
 }
 
+# コメントを 1 件足した一覧を出す。引数は「ID 作者の ID 作者の種類 回からの秒 本文」。標準入力が一覧。
+with_raw() {
+	jq --slurpfile comment "$test_dir/comment-prototype.json" --arg id "$1" --arg who "$2" --arg type "$3" --arg content "$5" \
+		--arg time "$(jq -nr --argjson ts "$((round_ts + $4))" '$ts | todateiso8601')" \
+		'. + [$comment[0] + {id: $id, author_type: $type, author_id: $who, created_at: $time, content: $content}]'
+}
+
+# with_raw の JSON 形式。本文は JSON の文字列で渡す（NUL や単独の CR を含められる）。
+with_json() {
+	jq --slurpfile comment "$test_dir/comment-prototype.json" --arg id "$1" --arg who "$2" --arg type "$3" --argjson content "$5" \
+		--arg time "$(jq -nr --argjson ts "$((round_ts + $4))" '$ts | todateiso8601')" \
+		'. + [$comment[0] + {id: $id, author_type: $type, author_id: $who, created_at: $time, content: $content}]'
+}
+
 posted_claim_count() {
 	jq -s '[.[] | select(.body == "/note\n返事の待ち: この回を次へ回します\n")] | length' "$test_dir/posted.jsonl"
 }
 posted_ready_count() {
 	jq -s '[.[] | select(.body | contains("返事がそろいました"))] | length' "$test_dir/posted.jsonl"
 }
+posted_decide_count() {
+	jq -s '[.[] | select(.body == "/note\n返事の待ち: 次の依頼を決めます\n")] | length' "$test_dir/posted.jsonl"
+}
+decide_calls() { if [[ -f $test_dir/decide-calls ]]; then paste -sd';' "$test_dir/decide-calls"; fi; }
 list_count() { cat "$test_dir/list-count"; }
 slept() { paste -sd, "$test_dir/sleeps.log"; }
 deleted_rules() {

@@ -166,6 +166,43 @@ grep -qxF '直前に通ったケース: PASS fixture: expected status checked' "
 grep -qF "::error file=$fixtures/expected-status.sh,line=9::" "$test_dir/out"
 echo 'PASS runner: 想定内の終了コードを確認した後の、本当の失敗の行と呼び出しを出す'
 
+# bash 3.2 は、展開のエラーで EXIT の trap が成功すると 0 で終わる。
+cat >"$fixtures/unbound.sh" <<'FIXTURE'
+#!/usr/bin/env bash
+set -euo pipefail
+trap ':' EXIT
+unset TEST_RUNNER_MISSING_VALUE
+echo 'PASS fixture: before expansion error'
+printf '%s\n' "$TEST_RUNNER_MISSING_VALUE"
+FIXTURE
+GITHUB_ACTIONS=true run_suite 1 1 "$fixtures/unbound.sh"
+grep -qF "==== FAIL $fixtures/unbound.sh（終了コード 1、" "$test_dir/out"
+grep -qxF "失敗した場所: $fixtures/unbound.sh:6: TEST_RUNNER_MISSING_VALUE: unbound variable" "$test_dir/out"
+grep -qxF '直前に通ったケース: PASS fixture: before expansion error' "$test_dir/out"
+grep -qF "::error file=$fixtures/unbound.sh,line=6::" "$test_dir/out"
+echo 'PASS runner: EXIT の trap がある本物の展開のエラーも、失敗の行と場所を出して失敗にする'
+
+# 終了コード 0 の場合の検出を、どちらの OS でも通す。
+cat >"$fixtures/reported-unbound.sh" <<'FIXTURE'
+#!/usr/bin/env bash
+printf '%s: line 7: args[@]: unbound variable\n' "$0" >&2
+exit 0
+FIXTURE
+GITHUB_ACTIONS=true run_suite 1 1 "$fixtures/reported-unbound.sh"
+grep -qF "==== FAIL $fixtures/reported-unbound.sh（終了コード 1、" "$test_dir/out"
+grep -qxF "失敗した場所: $fixtures/reported-unbound.sh:7: args[@]: unbound variable" "$test_dir/out"
+grep -qF "::error file=$fixtures/reported-unbound.sh,line=7::" "$test_dir/out"
+echo 'PASS runner: 展開のエラーと同じ形式の行があれば、終了コード 0 でも失敗にする'
+
+cat >"$fixtures/unbound-wording.sh" <<'FIXTURE'
+#!/usr/bin/env bash
+echo 'expected unbound variable in a captured child error' >&2
+echo 'PASS fixture: unbound variable wording'
+FIXTURE
+run_suite 0 1 "$fixtures/unbound-wording.sh"
+grep -qxF 'PASS fixture: unbound variable wording' "$test_dir/out"
+echo 'PASS runner: unbound variable という語だけでは失敗にしない'
+
 # 並べ替えが一部だけ出力して失敗しても、その一覧で成功扱いしない。
 mkdir -p "$test_dir/bin"
 export TEST_RUNNER_REAL_SORT

@@ -45,7 +45,7 @@
       "stdout": "コンフリクト: CONFLICTING head: 9c4b7a2e18d05f36a4b7c9d2e1f08a6b5c4d3e2f"
     },
     {
-      "match": "squad-dispatch-pick fix",
+      "match": "squad-usage-wait pick issue-shop-1 fix",
       "stdout": "役: claude-fixer\n振り分け: Claude。Claude 週 42%（使ってよい量 60%）・5 時間 23%、Codex 週 6%（使ってよい量 10%）"
     },
     {
@@ -63,6 +63,10 @@
     {
       "match": "multica issue runs issue-shop-1",
       "stdout": "[\n  {\n    \"id\": \"run-fix-1\",\n    \"agent_id\": \"agent-claude-fixer\",\n    \"status\": \"completed\",\n    \"started_at\": \"2026-01-10T09:21:00Z\",\n    \"completed_at\": \"2026-01-10T10:12:00Z\"\n  }\n]"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }

@@ -1,0 +1,179 @@
+{
+  "commands": [
+    {
+      "match": "squad-preflight",
+      "stdout": "squad-preflight: 関所の gh と、すべての見張りが使えます。"
+    },
+    {
+      "match": "multica issue pull-requests issue-shop-1",
+      "stdout": "{\n  \"pull_requests\": [\n    {\n      \"url\": \"https://github.com/example/shop/pull/7\",\n      \"state\": \"open\",\n      \"draft\": true\n    }\n  ]\n}"
+    },
+    {
+      "match": "multica issue pull-requests --help",
+      "stdout": "Usage: multica issue pull-requests <issue-id> [--output json]\n\nList the pull requests linked to an issue. Read-only."
+    },
+    {
+      "match": "multica issue --help",
+      "stdout": "Usage: multica issue <command>\n\nCommands:\n  get, list, search, create, comment, status, assign, update, pull-requests, runs, run-messages, cancel-task, rerun, label, metadata\n\n`multica issue pull-requests <id>` lists the pull requests linked to an issue. There is no command that links a pull request."
+    },
+    {
+      "match": "multica issue label list issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica label list",
+      "stdout": "[\n  {\n    \"id\": \"label-important\",\n    \"name\": \"重要\"\n  },\n  {\n    \"id\": \"label-dev\",\n    \"name\": \"開発\"\n  },\n  {\n    \"id\": \"label-ops\",\n    \"name\": \"運用\"\n  },\n  {\n    \"id\": \"label-instruction\",\n    \"name\": \"指示の改善\"\n  },\n  {\n    \"id\": \"label-qa\",\n    \"name\": \"検証\"\n  }\n]"
+    },
+    {
+      "match": "multica issue children issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica repo list",
+      "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    },
+    {
+      "match": "squad-pr-watch conflicts-check issue-shop-1",
+      "stdout": "コンフリクト: MERGEABLE head: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"
+    },
+    {
+      "match": "gh pr view",
+      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
+    },
+    {
+      "match": "squad-review-wait watch issue-shop-1",
+      "stdout": "返事の待ちの見張りを入れました。"
+    },
+    {
+      "match": "squad-pr-watch ci issue-shop-1",
+      "stdout": "CI の見張りを入れました。"
+    },
+    {
+      "match": "squad-pr-watch ci-held issue-shop-1"
+    },
+    {
+      "match": "multica issue get issue-shop-1",
+      "stdout": {
+        "id": "issue-shop-1",
+        "identifier": "SHOP-1",
+        "title": "カートに商品数を出す",
+        "status": "in_progress",
+        "assignee_type": "squad",
+        "assignee_id": "squad-shop",
+        "project_id": "project-shop",
+        "labels": [],
+        "metadata": {
+          "repository": "example/shop",
+          "branch": "feat/cart-badge",
+          "pr_url": "https://github.com/example/shop/pull/7"
+        },
+        "description": "カートのアイコンに、入っている商品の数を出す。"
+      }
+    },
+    {
+      "match": "multica issue comment list issue-shop-1",
+      "stdout": [
+        {
+          "id": "approved",
+          "author_type": "member",
+          "author_id": "member1",
+          "content": "設計とフェーズを承認します。",
+          "created_at": "2026-01-10T09:00:00Z"
+        },
+        {
+          "id": "review-done",
+          "author_type": "agent",
+          "author_id": "agent-code-reviewer",
+          "content": "確認したコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\nレビューと E2E はすべて ✅。証拠は PR のコメントにあります。",
+          "created_at": "2026-01-10T10:00:00Z"
+        }
+      ]
+    },
+    {
+      "match": "multica issue runs issue-shop-1",
+      "stdout": [
+        {
+          "id": "impl",
+          "agent_id": "agent-claude-implementer",
+          "status": "completed"
+        },
+        {
+          "id": "fail1",
+          "agent_id": "agent-codex-fixer",
+          "status": "failed"
+        },
+        {
+          "id": "fail2",
+          "agent_id": "agent-codex-fixer",
+          "status": "failed"
+        }
+      ]
+    },
+    {
+      "match": "squad-review-wait status issue-shop-1",
+      "stdout": "返事の待ち: 登録なし"
+    },
+    {
+      "match": "squad-review-wait proceed issue-shop-1",
+      "stdout": "返事の待ち: 次に進む"
+    },
+    {
+      "match": "squad-usage-wait pick issue-shop-1 principal Claude",
+      "stdout": "役: codex-principal\n振り分け: Codex。Claude 週 20%、Codex 週 30%"
+    },
+    {
+      "match": "squad-usage-wait pick issue-shop-1 principal Codex",
+      "stdout": "役: claude-principal\n振り分け: Claude。Claude 週 20%、Codex 週 30%"
+    },
+    {
+      "match": "multica agent get agent-designer",
+      "stdout": {
+        "id": "agent-designer",
+        "name": "shop-designer-member1",
+        "model": "gpt-6.1-sol"
+      }
+    },
+    {
+      "match": "squad-pr-watch conflicts issue-shop-1",
+      "stdout": {
+        "id": "conflicts-rule"
+      }
+    },
+    {
+      "match": "squad-pr-watch ci-wait-clear issue-shop-1",
+      "stdout": ""
+    },
+    {
+      "match": "git merge-base --is-ancestor",
+      "stdout": "",
+      "exit": 0
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
+    }
+  ],
+  "expected_records": [
+    {
+      "command": "multica issue runs issue-shop-1 --output json"
+    },
+    {
+      "command": "squad-usage-wait pick issue-shop-1 principal Claude",
+      "kind": "read",
+      "exit": 0
+    },
+    {
+      "command": "squad-review-wait watch issue-shop-1 comment-final agent-codex-principal",
+      "kind": "read",
+      "exit": 0
+    },
+    {
+      "command": "multica issue comment add issue-shop-1 --parent comment-final --content-file tmp/reply.md",
+      "bodies": [
+        "見直しの種類: 最終レビュー\n確認するコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\n見る範囲: PR の差分全体\n返事を待つ役: [@Principal](mention://agent/agent-codex-principal)"
+      ],
+      "kind": "write",
+      "exit": 0
+    }
+  ]
+}

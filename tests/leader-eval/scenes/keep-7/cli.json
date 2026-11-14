@@ -61,11 +61,19 @@
       "stdout": "返事の待ちの見張りを入れました。"
     },
     {
+      "match": "squad-review-next request issue-shop-1",
+      "stdout": "観点: code-reviewer、ux-reviewer、qa（画面に触れる変更）\n依頼: comment-4"
+    },
+    {
       "match": "squad-pr-watch ci issue-shop-1",
       "stdout": "CI の見張りを入れました。"
     },
     {
       "match": "squad-pr-watch ci-held issue-shop-1"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
     }
   ]
 }

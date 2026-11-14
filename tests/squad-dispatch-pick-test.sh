@@ -394,6 +394,12 @@ for failure in exit claude_error codex_error both_error invalid_json stale bad_t
 	run_pick 0 "$chosen-principal" principal
 	assert_line '使用率を読めないため、最上位の役の代わりの決まりで決めた。'
 	assert_line "$reason"
+	for implemented in Claude Codex; do
+		if [[ "$implemented" == Claude ]]; then preferred=codex; else preferred=claude; fi
+		run_pick 0 "$preferred-principal" principal "$implemented"
+		assert_line '使用率を読めないため、最上位の役の代わりの決まりで決めた。'
+		assert_line "$reason"
+	done
 	if grep -q 'mock-private-diagnostic' "$test_dir/out" "$test_dir/err"; then exit 1; fi
 done
 # 読めた側が使用上限なら、読めない側を選ぶ（実装・修正と同じ）。
@@ -407,10 +413,59 @@ run_pick 0 codex-principal principal
 assert_line 'Claude は 5 時間の枠が 80% 以上'
 echo 'PASS 最上位の役: 空いている方を選び、閾値以上は除き、両方なら終了コード 2、読めないときは読めた側かなければ Codex'
 
-for args in '' 'other' 'fix 小さな' 'implement 小さな extra' 'principal 小さな' 'principal 大きな' 'principal extra'; do
+for implemented in Claude Codex; do
+	fixtures
+	if [[ "$implemented" == Claude ]]; then
+		preferred=codex
+		preferred_name=Codex
+	else
+		preferred=claude
+		preferred_name=Claude
+		change '.claude.week.used_percent = 50 | .codex.week.used_percent = 20'
+	fi
+	run_pick 0 "$preferred-principal" principal "$implemented"
+	assert_line "振り分け: ${preferred_name}。"
+done
+echo 'PASS 最終レビュー: 使ってよい量の余りが少なくても、実装と違う系統を優先する'
+
+for exclusion in session claude_week codex_week allowed both session_and_codex; do
+	fixtures
+	case "$exclusion" in
+	session) change '.claude.session.used_percent = 80'; chosen=codex; reason='Claude は 5 時間の枠が 80% 以上' ;;
+	claude_week) change '.claude.week.used_percent = 80'; chosen=codex; reason='Claude は週の使用率が 80% 以上' ;;
+	codex_week) change '.codex.week.used_percent = 80'; chosen=claude; reason='Codex は週の使用率が 80% 以上' ;;
+	allowed) change '.codex.allowed = false'; chosen=claude; reason='Codex は利用不可' ;;
+	both) change '.claude.week.used_percent = 80 | .codex.week.used_percent = 80'; chosen=なし ;;
+	session_and_codex) change '.claude.session.used_percent = 80 | .codex.allowed = false'; chosen=なし ;;
+	esac
+	for implemented in Claude Codex; do
+		if [[ "$chosen" == なし ]]; then
+			run_pick 2 なし principal "$implemented"
+			assert_line 'Claude は'
+			assert_line 'Codex は'
+		else
+			run_pick 0 "$chosen-principal" principal "$implemented"
+			assert_line "$reason"
+			if [[ "$implemented" == Claude && "$chosen" == claude ]] \
+				|| [[ "$implemented" == Codex && "$chosen" == codex ]]; then
+				assert_line "$reason のため、実装と同じ系統へ回した"
+			elif grep -q '実装と同じ系統へ回した' "$test_dir/out"; then
+				echo 'FAIL: 違う系統を選んだのに同じ系統へ回した理由がある' >&2; exit 1
+			fi
+		fi
+	done
+done
+echo 'PASS 最終レビュー: 優先する系統だけが上限なら理由を添えて同じ系統へ回し、両方が上限なら終了コード 2'
+
+for args in '' 'other' 'fix 小さな' 'implement 小さな extra' 'principal 小さな' 'principal 大きな' 'principal extra' 'principal Claude extra' 'principal Codex Claude'; do
 	status=0
 	# ここだけは意図的に引数を空白で分ける。
 	PATH="$test_dir/bin" /bin/bash "$script" $args >"$test_dir/out" 2>"$test_dir/err" || status=$?
+	[[ "$status" == 1 && ! -s "$test_dir/out" && -s "$test_dir/err" ]]
+done
+for implemented in '' claude codex; do
+	status=0
+	PATH="$test_dir/bin" /bin/bash "$script" principal "$implemented" >"$test_dir/out" 2>"$test_dir/err" || status=$?
 	[[ "$status" == 1 && ! -s "$test_dir/out" && -s "$test_dir/err" ]]
 done
 mv "$test_dir/bin/jq" "$test_dir/bin/jq.off"

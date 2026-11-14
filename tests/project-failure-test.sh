@@ -4,6 +4,10 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 source "$root/tests/project-test-lib.sh"
+export TEST_PROJECT_RENDER_CACHE="$test_dir/render-cache"
+mkdir -p "$TEST_PROJECT_RENDER_CACHE"
+printf '\n' >>"$TEST_PACKAGE/lib/render.sh"
+cat "$root/tests/project-failure-render-cache.sh" >>"$TEST_PACKAGE/lib/render.sh"
 
 # 最後に処理する役の不備でも、一件も本指示・スキル・公開を書かない。
 reset_db
@@ -92,3 +96,4 @@ TEST_RECHECK=yes TEST_RECHECK_AFTER_GUARD=yes TEST_GUARD_MARKER="$TEST_DB/guard-
 ! jq -es 'any(.[]; .[0:2]==["agent","create"])' "$TEST_DB/calls" >/dev/null
 grep -q '別プロジェクトに紐付いたため許可できません: example/third' "$test_dir/err"
 echo 'PASS project: 関所の確認の通信中に他プロジェクトへ移った選択も、許可更新直前の再確認で拒否する'
+/bin/bash "$root/tests/project-failure-render-cache-check.sh" "$test_dir" "$root"

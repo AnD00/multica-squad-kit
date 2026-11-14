@@ -4,6 +4,8 @@
 
 各 JSON ファイルは、実物の CLI 応答を並べた配列である。配列を返すコマンドの見本は、二重配列になる。配列の要素は、約束が求める形ごとに選んでいる。読む欄以外も残し、鍵と値の型を変えずに匿名化している。
 
+見本の `scope: response` は、配列の要素ではなく応答全体に `where` を当てる。空の `pull_requests` のように、要素のない実物の応答も保存するために使う。
+
 UUID は、同じ採取の全見本で共通の対応表を使って `fixture-id-` と固定桁の連番へ置き換える。元の ID の文字列順に番号を付け、同一性と ID 同士の比較順を保つ。元の ID と対応表は保存しない。値は採取ごとのもので、別の採取の番号とは比較しない。
 
 `VERSION` は、採取時の `multica version` と `gh --version` の各 1 行目である。`CAPTURE.json` は、形ごとの採取元の件数と、「見本なし」の理由を記録する。件数は選ぶ前の応答に対する数なので、保存した見本の数とは異なる。
@@ -32,6 +34,8 @@ bash tests/capture-cli-fixtures.sh --write-samples tmp/採取した応答 <タ�
 
 `squad_cli_normalize <読み取りの名前> [<CLI のバージョン>]` は、標準入力の JSON だけを検証・整形する。バージョンを省くと実物の CLI から読む。必須・条件付きの欠落と null の不一致は、すべて標準エラーに書き、出力を返さず失敗する。省略された鍵は補わず、約束外の欄を除いて返す。null 可の親が null なら、その値を維持する。
 
+`issue-pull-requests.json` は、2026-11-13 に CLI 0.7.0（`VERSION` と同じ）で `multica issue pull-requests <タスク> --output json` から追加採取した空の一覧である。応答数と要素の「見本なし」は `CAPTURE.json` に記録した。要素の見本は取れていないので、テストでは宣言した必須欄 `html_url` だけで要素を作る。採取のコマンドは約束から組み立てるため、`capture-cli-fixtures.sh` でも対象になる。
+
 書き込みも `squad_cli_read` を通せる。応答の検証が失敗しても書き込み自体は済んでいることがあるので、投稿を繰り返さない。
 
 見張りのテストで実物の見本からケースを作るときは、`tests/cli-fixture-lib.py` の `assert_fixture_response` に原本・ケース・その読み取りの約束を渡す。新しい鍵の追加と、必須の鍵の削除を拒否する。`allow_required_deletion=True` は、欠落時の失敗を確認するケースだけに使う。
@@ -54,11 +58,17 @@ python3 tests/capture-gh-fixtures.py --sources tmp/gh-sources.json
 
 Multica と合わせた取り込みでは、外部で採取した応答のディレクトリを `--read-samples` に渡す。書き込みの応答は従来どおり `--write-samples` に渡す。
 
-`integration_id` がない規則、`patch` がないファイル、commit status は今回の公開元で取れず、約束と採取記録に「見本なし」と理由を残した。commit status は `nodejs/node` の main と `facebook/react` の v16.8.0 でも空だった。テストのその形だけは、[GitHub REST API の status の仕様](https://docs.github.com/en/rest/commits/statuses#list-commit-statuses-for-a-reference)の欄を使う。規則は[ブランチの規則の仕様](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)、ファイルは[PR のファイルの仕様](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files)も参照する。
+`integration_id` がない規則と commit status は今回の公開元で取れず、約束と採取記録に「見本なし」と理由を残した。commit status は `nodejs/node` の main と `facebook/react` の v16.8.0 でも空だった。テストのその形だけは、[GitHub REST API の status の仕様](https://docs.github.com/en/rest/commits/statuses#list-commit-statuses-for-a-reference)の欄を使う。規則は[ブランチの規則の仕様](https://docs.github.com/en/rest/repos/rules#get-rules-for-a-branch)、ファイルは[PR のファイルの仕様](https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files)も参照する。
+
+`gh-pr-files` は、`patch` のあるファイルと `previous_filename` のあるファイル（名前を変えたもの）を含む 2 件の公開の PR から読む。`gh-file`（ファイルの内容）と `gh-compare`（2 つのコミットの比較）は、`actions/checkout` の公開のタグから読み、比較は `ahead`、`identical`、`behind`、`diverged` の 4 つの `status` を保存した。1 つの約束の見本を複数のコマンドで採取するときは、`GH-CAPTURE.json` の `sources` にコマンドの配列を並べる。
 
 `pagination` のある約束は JSON のページをすべて検証してから連結する。入れ子の `items` は、親の `when` に当たるときだけ中の配列の全要素を検証する。`gh-fixture.py` は見本へケースの値を重ね、見本にない鍵を拒否する。必須欄の欠落を試す `raw` のケースでは重ねずにそのまま返す。
 
 PR・コメントの `user`、チェックの `app` は、[GitHub の公開 OpenAPI](https://github.com/github/rest-api-description/blob/main/descriptions/api.github.com/api.github.com.json)で null 可の必須欄である。PR の `author` も [GraphQL の仕様](https://docs.github.com/en/graphql/reference/pulls)では null 可である。公開元で null の形は取れなかったため「見本なし」と記録し、子の欄を条件付きとしてテストする。
+
+## 名簿の読み取り
+
+`squad-member-list.json` は、`capture-cli-fixtures.py` の `{squad}` の読み取りと同じ手順で、同じ CLI のバージョンから `multica squad member list` を採取した。メンバーの種類は `agent` と `member` の 2 つで、ID は採取内で共通の対応表を使い、`fixture-roster-id-` で始める。ほかの見本の ID とは比較しない。`agent-get` の `model` と `squad-list` の `creator_id` は、保存済みの実物の見本が元から持つ欄である。
 
 ## 指標の収集の読み取り
 
