@@ -477,6 +477,19 @@ grep -qF '設計の承認を頼むタスクのコメントは' "$test_dir/all/de
 grep -qF '実装の一覧は、タスクのコメントに' "$test_dir/all/designer"
 echo 'PASS templates: 役の指示と共通スキルが、本文の書き方・PR の本文の置き場所・引き継ぎの順序を同じ見出しで参照する'
 
+# 再確認での列挙: 前に ❌ を出した部品と依頼の行の部品を列挙し、結果に範囲の行を置く。展開後も 12KB 以内に収める。
+for role in code-reviewer ux-reviewer performance-reviewer; do
+	for dir in "$test_dir/"*/; do
+		[[ -f $dir/$role ]] || continue
+		[[ $(wc -c <"$dir/$role") -le 12288 ]]
+	done
+	grep -qF '同じ PR に自分の前の結果があれば、その指摘が直っているかを確認する' "$test_dir/all/$role"
+	grep -qF '前の結果で ❌ を出した部品と、依頼の `列挙を頼む部品:` の行の部品は、同じ規則と同じ種類の入力を列挙して確認する' "$test_dir/all/$role"
+	grep -qF '`列挙した範囲: <部品の名前>（<規則・入力の種類>）` の行を置く' "$test_dir/all/$role"
+	grep -qF '`確認したコミット:` のあとに置き' "$test_dir/all/$role"
+done
+echo 'PASS templates: code・ux・performance のレビューの指示に、再確認での列挙と列挙した範囲の行がある'
+
 # 記入が足りないときの案内は、更新で届く共通スキルだけで読める。
 sed -n '/^## 記入が足りずに止まるとき$/,/^## 人間を呼んで止まるとき$/p' "$skill" >"$test_dir/unfilled-stop"
 grep -qx '## 記入が足りずに止まるとき' "$test_dir/unfilled-stop"
