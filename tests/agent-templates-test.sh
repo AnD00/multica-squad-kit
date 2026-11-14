@@ -351,7 +351,7 @@ for role in claude-principal codex-principal; do
 	grep -qF 'ブランチへの push、PR の本文の書き換え、タスクの状態の変更をしない' "$root/common/agents/$role.md"
 	grep -qF 'squad-review-wait report <タスク> <きっかけのコメント> <ファイル>' "$root/common/agents/$role.md"
 	grep -qF '設計と PR の見直しでは、指摘ごとに種類として `設計` か `コード` を添える' "$root/common/agents/$role.md"
-	if grep -qE '<!-- (IF|ELSE)' "$root/common/agents/$role.md" && grep -E '<!-- IF' "$root/common/agents/$role.md" | grep -vq 'orchestrator'; then exit 1; fi
+	if grep -E '<!-- IF' "$root/common/agents/$role.md" | grep -vqE 'orchestrator|planner'; then exit 1; fi
 	grep -qF '`重要`' "$root/common/agents/$role.md"
 done
 for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
@@ -361,6 +361,26 @@ done
 [[ ! -f $test_dir/runtime-claude-only/codex-principal && ! -f $test_dir/runtime-codex-only/claude-principal ]]
 [[ -f $test_dir/runtime-claude-only/claude-principal && -f $test_dir/runtime-codex-only/codex-principal && -f $test_dir/all/claude-principal && -f $test_dir/all/codex-principal ]]
 echo 'PASS templates: 最上位の役は、系統ごとに決まったモデルと high を持ち、使わない系統には置かない'
+
+# 要件を決める役がない構成だけ、最上位の役が要件の見直しを受ける。役がある構成には出さない。
+for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do
+	for role in claude-principal codex-principal; do
+		file="$test_dir/$scenario/$role"
+		[[ -f $file ]] || continue
+		if [[ $scenario == no-planner || $scenario == no-planning ]]; then
+			grep -qF '次の 4 種類のどれか' "$file"
+			grep -qF '要件の見直し: タスクの本文の背景・要件・やらないこと・受け入れ条件' "$file"
+			grep -qF '要件の見直しは、ラベル `重要` の有無によらず行います。' "$file"
+			grep -qF '確認したコミット: タスクの本文 <sha256>' "$file"
+			grep -qF 'metadata の `repository`' "$file"
+			grep -qF '設計への指摘: なし' "$file"
+		else
+			grep -qF '次の 3 種類のどれか' "$file"
+			if grep -qF '要件の見直し' "$file"; then exit 1; fi
+		fi
+	done
+done
+echo 'PASS templates: 最上位の役は、要件を決める役がない構成だけ要件の見直しを受ける'
 
 # 最終レビューは印から切り離し、見る範囲と証拠の扱いを全構成で残す。
 for scenario in all no-planner no-designer no-planning claude-only codex-only no-reviews runtime-claude-only runtime-codex-only; do

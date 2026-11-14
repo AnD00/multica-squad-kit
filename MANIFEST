@@ -20,11 +20,11 @@ b094346d398b71ead5dfa83633c0ff6cf65efc5bd0c4429d33fd38b63a5df4bf  ./common/agent
 ecd720685c958c917a4f59cdad3e24839c83342bcf60a895e627352cf91e4e31  ./common/agents/ci-monitor.md
 4199c05fbc735a33d3240ae4bba3bb02c152fe90a956605358c186a041e49f63  ./common/agents/claude-fixer.md
 33bb5c574cffa54c6a06b69708d02c9020b218115760e6966c93fe06ef8ac736  ./common/agents/claude-implementer.md
-1585f729fe60eebbcea4cdb1630b1d61788cb24cbb848b392bf534218c5ce2d3  ./common/agents/claude-principal.md
+0d8986a9ab22810091218134e6e5cedee82bb8215d6f28e65af3b01c18c5e1ba  ./common/agents/claude-principal.md
 7fcfe8596697449aa5855a31bf3af82d61d71c3c76fe9fd7d5b066d2d47da598  ./common/agents/code-reviewer.md
 3b1d9f6db7a2916fc61130b401037b550e3f142cf2aec20cf8d6ddec19c20b59  ./common/agents/codex-fixer.md
 7942169f14e68427a4a81a3a1124264a2f7338f7574558c23ba412119cf2e82f  ./common/agents/codex-implementer.md
-f0bed584413878c90dfe25f6efca74e5d27ea322386f243a687bb845a4e5a732  ./common/agents/codex-principal.md
+15f8591e6fcb7c138d3ca11f7ee6121f2c01515df543dbab495b665cc73b8706  ./common/agents/codex-principal.md
 a419caf36e3d0cad7e186498294ae8dd9a3a6ec6356b86bf3e46e926f02eddcf  ./common/agents/dependabot-merger.md
 11bc2ac5c7a1f009867c727d79b6383e6f492a4fb0246d6990988ba8f15a583c  ./common/agents/designer.md
 1f0149cd72dbc3dd1a796ffc71521d5eb0fec13bc2540c436908a03ea3b2e8ae  ./common/agents/orchestrator.md
@@ -127,7 +127,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 e4433f9b5b31181546e9b2449c1536f23777e1430455f126800e0d9d6a2d7092  ./skeleton/project.md
 b9033019a1fe0384a555a447fe064ade71c427af27a9caa4b175868fdd2085ad  ./skeleton/verify-repository.md
 ec94c1189f1071bf59f9c20765667893b12a24881b6a68739d14f2ecbe0ff678  ./tests/action-advisories-test.sh
-2a0b36f263fa2c4438dd41eb66eccb0d4fb26d43af58177f1a340ccfbe903d28  ./tests/agent-templates-test.sh
+b391668603c2688092e3845237882d9508f69d330210845d55866f7f33a152ff  ./tests/agent-templates-test.sh
 2c4dce6d55a2bec00a23cf829eb9939041a27c4bb78891f0aeb0d485ad1713c4  ./tests/ansi-to-png.py
 122e302ddc6d7d0cd1277fc8962c9671268258dd319d5149fb36441bc0a5cfa8  ./tests/build-assets-test.sh
 da85fbae14ef3e53e6c85f2c89dfae5c7e106a74f4f15b1ce49153067106684b  ./tests/capture-cli-fixtures-test.sh
