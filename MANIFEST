@@ -76,7 +76,7 @@ aeb3a3f8a67f0cb232bda5477deac063518fb6d8b1e7a40409789d77d3b1dda4  ./docs/install
 4302bd41f8ed514c66b20b73d68adf89dc014628fabda7b26df3f80ceebe301b  ./docs/metrics.md
 5b7b8aac065c5cb1e50954147aad383242a7d6e2817859d58a72c780c46b774d  ./docs/pr-conflict-check.md
 031855fd39c6a9eee4606072642947f689c89378548496cb2910ed2e53aed9cd  ./docs/pr-link.md
-aff96364b39de033823c41e51fda82fa842ef3772909f3f868abc9ad6522c3f0  ./docs/pr-unlinked.md
+36fed01b2c6824d2e6d1d2b7b96a28a8ea6a4587ee44db44e34f0d0c7db48976  ./docs/pr-unlinked.md
 c7c75bc064552c5f3ee66c2ce0ea45bbde8d052b3e1f13e90a9fab462159d87e  ./docs/principal-review.md
 b686eb169b1c9966e494869b23ca154189cb5cc926cc8b08e4da368afe2d2296  ./docs/release.md
 8c87c982c15cd74471d21557d8d5eae1b30e67e1669dbb1716b4d20159f1c040  ./docs/review-next-step.md
@@ -126,7 +126,7 @@ be9a67eb3b8da9a4012424d8ab5a9c61beecba7f11afcae4595541fbb56257de  ./skeleton/.ag
 e4433f9b5b31181546e9b2449c1536f23777e1430455f126800e0d9d6a2d7092  ./skeleton/project.md
 b9033019a1fe0384a555a447fe064ade71c427af27a9caa4b175868fdd2085ad  ./skeleton/verify-repository.md
 ec94c1189f1071bf59f9c20765667893b12a24881b6a68739d14f2ecbe0ff678  ./tests/action-advisories-test.sh
-1651a84a85073e59a24987b66c4e4c77e50ec3964a0d78252998752a5fd8dc67  ./tests/agent-templates-test.sh
+fc2650b47656b3058fe8975eea4351002f3e10f1c44d08bf54577891030d2d12  ./tests/agent-templates-test.sh
 2c4dce6d55a2bec00a23cf829eb9939041a27c4bb78891f0aeb0d485ad1713c4  ./tests/ansi-to-png.py
 527977df9ef47cba1afcded7ab38a921de4e65916e97bdd4c460b53b5fae4e3d  ./tests/build-assets-test.sh
 da85fbae14ef3e53e6c85f2c89dfae5c7e106a74f4f15b1ce49153067106684b  ./tests/capture-cli-fixtures-test.sh

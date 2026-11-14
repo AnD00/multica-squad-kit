@@ -545,6 +545,16 @@ for phrase in 'squad-pr-watch link-check <タスク>' '紐付けていません:
 done
 echo 'PASS templates: PR の紐付けの参照は、判定コマンドを使い、警告の文を添え、「紐付けていません:」を紐付け済みと読まない'
 
+# マージの前の確認は、節を切り出し、番号の項目の行ごとに文言を探す。別の節や別の項目へ移っても落とす。
+before_merge=$(awk '/^## マージの前の確認$/ {inside=1; next} inside && /^## / {exit} inside {print}' "$pr_ref")
+[[ -n $before_merge ]]
+before_merge_item() { grep -E "^$1\. " <<<"$before_merge" | grep -qF -- "$2"; }
+before_merge_item 1 'PR の紐付けの確認'
+before_merge_item 2 'PR の head は、1 の `pr:` の正規形で読む'
+before_merge_item 4 '見張りがあれば、紐付けの有無によらず `ci` と `ci-wait` を流し、`ci-now` は流さない'
+before_merge_item 5 '紐付いていないなら続けて `unlinked` を流す'
+echo 'PASS templates: マージの前の確認の節が、1 の紐付けの確認・2 の head を正規形で読む文・4 の ci-wait・5 の unlinked を、その項目に持つ'
+
 for phrase in 'squad-usage-wait pick <タスク> <implement | fix>' '使用率の待ちの起こしで起きたとき' '使用率の待ちの延長: <工程>。決めた人: <名前>' '質問だけでは待ち始めの時刻は新しくならない'; do
 	grep -qF -- "$phrase" "$refs/leader-dispatch.md"
 done
