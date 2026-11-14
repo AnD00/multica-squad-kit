@@ -1,0 +1,201 @@
+{
+  "commands": [
+    {
+      "match": "squad-preflight",
+      "stdout": "squad-preflight: 関所の gh と、すべての見張りが使えます。"
+    },
+    {
+      "match": "multica issue pull-requests issue-shop-1",
+      "stdout": "{\n  \"pull_requests\": [\n    {\n      \"url\": \"https://github.com/example/shop/pull/7\",\n      \"state\": \"open\",\n      \"draft\": true\n    }\n  ]\n}"
+    },
+    {
+      "match": "multica issue pull-requests --help",
+      "stdout": "Usage: multica issue pull-requests <issue-id> [--output json]\n\nList the pull requests linked to an issue. Read-only."
+    },
+    {
+      "match": "multica issue --help",
+      "stdout": "Usage: multica issue <command>\n\nCommands:\n  get, list, search, create, comment, status, assign, update, pull-requests, runs, run-messages, cancel-task, rerun, label, metadata\n\n`multica issue pull-requests <id>` lists the pull requests linked to an issue. There is no command that links a pull request."
+    },
+    {
+      "match": "multica issue label list issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica label list",
+      "stdout": "[\n  {\n    \"id\": \"label-important\",\n    \"name\": \"重要\"\n  },\n  {\n    \"id\": \"label-dev\",\n    \"name\": \"開発\"\n  },\n  {\n    \"id\": \"label-ops\",\n    \"name\": \"運用\"\n  },\n  {\n    \"id\": \"label-instruction\",\n    \"name\": \"指示の改善\"\n  },\n  {\n    \"id\": \"label-qa\",\n    \"name\": \"検証\"\n  }\n]"
+    },
+    {
+      "match": "multica issue children issue-shop-1",
+      "stdout": "[]"
+    },
+    {
+      "match": "multica repo list",
+      "stdout": "[\n  {\n    \"url\": \"https://github.com/example/shop\"\n  }\n]"
+    },
+    {
+      "match": "squad-pr-watch conflicts-check issue-shop-1",
+      "stdout": "コンフリクト: MERGEABLE head: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567"
+    },
+    {
+      "match": "gh pr view",
+      "stdout": "{\n  \"number\": 7,\n  \"title\": \"feat: カートに商品数を出す\",\n  \"state\": \"OPEN\",\n  \"isDraft\": true,\n  \"baseRefName\": \"main\",\n  \"headRefName\": \"feat/cart-badge\",\n  \"headRefOid\": \"3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\",\n  \"mergeable\": \"MERGEABLE\",\n  \"files\": [\n    {\n      \"path\": \"src/cart/Badge.tsx\"\n    },\n    {\n      \"path\": \"src/cart/Badge.test.tsx\"\n    }\n  ],\n  \"body\": \"カートのアイコンに、入っている商品の数を出す。100 以上は `99+` と表示する。\"\n}"
+    },
+    {
+      "match": "squad-review-wait watch issue-shop-1",
+      "stdout": "返事の待ちの見張りを入れました。"
+    },
+    {
+      "match": "squad-pr-watch ci issue-shop-1",
+      "stdout": "CI の見張りを入れました。"
+    },
+    {
+      "match": "squad-pr-watch ci-held issue-shop-1"
+    },
+    {
+      "match": "multica issue get issue-shop-1",
+      "stdout": {
+        "id": "issue-shop-1",
+        "identifier": "SHOP-1",
+        "title": "カートに商品数を出す",
+        "status": "in_review",
+        "assignee_type": "squad",
+        "assignee_id": "squad-shop",
+        "project_id": "project-shop",
+        "labels": [],
+        "metadata": {
+          "repository": "example/shop",
+          "branch": "feat/cart-badge",
+          "pr_url": "https://github.com/example/shop/pull/7"
+        },
+        "description": "カートのアイコンに、入っている商品の数を出す。"
+      }
+    },
+    {
+      "match": "multica issue comment list issue-shop-1",
+      "stdout": [
+        {
+          "id": "c-impl",
+          "author_type": "agent",
+          "author_id": "agent-claude-implementer",
+          "parent_id": null,
+          "content": "[@SQUAD-SHOP](mention://squad/squad-shop) 実装を push しました。PR: https://github.com/example/shop/pull/7\n\n確認したこと:\n- 単体テストが通った\n\n残っていること:\n- レビュー",
+          "created_at": "2026-01-10T09:00:00Z"
+        },
+        {
+          "id": "c-rev1",
+          "author_type": "agent",
+          "author_id": "agent-code-reviewer",
+          "parent_id": null,
+          "content": "確認したコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\n❌ code-reviewer: 必須 1 件\n- src/cart/Badge.tsx:formatCount: 負の数を渡すと `-3` と表示される\n詳細は PR のコメントにあります。",
+          "created_at": "2026-01-10T09:10:00Z"
+        },
+        {
+          "id": "c-req1",
+          "author_type": "agent",
+          "author_id": "agent-orchestrator",
+          "parent_id": null,
+          "content": "[@shop-claude-fixer-member1](mention://agent/agent-claude-fixer) レビューの指摘の修正を頼みます。\n\n同じ部品: src/cart/Badge.tsx:formatCount 1 回目\n修正の依頼: 1 回目",
+          "created_at": "2026-01-10T09:15:00Z"
+        },
+        {
+          "id": "c-fix1",
+          "author_type": "agent",
+          "author_id": "agent-claude-fixer",
+          "parent_id": null,
+          "content": "[@SQUAD-SHOP](mention://squad/squad-shop) 負の数の扱いを直して push しました。",
+          "created_at": "2026-01-10T09:40:00Z"
+        },
+        {
+          "id": "c-rev2",
+          "author_type": "agent",
+          "author_id": "agent-code-reviewer",
+          "parent_id": null,
+          "content": "確認したコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\n❌ code-reviewer: 必須 1 件\n- src/cart/Badge.tsx:formatCount: 小数を渡すと `2.5` と表示される\n詳細は PR のコメントにあります。",
+          "created_at": "2026-01-10T09:55:00Z"
+        },
+        {
+          "id": "c-req2",
+          "author_type": "agent",
+          "author_id": "agent-orchestrator",
+          "parent_id": null,
+          "content": "[@shop-claude-fixer-member1](mention://agent/agent-claude-fixer) 入力の種類を表にして直すことを頼みます。\n\n頼む範囲: 種類単位（src/cart/Badge.tsx:formatCount）\n同じ部品: src/cart/Badge.tsx:formatCount 2 回目\n修正の依頼: 2 回目",
+          "created_at": "2026-01-10T10:00:00Z"
+        },
+        {
+          "id": "c-fix2",
+          "author_type": "agent",
+          "author_id": "agent-claude-fixer",
+          "parent_id": null,
+          "content": "[@SQUAD-SHOP](mention://squad/squad-shop) 入力の種類の表を作り、行ごとのテストを足して push しました。",
+          "created_at": "2026-01-10T10:30:00Z"
+        },
+        {
+          "id": "c-rev3",
+          "author_type": "agent",
+          "author_id": "agent-code-reviewer",
+          "parent_id": null,
+          "content": "確認したコミット: 3f9a2c1d4b5e6f708192a3b4c5d6e7f801234567\n❌ code-reviewer: 必須 1 件\n列挙した範囲: src/cart/Badge.tsx:formatCount（数値・小数・負の数・巨大な値）\n- src/cart/Badge.tsx:formatCount: `null` を渡すと例外になる。表に行がない",
+          "created_at": "2026-01-10T10:40:00Z"
+        },
+        {
+          "id": "c-ask",
+          "author_type": "agent",
+          "author_id": "agent-orchestrator",
+          "parent_id": null,
+          "content": "[@安藤](mention://member/member1) 同じ部品の確認を頼みます。\n\n同じ部品の確認: src/cart/Badge.tsx:formatCount 3 回目の前\n\n決めてほしいこと: 続けて 1 回頼む（推す案）、設計を見直す、やめる。",
+          "created_at": "2026-01-10T10:50:00Z"
+        },
+        {
+          "id": "c-human",
+          "author_type": "member",
+          "author_id": "member1",
+          "parent_id": null,
+          "content": "続けてください。",
+          "created_at": "2026-01-10T11:00:00Z"
+        }
+      ]
+    },
+    {
+      "match": "multica issue runs issue-shop-1",
+      "stdout": [
+        {
+          "id": "run-1",
+          "agent_id": "agent-claude-implementer",
+          "status": "completed"
+        }
+      ]
+    },
+    {
+      "match": "squad-review-wait status issue-shop-1",
+      "stdout": "返事の待ち: 登録なし"
+    },
+    {
+      "match": "squad-dispatch-pick fix",
+      "stdout": "役: claude-fixer\n振り分け: Claude。Claude 週 42%（使ってよい量 60%）・5 時間 23%、Codex 週 6%（使ってよい量 10%）"
+    },
+    {
+      "match": "squad-pr-watch link-check issue-shop-1",
+      "stdout": "紐付け: 紐付いている pr: https://github.com/example/shop/pull/7"
+    }
+  ],
+  "expected_records": [
+    {
+      "command": "multica issue status issue-shop-1 in_progress",
+      "kind": "read",
+      "exit": 0
+    },
+    {
+      "command": "squad-dispatch-pick fix",
+      "kind": "read",
+      "exit": 0
+    },
+    {
+      "command": "multica issue comment add issue-shop-1 --parent c-human --content-file tmp/reply.md",
+      "bodies": [
+        "修正をお願いします [@Fixer](mention://agent/agent-claude-fixer)\n同じ部品: src/cart/Badge.tsx:formatCount 3 回目\n修正の依頼: 3 回目"
+      ],
+      "kind": "write",
+      "exit": 0
+    }
+  ]
+}
