@@ -308,11 +308,11 @@ run_decide() {
 		return 0
 	fi
 	if ((status == 3)); then
-		reason=$(grep -m1 '^次の依頼を決められません:' <<<"$out" || true)
+		reason=$(grep -a -m1 '^次の依頼を決められません:' <<<"$out" || true)
 		reason=${reason#次の依頼を決められません:}
 		reason=${reason# }
 	else
-		reason=$(grep -v '^[[:space:]]*$' "$err" | tail -n 1 || true)
+		reason=$(grep -a -v '^[[:space:]]*$' "$err" | tail -n 1 || true)
 		reason=${reason#次の依頼を書けません:}
 		reason=${reason# }
 	fi
@@ -340,9 +340,8 @@ settle() {
 	comments=$(comments_of "$issue") || return 1
 	round=$(latest_round <<<"$comments") || return 1
 	[[ -n $round && $(jq -r '.id // empty' <<<"$round") == "$round_id" ]] || return 0
-	missing=$(missing_of "$round") || return 1
-	[[ -z $missing ]] || return 2
-	# 最新の回の候補が読めないときは、決める記録を書かず、decide も流さない。知らせに理由を置いて、リーダーを起こす。
+	# 候補が読めないときは、返していない役がいても待たない。読めない候補は、役の返事では解けないため。
+	# 決める記録を書かず、decide も流さない。知らせに理由を置いて、リーダーを起こす。
 	blocked=$(blocked_of "$round") || return 1
 	if [[ -n $blocked ]]; then
 		if [[ $(jq '(.next_ids | length) + (.claim_ids | length) + (.decide_ids | length) + (.ready_ids | length)' <<<"$round") == 0 ]]; then
@@ -350,6 +349,8 @@ settle() {
 		fi
 		return 0
 	fi
+	missing=$(missing_of "$round") || return 1
+	[[ -z $missing ]] || return 2
 	if [[ -z $DECIDE_OWN ]]; then
 		# 次の依頼や次へ回す記録、決める記録、知らせがすでにあれば、ほかの実行が扱っている。
 		if [[ $(jq '(.next_ids | length) + (.claim_ids | length) + (.decide_ids | length) + (.ready_ids | length)' <<<"$round") != 0 ]]; then
@@ -391,10 +392,10 @@ report() {
 	body=$(mktemp tmp/squad-review-report.XXXXXX)
 	trap "$(printf 'rm -f -- %q' "$body")" EXIT
 	if [[ $(head -n 1 "$file") == /note* ]]; then
-		grep -v "^${RESULT_MARK}" "$file" >"$body" || true
+		grep -a -v "^${RESULT_MARK}" "$file" >"$body" || true
 	else
 		printf '/note\n' >"$body"
-		{ grep -v "^${RESULT_MARK}" "$file" || true; } >>"$body"
+		{ grep -a -v "^${RESULT_MARK}" "$file" || true; } >>"$body"
 	fi
 	[[ -z $(tail -c 1 "$body") ]] || printf '\n' >>"$body"
 	printf '%s %s\n' "$RESULT_MARK" "$(jq -r .id <<<"$round")" >>"$body"

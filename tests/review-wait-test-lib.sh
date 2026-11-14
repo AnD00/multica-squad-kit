@@ -213,7 +213,7 @@ with_raw() {
 		'. + [$comment[0] + {id: $id, author_type: $type, author_id: $who, created_at: $time, content: $content}]'
 }
 
-# with_raw の JSON 版。本文は JSON の文字列で渡す（NUL や単独の CR を含められる）。
+# with_raw の JSON 形式。本文は JSON の文字列で渡す（NUL や単独の CR を含められる）。
 with_json() {
 	jq --slurpfile comment "$test_dir/comment-prototype.json" --arg id "$1" --arg who "$2" --arg type "$3" --argjson content "$5" \
 		--arg time "$(jq -nr --argjson ts "$((round_ts + $4))" '$ts | todateiso8601')" \

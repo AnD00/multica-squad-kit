@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-merge-test.sh で実行する。
-# squad-review-next decide のマージの依頼（確認の流れ・規則の登録・コメント・止まる値）を確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide のマージの依頼（確認の流れ・規則の登録・コメント・止まる値）を確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 
@@ -21,7 +21,7 @@ run final-1
 expect_merge_posted "$(merge_body final-1 "$sha" "$conf_line" "${lines_all[@]}")" final-1
 expect_calls pr-watch-calls $'link-check test-issue\nconflicts-check test-issue\nconflicts test-issue --leader orchestrator'
 expect_calls head-calls 'pr view 7 --repo demo/project --json headRefOid'
-echo 'PASS review-next-decide: 紐付いているマージの依頼は、head とコンフリクトを確かめ、CI を読まず、コンフリクトの規則を入れてから書く'
+echo 'PASS review-next-decide: 紐付いているマージの依頼は、head とコンフリクトを確認し、CI を読まず、コンフリクトの規則を入れてから書く'
 
 # ---- 紐付いていないとき。その場の CI を読み、unlinked を入れ、紐付けの案内と見張りの行を添える。
 reset
@@ -42,7 +42,7 @@ unlinked
 n=0
 comments=$(jq 'del(.[] | select(.id == "pr-made"))' "$test_dir/comments.json")
 echo "$comments" >"$test_dir/comments.json"
-add pr-made claude-implementer "PR を作りました ${pr_url}"$'\n\n紐付けの失敗: PR をタスクに紐付けられなかった。\n404 で待ち切れなかったため、連携を確かめてほしい。' ""
+add pr-made claude-implementer "PR を作りました ${pr_url}"$'\n\n紐付けの失敗: PR をタスクに紐付けられなかった。\n404 で待ち切れなかったため、連携を確認してほしい。' ""
 run final-1
 expect_status 0
 body=$(posted_body)
@@ -193,7 +193,7 @@ set_changed_files README.md
 set_issue_labels label-imp
 run final-1
 expect_leader 'QA が選ばれる変更なのに、組に QA の結果がない'
-# QA の役が名簿になければ、確かめない。
+# QA の役が名簿になければ、確認しない。
 reset
 set_roster orchestrator code-reviewer claude-principal
 add pr-made orchestrator "PR を作りました ${pr_url}" ""

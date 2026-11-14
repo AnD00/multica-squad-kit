@@ -64,10 +64,10 @@ echo 'PASS report: 結果、同じ役の決める記録、決めるスクリプ�
 
 # 役が `返事の回:` の行を書いていても、スクリプトが付ける 1 行だけにする。/note のない結果には /note を足す。
 reset_calls
-printf '確かめたコミット: abc\n返事の回: other\n結果です' >"$test_dir/plain-result.md"
+printf '確認したコミット: abc\n返事の回: other\n結果です' >"$test_dir/plain-result.md"
 build_comments $both ready:orch:k1:7 >"$test_dir/comments.json"
 bash "$script" report test-issue trigger "$test_dir/plain-result.md"
-assert_jq -s '.[0].body == "/note\n確かめたコミット: abc\n結果です\n返事の回: round\n"' "$test_dir/posted.jsonl"
+assert_jq -s '.[0].body == "/note\n確認したコミット: abc\n結果です\n返事の回: round\n"' "$test_dir/posted.jsonl"
 echo 'PASS report: 返事の回の行は、スクリプトが 1 行だけ付ける'
 
 # すぐの読み直しで相手が見えず、待ってからの読み直しで見えたときは、そこで決める記録を書いて決める。
@@ -171,7 +171,7 @@ done
 echo 'PASS report: 決める実行が失敗したときは、標準エラーの最後の行か終了コードを理由にして知らせる'
 
 # 理由の 300 字切りは、ロケールによらず文字単位で、不正な UTF-8 を作らない。C と UTF-8 のロケールで同じ本文になる。
-# 日本語だけの理由と、ASCII と日本語が混ざった理由、不正なバイトを含む理由で確かめる。
+# 日本語だけの理由と、ASCII と日本語が混ざった理由、不正なバイトを含む理由で確認する。
 for shape in japanese mixed invalid; do
 	case $shape in
 	japanese) printf '次の依頼を書けません: %s\n' "$(printf 'あ%.0s' $(seq 1 400))" >"$test_dir/decide-err.src"

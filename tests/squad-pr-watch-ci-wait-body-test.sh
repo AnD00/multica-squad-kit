@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-pr-watch-ci-wait-body-test.sh で実行する。
-# squad-pr-watch ci-wait が、設計（docs/review-next-step.md）の「本文の読み方のテスト」の表 1 の全行（tests/review-body-table.tsv）を、共通の部品と同じ結果で読むかを確かめる。
+# squad-pr-watch ci-wait が、設計（docs/review-next-step.md）の「本文の読み方のテスト」の表 1 の全行（tests/review-body-table.tsv）を、共通の部品と同じ結果で読むかを確認する。
 # 入力は、principal が最終レビューの回 final-1 のあとに書いたコメント 1 件。種類の行は「マージの依頼: <head>」。
 #   control = 依頼済みと読み、待ちを解除する。notcontrol = 依頼済みと読まず、実行中として待つ。
 #   unreadable = 依頼済みと読まず、何も書かず、規則と待ちの記録を残し、理由を標準エラーに出して終了 1 になる。

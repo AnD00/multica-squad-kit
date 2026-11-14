@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-cli-lib-control-test.sh で実行する。
-# squad-cli-lib の制御記録・認める回・最終レビューの判定（squad_cli_control）を、入力を直接渡して確かめる。
+# squad-cli-lib の制御記録・認める回・最終レビューの判定（squad_cli_control）を、入力を直接渡して確認する。
 # squad-review-next・squad-review-wait・squad-pr-watch は、同じ判定を呼ぶ。条件は docs/review-next-step.md の「制御記録の読み方」にある。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -40,7 +40,7 @@ check() { # 説明 jq の式。analyze の出力に当てる
 		exit 1
 	}
 }
-# コメント x を足して、x が制御記録として読まれたか（kind と written）を確かめる。
+# コメント x を足して、x が制御記録として読まれたか（kind と written）を確認する。
 counted() { analyze | jq -r '[.controls[] | select(.id == "x") | "\(.kind):\(.written)"] | first // "no"'; }
 
 # ---- 制御記録の種類。決める実行の役（qa）もリーダー（L）も、種類ごとに書き済みか次へ回し済みだけかが分かれる。
@@ -63,7 +63,7 @@ for name in retry fix final merge human usage ci; do
 	for author in L qa; do
 		base
 		agent x "$author" "$body"
-		[[ $(counted) == "$want" ]] || { echo "種類 $name を $author が書いたときの読み: $(counted)（期待 $want）" >&2; exit 1; }
+		[[ $(counted) == "$want" ]] || { echo "種類 $name を $author が書いたときの読み: $(counted)（期待 ${want}）" >&2; exit 1; }
 	done
 done
 echo 'PASS control: 決める実行の役とリーダーが書いた種類ごとに、書き済みか次へ回し済みだけかが分かれる'
@@ -260,3 +260,13 @@ base
 agent m qa "マージの依頼: $sha"$'\n前の回: r1'
 [[ $(merged "$sha") == yes ]] || { echo "決める実行の役のマージの依頼を読まない" >&2; exit 1; }
 echo 'PASS merge_requested: 囲み・結果・ほかの役・存在しない回の依頼は読まず、引用は読めない候補として止め、決める実行の役の制御記録は読む'
+# 読める依頼と、同じ head の読めない候補が同時にあるときは、順序と作者によらず、読めない候補を優先して理由で止める（依頼済みと読まない）。
+for order in before after; do
+	for unread in $'> マージの依頼: SHA' $'  マージの依頼: SHA' $'マージの依頼: SHA\n<div>' $'マージの依頼: SHA\n```\n閉じない'; do
+		base
+		body=${unread//SHA/$sha}
+		if [[ $order == before ]]; then agent bad L "$body"; agent m1 L "マージの依頼: $sha"; else agent m1 L "マージの依頼: $sha"; agent bad L "$body"; fi
+		[[ $(merged "$sha") == "blocked 制御記録を読めない（bad: "* ]] || { echo "読める依頼と読めない候補が同時にあるのに止めない（${order}）: $(merged "$sha")" >&2; exit 1; }
+	done
+done
+echo 'PASS merge_requested: 読める依頼と同じ head の読めない候補が同時にあるときは、順序によらず、読めない候補を優先して止める'

@@ -191,7 +191,7 @@ reset
 set_issue_labels label-imp-project
 run
 expect_request code-reviewer '変えたファイル 1 件が対応に当たった（プロジェクト 0 件・既定 1 件）'
-echo 'PASS review-next: 印「重要」があれば有効な観点をすべて頼み、課題のラベルでない「重要」は印にしない'
+echo 'PASS review-next: 印「重要」があれば有効な観点をすべて頼み、タスクのラベルでない「重要」は印にしない'
 
 # ---- 担当がメンバーのタスクでも、呼び出したリーダー（MULTICA_AGENT_ID）のスクワッドの名簿で依頼を書く。
 reset

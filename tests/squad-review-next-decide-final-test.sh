@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-final-test.sh で実行する。
-# squad-review-next decide の判定のうち、最終レビューの依頼・範囲・最終レビューの回の返事を確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide の判定のうち、最終レビューの依頼・範囲・最終レビューの回の返事を確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 reset
@@ -135,7 +135,7 @@ expect_posted 最終レビュー "$(final_request_body 'PR の差分全体')"
 expect_no_calls compare-calls
 echo 'PASS review-next-decide: 最終レビューの範囲は、前の最終レビューのコミットが祖先のときだけ差分にする'
 
-# 最上位の役が名簿になければ、最終レビューを書かずにマージの段へ進む。head の照合は、最上位の役がないので流さない。
+# 最上位の役が名簿になければ、最終レビューを書かずにマージの手順へ進む。head の照合は、最上位の役がないので流さない。
 reset
 set_roster orchestrator code-reviewer qa
 ok_round
@@ -197,7 +197,7 @@ ok_round
 run round-1
 expect_status 0
 [[ $(<"$test_dir/out") == $'次の依頼: 最終レビュー'* ]] || fail "違うコミットの最終レビューを同じと見なしている: $(<"$test_dir/out")"
-echo 'PASS review-next-decide: 最終レビューが要らないとき、または済んでいるときは、マージの段（未実装）に進む'
+echo 'PASS review-next-decide: 最終レビューが要らないとき、または済んでいるときは、マージの手順（未実装）に進む'
 
 # 最終レビューの回の返事。
 reset
@@ -253,7 +253,7 @@ add final-1 orchestrator "見直しの種類: 最終レビュー"$'\n'"確認す
 result final-1 claude-principal ✅ "$old" なし
 run final-1
 expect_leader '見る範囲: か 振り分け: の行がない'
-echo 'PASS review-next-decide: 最終レビューの回の返事は、マージの段・修正・最終レビューの形の頼み直しに分ける'
+echo 'PASS review-next-decide: 最終レビューの回の返事は、マージの手順・修正・最終レビューの形の頼み直しに分ける'
 
 # スクワッドは、回を書いた役から決める。タスクの担当がメンバーでも、別のスクワッドでも、回を書いたリーダーのスクワッドの名簿を読む。
 reset

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-unreadable-scenario-test.sh で実行する。準備は tests/review-next-decide-common.sh にある。
-# squad-review-next decide が、読めない候補をどの場面で止め、どの場面で候補にしないかを確かめる。
+# squad-review-next decide が、読めない候補をどの場面で止め、どの場面で候補にしないかを確認する。
 # 場面は docs/review-next-step.md の「本文の読み方のテスト」の表 2 の decide の行。本文の読み方そのものは squad-review-next-decide-body-*-test.sh。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
@@ -84,6 +84,6 @@ for case_ in 'indent:行頭の空白:  字下げした行' 'html:HTML:<b>タグ�
 	printf '紐付け: 紐付いていない pr: %s\n' "$pr_url" >"$test_dir/link-out"
 	jq --arg line "$line" 'map(if .id == "pr-made" then .content = "PR を作りました https://github.com/demo/project/pull/7\n\n紐付けの失敗: PR をタスクに紐付けられなかった。\n" + $line else . end)' "$test_dir/comments.json" >"$test_dir/comments.new" && mv "$test_dir/comments.new" "$test_dir/comments.json"
 	run final-1
-	expect_leader "書く本文を読めない（$reason）"
+	expect_leader "書く本文を読めない（${reason}）"
 done
 echo 'PASS review-next-decide: 写す紐付けの失敗: の段落の字下げの行と < の行は、何も書かず、書く本文を読めない理由で終了 3 になる'

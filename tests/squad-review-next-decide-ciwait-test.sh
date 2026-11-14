@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-ciwait-test.sh で実行する。
-# squad-review-next decide のマージの前の CI の待ち（見張り役がある構成の ci-wait の行の分け方・CI の待ちの記録・起きた規則の受け渡し）を確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide のマージの前の CI の待ち（見張り役がある構成の ci-wait の行の分け方・CI の待ちの記録・起きた規則の受け渡し）を確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 

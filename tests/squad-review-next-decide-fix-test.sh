@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-fix-test.sh で実行する。
-# squad-review-next decide の判定のうち、修正の依頼・使用率の待ち・24 時間を超えた待ちの人間の呼びを確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide の判定のうち、修正の依頼・使用率の待ち・24 時間を超えた待ちの人間の呼びを確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 reset
@@ -73,7 +73,7 @@ result round-1 qa ✅ "$sha" なし
 run round-1
 expect_status 0
 [[ $(<"$test_dir/out") == $'次の依頼: 修正'* ]] || fail "最上位の役の結果があるのに修正でない: $(<"$test_dir/out")"
-echo 'PASS review-next-decide: ❌ があれば、回数と印の条件を確かめて、修正の依頼を書く'
+echo 'PASS review-next-decide: ❌ があれば、回数と印の条件を確認して、修正の依頼を書く'
 
 # 使用率の待ち（pick の終了コード 3）。待ちのコメントだけを書き、状態も CI の待ちも変えない。
 reset

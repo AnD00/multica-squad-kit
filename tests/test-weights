@@ -130,3 +130,4 @@ tests/squad-review-next-decide-unreadable-scenario-test.sh 30
 tests/squad-review-wait-body-test.sh 50
 tests/squad-review-wait-report-unreadable-test.sh 5
 tests/squad-pr-watch-ci-wait-body-test.sh 50
+tests/squad-pr-watch-ci-wait-unreadable-test.sh 20

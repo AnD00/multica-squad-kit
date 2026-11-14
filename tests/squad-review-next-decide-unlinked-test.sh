@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-unlinked-test.sh で実行する。
-# squad-review-next decide の判定のうち、紐付いていない PR の確認（その場の CI・コンフリクト）・書けないときの失敗・引数を確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide の判定のうち、紐付いていない PR の確認（その場の CI・コンフリクト）・書けないときの失敗・引数を確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 reset
@@ -42,7 +42,7 @@ unlinked
 echo 1 >"$test_dir/ci-status"
 run round-1
 expect_leader 'CI の見張りを入れられない'
-# マージの段で見張りの役がいれば、その場の確認（ci-now）は流さず、見張りを入れて ci-wait で CI を待つ。
+# マージの手順で見張りの役がいれば、その場の確認（ci-now）は流さず、見張りを入れて ci-wait で CI を待つ。
 reset
 set_roster orchestrator code-reviewer qa ci-monitor
 ok_round
@@ -111,7 +111,7 @@ ok_round
 printf '紐付け: 紐付いている pr: https://github.com/demo/project/pull/99\n' >"$test_dir/link-out"
 run round-1
 [[ $(posted_body) == *$'\n対象の PR: https://github.com/demo/project/pull/99' ]] || fail "対象の PR が紐付けの URL でない: $(posted_body)"
-echo 'PASS review-next-decide: 紐付いていない PR は、その場の CI（見張りの役がある構成は ci-wait）とコンフリクトを確かめ、止まる値ならリーダーに任せる'
+echo 'PASS review-next-decide: 紐付いていない PR は、その場の CI（見張りの役がある構成は ci-wait）とコンフリクトを確認し、止まる値ならリーダーに任せる'
 
 # ---- 書く前の失敗。
 reset

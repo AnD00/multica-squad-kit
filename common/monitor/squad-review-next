@@ -1007,7 +1007,7 @@ leave_ci_wait() {
 post_request() {
 	local issue=$1 round=$2 body=$3 cleanup=${4-} id status=0 read_why
 	# 書く前に、書く本文を制御記録と同じ部品で読む。読めないときは何も書かない。
-	read_why=$(squad_cli_control body '[]' '[]' null "$(<"$body")") || dfail '書く本文を確かめられない'
+	read_why=$(squad_cli_control body '[]' '[]' null "$(<"$body")") || dfail '書く本文を確認できない'
 	if [[ $read_why != ok ]]; then
 		rm -f -- "$body"
 		[[ $cleanup != unwatch ]] || "$script_dir/squad-review-wait" unwatch "$issue" >/dev/null 2>&1 || true

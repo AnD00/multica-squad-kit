@@ -2207,7 +2207,7 @@ def recognize_now(i):
 
 
 def control(i):
-    """制御記録の条件のすべてを確かめる。{kind, prev, role, reason}。kind が None なら制御記録でない。"""
+    """制御記録の条件のすべてを確認する。{kind, prev, role, reason}。kind が None なら制御記録でない。"""
     if i not in control_cache:
         control_cache[i] = control_now(i)
     return control_cache[i]
@@ -2361,14 +2361,18 @@ if mode == "analyze":
     })
 elif mode == "merge_requested":
     want = "マージの依頼: " + args[0]
+    # 読めない候補は、読める依頼と同じ head にあっても優先する。依頼済みと読まず、理由を返す。
     held = blocked_text(unreadable([want]))
+    if held:
+        print("blocked " + held)
+        sys.exit(0)
     for i in sequence:
         if not parsed[i]["agent"] or is_result(i) or want not in parsed[i]["placed"]:
             continue
         if parsed[i]["author"] in leaders or control(i)["kind"] == "merge":
             print("yes")
             sys.exit(0)
-    print("blocked " + held if held else "no")
+    print("no")
 elif mode == "body":
     # 書く前の本文の確認。args = [本文]。読めて、種類を示す行と前の回: の行が置き方を満たせば ok、そうでなければ読めない理由を出す。
     placed, _, _, reason = parse({"content": args[0]})

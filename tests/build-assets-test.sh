@@ -54,7 +54,7 @@ make_repo() {
 	git -C "$repo" tag -a v1.6.0 -m v1.6.0
 }
 
-# run_build <引数...>: 出力先の相対パスの基準は caller（既定は $case_dir）。終了コードを rc に置く。
+# run_build <引数...>: 出力先の相対パスの基準は caller（既定は ${case_dir}）。終了コードを rc に置く。
 run_build() {
 	rc=0
 	: >"$case_dir/archive.log"

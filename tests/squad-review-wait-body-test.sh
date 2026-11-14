@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-wait-body-test.sh で実行する。
-# squad-review-wait の status と proceed が、設計（docs/review-next-step.md）の「本文の読み方のテスト」の表 1 の全行（tests/review-body-table.tsv）を、共通の部品と同じ結果で読むかを確かめる。
+# squad-review-wait の status と proceed が、設計（docs/review-next-step.md）の「本文の読み方のテスト」の表 1 の全行（tests/review-body-table.tsv）を、共通の部品と同じ結果で読むかを確認する。
 # 入力は、回 round のあとにリーダーが書いたコメント 1 件。読めない行は、何も書かず、理由を標準エラーに出して終了 1 になる。読める行は、止まらない。
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)

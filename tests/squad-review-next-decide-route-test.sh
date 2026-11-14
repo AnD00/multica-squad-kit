@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-route-test.sh で実行する。
-# squad-review-next decide の判定のうち、回の種類・返事の組・書き済み・頼み直し・設計への指摘を確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide の判定のうち、回の種類・返事の組・書き済み・頼み直し・設計への指摘を確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 reset

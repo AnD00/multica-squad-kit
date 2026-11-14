@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-pr-test.sh で実行する。
-# squad-review-next decide の判定のうち、PR の確認のうち、紐付けの判定と保留した CI の失敗を確かめる。準備は tests/review-next-decide-common.sh にある。
+# squad-review-next decide の判定のうち、PR の確認のうち、紐付けの判定と保留した CI の失敗を確認する。準備は tests/review-next-decide-common.sh にある。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
 reset
@@ -49,7 +49,7 @@ for line in '紐付け: 別のタスクに紐付いている pr: https://github.
 	run round-1
 	expect_leader "$line"
 done
-# 行き先がリーダーに任せる値でも、マージの段でも、PR の確認は先に流す。
+# 行き先がリーダーに任せる値でも、マージの手順でも、PR の確認は先に流す。
 reset
 set_roster orchestrator code-reviewer qa
 ok_round
@@ -58,7 +58,7 @@ run round-1
 expect_leader '紐付け: 別のタスクに紐付いている'
 echo 'PASS review-next-decide: 紐付けの判定が進める値でなければ、行き先によらずリーダーに任せる'
 
-# CI の保留した失敗（表の 3）。見張りの役がいるか、PR が紐付いていないときに確かめる。
+# CI の保留した失敗（表の 3）。見張りの役がいるか、PR が紐付いていないときに確認する。
 reset
 ok_round
 printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
@@ -70,7 +70,7 @@ ok_round
 echo 1 >"$test_dir/held-status"
 run round-1
 expect_leader 'CI の保留した失敗を読めない'
-# 見張りの役がなく、紐付いているなら、確かめない。
+# 見張りの役がなく、紐付いているなら、確認しない。
 reset
 set_roster orchestrator code-reviewer qa claude-principal claude-fixer
 ok_round
@@ -78,7 +78,7 @@ printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
 expect_status 0
 expect_call_lacks pr-watch-calls ci-held
-# マージの段で、見張りの役がいるときも、保留した失敗を読み、あれば止まる。止まるときは、CI の待ちも規則の登録もしない。
+# マージの手順で、見張りの役がいるときも、保留した失敗を読み、あれば止まる。止まるときは、CI の待ちも規則の登録もしない。
 reset
 set_roster orchestrator code-reviewer qa ci-monitor
 ok_round
@@ -88,7 +88,7 @@ expect_leader '保留した CI の失敗がある'
 expect_call_has pr-watch-calls 'ci-held test-issue round-1'
 expect_call_lacks pr-watch-calls ci-wait
 expect_call_lacks pr-watch-calls 'conflicts test-issue'
-# マージの段で、見張りの役がなく、紐付いていないなら、保留した失敗を読み、あれば止まる。
+# マージの手順で、見張りの役がなく、紐付いていないなら、保留した失敗を読み、あれば止まる。
 reset
 set_roster orchestrator code-reviewer qa
 ok_round
@@ -97,4 +97,4 @@ printf 'CI 0123456: 失敗あり（テスト）\n' >"$test_dir/held-out"
 run round-1
 expect_leader '保留した CI の失敗がある'
 expect_call_lacks pr-watch-calls 'conflicts test-issue'
-echo 'PASS review-next-decide: 保留した CI の失敗は、確かめる条件のときだけ読み、あればリーダーに任せる'
+echo 'PASS review-next-decide: 保留した CI の失敗は、確認する条件のときだけ読み、あればリーダーに任せる'

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-control-test.sh で実行する。準備は tests/review-next-decide-common.sh にある。
-# squad-review-next decide の判定のうち、制御記録（書き済みとするか）を確かめる。
+# squad-review-next decide の判定のうち、制御記録（書き済みとするか）を確認する。
 # 条件は docs/review-next-step.md の「制御記録の読み方」にある。認める回と最終レビューの認め方は squad-review-next-decide-recognize-test.sh。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"

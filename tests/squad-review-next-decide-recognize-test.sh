@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ZIP のルートから bash tests/squad-review-next-decide-recognize-test.sh で実行する。準備は tests/review-next-decide-common.sh にある。
-# squad-review-next decide の判定のうち、認める回と最終レビューの認め方を確かめる。
+# squad-review-next decide の判定のうち、認める回と最終レビューの認め方を確認する。
 # 条件は docs/review-next-step.md の「認める回」「最終レビューの回と結果を認める条件」にある。制御記録は squad-review-next-decide-control-test.sh。
 set -euo pipefail
 source "$(dirname "$0")/review-next-decide-common.sh"
@@ -89,7 +89,7 @@ add final-1 orchestrator "見直しの種類: 最終レビュー"$'\n'"確認す
 result final-1 claude-principal ✅ "$sha" なし
 run final-1
 expect_leader '最終レビューを認められない'
-# 認める最終レビューの回は、最上位の役の結果でマージの段に進む。
+# 認める最終レビューの回は、最上位の役の結果でマージの手順に進む。
 reset
 set_merge_roster
 ok_round
