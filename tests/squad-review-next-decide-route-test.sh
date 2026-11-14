@@ -21,11 +21,11 @@ expect_leader '回の種類が分からない'
 reset
 add round-1 orchestrator $'何でもない回\n確認するコミット: '"$sha"
 run round-1
-expect_leader '回の種類が分からない'
+expect_leader '回を認められない（返事を待つ役: の行'
 reset
 add round-1 orchestrator $'観点: qa（テスト）\n確認するコミット: '"$sha"$'\n返事を待つ役: なし'
 run round-1
-expect_leader '返事を待つ役の行がない'
+expect_leader '回を認められない（返事を待つ役: の行'
 reset
 add round-1 orchestrator $'観点: qa（テスト）\n確認するコミット: 未定\n返事を待つ役: '"$(mentions qa)"
 run round-1
@@ -94,7 +94,7 @@ echo 'PASS review-next-decide: 結果のあとの記録や知らせは、返事�
 # ---- 書き済み: 同じ回の依頼があれば何も書かない。待ちのコメントは書き済みにしない。
 reset
 ok_round
-add next orchestrator $'次の依頼です\n前の回: round-1'
+add next orchestrator $'修正の依頼: 直してください\n前の回: round-1'
 run round-1
 expect_status 0
 [[ $(<"$test_dir/out") == '次の依頼: 書き済み' ]] || fail "書き済みを出していない: $(<"$test_dir/out")"
@@ -103,7 +103,7 @@ expect_no_calls pr-watch-calls
 expect_no_calls pick-calls
 reset
 ok_round
-add next orchestrator $'/note 前の回: round-1'
+add next orchestrator $'/note 修正の依頼: 直してください\n前の回: round-1'
 run round-1
 [[ $(<"$test_dir/out") == '次の依頼: 書き済み' ]] || fail "/note 付きの書き済みを見つけていない: $(<"$test_dir/out")"
 for waiting in '使用率の待ち: fix を待つ。' 'マージの前の CI の待ち: 待つ。'; do

@@ -224,11 +224,15 @@ echo 'PASS report: 回がなければ投稿しない'
 # `前の回:` をたどってリーダーが書いた回のスクワッドを使う。たどるのは 10 回まで。たどれなければ、結果も書かずに失敗する。
 chain_comments() { # 前の回をたどる回数 [リーダーが書いた回の作者]
 	local hops=$1 leader=${2:-orchestrator}
+	# r0 がリーダーの回。r1 以降は、前の回の決める実行の役（a）が、その決める記録のあとに書いた頼み直し。
 	jq -n --slurpfile comment "$test_dir/comment-prototype.json" --arg a "$a" --arg b "$b" --arg leader "$leader" --argjson ts "$round_ts" --argjson hops "$hops" '
-		def round($id; $author; $at; $prev): $comment[0] + {id: $id, author_type: "agent", author_id: $author, created_at: ($at | todateiso8601),
-			content: ((if $prev == "" then "" else "前の回: " + $prev + "\n" end) + "返事を待つ役: [@review](mention://agent/" + $a + ") [@qa](mention://agent/" + $b + ")")};
-		[round("r0"; $leader; $ts - 3600; "")]
-		+ [range(1; $hops + 1) | round("r\(.)"; $a; $ts - 3600 + .; "r\(. - 1)")]
+		def waited: "返事を待つ役: [@review](mention://agent/" + $a + ") [@qa](mention://agent/" + $b + ")";
+		def at($n): ($ts - 3600 + $n) | todateiso8601;
+		def round($id; $author; $n; $content): $comment[0] + {id: $id, author_type: "agent", author_id: $author, created_at: at($n), content: $content};
+		[round("r0"; $leader; 0; waited + "\n観点: qa（テスト）")]
+		+ [range(0; $hops) as $k
+			| round("d\($k)"; $a; 10 * $k + 5; "/note\n返事の待ち: 次の依頼を決めます"),
+			round("r\($k + 1)"; $a; 10 * $k + 10; "コミットが合わず頼み直す役: qa\n前の回: r\($k)\n" + waited)]
 		+ [$comment[0] + {id: "x1", author_type: "agent", author_id: $a, created_at: (($ts + 5) | todateiso8601), content: "result"},
 			$comment[0] + {id: "x2", author_type: "agent", author_id: $b, created_at: (($ts + 6) | todateiso8601), content: "result"}]'
 }
@@ -248,17 +252,18 @@ for hops in 1 10; do
 	jq -s -e '.[2].body | startswith("[@demo-squad](mention://squad/squad-test) 返事がそろいました。\n")' "$test_dir/posted.jsonl" >/dev/null
 done
 echo 'PASS report: 役が書いた回は、前の回を 10 回までたどり、リーダーが書いた回のスクワッドで知らせる'
-for broken in 11 leaderless; do
-	reset_calls
-	case $broken in
-	11) chain_comments 11 >"$test_dir/comments.json" ;;
-	leaderless) chain_comments 3 not-a-leader >"$test_dir/comments.json" ;;
-	esac
-	if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
-	[[ ! -s $test_dir/output && $(<"$test_dir/error") == '知らせるスクワッドを決められません'* ]]
-	[[ ! -s $test_dir/posted.jsonl && -z $(slept) && -z $(decide_calls) && $(list_count) == 1 ]]
-done
-echo 'PASS report: 前の回を 10 回たどってもリーダーの回に着かなければ、何も投稿せずに失敗する'
+# 前の回を 10 回までにたどれない回と、リーダーに着かない回は、認める回でない。後者だけなら回がないときと同じに止まり、
+# 前者は、たどれる最後の回（r10）が最新の回になる。どちらも認めない回に結果を紐付けず、知らせる先も決めない。
+reset_calls
+chain_comments 3 not-a-leader >"$test_dir/comments.json"
+if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
+[[ ! -s $test_dir/output && $(<"$test_dir/error") == '返事を待つ役の登録がありません'* ]]
+[[ ! -s $test_dir/posted.jsonl && -z $(slept) && -z $(decide_calls) && $(list_count) == 1 ]]
+reset_calls
+chain_comments 11 >"$test_dir/comments.json"
+bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error" || true
+jq -s -e '.[0].body | endswith("返事の回: r10\n")' "$test_dir/posted.jsonl" >/dev/null
+echo 'PASS report: 前の回を 10 回たどってもリーダーの回に着かない回は認めず、結果を紐付けない'
 
 # 結果投稿後の失敗は、未返答とは区別して返す。結果は再投稿しない。決める実行は流さない。
 # 2 回目の取得は結果の投稿直後、3 回目は決める記録の投稿後の読み直し。
@@ -420,3 +425,18 @@ for at in "$now" $((now + 870)); do
 	[[ $output == $'/note\n返事の待ち: 回ごと済み' && ! -s $test_dir/posted.jsonl && $(deleted_rules) == 0 ]]
 done
 echo 'PASS proceed: 次の依頼が書かれた回は、何も書かずに回ごと済み'
+
+# proceed: 制御記録でない `前の回:`（引用、役の結果、人間のコメント、種類の行のないコメント）では、回ごと済みにせず次に進む。
+for spec in "q|orchestrator|agent|> 修正の依頼: 直してください"$'\n'"> 前の回: round" \
+	"r|$a|agent|/note"$'\n'"返事の回: round"$'\n'"前の回: round" \
+	"h|human-1|member|修正の依頼: 直してください"$'\n'"前の回: round" \
+	"b|orchestrator|agent|次の依頼です"$'\n'"前の回: round"; do
+	IFS='|' read -r id who type body <<<"$(printf '%s' "$spec" | tr '\n' '\001')"
+	body=$(printf '%s' "$body" | tr '\001' '\n')
+	reset_calls
+	build_comments result:a:r1:5 result:b:r2:6 | with_raw "n-$id" "$who" "$type" 8 "$body" >"$test_dir/comments.1.json"
+	build_comments result:a:r1:5 result:b:r2:6 ready:orch:posted-1:90 claim:orch:posted-2:91 | with_raw "n-$id" "$who" "$type" 8 "$body" >"$test_dir/comments.json"
+	output=$(bash "$script" proceed test-issue watch-trigger)
+	[[ $output == '返事の待ち: 次に進む' ]] || { echo "回ごと済みにした: $id → $output" >&2; exit 1; }
+done
+echo 'PASS proceed: 引用・結果・人間・種類のない前の回: だけでは、回ごと済みにしない'

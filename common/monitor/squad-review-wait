@@ -3,7 +3,7 @@
 # 並行で頼んだレビューと E2E の結果を集め、そろったとき、役の実行の失敗・取り消し、待つ上限で orchestrator を起こす。
 # 結果のたびに orchestrator が起きると、まだそろっていない回は何もせずに終わり、利用枠だけを使うため。
 #
-# 「回」は、`返事を待つ役:` の行を持つ、タスクの最新のコメント。待つ役は、その行のメンションの UUID。
+# 「回」は、`返事を待つ役:` の行（引用や囲みの外）を持つ、認める回の最新のコメント。作者はリーダーか、決める実行の役。待つ役は、その行のメンションの UUID。
 # 「返した」は、その役のエージェントが回より後に書いたコメントがあること。
 #
 #   squad-review-wait watch <タスク> <きっかけのコメント> [--agent-id <起こす宛先の ID>] <役の ID>...
@@ -15,8 +15,9 @@
 #     最新の回を調べ、何もしない・拾い直す・記録する・人間を呼ぶの判定と、返っていない役の実行の状態を出す。
 #     上限用の wakeup は --timeout を付け、コメントからの経過を待たずに未返答の役と状態を記録する。
 #     全員が返していて記録のない回は、知らせの有無を問わず proceed へ進む。
-#     ただし、`前の回:` でこの回を指すコメントがあれば次へ回し済み。決める記録（返事の待ち: 次の依頼を決めます）が
-#     あって `前の回:` のコメントがなければ、記録から 15 分未満は待ち、15 分以上は proceed へ進む。
+#     ただし、この回を `前の回:` で指す制御記録（種類の行と `前の回:` が同じコメントにある、リーダーか決める実行の役の記録）があれば
+#     次へ回し済み。引用・役の結果・人間のコメントの `前の回:` は数えない。決める記録（返事の待ち: 次の依頼を決めます）が
+#     あって制御記録がなければ、記録から 15 分未満は待ち、15 分以上は proceed へ進む。
 #   squad-review-wait proceed <タスク> <きっかけのコメント>
 #     どの実行も、次の工程に進む前に通す。決める記録は自分の記録と数えない。回を次へ回す記録を書き、同じ回の記録のうち、
 #     いちばん早いものを書いた実行だけに `次に進む` を返し、回の見張りを消す。すでに記録があれば `回ごと済み`、
@@ -80,32 +81,19 @@ comments_of() {
 
 # 最新の回を JSON で出す: {id, author_id, ts, waiting: [UUID...], returned: [UUID...], ready_ids: [ID...], claim_ids: [ID...],
 # decide_ids: [ID...], decide_ts, next_ids: [ID...], ready}。回がなければ何も出さない。
+# 回は、squad-cli-lib の判定（docs/review-next-step.md の「認める回」）で認める、エージェントのコメントだけ。
+# 返事を待つ役の行を引用した結果や、リーダーでも決める実行の役でもない作者のコメントは、回と読まない。
+# リーダーは、有効なスクワッドのリーダーの全員。回のスクワッドは、あとで squad_for_round が決める。
 # ready_ids は、回より後の、そろった知らせのコメントの ID を、時刻の早い順（同じ時刻なら ID の順）に並べたもの。
 # claim_ids は、回より後の、次へ回す記録のコメントの ID を、同じ順に並べたもの。
-# decide_ids は、回より後の、決める記録のコメントの ID を、同じ順に並べたもの。decide_ts は、そのうち最も早いものの時刻（なければ null）。
-# next_ids は、回より後の、`前の回:` でこの回を指すコメントの ID を、同じ順に並べたもの。decide が書く依頼や待ちの記録が入る。
-# ready は、ready_ids が空でないこと。
+# decide_ids は、回より後の、回の返事を待つ役が書いた決める記録のコメントの ID を、同じ順に並べたもの。decide_ts は、そのうち最も早いものの時刻（なければ null）。
+# next_ids は、回より後の、この回を指す制御記録のコメントの ID を、同じ順に並べたもの。`前の回:` の行があるだけのコメントは入らない。
+# ready は、ready_ids が空でないこと。claim_ids と decide_ids も、行の置き方と結果でない条件を満たすものだけが入る。
 latest_round() {
-	jq -c --arg round "$ROUND_MARK" --arg ready "$READY_MARK" --arg claim "$CLAIM_MARK" --arg decide "$DECIDE_MARK" --arg prev "$PREV_MARK" '
-		def line_of($mark): (.content | split("\n") | map(select(startswith($mark))) | first // "");
-		def value_of($mark): line_of($mark) | ltrimstr($mark) | gsub("^\\s+|\\s+$"; "");
-		def first_line: (.content | split("\n") | first // "");
-		def waiting_of: line_of($round) | [scan("mention://agent/([A-Za-z0-9-]+)") | .[0]] | unique;
-		. as $all
-		| ([$all[] | select(.author_type == "agent" and (waiting_of | length) > 0)] | last) as $r
-		| if $r == null then empty else
-			($r | waiting_of) as $waiting
-			| [$all[] | select(.ts > $r.ts)] as $after
-			| ([$after[] | select(.author_type == "agent" and line_of($decide) != "")] | sort_by([.ts, .id])) as $decides
-			| {
-				id: $r.id, author_id: $r.author_id, ts: $r.ts, waiting: $waiting,
-				returned: ([$after[] | select(.author_type == "agent") | .author_id] | unique | map(select(IN($waiting[])))),
-				ready_ids: ([$after[] | select(.author_type == "agent" and (first_line | contains($ready)))] | sort_by([.ts, .id]) | map(.id)),
-				claim_ids: ([$after[] | select(.author_type == "agent" and line_of($claim) != "")] | sort_by([.ts, .id]) | map(.id)),
-				decide_ids: ($decides | map(.id)),
-				decide_ts: ($decides | first | .ts // null),
-				next_ids: ([$after[] | select(.author_type == "agent" and value_of($prev) == $r.id)] | sort_by([.ts, .id]) | map(.id))
-			} | . + {ready: (.ready_ids | length > 0)} end'
+	local comments leaders
+	comments=$(cat) || return 1
+	leaders=$(squad_cli_read squad-list | jq -c '[.[] | select(.archived_at == null) | .leader_id] | unique') || return 1
+	squad_cli_control state "$comments" "$leaders" null
 }
 
 # 待つ役のうち、返していない役の UUID を 1 行ずつ出す。
@@ -189,8 +177,9 @@ deciding() {
 }
 
 wait_status() {
-	local issue=$1 timeout=${2:-} round missing runs latest id state lines='' failed=false now started name
-	round=$(comments_of "$issue" | latest_round)
+	local issue=$1 timeout=${2:-} comments round missing runs latest id state lines='' failed=false now started name
+	comments=$(comments_of "$issue") || return 1
+	round=$(latest_round <<<"$comments") || return 1
 	if [[ -z $round ]]; then
 		printf '/note\n返事の待ち: 回がないので何もしない\n'
 		return 0
@@ -414,8 +403,9 @@ report() {
 # コメントの並びは Multica が決めるので、ほぼ同時に動く実行どうしでも、進むのは必ず 1 つになる。
 # 実行の種類を問わず、最も早い記録の実行だけが次へ進む。
 proceed() {
-	local issue=$1 trigger=$2 round again own first attempt
-	round=$(comments_of "$issue" | latest_round)
+	local issue=$1 trigger=$2 comments round again own first attempt
+	comments=$(comments_of "$issue") || return 1
+	round=$(latest_round <<<"$comments") || return 1
 	if [[ -z $round ]]; then
 		printf '/note\n返事の待ち: 回がないので何もしない\n'
 		return 0
@@ -441,7 +431,8 @@ proceed() {
 	# どの実行も同じ並びを見て、最も早い記録を選ぶ。自分の記録は最大 2 回読み直す。
 	for attempt in 1 2; do
 		sleep "$REVIEW_WAIT_RECHECK_SECONDS"
-		again=$(comments_of "$issue" | latest_round) || return 1
+		comments=$(comments_of "$issue") || return 1
+		again=$(latest_round <<<"$comments") || return 1
 		if [[ -z $again || $(jq -r .id <<<"$again") != "$(jq -r .id <<<"$round")" ]]; then
 			printf '/note\n返事の待ち: 新しい回があるので何もしない\n'
 			return 0

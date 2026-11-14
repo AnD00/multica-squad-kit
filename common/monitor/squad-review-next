@@ -207,10 +207,9 @@ result("select", roles, f"変えたファイル {total} 件が対応に当たっ
 MATCHPY
 
 # decide の判定の中核。標準出力に JSON を 1 行だけ出す。
-#   python3 -I -c "$DECIDE_PY" written <ディレクトリ>   書き済みか: {"written": bool}
 #   python3 -I -c "$DECIDE_PY" lineage <ディレクトリ>   実装した系統: {"lineage": "Claude"|"Codex"|null}
 #   python3 -I -c "$DECIDE_PY" analyze <ディレクトリ>   行き先: {"action": leader|retry|fix|final|merge, ...}
-# ディレクトリの comments.json、task.json、roster.json、runs.json、params.json を読む。
+# ディレクトリの comments.json、task.json、roster.json、judge.json（squad_cli_control analyze の出力）、runs.json、params.json を読む。
 # 読めない値（回のコメントがない、時刻が読めない）は、標準エラーに理由を出して終了 1 にする。
 read -r -d '' DECIDE_PY <<'DECIDEPY' || true
 import json
@@ -259,15 +258,6 @@ def has_line(comment, prefix):
     return any(line.startswith(prefix) for line in lines_of(comment))
 
 
-if mode == "written":
-    params = load("params.json")
-    want = f"前の回: {params['round_id']}"
-    for comment in load("comments.json"):
-        lines = lines_of(comment)
-        if want in lines and not any(line.startswith(("使用率の待ち:", "マージの前の CI の待ち:")) for line in lines):
-            out({"written": True})
-    out({"written": False})
-
 roster = load("roster.json")
 roles = roster.get("roles") or {}
 key_of = {value["id"]: key for key, value in roles.items()}
@@ -297,6 +287,8 @@ if mode not in ("analyze", "linkfail"):
 params = load("params.json")
 comments = load("comments.json")
 task = load("task.json")
+judge = load("judge.json")
+rounds, finals = judge["rounds"], judge["finals"]
 round_id = params["round_id"]
 marked = bool(params.get("marked"))
 
@@ -351,26 +343,11 @@ def stop(reason, early=False):
 
 
 def round_kind(comment):
-    kind = field(comment, "見直しの種類:")
-    if kind is not None:
-        if kind.startswith("最終レビュー"):
-            return "final"
-        if kind.startswith(("設計の見直し", "設計と PR の見直し")):
-            return "design"
-        return "unknown"
-    if has_line(comment, "観点:") or has_line(comment, "コミットが合わず頼み直す役:"):
-        return "review"
-    return "unknown"
+    return (rounds.get(comment.get("id")) or {}).get("kind", "unknown")
 
 
 def waited(comment):
-    ids = []
-    for line in lines_of(comment):
-        if line.startswith("返事を待つ役:"):
-            for found in re.findall(r"mention://agent/([^)\s]+)", line):
-                if found not in ids:
-                    ids.append(found)
-    return ids
+    return list((rounds.get(comment.get("id")) or {}).get("waited", []))
 
 
 def hex_token(value):
@@ -407,6 +384,10 @@ class Unread(Exception):
     pass
 
 
+class Unrecognized(Exception):
+    pass
+
+
 def collect(comment, exclude, hops):
     got = []
     start = order[id(comment)]
@@ -424,18 +405,28 @@ def collect(comment, exclude, hops):
         if result is None:
             raise Unread(f"返事の結果が読めない: {key_of.get(role_id, role_id)}")
         got.append({"id": role_id, "round": comment, "result": result})
-    previous = field(comment, "前の回:")
+    info = rounds.get(comment.get("id")) or {}
+    if info.get("prev_line") and not info.get("prev"):
+        raise Unread("前の回: の行が読めない")
+    previous = info.get("prev")
     if previous:
         if hops >= 10:
             raise Unread("前の回をたどりきれない")
         parent = by_id.get(previous)
         if parent is None:
             raise Unread(f"前の回のコメントを読めない: {previous}")
+        parent_info = rounds.get(previous) or {}
+        if not parent_info.get("ok"):
+            raise Unrecognized(f"回を認められない（前の回 {previous}: {parent_info.get('reason') or '回のコメントでない'}）")
         got += collect(parent, exclude | set(waited(comment)), hops + 1)
     return got
 
 
 kind = round_kind(round_comment)
+if not (rounds.get(round_id) or {}).get("ok"):
+    stop(f"回を認められない（{(rounds.get(round_id) or {}).get('reason') or '回のコメントでない'}）", True)
+if kind == "final" and not (finals.get(round_id) or {}).get("ok"):
+    stop(f"最終レビューを認められない（{(finals.get(round_id) or {}).get('reason') or '候補でない'}）", True)
 if kind == "design":
     stop("設計の見直しの回はリーダーが扱う", True)
 if kind == "unknown":
@@ -447,7 +438,7 @@ if not re.fullmatch(r"[0-9a-fA-F]{7,64}", commit or ""):
     stop("確認するコミット: の行がないか 16 進でないので、スクリプトでは決められない", True)
 try:
     results = collect(round_comment, set(), 0)
-except Unread as error:
+except (Unread, Unrecognized) as error:
     stop(str(error), True)
 
 
@@ -495,8 +486,8 @@ if failed:
     if any(line.startswith("設計の変更: 実装を始めたあと") for line in all_lines) and not marked and not any(line.startswith("重要の印:") for line in all_lines):
         stop("設計の変更が実装を始めたあとで、印も 重要の印: もない（共通 4 の判断）")
     if marked:
-        review_rounds = {comment.get("id") for comment in comments if has_line(comment, "見直しの種類:")}
-        if not any(comment.get("author_id") in principal_ids and field(comment, "返事の回:") in review_rounds for comment in comments):
+        review_rounds = {key for key, info in rounds.items() if info.get("ok") and info.get("has_kind_line")}
+        if not any(comment.get("author_id") in principal_ids and comment.get("author_type") == "agent" and field(comment, "返事の回:") in review_rounds for comment in comments):
             stop("印があり、最上位の役の結果がタスクにない（設計と PR の見直しが要る）")
     emit({"action": "fix", "commit": commit, "n": count + 1, "roles": [key_of.get(entry["id"], entry["id"]) for entry in failed]})
 
@@ -549,8 +540,11 @@ if not principal_ids:
     merge(None)
 same_commit = [
     comment for comment in comments
-    if round_kind(comment) == "final" and (field(comment, "確認するコミット:") or "").lower() == commit.lower()
+    if comment.get("id") in finals and (finals[comment.get("id")].get("commit") or "").lower() == commit.lower()
 ]
+for candidate in same_commit:
+    if not finals[candidate.get("id")]["ok"]:
+        stop(f"最終レビューを認められない（{finals[candidate.get('id')]['reason']}）")
 if same_commit:
     pending = final_pending(max(same_commit, key=lambda comment: order[id(comment)]))
     if pending is None:
@@ -560,7 +554,7 @@ if same_commit:
 # 前の最終レビュー。最後に返事があった最終レビューの結果が読めるときだけ、その確認したコミットを使う。読めなければ、古い結果へは戻らない。
 latest = None
 for comment in comments:
-    if round_kind(comment) != "final":
+    if not (finals.get(comment.get("id")) or {}).get("ok"):
         continue
     for role_id in waited(comment):
         reply = latest_reply(comment, role_id)
@@ -834,9 +828,11 @@ ci_wait_record() {
 	local issue=$1 round=$2 line=$3 comments prefix body id
 	prefix="マージの前の CI の待ち: ${line%%: *}: "
 	comments=$(squad_cli_read issue-comments "$issue") || dfail 'コメントを読めない'
-	if jq -e --arg round "$round" --arg prefix "$prefix" '
-		any(.[]; ((.content // "") | split("\n")) as $lines
-			| ($lines | index("前の回: " + $round)) != null and any($lines[]; startswith($prefix)))' <<<"$comments" >/dev/null; then
+	# 記録と数えるのは、共有の判定が認めた制御記録（種類が CI の待ちの記録で、この回を指すもの）だけにする。
+	if jq -e --arg round "$round" --arg prefix "$prefix" --slurpfile judge "$work/judge.json" '
+		[$judge[0].controls[] | select(.kind == "ci" and .prev == $round) | .id] as $ids
+		| any(.[]; (.id as $id | $ids | index($id) != null)
+			and (((.content // "") | split("\n")) | any(.[]; startswith($prefix))))' <<<"$comments" >/dev/null; then
 		echo '次の依頼: CI の待ち（記録は書き済み）'
 		exit 0
 	fi
@@ -1067,20 +1063,13 @@ pick_role() {
 }
 
 decide() {
-	local issue=$1 round=$2 work roster task marked res action leader written commit kind id body mention
+	local issue=$1 round=$2 work roster task marked res action leader principals commit kind id body mention
 	local keys mentions role_key role_id lineage runs range prev pr repo compare cmp_status form
 	local -a ids=()
 	mkdir -p tmp
 	work=$(mktemp -d tmp/review-next-decide.XXXXXX) || dfail '作業のディレクトリを作れない'
 	trap "$(printf 'rm -rf -- %q' "$work")" EXIT
 	squad_cli_read issue-comments "$issue" >"$work/comments.json" || dfail 'コメントを読めない'
-	jq -n --arg round "$round" '{round_id: $round}' >"$work/params.json"
-	written=$(decide_py written "$work") || dfail '書き済みの確認に失敗した'
-	if [[ $(jq -r .written <<<"$written") == true ]]; then
-		echo '次の依頼: 書き済み'
-		return 0
-	fi
-
 	task=$(squad_cli_read issue-get "$issue") || dfail 'タスクを読めない'
 	printf '%s' "$task" >"$work/task.json"
 	# スクワッドは、回を書いた役から `前の回:` をたどって決める。タスクの担当は使わない（担当がスクワッドとは限らないため）。
@@ -1090,6 +1079,16 @@ decide() {
 	printf '%s' "$roster" >"$work/roster.json"
 	leader=$(jq -r '.leader // empty' <<<"$roster")
 	[[ -n $leader ]] || dfail 'スクワッドのリーダーを決められない'
+	# 制御記録と回の判定は、squad-cli-lib の共有の判定で行う（squad-review-wait・squad-pr-watch と同じ入力に同じ結果を返す）。
+	principals=$(jq -c '[.roles["claude-principal"].id?, .roles["codex-principal"].id?] | map(select(. != null))' <<<"$roster") || dfail '最上位の役を名簿から読めない'
+	squad_cli_control analyze "$(<"$work/comments.json")" "$(jq -cn --arg leader "$leader" '[$leader]')" "$principals" >"$work/judge.json" || dfail '制御記録を判定できない'
+	if [[ $(jq -r --arg round "$round" '.rounds[$round].ok // false' "$work/judge.json") != true ]]; then
+		stop_leader "回を認められない（$(jq -r --arg round "$round" '.rounds[$round].reason // "回のコメントでない"' "$work/judge.json")）"
+	fi
+	if jq -e --arg round "$round" 'any(.controls[]; .prev == $round and .written)' "$work/judge.json" >/dev/null; then
+		echo '次の依頼: 書き済み'
+		return 0
+	fi
 	marked=$(is_marked "$issue") || dfail 'タスクのラベルを読めない'
 	jq -n --arg round "$round" --argjson marked "$marked" '{round_id: $round, marked: $marked}' >"$work/params.json"
 	res=$(decide_py analyze "$work") || dfail '返事の組を読めない'

@@ -10,7 +10,8 @@
 #
 # 終了コード
 #   0: 役を選んだ。`役:` と `振り分け:` の行を出す
-#   3: 待つ。同じ工程の起こしがなければ置き、`使用率の待ち:` の行を出す
+#   3: 待つ。同じ工程の起こしがなければ置き、`使用率の待ち:` の行を出す。
+#      再開の時刻がすでに過ぎている（使用率がまだ上限に近い）ときは、60 分後に再確認する
 #   4: 待ち始めから通算 24 時間を超える。起こしは置かず、`使用率の待ち:` の行を出す
 #   1: 使い方や読み取りの誤り
 #
@@ -32,6 +33,7 @@ usage() {
 
 reader_pid=
 work_dir=
+pick_comments=
 
 stop_reader() {
 	kill -"$1" -- "-$reader_pid" 2>/dev/null || kill -"$1" -- "$reader_pid" 2>/dev/null || true
@@ -159,10 +161,15 @@ rfc3339() {
 wait_or_exceed() {
 	local issue=$1 process=$2 leader=$3 round=$4 resume=$5 text=$6
 	local comments start rules existing instruction response resume_text start_text
-	comments=$(squad_cli_read issue-comments "$issue") || return 1
+	# decide から呼ばれたときは、pick が読んだコメントを使う（同じ呼び出しの中で読み直さない）。
+	comments=${pick_comments:-}
+	[[ -n $comments ]] || comments=$(squad_cli_read issue-comments "$issue") || return 1
 	start=$(wait_start "$comments" "$process" "$leader") || return 1
 	if [[ -z $start ]] || ((start > now)); then start=$now; fi
 	start_text=$(rfc3339 "$start")
+	# 再開の時刻が現在以前（リセットを過ぎたのに、使用率がまだ上限に近い）なら、過去の時刻に起こしを置かず、将来の再確認の時刻にする。
+	if ((resume <= now)); then resume=$((now + FAIL_SAFE_SECONDS)); fi
+	# 24 時間の判定は、待ち始めから再開の時刻まで。再確認の時刻に補正したあとなので、現在までの経過も含む。
 	if ((resume - start > LIMIT_SECONDS)); then
 		printf '使用率の待ち: %s の待ちが通算 24 時間を超える。待ち始め: %s\n' "$process" "$start_text"
 		return 4
@@ -215,6 +222,7 @@ pick() {
 	if [[ -n $round ]]; then
 		# decide から呼ばれたときは、回から決めたスクワッドの名簿を使う。decide と同じ名簿にするため。
 		comments=$(squad_cli_read issue-comments "$issue") || return 1
+		pick_comments=$comments
 		squad=$(squad_cli_squad_for_round "$comments" "$round") || return 1
 		roster=$(squad_cli_read_roster "$issue" "$(jq -r .id <<<"$squad")") || return 1
 	else

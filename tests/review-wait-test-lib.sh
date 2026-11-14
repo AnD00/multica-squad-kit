@@ -150,7 +150,7 @@ round_time=$(jq -nr --argjson ts "$round_ts" '$ts | todateiso8601 | sub("Z$"; ".
 round_comments() {
 	fixture issue-comments agent | jq --arg a "$a" --arg b "$b" --arg time "$round_time" '. as $base | [$base + {
 		id: "round", author_type: "agent", author_id: "orchestrator", created_at: $time,
-		content: ("返事を待つ役: [@review](mention://agent/" + $a + ") [@qa](mention://agent/" + $b + ")")
+		content: ("返事を待つ役: [@review](mention://agent/" + $a + ") [@qa](mention://agent/" + $b + ")\n観点: qa（テスト）")
 	}]' >"$test_dir/comments.json"
 }
 
@@ -173,7 +173,7 @@ check_status() {
 # ここから report と proceed。回は 2 役（a, b）を待つ。
 
 # 回に、返事（result: /note 付き、plain-result: ふつう）、そろった知らせ（ready）、次へ回す記録（claim）を足したコメントの一覧を出す。
-# 引数は「種類:役:ID:回からの秒」。役は a、b、orch。種類に decide（決める記録）と next（次の依頼）もある。
+# 引数は「種類:役:ID:回からの秒」。役は a、b、orch。種類に decide（決める記録）と next（次の依頼の制御記録。修正の依頼）もある。
 build_comments() {
 	local spec kind who id sec content out
 	round_comments
@@ -187,13 +187,20 @@ build_comments() {
 		ready) content='返事がそろいました。' ;;
 		claim) content=$'/note\n返事の待ち: この回を次へ回します' ;;
 		decide) content=$'/note\n返事の待ち: 次の依頼を決めます' ;;
-		next) content=$'次の依頼です。\n前の回: round' ;;
+		next) content=$'修正の依頼: 直してください\n前の回: round' ;;
 		esac
 		out=$(jq --slurpfile comment "$test_dir/comment-prototype.json" --arg who "$who" --arg id "$id" --arg content "$content" \
 			--arg time "$(jq -nr --argjson ts "$((round_ts + sec))" '$ts | todateiso8601')" \
 			'. + [$comment[0] + {id: $id, author_type: "agent", author_id: $who, created_at: $time, content: $content}]' <<<"$out")
 	done
 	printf '%s\n' "$out"
+}
+
+# コメントを 1 件足した一覧を出す。引数は「ID 作者の ID 作者の種類 回からの秒 本文」。標準入力が一覧。
+with_raw() {
+	jq --slurpfile comment "$test_dir/comment-prototype.json" --arg id "$1" --arg who "$2" --arg type "$3" --arg content "$5" \
+		--arg time "$(jq -nr --argjson ts "$((round_ts + $4))" '$ts | todateiso8601')" \
+		'. + [$comment[0] + {id: $id, author_type: $type, author_id: $who, created_at: $time, content: $content}]'
 }
 
 posted_claim_count() {

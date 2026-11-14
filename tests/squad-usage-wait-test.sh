@@ -554,6 +554,29 @@ grep -qF 'タスクの担当がスクワッドではない' "$test_dir/err"
 cp "$test_dir/issue.saved.json" "$test_dir/issue.json"
 echo 'PASS usage-wait: 工程の役が名簿になければ、担当がスクワッドでなければ、終了 1'
 
+# ---- リセットを過ぎたのに使用率がまだ上限に近いとき。過去の時刻に起こしを置かず、60 分後の再確認にする。
+wait_setup -100
+run planner
+expect_status 3
+expect_out "$(wait_line planner $((now + 3600)) "$now")"
+[[ $(wakeup_count) == 1 ]]
+assert_jq --arg at "$(iso $((now + 3600)))" '(.args | index("--at") as $k | .[$k + 1]) == $at' "$test_dir/wakeups.jsonl"
+# 24 時間の判定は、再確認の時刻までの経過を含む。待ち始めから 24 時間までなら待ち、超えれば待たずに終了 4 にする。
+start=$((now - 82800))
+wait_setup -100
+add_comment agent orchestrator c1 "$start" "$(wait_line planner $((now - 100)) "$start")"
+run planner
+expect_status 3
+expect_out "$(wait_line planner $((now + 3600)) "$start")"
+start=$((now - 82900))
+wait_setup -100
+add_comment agent orchestrator c1 "$start" "$(wait_line planner $((now - 100)) "$start")"
+run planner
+expect_status 4
+expect_out "$(exceeded_line "$start")"
+[[ $(wakeup_count) == 0 ]]
+echo 'PASS usage-wait: リセットを過ぎても上限に近ければ、60 分後の再確認の時刻に起こしを置き、経過を 24 時間の判定に含める'
+
 # ---- 使い方の誤り。
 reset
 for bad in '' 'review' 'implement 中くらい' 'principal 小さな' 'principal Gemini' 'fix 小さな' 'planner Claude' 'implement 小さな 余分'; do

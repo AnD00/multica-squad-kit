@@ -1908,6 +1908,341 @@ squad_cli_squad_for_round() {
 	return 2
 }
 
+# 制御記録と認める回の判定。review-next・review-wait・pr-watch が同じ判定を使う（docs/review-next-step.md の「制御記録の読み方」）。
+# 名簿は読まない。リーダーの ID の一覧と、必要なら名簿の最上位の役の ID の一覧を、呼び出し側が渡す。
+# 標準入力に {comments, leaders, principals} を渡し、モードで出すものを変える。
+#   analyze: 各コメントの {rounds, controls, finals}。finals は principals があるときだけ。
+#   merge_requested <head>: その head のマージの依頼があれば yes、なければ no。
+#   state: 認める回のうち最も新しいものの状態（なければ何も出さない）。
+read -r -d '' SQUAD_CLI_CONTROL_PY <<'SQUADCLICONTROLPY' || true
+import calendar
+import json
+import re
+import sys
+
+mode = sys.argv[1]
+args = sys.argv[2:]
+data = json.load(sys.stdin)
+comments = [c for c in (data.get("comments") or []) if isinstance(c, dict) and c.get("id")]
+leaders = set(data.get("leaders") or [])
+principals = data.get("principals")
+
+ROUND = "返事を待つ役:"
+RESULT = "返事の回:"
+PREV = "前の回:"
+CLAIM = "返事の待ち: この回を次へ回します"
+DECIDE = "返事の待ち: 次の依頼を決めます"
+READY = "返事がそろいました"
+MAX_HOPS = 10
+WRITTEN = {"retry", "fix", "final", "merge", "human"}
+STAMP = re.compile(r"^(\d{4})-(\d\d)-(\d\d)[T ](\d\d):(\d\d):(\d\d)(?:\.(\d+))?\s*(Z|[+-]\d\d(?::?\d\d)?)?$")
+
+
+def stamp(text):
+    """時刻をナノ秒の整数にする。読めなければ 0。小数の桁数と Z・オフセットの形を問わない。"""
+    found = STAMP.match(str(text or "").strip())
+    if not found:
+        return 0
+    year, month, day, hour, minute, second = (int(found.group(k)) for k in range(1, 7))
+    value = calendar.timegm((year, month, day, hour, minute, second)) * 10**9
+    if found.group(7):
+        value += int(found.group(7).ljust(9, "0")[:9])
+    zone = found.group(8)
+    if zone and zone != "Z":
+        digits = zone[1:].replace(":", "")
+        offset = int(digits[:2]) * 3600 + (int(digits[2:4]) * 60 if len(digits) >= 4 else 0)
+        value -= (-1 if zone[0] == "-" else 1) * offset * 10**9
+    return value
+
+
+def parse(comment):
+    """行の置き方を満たす行（placed）と、囲みや引用を問わない全部の行（every）を返す。"""
+    placed, every, fence = [], [], None
+    for raw in (comment.get("content") or "").split("\n"):
+        line = raw.rstrip()
+        if line == "/note":
+            continue
+        if line.startswith("/note "):
+            line = line[6:].rstrip()
+        every.append(line)
+        head = line.lstrip()[:3]
+        if fence is not None:
+            bare = line.strip()
+            if len(bare) >= 3 and set(bare) == {fence}:
+                fence = None
+            continue
+        if head in ("```", "~~~"):
+            fence = head[0]
+            continue
+        if line and not line[0].isspace() and not line.startswith(">"):
+            placed.append(line)
+    return placed, every
+
+
+parsed = {}
+for comment in comments:
+    placed, every = parse(comment)
+    parsed[comment["id"]] = {
+        "agent": comment.get("author_type") == "agent",
+        "author": comment.get("author_id"),
+        "placed": placed,
+        "every": every,
+        "ns": stamp(comment.get("created_at")),
+        "first_line": (comment.get("content") or "").split("\n")[0],
+    }
+order = sorted(range(len(comments)), key=lambda k: (parsed[comments[k]["id"]]["ns"], k))
+sequence = [comments[k]["id"] for k in order]
+pos = {key: rank for rank, key in enumerate(sequence)}
+
+
+def field(i, prefix):
+    for line in parsed[i]["placed"]:
+        if line.startswith(prefix):
+            return line[len(prefix):].strip()
+    return None
+
+
+def has(i, prefix):
+    return any(line.startswith(prefix) for line in parsed[i]["placed"])
+
+
+def is_result(i):
+    # 結果の行は囲みの中でも読む。囲みを閉じない結果で、結果でないものとして扱われないようにするため。
+    return any(line.startswith(RESULT) for line in parsed[i]["every"])
+
+
+def prev_of(i):
+    """(`前の回:` の指す ID か None, 行があるか)。行は `前の回: <ID>` のとおりに完全に一致するものだけ。"""
+    for line in parsed[i]["placed"]:
+        if line.startswith(PREV):
+            found = re.fullmatch(r"前の回: (\S+)", line)
+            return (found.group(1) if found else None), True
+    return None, False
+
+
+def mentions(i):
+    for line in parsed[i]["placed"]:
+        if line.startswith(ROUND):
+            return re.findall(r"mention://agent/([A-Za-z0-9-]+)", line)
+    return []
+
+
+def waited(i):
+    found = []
+    for value in mentions(i):
+        if value not in found:
+            found.append(value)
+    return found
+
+
+def round_kind(i):
+    value = field(i, "見直しの種類:")
+    if value is not None:
+        if value.startswith("最終レビュー"):
+            return "final"
+        if value.startswith(("設計の見直し", "設計と PR の見直し")):
+            return "design"
+        return "unknown"
+    if has(i, "観点:") or has(i, "コミットが合わず頼み直す役:"):
+        return "review"
+    return "unknown"
+
+
+def control_kind(i):
+    if has(i, "コミットが合わず頼み直す役:"):
+        return "retry"
+    if has(i, "修正の依頼:"):
+        return "fix"
+    if has(i, "見直しの種類: 最終レビュー"):
+        return "final"
+    if has(i, "マージの依頼:"):
+        return "merge"
+    usage = [line for line in parsed[i]["placed"] if line.startswith("使用率の待ち:")]
+    if usage:
+        return "human" if any("24 時間を超える" in line for line in usage) else "usage"
+    if has(i, "マージの前の CI の待ち:"):
+        return "ci"
+    return None
+
+
+decide_cache = {}
+
+
+def decide_role(i):
+    """回の決める実行の役: (作者の ID, 決める記録のコメント)。回の返事を待つ役が、回より後に書いた最も早い決める記録。"""
+    if i not in decide_cache:
+        roles = waited(i)
+        records = sorted(
+            (parsed[j]["ns"], j) for j in sequence
+            if parsed[j]["agent"] and parsed[j]["author"] in roles and pos[j] > pos[i]
+            and not is_result(j) and has(j, DECIDE)
+        )
+        decide_cache[i] = (parsed[records[0][1]]["author"], records[0][1]) if records else None
+    return decide_cache[i]
+
+
+recognize_cache = {}
+control_cache = {}
+
+
+def recognize(i):
+    """認める回か。(はい・いいえ, 当たらなかった条件, 連鎖の長さ)。"""
+    if i not in recognize_cache:
+        recognize_cache[i] = (False, "回をたどる途中で循環した", 0)
+        recognize_cache[i] = recognize_now(i)
+    return recognize_cache[i]
+
+
+def recognize_now(i):
+    data_i = parsed[i]
+    if not data_i["agent"]:
+        return False, "作者がエージェントでない", 0
+    if not waited(i):
+        return False, "返事を待つ役: の行が行の置き方を満たさないか、エージェントのメンションがない", 0
+    if is_result(i):
+        return False, "返事の回: の行がある（役の結果）", 0
+    if data_i["author"] in leaders:
+        return True, "", 0
+    pid, present = prev_of(i)
+    if pid is None:
+        return False, "作者がリーダーでなく、前の回: の行が" + ("読めない" if present else "ない"), 0
+    ctl = control(i)
+    if ctl["kind"] not in ("retry", "final") or ctl.get("role") != "decide":
+        return False, ctl["reason"] or "頼み直しか最終レビューの依頼の制御記録でない", 0
+    hops = recognize(pid)[2] + 1
+    if hops > MAX_HOPS:
+        return False, f"前の回を {MAX_HOPS} 回までにたどりきれない", hops
+    return True, "", hops
+
+
+def control(i):
+    """制御記録の条件のすべてを確かめる。{kind, prev, role, reason}。kind が None なら制御記録でない。"""
+    if i not in control_cache:
+        control_cache[i] = control_now(i)
+    return control_cache[i]
+
+
+def control_now(i):
+    def no(reason):
+        return {"kind": None, "reason": reason}
+
+    data_i = parsed[i]
+    if not data_i["agent"]:
+        return no("作者がエージェントでない")
+    if is_result(i):
+        return no("返事の回: の行がある（役の結果）")
+    pid, present = prev_of(i)
+    if pid is None:
+        return no("前の回: の行が" + ("読めない" if present else "ない"))
+    if pid not in parsed:
+        return no("前の回: が同じタスクのコメントを指さない")
+    kind = control_kind(i)
+    if kind is None:
+        return no("制御記録の種類を示す行がない")
+    if pos[i] <= pos[pid]:
+        return no("指す回より後に書かれていない")
+    ok, why, _ = recognize(pid)
+    if not ok:
+        return no(f"指す回を認められない（{why}）")
+    if round_kind(pid) not in ("review", "final"):
+        return no("指す回がレビューと E2E の回でも最終レビューの回でもない")
+    if data_i["author"] in leaders:
+        return {"kind": kind, "prev": pid, "role": "leader", "reason": ""}
+    role = decide_role(pid)
+    if role is None or role[0] != data_i["author"]:
+        return no("作者が指す回の決める実行の役でもリーダーでもない")
+    if pos[i] <= pos[role[1]]:
+        return no("決める記録より後に書かれていない")
+    return {"kind": kind, "prev": pid, "role": "decide", "reason": ""}
+
+
+def final_check(i):
+    """最終レビューの回の候補が、認める条件に当たるか。(はい・いいえ, 当たらなかった条件)。"""
+    author = parsed[i]["author"]
+    pid, present = prev_of(i)
+    role = decide_role(pid) if pid in parsed else None
+    if author not in leaders and not (role and author == role[0] and pos[i] > pos[role[1]]):
+        return False, "作者がリーダーでも前の回の決める実行の役でもない"
+    if pid is None or pid not in parsed:
+        return False, "前の回: の行がないか、同じタスクのコメントを指さない"
+    ok, why, _ = recognize(pid)
+    if not ok or round_kind(pid) != "review" or pos[i] <= pos[pid]:
+        return False, "前の回がレビューと E2E の認める回でないか、前の回より後に書かれていない"
+    found = mentions(i)
+    if len(found) != 1 or found[0] not in principals:
+        return False, "返事を待つ役が名簿の最上位の役 1 つだけでない"
+    commit = field(i, "確認するコミット:")
+    if not commit or commit != field(pid, "確認するコミット:"):
+        return False, "確認するコミット: が前の回と違う"
+    ok, why, _ = recognize(i)
+    if not ok:
+        return False, f"回として認められない（{why}）"
+    return True, ""
+
+
+def emit(value):
+    print(json.dumps(value, ensure_ascii=False, separators=(",", ":")))
+
+
+if mode == "analyze":
+    rounds, controls, finals = {}, [], {}
+    for i in sequence:
+        ok, why, _ = recognize(i)
+        pid, present = prev_of(i)
+        rounds[i] = {
+            "ok": ok, "reason": why, "kind": round_kind(i), "waited": waited(i),
+            "prev": pid, "prev_line": present, "has_kind_line": field(i, "見直しの種類:") is not None,
+        }
+        ctl = control(i)
+        if ctl["kind"]:
+            controls.append({"id": i, "prev": ctl["prev"], "kind": ctl["kind"], "role": ctl["role"], "written": ctl["kind"] in WRITTEN})
+        if principals is not None and parsed[i]["agent"] and not is_result(i) and (field(i, "見直しの種類:") or "").startswith("最終レビュー"):
+            ok, why = final_check(i)
+            finals[i] = {"ok": ok, "reason": why, "commit": field(i, "確認するコミット:")}
+    emit({"rounds": rounds, "controls": controls, "finals": finals})
+elif mode == "merge_requested":
+    want = "マージの依頼: " + args[0]
+    for i in sequence:
+        if not parsed[i]["agent"] or is_result(i) or want not in parsed[i]["placed"]:
+            continue
+        if parsed[i]["author"] in leaders or control(i)["kind"] == "merge":
+            print("yes")
+            sys.exit(0)
+    print("no")
+elif mode == "state":
+    found = [i for i in sequence if parsed[i]["agent"] and recognize(i)[0]]
+    if found:
+        r = found[-1]
+        roles = sorted(set(waited(r)))
+        after = [j for j in sequence if pos[j] > pos[r]]
+        agents = [j for j in after if parsed[j]["agent"]]
+        records = sorted((parsed[j]["ns"], j) for j in agents if parsed[j]["author"] in roles and not is_result(j) and has(j, DECIDE))
+        sort = lambda ids: [j for _, j in sorted((parsed[j]["ns"], j) for j in ids)]
+        ready_ids = sort(j for j in agents if READY in parsed[j]["first_line"])
+        emit({
+            "id": r, "author_id": parsed[r]["author"], "ts": parsed[r]["ns"] / 1e9, "waiting": roles,
+            "returned": sorted({parsed[j]["author"] for j in agents if parsed[j]["author"] in roles}),
+            "ready_ids": ready_ids,
+            "claim_ids": sort(j for j in agents if not is_result(j) and has(j, CLAIM)),
+            "decide_ids": [j for _, j in records],
+            "decide_ts": records[0][0] / 1e9 if records else None,
+            "next_ids": sort(j for j in agents if control(j)["kind"] and control(j)["prev"] == r),
+            "ready": bool(ready_ids),
+        })
+else:
+    print("mode が不正", file=sys.stderr)
+    sys.exit(1)
+SQUADCLICONTROLPY
+
+# squad_cli_control <モード> <コメントの JSON> <リーダーの ID の JSON 配列> <最上位の役の ID の JSON 配列か null> [<モードの引数>...]
+squad_cli_control() {
+	local mode=$1 comments=$2 leaders=$3 principals=$4
+	shift 4
+	jq -c --argjson leaders "$leaders" --argjson principals "$principals" \
+		'{comments: ., leaders: $leaders, principals: $principals}' <<<"$comments" \
+		| python3 -I -c "$SQUAD_CLI_CONTROL_PY" "$mode" "$@"
+}
+
 # 呼び出したリーダー（MULTICA_AGENT_ID）がリーダーのスクワッドの名簿を読む。回のコメントがない直接の呼び出し（request と pick）が使う。
 # タスクの担当がメンバーでも、オートパイロットのタスクでも、呼び出したリーダーのスクワッドで読める。
 # MULTICA_AGENT_ID がないか、そのエージェントがどのスクワッドのリーダーでもない（候補が 0 件・複数）ときだけ、タスクの担当のスクワッドへ戻る。

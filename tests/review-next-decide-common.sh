@@ -192,7 +192,9 @@ all_ok() { # 回の ID コミット 役...
 	shift 2
 	for role; do result "$round" "$role" ✅ "$commit" なし; done
 }
+# 最終レビューの回は、レビューの回を指す。指す回がまだなければ、同じコミットのレビューの回をリーダーが書いたものとして足す。
 final_round() { # 回の ID コミット 前の回 [範囲]
+	jq -e --arg id "$3" 'any(.[]; .id == $id)' "$test_dir/comments.json" >/dev/null || review_round "$3" "$2" code-reviewer qa
 	add "$1" orchestrator "見直しの種類: 最終レビュー"$'\n'"確認するコミット: $2"$'\n'"見る範囲: ${4-PR の差分全体}"$'\n'"返事を待つ役: $(mentions claude-principal)"$'\n'"$principal_line"$'\n'"前の回: $3"$'\n'"対象の PR: ${pr_url}"
 }
 posted_body() { jq -rs '.[0].body' "$test_dir/posted.jsonl"; }

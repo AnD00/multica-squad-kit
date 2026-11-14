@@ -270,20 +270,40 @@ wait_output "CI $head: マージを依頼済み"
 assert_cleared
 echo 'PASS ci-wait: 待ちの記録がなくても、リーダーの今の完全な head の行で依頼済みとする'
 
-# `decide` が書くマージの依頼の作者は返事を書いた役なので、`前の回:` の行を持つエージェントのコメントも依頼済みとする。
-for record in agent-round agent-old-head agent-no-round agent-round-only; do
+# `decide` が書くマージの依頼は、制御記録（決める実行の役が書き、認める回を指し、回と決める記録より後）のときだけ依頼済みと読む。
+# 回 final-1 はリーダーが書いた最終レビューの回で、最上位の役 principal を待つ。決める記録 decide-1 は principal が書く。
+requested_chain() {
+	local author=$1 type=$2 at=$3 text=$4
+	jq --slurpfile base "$test_dir/comment-prototype.json" --arg author "$author" --arg type "$type" --arg at "$at" --arg text "$text" -n '
+		def c($id; $who; $kind; $time; $body): $base[0] + {id: $id, author_id: $who, author_type: $kind, created_at: $time, content: $body};
+		[c("final-1"; "orchestrator"; "agent"; "2026-01-01T00:00:00Z";
+			"見直しの種類: 最終レビュー\n確認するコミット: abcdef0\n返事を待つ役: [@p](mention://agent/principal)"),
+		c("decide-1"; "principal"; "agent"; "2026-01-01T00:01:00Z"; "/note\n返事の待ち: 次の依頼を決めます"),
+		c("merge-1"; $author; $type; $at; $text)]' >"$test_dir/comments.json"
+}
+for record in agent-round agent-old-head agent-no-round agent-round-only quote fence result human other-author early unknown-round; do
 	wait_fixture
 	old_wait
+	text=$(printf 'マージの依頼: %s\n前の回: final-1' "$head")
+	author=principal type=agent at=2026-01-01T00:02:00Z
 	case $record in
-	agent-round) requested principal "$(printf 'マージの依頼: %s\n前の回: final-1' "$head")" ;;
-	agent-old-head) requested principal "$(printf 'マージの依頼: 1234567\n前の回: final-1')" ;;
-	agent-no-round) requested principal "マージの依頼: $head" ;;
-	agent-round-only) requested principal "前の回: final-1" ;;
+	agent-round) ;;
+	agent-old-head) text=$(printf 'マージの依頼: 1234567\n前の回: final-1') ;;
+	agent-no-round) text="マージの依頼: $head" ;;
+	agent-round-only) text='前の回: final-1' ;;
+	quote) text=$(printf '> マージの依頼: %s\n> 前の回: final-1' "$head") ;;
+	fence) text=$(printf '```\nマージの依頼: %s\n前の回: final-1\n```' "$head") ;;
+	result) text=$(printf 'マージの依頼: %s\n前の回: final-1\n返事の回: final-1' "$head") ;;
+	human) type=member ;;
+	other-author) author=fixer ;;
+	early) at=2026-01-01T00:00:30Z ;;
+	unknown-round) text=$(printf 'マージの依頼: %s\n前の回: nowhere' "$head") ;;
 	esac
+	requested_chain "$author" "$type" "$at" "$text"
 	if [[ $record == agent-round ]]; then wait_output "CI $head: マージを依頼済み"; assert_cleared
 	else wait_output "CI $head: 実行中"; fi
 done
-echo 'PASS ci-wait: 前の回の行を持つエージェントのコメントのマージの依頼も、依頼済みとする'
+echo 'PASS ci-wait: マージの依頼の制御記録だけを依頼済みとし、引用・囲み・結果・人間・別の作者・回より前・認めない回を指す行は読まない'
 
 wait_fixture
 old_wait

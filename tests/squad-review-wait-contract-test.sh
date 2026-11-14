@@ -130,7 +130,8 @@ for selection in none archived other-leader duplicate missing-name cli; do
 	if bash "$script" report test-issue trigger "$test_dir/result.md" >"$test_dir/output" 2>"$test_dir/error"; then exit 1; fi
 	[[ ! -s $test_dir/output && ! -s $test_dir/posted.jsonl && -z $(slept) ]]
 	case $selection in
-	none|archived|other-leader) [[ $(<"$test_dir/error") == *'どのスクワッドのリーダーでもなく'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
+	# 有効なスクワッドのリーダーが書いていない回は認める回でないので、回がないときと同じに止まる。
+	none|archived|other-leader) [[ $(<"$test_dir/error") == *'返事を待つ役の登録がありません'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
 	duplicate) [[ $(<"$test_dir/error") == *'2 件'* && $(<"$test_dir/error") == *'orchestrator'* ]] ;;
 	missing-name) [[ $(<"$test_dir/error") == *'squad-list の name'* ]] ;;
 	cli) [[ $(<"$test_dir/error") == 'CLI mock failure' ]] ;;
